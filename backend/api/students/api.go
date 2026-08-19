@@ -205,6 +205,13 @@ func (rs *Resource) Router() chi.Router {
 		// permission counts excused requests and nothing else.
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
 
+		// Aggregated Eltern request list (#2432): all four queues as ONE list
+		// (open or history) with search, filters and keyset pagination. Same
+		// route gate as the badge; inside, an absence-only caller is narrowed
+		// to the excused queue — the only one whose per-type routes accept
+		// users:absence.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests", rs.listAggregatedChangeRequests)
+
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
 
