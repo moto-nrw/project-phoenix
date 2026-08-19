@@ -162,6 +162,40 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 	return session, nil
 }
 
+// ListOverlappingByStaffID returns every block of a staff member whose
+// [check-in, check-out) interval intersects the given interval. A nil "to"
+// means the candidate interval is open-ended, so every block reaching past
+// "from" intersects it; an open sibling (check_out_time IS NULL) runs to
+// infinity and intersects anything starting after its check-in.
+//
+// The comparison runs on the timestamps, never on the date column: a block is
+// filed on the day of its check-in but may reach into the following days, so a
+// date window would miss exactly the blocks that overlap across midnight.
+func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*active.WorkSession, error) {
+	var sessions []*active.WorkSession
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&sessions).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id = ?`, staffID).
+		Where(`"work_session".check_out_time IS NULL OR "work_session".check_out_time > ?`, from).
+		OrderExpr(`"work_session".check_in_time ASC`)
+
+	if to != nil {
+		query = query.Where(`"work_session".check_in_time < ?`, *to)
+	}
+
+	query = base.WithTenantFilter(ctx, query, "work_session")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list overlapping by staff ID",
+			Err: err,
+		}
+	}
+
+	return sessions, nil
+}
+
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
 func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession

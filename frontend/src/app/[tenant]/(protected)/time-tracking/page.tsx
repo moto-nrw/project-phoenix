@@ -2047,10 +2047,14 @@ function WeekChart({
         if (session.checkOutTime) {
           netMins += session.netMinutes;
         } else if (
-          isSameDay(day, today) &&
           currentSession &&
-          !currentSession.checkOutTime
+          !currentSession.checkOutTime &&
+          (currentSession.id === session.id || isSameDay(day, today))
         ) {
+          // The running block counts on the bar of the day it is filed on —
+          // which is yesterday's once it was opened before Berlin midnight.
+          // Matching it by id keeps its elapsed time visible there instead of
+          // dropping to zero while the clock card still says "eingestempelt".
           const elapsed = Math.floor(
             (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
           );

@@ -177,6 +177,79 @@ func TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected(t *testing.T) {
 	}
 }
 
+// TestWorkSessionRepository_ListOverlappingByStaffID pins the overlap lookup
+// behind the #2402 block guard. It compares timestamps, not the date column,
+// so a block filed days earlier that still runs into the candidate interval is
+// part of the answer — a date window would miss exactly that case.
+func TestWorkSessionRepository_ListOverlappingByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).WorkSession
+	scope := testpkg.NewTenantScope(t, db)
+	ctx := scope.Context()
+
+	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Overlap", "Lookup")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+
+	today := timezone.TodayDate()
+	base := today.BerlinMidnight()
+	at := func(dayOffset, hour int) time.Time {
+		return base.AddDate(0, 0, dayOffset).Add(time.Duration(hour) * time.Hour)
+	}
+	create := func(date timezone.Date, checkIn time.Time, checkOut *time.Time) *active.WorkSession {
+		s := &active.WorkSession{
+			StaffID:      staff.ID,
+			Date:         date,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  checkIn,
+			CheckOutTime: checkOut,
+			CreatedBy:    staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, s))
+		return s
+	}
+
+	morningEnd := at(0, 12)
+	morning := create(today, at(0, 8), &morningEnd)
+	defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", morning.ID)
+	// Opened three days ago and never closed (a missed auto-checkout).
+	stale := create(today.AddDays(-3), at(-3, 9), nil)
+	defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", stale.ID)
+
+	t.Run("finds the block a closed candidate runs into", func(t *testing.T) {
+		to := at(0, 14)
+		found, err := repo.ListOverlappingByStaffID(ctx, staff.ID, at(0, 11), &to)
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(found))
+		for _, s := range found {
+			ids = append(ids, s.ID)
+		}
+		assert.Contains(t, ids, morning.ID)
+		assert.Contains(t, ids, stale.ID, "an open block from days ago still overlaps")
+	})
+
+	t.Run("ignores a block that only touches the candidate", func(t *testing.T) {
+		to := at(0, 16)
+		found, err := repo.ListOverlappingByStaffID(ctx, staff.ID, at(0, 12), &to)
+		require.NoError(t, err)
+		for _, s := range found {
+			assert.NotEqual(t, morning.ID, s.ID, "12:00 starts exactly where the morning block ends")
+		}
+	})
+
+	t.Run("an open candidate reaches every later block", func(t *testing.T) {
+		found, err := repo.ListOverlappingByStaffID(ctx, staff.ID, at(0, 13), nil)
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(found))
+		for _, s := range found {
+			ids = append(ids, s.ID)
+		}
+		assert.NotContains(t, ids, morning.ID, "the morning block ended before 13:00")
+		assert.Contains(t, ids, stale.ID)
+	})
+}
+
 func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

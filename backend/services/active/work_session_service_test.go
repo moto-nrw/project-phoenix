@@ -46,6 +46,7 @@ type wsMockWorkSessionRepository struct {
 	getCurrentForUpdateFunc            func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	lockOpenByIDFunc                   func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc            func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	listOverlappingByStaffIDFunc       func(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
 	getHistoryByStaffIDsFunc           func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
 	getOpenSessionsFunc                func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc            func(ctx context.Context) (map[int64]string, error)
@@ -153,6 +154,13 @@ func (m *wsMockWorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context,
 func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
+	}
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+	if m.listOverlappingByStaffIDFunc != nil {
+		return m.listOverlappingByStaffIDFunc(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
@@ -3528,11 +3536,29 @@ func wsClosedBlock(id int64, day timezone.Date, fromHour, toHour int) *activeMod
 	}
 }
 
+// wsOverlapping reproduces the SQL predicate of ListOverlappingByStaffID so a
+// mocked repository answers the overlap query the way PostgreSQL does: a
+// sibling intersects [from, to) unless it ends before it starts or starts
+// after it ends. A nil `to` means the candidate runs open-ended.
+func wsOverlapping(sessions []*activeModels.WorkSession, from time.Time, to *time.Time) []*activeModels.WorkSession {
+	var out []*activeModels.WorkSession
+	for _, s := range sessions {
+		if s.CheckOutTime != nil && !s.CheckOutTime.After(from) {
+			continue
+		}
+		if to != nil && !to.After(s.CheckInTime) {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 func TestWSCreateSessionAsAdmin_RejectsOverlappingBlock(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	day := timezone.NewDate(2026, 8, 17)
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{wsClosedBlock(1, day, 8, 12)}, nil
 	}
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
@@ -3555,8 +3581,10 @@ func TestWSCreateSessionAsAdmin_AllowsTouchingBlock(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	day := timezone.NewDate(2026, 8, 17)
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
-		return []*activeModels.WorkSession{wsClosedBlock(1, day, 8, 12)}, nil
+	// The repository answers the overlap question itself, so a touching block
+	// (08:00–12:00 vs a 12:00 start) is simply not part of the result.
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, day, 8, 12)}, from, to), nil
 	}
 	created := false
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -3591,8 +3619,8 @@ func TestWSCheckIn_RejectsOverlapWithClosedFutureBlock(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	svc.nowFunc = func() time.Time { return now }
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
-		return []*activeModels.WorkSession{wsClosedBlock(1, day, 8, 16)}, nil
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, day, 8, 16)}, from, to), nil
 	}
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a check-in inside a closed block must not be created")
@@ -3605,8 +3633,8 @@ func TestWSCheckIn_RejectsOverlapWithClosedFutureBlock(t *testing.T) {
 }
 
 // A block is filed on the day of its check-in, so a night block dated
-// yesterday runs into this morning. Comparing only same-date rows would let a
-// check-in during those hours slip into an interval that is already counted.
+// yesterday runs into this morning. The lookup asks for the candidate's own
+// interval, not for a date window, so the night block is part of the answer.
 func TestWSCheckIn_RejectsOverlapWithNightBlockOfTheDayBefore(t *testing.T) {
 	now := time.Date(2026, time.August, 18, 1, 0, 0, 0, timezone.Berlin)
 	yesterday := timezone.NewDate(2026, 8, 17)
@@ -3618,10 +3646,11 @@ func TestWSCheckIn_RejectsOverlapWithNightBlockOfTheDayBefore(t *testing.T) {
 	night := wsClosedBlock(1, yesterday, 22, 23)
 	night.CheckOutTime = &nightEnd
 
-	var from, to timezone.Date
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, f, t2 timezone.Date) ([]*activeModels.WorkSession, error) {
-		from, to = f, t2
-		return []*activeModels.WorkSession{night}, nil
+	var askedFrom time.Time
+	var askedTo *time.Time
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		askedFrom, askedTo = from, to
+		return wsOverlapping([]*activeModels.WorkSession{night}, from, to), nil
 	}
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a check-in inside yesterday's night block must not be created")
@@ -3631,37 +3660,71 @@ func TestWSCheckIn_RejectsOverlapWithNightBlockOfTheDayBefore(t *testing.T) {
 	_, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "work session overlaps an existing block")
-	assert.Equal(t, yesterday, from, "the overlap window has to reach back one day")
-	assert.Equal(t, timezone.NewDate(2026, 8, 18), to)
+	assert.True(t, askedFrom.Equal(now), "the check-in stamp is the lower bound")
+	assert.Nil(t, askedTo, "a fresh check-in has no end yet")
 }
 
-// The mirrored case: a Nachtrag that itself ends after midnight has to be
-// compared against the following day's blocks too.
-func TestWSCreateSessionAsAdmin_OverlapWindowCoversTheEndDay(t *testing.T) {
+// A block that started days earlier still overlaps: an auto-checkout that
+// never ran leaves an open block hanging, and a date window sized "one day
+// back" would not see it. The lookup is bounded by the candidate's interval,
+// not by a fixed number of days.
+func TestWSCreateSessionAsAdmin_RejectsOverlapWithBlockFromDaysBefore(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+
+	// Opened three days before the Nachtrag and never closed.
+	stale := wsClosedBlock(1, timezone.NewDate(2026, 8, 14), 8, 12)
+	stale.CheckOutTime = nil
+
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{stale}, from, to), nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a Nachtrag inside a still-open block must not be created")
+		return nil
+	}
+
+	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
+		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  time.Date(2026, time.August, 17, 9, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: time.Date(2026, time.August, 17, 12, 0, 0, 0, timezone.Berlin),
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Nachtrag",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+// The mirrored case: a Nachtrag that itself ends after midnight is compared
+// against the following day's blocks too — its own end is the upper bound.
+func TestWSCreateSessionAsAdmin_OverlapCoversTheEndDay(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	tomorrow := timezone.NewDate(2026, 8, 18)
 
-	var from, to timezone.Date
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, f, t2 timezone.Date) ([]*activeModels.WorkSession, error) {
-		from, to = f, t2
-		return []*activeModels.WorkSession{wsClosedBlock(1, tomorrow, 1, 6)}, nil
+	var askedFrom time.Time
+	var askedTo *time.Time
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		askedFrom, askedTo = from, to
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, tomorrow, 1, 6)}, from, to), nil
 	}
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a Nachtrag running into an existing early block must not be created")
 		return nil
 	}
 
+	checkIn := time.Date(2026, time.August, 17, 22, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2026, time.August, 18, 3, 0, 0, 0, timezone.Berlin)
 	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
 		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
-		CheckInTime:  time.Date(2026, time.August, 17, 22, 0, 0, 0, timezone.Berlin),
-		CheckOutTime: time.Date(2026, time.August, 18, 3, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  checkIn,
+		CheckOutTime: checkOut,
 		Status:       activeModels.WorkSessionStatusPresent,
 		Notes:        "Nachtschicht",
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "work session overlaps an existing block")
-	assert.Equal(t, timezone.NewDate(2026, 8, 16), from)
-	assert.Equal(t, tomorrow, to, "the window has to reach the day the block ends on")
+	assert.True(t, askedFrom.Equal(checkIn))
+	require.NotNil(t, askedTo)
+	assert.True(t, askedTo.Equal(checkOut), "the lookup reaches to the block's own end")
 }
 
 func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
@@ -3674,8 +3737,8 @@ func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
 		return edited, nil
 	}
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
-		return []*activeModels.WorkSession{sibling, edited}, nil
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{sibling, edited}, from, to), nil
 	}
 	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("an update that overlaps a sibling block must not be persisted")

@@ -503,7 +503,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	// yesterday that ran into this morning). A new block starting inside that
 	// interval would double-count the overlap in every sum built from the
 	// day's rows, so it is rejected like any other overlap.
-	if err := s.assertNoBlockOverlap(ctx, staffID, stampDay, 0, now, nil); err != nil {
+	if err := s.assertNoBlockOverlap(ctx, staffID, 0, now, nil); err != nil {
 		return nil, err
 	}
 
@@ -1202,8 +1202,8 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
-	// Edited times must not slide into a sibling block of the same day.
-	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.Date, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
+	// Edited times must not slide into a sibling block.
+	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
 		return nil, err
 	}
 
@@ -1257,7 +1257,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	date := timezone.DateFromTime(req.Date)
 	// A day can carry several blocks since #2402, so the Nachtrag no longer
 	// collides with an existing session per se — but it must not overlap one.
-	if err := s.assertNoBlockOverlap(ctx, targetStaffID, date, 0, req.CheckInTime, &checkOut); err != nil {
+	if err := s.assertNoBlockOverlap(ctx, targetStaffID, 0, req.CheckInTime, &checkOut); err != nil {
 		return nil, err
 	}
 	session := &activeModels.WorkSession{
@@ -1323,22 +1323,14 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 // Touching boundaries (one block ends exactly when the next starts) are
 // allowed; an open sibling block occupies [check-in, ∞).
 //
-// The comparison deliberately reaches beyond the candidate's own date: a
-// block is filed on the day of its check-in, so a night block dated yesterday
-// runs into today, and a block starting late today can end tomorrow. Loading
-// only same-date rows would let two blocks share the small hours undetected.
-// The window is therefore the day before the candidate through the day its
-// own end falls on — a sibling that starts after the candidate ends cannot
-// overlap it, and an open candidate is bounded by its own date because
-// nothing later than "now" exists for it yet.
-func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, date timezone.Date, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
-	to := date
-	if checkOut != nil {
-		if endDay := timezone.DateFromTime(*checkOut); endDay.After(to) {
-			to = endDay
-		}
-	}
-	siblings, err := s.repo.GetHistoryByStaffID(ctx, staffID, date.AddDays(-1), to)
+// The siblings are selected by their timestamps, not by the date column: a
+// block is filed on the day of its check-in but may reach into later days (a
+// night block, an auto-checkout that never ran, an admin Nachtrag reaching
+// into tomorrow). Any date window — even a generous one — would miss a block
+// that started days earlier and is still running, so the query asks the
+// database for exactly the intersecting rows instead.
+func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, checkIn, checkOut)
 	if err != nil {
 		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
 	}

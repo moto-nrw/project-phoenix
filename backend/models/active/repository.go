@@ -337,6 +337,12 @@ type WorkSessionRepository interface {
 	// LockOpenByIDForUpdate returns and locks an open session row by ID.
 	LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error)
 
+	// ListOverlappingByStaffID returns the blocks of a staff member whose
+	// [check-in, check-out) interval intersects [from, to). A nil "to" means
+	// the interval is open-ended. Timestamp-based on purpose: a block can
+	// reach past the day it is filed on (#2402).
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
+
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
 
