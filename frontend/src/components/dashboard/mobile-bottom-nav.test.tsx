@@ -249,6 +249,20 @@ describe("MobileBottomNav", () => {
       const spacer = container.querySelector(".h-16");
       expect(spacer).toBeInTheDocument();
     });
+
+    it("prefixes the Anfragen overflow link in path-routing mode", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "vacation:approve",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/anfragen",
+      );
+    });
   });
 
   describe("active route detection", () => {

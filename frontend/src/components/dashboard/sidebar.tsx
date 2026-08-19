@@ -25,7 +25,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
-import { canReviewChangeRequests } from "~/lib/change-request-access";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -171,6 +171,17 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-moto-green",
     requiresPermission: "users:read",
+  },
+  {
+    // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+    // Mitarbeitenden an einem Ort. Sichtbarkeit hängt an zwei getrennten
+    // Rechte-Regeln (Eltern-Reiter bzw. Mitarbeitende-Reiter) — Gating unten
+    // in filteredNavItems über canOpenRequestsPage, weil requiresPermission
+    // das users:absence+users:read-Paar nicht ausdrücken kann.
+    ...STAFF_FLAT_PAGES.anfragen,
+    icon: navigationIcons.tray,
+    concept: "requests",
+    activeColor: "text-moto-blue",
   },
   {
     href: "#",
@@ -381,7 +392,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
@@ -418,6 +429,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
+  const requestsPendingCount =
+    changeRequestsPendingCount + staffAbsencesPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -533,10 +546,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return true;
           case "approvals":
             return userIsAdmin;
-          case "changeRequests":
-            // users:absence alone opens the page too — it carries the excused
-            // absence queue, which that permission decides (#2232).
-            return canReviewChangeRequests(session);
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "mealPlan":
@@ -549,14 +558,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Aggregate Eltern badge: unread messages plus pending change requests when
-  // the corresponding sub-page is visible.
-  const parentShowsChangeRequests = parentSubPages.some(
-    (page) => page.feature === "changeRequests",
-  );
-  const parentSectionBadgeCount =
-    messagesUnreadCount +
-    (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
+  // Eltern badge: unread messages. Die Elternanfragen zählen seit #2429 am
+  // Top-Level-Eintrag "Anfragen", nicht mehr hier.
+  const parentSectionBadgeCount = messagesUnreadCount;
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
@@ -564,6 +568,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // matches class_day:read, but admins have no class assignments and the
     // page would render empty for them.
     if (item.href === "/klassen") return userIsLehrkraft;
+    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
+    // deckt users:update, das Paar users:absence+users:read und
+    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -771,7 +779,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href}
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -784,6 +792,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <UnreadBadge
                 count={suggestionsUnreadCount}
                 tone="feedback"
+                className="ml-2"
+              />
+            )}
+            {item.href === "/anfragen" && (
+              <NotificationBadge
+                count={requestsPendingCount}
+                tone="staff"
+                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
                 className="ml-2"
               />
             )}
@@ -1229,8 +1245,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
             renderNavItem(substitutionsItem)}
 
           {/* Eltern accordion — bundles the parent-communication surfaces
-              (Nachrichten, Anfragen, Mitteilungen, Essensplan) behind an
-              overview hub. Shown to all staff; sub-items are gated per item. */}
+              (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
+              overview hub. Shown to all staff; sub-items are gated per item.
+              Die Elternanfragen leben seit #2429 im Top-Level-Modul
+              "Anfragen". */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
             concept="parents"
@@ -1258,11 +1276,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 label={page.label}
                 isActive={activeParentSubPageHref === page.href}
                 badgeCount={
-                  page.feature === "messages"
-                    ? messagesUnreadCount
-                    : page.feature === "changeRequests"
-                      ? changeRequestsPendingCount
-                      : 0
+                  page.feature === "messages" ? messagesUnreadCount : 0
                 }
               />
             ))}

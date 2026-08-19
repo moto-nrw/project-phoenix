@@ -7,6 +7,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/absences",
   "/active-supervisions",
   "/activities",
+  // Nur noch ein Redirect-Frame auf /anfragen (#2429); bleibt gelistet, weil
+  // die Allowlist jede page.tsx unter (protected) abdecken muss.
   "/admin/change-requests",
   "/admin/enrollments",
   "/admin/enrollments/:id",
@@ -14,6 +16,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/admin/enrollments/change-requests/:id",
   "/admin/enrollments/phases/:phaseId",
   "/admin/guardian-approvals",
+  "/anfragen",
   "/betreuungsplan",
   "/calendar",
   "/calendar-periods",

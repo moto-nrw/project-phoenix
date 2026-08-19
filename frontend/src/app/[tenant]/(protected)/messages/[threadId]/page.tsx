@@ -330,8 +330,7 @@ function MessageThreadContent() {
                         canReviewRequests && requestStillOpen(message)
                           ? {
                               label: "Anfrage bearbeiten",
-                              onClick: () =>
-                                router.push("/admin/change-requests"),
+                              onClick: () => router.push("/anfragen"),
                             }
                           : undefined
                       }
