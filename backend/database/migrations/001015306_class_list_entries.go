@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	classListEntriesVersion     = "1.15.304"
+	classListEntriesVersion     = "1.15.306"
 	classListEntriesDescription = "Minimal class-list-only entries (Name + Klasse) for children without an OGS record (#2382)"
 )
 
@@ -42,7 +42,7 @@ func init() {
 // "2a" from a pre-existing "2a" entry it never touched (mirror of
 // education.grade_transition_class_teachers).
 func classListEntriesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.304: Class-list-only entries...")
+	fmt.Println("Migration 1.15.306: Class-list-only entries...")
 
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.class_list_entries (
@@ -164,7 +164,7 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classListEntriesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.304: Dropping users.class_list_entries...")
+	fmt.Println("Rolling back migration 1.15.306: Dropping users.class_list_entries...")
 
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS education.grade_transition_class_list_entries;
