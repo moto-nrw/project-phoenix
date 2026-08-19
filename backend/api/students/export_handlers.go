@@ -144,15 +144,26 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rows []listexport.Row
-	if req.Filters.GroupByClass {
-		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
-	} else {
-		rows = buildExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
+	sources := responseRowSources(responses, weekly, enrollmentSummaries, planningDate, isToday)
+	// Class-list-only entries (#2382) complete the Klassenverband of the
+	// "Klassenliste" preset; filters on properties they don't have exclude
+	// them (classListEntryExportEligible).
+	sources, err = rs.mergeClassListEntrySources(r, req, sources)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
+	// Re-check the cap on the FINAL merged source set: the class-list entries
+	// joined after the student-side check above, and the document limit is a
+	// limit on rows in the file, not on students alone.
+	if errResp := exportSelectionCapError(len(sources)); errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
+	rows := buildExportRowSources(sources, req.Filters.GroupByClass)
 	doc := listexport.Document{
 		Title:       exportTitle(req),
-		Subtitle:    rs.exportSubtitle(r, len(responses)),
+		Subtitle:    rs.exportSubtitle(r, len(sources)),
 		GeneratedAt: time.Now(),
 		Filters:     exportFilterLabelsForDate(req.Filters, planningDate, isToday),
 		Columns:     columns,
@@ -606,28 +617,28 @@ func groupExportResponsesByClass(students []StudentResponse) {
 	})
 }
 
-func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(students))
-	currentClass := ""
-	for i, student := range students {
-		// Boundary detection must use the sort comparator's equivalence:
-		// label variants like "1a"/"1A"/"1 a" are one logical class and
-		// must share a single heading (first-seen label).
-		if class := strings.TrimSpace(student.SchoolClass); i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0 {
-			currentClass = class
-			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
-		}
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
+// responseRowSources renders every student response into its future document
+// row plus the sort keys the class-list-entry merge (#2382) needs. The order
+// of `students` (whatever sort mode produced it) is preserved.
+func responseRowSources(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []exportRowSource {
+	sources := make([]exportRowSource, 0, len(students))
+	for _, student := range students {
+		sources = append(sources, exportRowSource{
+			schoolClass: student.SchoolClass,
+			lastName:    student.LastName,
+			firstName:   student.FirstName,
+			row:         buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday),
+		})
 	}
-	return rows
+	return sources
+}
+
+func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
+	return buildExportRowSources(responseRowSources(students, weekly, enrollmentSummaries, onDate, isToday), true)
 }
 
 func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(students))
-	for _, student := range students {
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
-	}
-	return rows
+	return buildExportRowSources(responseRowSources(students, weekly, enrollmentSummaries, onDate, isToday), false)
 }
 
 // birthdayExportCell renders the birth date German-style ("02.09.2018").

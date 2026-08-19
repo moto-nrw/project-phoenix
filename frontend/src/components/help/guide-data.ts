@@ -987,7 +987,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
-          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist.",
+          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
         ],
         callout: {
@@ -1348,6 +1348,27 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/datenverwaltung.webp",
       },
       {
+        id: "klassenlisteneintraege",
+        title: "Klassenlisteneinträge: Kinder ohne OGS-Betreuung",
+        summary:
+          "Kinder, die nicht im Ganztag sind, fehlen sonst auf Klassenlisten. Ein Klassenlisteneintrag besteht nur aus Name und Klasse und vervollständigt den Klassenverband — ohne Betreuung, Anwesenheit oder Kontaktdaten.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` -> `+ Kinder` wählen und oben im Fenster auf `Nur Klassenliste` umschalten. Vorname, Nachname und Klasse eintragen — die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
+          "Den Überblick gibt die Klassenlisten-Seite: auf der Kinder-Seite oben rechts im Menü mit den drei Punkten `Klassenliste` wählen. Sie zeigt den vollständigen Klassenverband — regulär angelegte Kinder (`In moto angelegt`) und Klassenlisteneinträge (`Keine Betreuung`) — und über den Klassenfilter ist sofort sichtbar, wer in einer Klasse noch fehlt.",
+          "Für ganze Klassen dort den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
+          "Die Einträge erscheinen auf den Klassenlisten-Exporten und in der `Klassenansicht` der Lehrkräfte, deutlich gekennzeichnet als `Keine Betreuung`. In Kindersuche, Anwesenheit, Betreuungsplanung und Elternportal tauchen sie nicht auf.",
+          "Über `Bearbeiten` lässt sich ein Eintrag in eine andere Klasse verschieben, über `Löschen` entfernen.",
+          "Wird das Kind später regulär angelegt (z. B. über eine Anmeldung oder den Import), zeigt die Liste `Mögliche Dublette`. Mit `Zuordnen` bestätigen Sie, dass es dasselbe Kind ist — der Eintrag wird entfernt, das Kind steht nur noch über seinen regulären Datensatz auf der Liste. Das passiert nie automatisch, damit gleichnamige Kinder nicht verwechselt werden.",
+        ],
+        callout: {
+          title: "Kein zweiter Kinder-Datensatz",
+          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinder` an.",
+          tone: "blue",
+        },
+        screenshot:
+          "Verwaltung der Klassenlisteneinträge mit Tabelle nach Klassen, Kennzeichnung Keine Betreuung und Hinweis auf mögliche Dubletten.",
+      },
+      {
         id: "kind-dauerhaft-loeschen",
         title: "Kind dauerhaft löschen",
         summary:
@@ -1446,7 +1467,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Mit `Status`, `Berücksichtigte Angebote`, `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
-          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Gehzeit des Kindes (aus dem Gehplan, einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`), jeweils zusammen mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Kontaktdaten der Erziehungsberechtigten.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Gehzeit des Kindes (aus dem Gehplan, einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`), jeweils zusammen mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Kontaktdaten der Erziehungsberechtigten. Auch Klassenlisteneinträge (Kinder ohne OGS-Datensatz, siehe `Datenverwaltung`) stehen mit dem Zusatz `Keine Betreuung` in ihrer Klasse.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",

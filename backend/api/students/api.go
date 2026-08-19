@@ -61,10 +61,14 @@ type ResourceConfig struct {
 	// "kommt heute" on every weekday, including the ones they are not booked
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
-	CareDayService          scheduleService.CareDayService
-	SchoolService           platformSvc.SchoolService
-	SettingsService         configService.SettingsService
-	StudentService          userService.StudentService
+	CareDayService  scheduleService.CareDayService
+	SchoolService   platformSvc.SchoolService
+	SettingsService configService.SettingsService
+	StudentService  userService.StudentService
+	// ClassListEntryService supplies the class-list-only entries (#2382) the
+	// "Klassenliste" export merges into the Klassenverband. Optional: nil
+	// exports without entries (bare test Resources).
+	ClassListEntryService   userService.ClassListEntryService
 	StudentDeletionService  userService.StudentDeletionService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService

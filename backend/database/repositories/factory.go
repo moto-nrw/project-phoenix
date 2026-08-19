@@ -70,6 +70,7 @@ type Factory struct {
 	RFIDCard            userModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
+	ClassListEntry      userModels.ClassListEntryRepository
 	StudentDeletion     userModels.StudentDeletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
@@ -191,6 +192,7 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
@@ -287,6 +289,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard:            users.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
+		ClassListEntry:      users.NewClassListEntryRepository(db),
 		StudentDeletion:     users.NewStudentDeletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
@@ -408,6 +411,7 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories

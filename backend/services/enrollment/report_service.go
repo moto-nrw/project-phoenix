@@ -175,21 +175,37 @@ type ClassRosterAppliedFilters struct {
 type ClassRosterTotals struct {
 	Students   int `json:"students"`
 	Registered int `json:"registered"`
+	// ListEntries counts the class-list-only entries (#2382) among Students.
+	ListEntries int `json:"list_entries"`
 }
 
+// ClassListEntryNoCareLabel marks a class-list-only entry (#2382) on every
+// class-list surface: the child has no OGS record at all — deliberately
+// distinct from "Keine Anmeldung" (a known OGS child without an enrollment in
+// this phase).
+const ClassListEntryNoCareLabel = "Keine Betreuung"
+
 type ClassRosterRow struct {
-	StudentID         int64                  `json:"student_id"`
-	FirstName         string                 `json:"first_name"`
-	LastName          string                 `json:"last_name"`
-	SchoolClass       string                 `json:"school_class"`
-	GroupName         string                 `json:"group_name,omitempty"`
-	Registered        bool                   `json:"registered"`
-	EnrollmentSummary string                 `json:"enrollment_summary"`
-	Offerings         []CareUsageRowOffering `json:"offerings"`
-	OfferingsByDay    map[string][]string    `json:"offerings_by_day"`
-	CareDays          []string               `json:"care_days"`
-	ArrivalByDay      map[string]string      `json:"arrival_by_day"`
-	PickupByDay       map[string]string      `json:"pickup_by_day"`
+	StudentID         int64  `json:"student_id"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	SchoolClass       string `json:"school_class"`
+	GroupName         string `json:"group_name,omitempty"`
+	Registered        bool   `json:"registered"`
+	EnrollmentSummary string `json:"enrollment_summary"`
+	// ListEntry marks a class-list-only entry (#2382): a child of the class
+	// cohort with NO OGS record. StudentID is 0 for these rows; ListEntryID
+	// carries the users.class_list_entries id instead, serialized as a JSON
+	// string because JavaScript clients round numbers beyond 2^53. The row
+	// exists only so the Klassenverband is complete — it can never carry
+	// offerings, times or guardians.
+	ListEntry      bool                   `json:"list_entry,omitempty"`
+	ListEntryID    int64                  `json:"list_entry_id,string,omitempty"`
+	Offerings      []CareUsageRowOffering `json:"offerings"`
+	OfferingsByDay map[string][]string    `json:"offerings_by_day"`
+	CareDays       []string               `json:"care_days"`
+	ArrivalByDay   map[string]string      `json:"arrival_by_day"`
+	PickupByDay    map[string]string      `json:"pickup_by_day"`
 	// SchedulePickupByDay is the maintained Kind-Gehzeit from
 	// schedule.student_pickup_schedules (manual rows and rolled-out
 	// Angebots-Gehzeiten). It outranks the enrollment-form answer in the
@@ -250,6 +266,11 @@ type ReportServiceConfig struct {
 	// StudentStatusDayRepo); no other report path consumes them.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
+	// class roster and the class day view append to the Klassenverband.
+	// Optional: nil (older tests, report paths that never show class lists)
+	// simply serves rosters without list entries.
+	ClassListEntryRepo userModels.ClassListEntryRepository
 	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
 	// exception on EITHER leg cancels the day). The class day view consumes
 	// it instead of re-deriving the precedence from raw schedule entries —
@@ -545,7 +566,78 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, err
 	}
-	return s.classRosterForStudents(ctx, filters, students)
+	report, err := s.classRosterForStudents(ctx, filters, students)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.appendClassListEntries(ctx, filters, report); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// appendClassListEntries folds the class-list-only entries (#2382) into the
+// roster: children of the Klassenverband without any OGS record, marked
+// "Keine Betreuung". They sort into their class alphabetically like every
+// student row; the AllClasses heading logic keys off the row's class, so a
+// class that exists only through entries gets its own section automatically.
+func (s *reportService) appendClassListEntries(ctx context.Context, filters ClassRosterFilters, report *ClassRosterReport) error {
+	rows, err := s.classListEntryRows(ctx, filters.SchoolClass, filters.AllClasses)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if len(report.Rows)+len(rows) > maxReportRows {
+		return fmt.Errorf("class roster report: %d rows: %w", len(report.Rows)+len(rows), ErrReportExportTooLarge)
+	}
+	report.Rows = append(report.Rows, rows...)
+	sortClassRosterRows(report.Rows)
+	report.Totals.Students += len(rows)
+	report.Totals.ListEntries += len(rows)
+	return nil
+}
+
+// classListEntryRows loads the class-list-only entries — one class or all —
+// and renders them as roster rows. A nil repo (feature not wired) yields no
+// rows.
+func (s *reportService) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]ClassRosterRow, error) {
+	if s.ClassListEntryRepo == nil {
+		return nil, nil
+	}
+	var entries []*userModels.ClassListEntry
+	var err error
+	if allClasses {
+		entries, err = s.ClassListEntryRepo.List(ctx, nil)
+	} else {
+		entries, err = s.ClassListEntryRepo.FindBySchoolClass(ctx, schoolClass)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: list class list entries: %w", err)
+	}
+	rows := make([]ClassRosterRow, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		rows = append(rows, ClassRosterRow{
+			ListEntry:         true,
+			ListEntryID:       entry.ID,
+			FirstName:         entry.FirstName,
+			LastName:          entry.LastName,
+			SchoolClass:       entry.SchoolClass,
+			EnrollmentSummary: ClassListEntryNoCareLabel,
+			Offerings:         []CareUsageRowOffering{},
+			OfferingsByDay:    map[string][]string{},
+			CareDays:          []string{},
+			ArrivalByDay:      map[string]string{},
+			PickupByDay:       map[string]string{},
+			DepartureByDay:    map[string]string{},
+			Guardians:         []ClassRosterGuardian{},
+		})
+	}
+	return rows, nil
 }
 
 // classRosterForStudents builds the roster for an already-loaded student
@@ -1082,7 +1174,10 @@ func sortClassRosterRows(rows []ClassRosterRow) {
 		if r := collation.CompareGermanNames(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); r != 0 {
 			return r < 0
 		}
-		return rows[i].StudentID < rows[j].StudentID
+		if rows[i].StudentID != rows[j].StudentID {
+			return rows[i].StudentID < rows[j].StudentID
+		}
+		return rows[i].ListEntryID < rows[j].ListEntryID
 	})
 }
 

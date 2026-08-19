@@ -3567,3 +3567,43 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 	})
 	return offering
 }
+
+// CreateTestClassListEntry creates a class-list-only entry (#2382) for the
+// default test tenant, with cleanup (entry + audit trail) registered.
+func CreateTestClassListEntry(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.ClassListEntry {
+	tb.Helper()
+	return CreateTestClassListEntryForTenant(tb, db, 1, firstName, lastName, schoolClass)
+}
+
+// CreateTestClassListEntryForTenant creates a class-list-only entry (#2382)
+// for a specific tenant, with cleanup (entry + audit trail) registered.
+func CreateTestClassListEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, schoolClass string) *users.ClassListEntry {
+	tb.Helper()
+	ctx := TenantContext(tenantID)
+	entry := &users.ClassListEntry{
+		FirstName:   firstName,
+		LastName:    lastName,
+		SchoolClass: schoolClass,
+	}
+	entry.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(entry).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test class list entry: %v", err)
+	}
+	tb.Cleanup(func() {
+		CleanupClassListEntryFixtures(tb, db, entry.ID)
+	})
+	return entry
+}
+
+// CleanupClassListEntryFixtures removes class-list entries and their audit
+// trail rows. Safe to call for already-deleted entries.
+func CleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64) {
+	tb.Helper()
+	if len(entryIDs) == 0 {
+		return
+	}
+	ctx := context.Background()
+	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
+	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
+}
