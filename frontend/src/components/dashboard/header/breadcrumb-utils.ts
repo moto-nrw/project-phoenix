@@ -67,6 +67,10 @@ const mainRoutes: Record<string, string> = {
   // einen Eintrag, damit während des Client-Redirects kein falscher Titel
   // aufblitzt.
   "/planung": PLANNING_SECTION.label,
+  // Alt-Route der Freigabeansicht; nur noch ein Redirect-Frame auf /anfragen
+  // (#2429). Der Eintrag verhindert, dass während des Client-Redirects kurz
+  // "Home" aufblitzt.
+  "/admin/change-requests": STAFF_FLAT_PAGES.anfragen.label,
   // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
   [DATABASE_SECTION.href]: DATABASE_SECTION.label,
   [PARENT_SECTION.href]: PARENT_SECTION.label,

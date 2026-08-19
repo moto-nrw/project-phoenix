@@ -11,7 +11,6 @@ import {
 } from "~/components/ui/page-skeletons";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
-import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -74,14 +73,8 @@ function ElternContent() {
       points: ["Neue Anfragen prüfen", "Konten bestätigen"],
       show: userIsAdmin,
     },
-    {
-      href: "/admin/change-requests",
-      title: "Änderungsanfragen",
-      body: "Wünsche der Eltern zu Betreuungszeiten und Stammdaten bearbeiten.",
-      concept: "changeHistory",
-      points: ["Betreuungszeiten anpassen", "Stammdaten aktualisieren"],
-      show: canReviewChangeRequests(session),
-    },
+    // Die Elternanfragen-Kachel ist entfallen: die Freigabeansicht lebt seit
+    // #2429 im Top-Level-Modul "Anfragen" (eigener Sidebar-Eintrag).
     {
       href: "/parent-announcements",
       title: "Elternmitteilungen",
@@ -117,7 +110,7 @@ function ElternContent() {
           </p>
           <p className="mt-3 text-base leading-7 text-gray-600">
             Alles rund um die Kommunikation mit den Eltern an einem Ort.
-            Nachrichten, Anfragen, Mitteilungen und der Essensplan.
+            Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan.
           </p>
         </div>
 

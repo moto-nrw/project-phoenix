@@ -3,9 +3,9 @@ import type { Session } from "next-auth";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 
 /**
- * Zugriffsregeln der Seite "Änderungsanfragen" an einer Stelle, weil sie an
- * vier Orten gleich lauten müssen: Seite, Sidebar-Eintrag, Eltern-Übersicht und
- * das Zähler-Badge. Auseinanderlaufen heißt entweder ein Badge ohne erreichbare
+ * Zugriffsregeln des Anfragen-Moduls an einer Stelle, weil sie an vier Orten
+ * gleich lauten müssen: Seite, Sidebar-Eintrag, mobile Navigation und das
+ * Zähler-Badge. Auseinanderlaufen heißt entweder ein Badge ohne erreichbare
  * Seite oder eine Warteschlange, die niemand findet.
  */
 
@@ -36,5 +36,27 @@ export function canReviewChangeRequests(session: Session | null): boolean {
     canReviewStudentDataRequests(session) ||
     (hasPermission(session, "users:absence") &&
       hasPermission(session, "users:read"))
+  );
+}
+
+/**
+ * Darf die Person Abwesenheitsanträge von Mitarbeitenden entscheiden? Dasselbe
+ * vacation:approve, das die Abwesenheits-Inbox und ihr Badge (#1419) tragen —
+ * es schaltet im Anfragen-Modul den Reiter "Mitarbeitende" frei.
+ */
+export function canReviewStaffAbsenceRequests(
+  session: Session | null,
+): boolean {
+  return isAdmin(session) || hasPermission(session, "vacation:approve");
+}
+
+/**
+ * Darf die Person die Anfragen-Seite überhaupt öffnen? Sie besteht aus zwei
+ * Reitern mit getrennten Rechten (Eltern bzw. Mitarbeitende); wer eines von
+ * beiden hält, sieht die Seite mit den entsprechenden Reitern.
+ */
+export function canOpenRequestsPage(session: Session | null): boolean {
+  return (
+    canReviewChangeRequests(session) || canReviewStaffAbsenceRequests(session)
   );
 }

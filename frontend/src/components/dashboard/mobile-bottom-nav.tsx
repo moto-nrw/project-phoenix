@@ -20,6 +20,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -367,6 +368,15 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
+    // canOpenRequestsPage: requiresPermission kann das
+    // users:absence+users:read-Paar nicht ausdrücken.
+    href: "/anfragen",
+    label: "Anfragen",
+    iconKey: "tray",
+    concept: "requests",
+  },
+  {
     href: "/calendar",
     label: "Mein Kalender",
     iconKey: "calendar",
@@ -675,6 +685,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
     // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
     if (item.href === "/klassen") return hasRole(session, "lehrkraft");
+    // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
+    // change-request-access.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
