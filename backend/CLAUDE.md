@@ -176,7 +176,8 @@ func TestExample(t *testing.T) {
 
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
 - **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns cleanup. Per-package counts are ratcheted shrink-only (`cleanupCallBaseline`); the leftover-tolerant packages are already at zero.
-- **New tests create their own tenant** via `testpkg.NewTenantScope(t, db)` instead of `TenantContext(1)` — the bootstrap tenant is being phased out (ratchet: `tenantContext1Baseline`). Per-test tenants are what make `t.Parallel()` safe.
+- **New tests create their own tenant** via `testpkg.NewTenantScope(t, db)` instead of `TenantContext(1)` — the bootstrap tenant is being phased out (ratchet: `tenantContext1Baseline`, which counts `TenantContext(1)`, `WithTenantID(ctx, 1)` and `TenantID: 1` alike).
+- **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The files where both already meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, give the test its own tenant.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
 - Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`

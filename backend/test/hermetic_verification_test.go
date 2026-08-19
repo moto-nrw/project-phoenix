@@ -3,6 +3,7 @@ package test
 
 import (
 	"bufio"
+	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -91,6 +92,22 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"(#2419): new tests create their own tenant via testpkg.NewTenantScope\n"+
 				"so they cannot collide with parallel tests. When you migrate a package,\n"+
 				"lower its baseline in tenantContext1Baseline — never raise one.",
+				strings.Join(violations, "\n"))
+		}
+	})
+
+	t.Run("parallel_on_bootstrap_tenant_ratchet", func(t *testing.T) {
+		violations := checkParallelBootstrapTenantRatchet(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Parallel-on-shared-tenant ratchet violated (per-package file counts may only shrink):\n\n%s\n\n"+
+				"A file that runs tests with t.Parallel() while pinning the fixed\n"+
+				"bootstrap tenant has every parallel test mutating ONE tenant. The\n"+
+				"files counted here are safe only because their assertions are scoped\n"+
+				"to IDs they created; a tenant-wide assertion (a count, a \"list all\")\n"+
+				"added to one of them becomes order-dependent and flaky under load.\n\n"+
+				"Do not add a new one. Give the test its own tenant instead:\n"+
+				"  scope := testpkg.NewTenantScope(t, db)\n"+
+				"  ctx := scope.Context()",
 				strings.Join(violations, "\n"))
 		}
 	})
@@ -509,31 +526,37 @@ var cleanupCallBaseline = map[string]int{
 // replace the fixed bootstrap tenant so parallel tests cannot collide.
 // Counts may only go DOWN. A package not listed here must stay at zero.
 var tenantContext1Baseline = map[string]int{
-	"api/active":                        5,
+	"api":                               1,
+	"api/active":                        12,
 	"api/activities":                    16,
-	"api/admin":                         2,
-	"api/auth":                          4,
-	"api/birthdays":                     2,
-	"api/classday":                      1,
-	"api/classlistentries":              1,
+	"api/admin":                         3,
+	"api/auth":                          19,
+	"api/birthdays":                     3,
+	"api/classday":                      3,
+	"api/classlistentries":              4,
 	"api/feedback":                      1,
 	"api/groups":                        1,
-	"api/guardians":                     15,
+	"api/guardians":                     17,
 	"api/import":                        3,
-	"api/iot":                           1,
+	"api/iot":                           8,
 	"api/iot/checkin":                   11,
+	"api/rooms":                         1,
 	"api/shift-types":                   1,
 	"api/sse":                           4,
 	"api/staff":                         20,
-	"api/students":                      47,
+	"api/students":                      65,
 	"api/suggestions":                   4,
-	"api/timetable":                     28,
-	"database/repositories/active":      140,
+	"api/testutil":                      5,
+	"api/time-tracking":                 4,
+	"api/timetable":                     30,
+	"auth/jwt":                          2,
+	"database/migrations":               2,
+	"database/repositories/active":      141,
 	"database/repositories/activities":  74,
 	"database/repositories/audit":       37,
-	"database/repositories/auth":        155,
+	"database/repositories/auth":        157,
 	"database/repositories/base":        11,
-	"database/repositories/config":      17,
+	"database/repositories/config":      20,
 	"database/repositories/education":   87,
 	"database/repositories/facilities":  10,
 	"database/repositories/feedback":    13,
@@ -545,28 +568,31 @@ var tenantContext1Baseline = map[string]int{
 	"database/repositories/suggestions": 27,
 	"database/repositories/users":       179,
 	"models/base":                       28,
-	"services/active":                   216,
+	"services/active":                   221,
 	"services/activities":               99,
-	"services/auth":                     162,
-	"services/calendar":                 48,
+	"services/auth":                     164,
+	"services/calendar":                 52,
 	"services/config":                   3,
-	"services/database":                 2,
+	"services/database":                 3,
 	"services/education":                97,
-	"services/enrollment":               502,
+	"services/enrollment":               540,
 	"services/facilities":               41,
 	"services/feedback":                 13,
 	"services/import":                   1,
 	"services/iot":                      20,
 	"services/iot/checkin":              5,
-	"services/parent":                   13,
+	"services/parent":                   16,
+	"services/pwa":                      1,
 	"services/reminders":                1,
 	"services/schedule":                 102,
 	"services/scheduler":                4,
 	"services/slotlists":                41,
 	"services/suggestions":              7,
-	"services/users":                    146,
+	"services/usercontext":              1,
+	"services/users":                    148,
 	"tenant":                            2,
-	"test":                              7,
+	"test":                              11,
+	"test/e2e/calendar":                 1,
 }
 
 // countMatchesPerPackage walks root and counts regex matches per package
@@ -604,8 +630,9 @@ func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[
 	return counts, err
 }
 
-// ratchetViolations compares current per-package counts against a shrink-only
-// baseline and reports every package above its allowance.
+// shrinkOnlyViolations compares current per-package counts against a
+// shrink-only baseline and reports every package above its allowance.
+// A package absent from the baseline is allowed zero.
 func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	var violations []string
 	for dir, n := range current {
@@ -618,10 +645,18 @@ func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	return violations
 }
 
+// cleanupCallPattern matches a fixture-cleanup call in any spelling the
+// codebase uses: qualified (testpkg.CleanupX), deferred, or — inside package
+// test itself — unqualified in statement position. The leading `\w+\.` guard
+// on the last alternative keeps production calls like svc.CleanupExpiredX()
+// out of it.
+var cleanupCallPattern = regexp.MustCompile(
+	`(?m)testpkg\.Cleanup\w+\(|(?:^|\s)defer Cleanup\w+\(|^\s*Cleanup\w+\(`)
+
 // checkCleanupCallRatchet enforces the shrink-only Cleanup*-call baseline.
 func checkCleanupCallRatchet(t *testing.T, root string) []string {
 	t.Helper()
-	re := regexp.MustCompile(`testpkg\.Cleanup\w+\(|(?:^|\s)defer Cleanup\w+\(`)
+	re := cleanupCallPattern
 	current, err := countMatchesPerPackage(root, re, true)
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
@@ -629,10 +664,18 @@ func checkCleanupCallRatchet(t *testing.T, root string) []string {
 	return shrinkOnlyViolations(current, cleanupCallBaseline)
 }
 
-// checkBootstrapTenantRatchet enforces the shrink-only TenantContext(1) baseline.
+// bootstrapTenantPattern matches every spelling of "pin this to the fixed
+// bootstrap tenant": the context helper, a direct tenant.WithTenantID(ctx, 1),
+// and a literal TenantID: 1 struct field. Counting only the first spelling
+// would let a new test reach the bootstrap tenant through either of the
+// others and stay green.
+var bootstrapTenantPattern = regexp.MustCompile(
+	`TenantContext\(1\)|WithTenantID\([^,)]+,\s*1\)|TenantID:\s*1\b`)
+
+// checkBootstrapTenantRatchet enforces the shrink-only bootstrap-tenant baseline.
 func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 	t.Helper()
-	re := regexp.MustCompile(`TenantContext\(1\)`)
+	re := bootstrapTenantPattern
 	current, err := countMatchesPerPackage(root, re, false)
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
@@ -640,13 +683,87 @@ func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 	return shrinkOnlyViolations(current, tenantContext1Baseline)
 }
 
-// checkSharedPoolClose flags one-liner closes of the shared SetupTestDB pool.
+// parallelBootstrapTenantBaseline is the shrink-only per-package count of
+// test FILES that run parallel tests against the fixed bootstrap tenant.
+// Frozen by #2419 tranche 1; the per-test-tenant migration drives it to zero.
+var parallelBootstrapTenantBaseline = map[string]int{
+	"api/active":           3,
+	"api/activities":       1,
+	"api/admin":            1,
+	"api/auth":             3,
+	"api/classday":         1,
+	"api/classlistentries": 1,
+	"api/guardians":        2,
+	"api/iot":              1,
+	"api/iot/checkin":      1,
+	"api/shift-types":      1,
+	"services/facilities":  1,
+	"services/feedback":    1,
+	"services/import":      1,
+	"services/iot":         1,
+	"services/iot/checkin": 1,
+	"services/reminders":   1,
+	"services/scheduler":   3,
+	"tenant":               1,
+}
+
+// checkParallelBootstrapTenantRatchet counts, per package, the test FILES that
+// combine t.Parallel() with the fixed bootstrap tenant. The spec's reason for
+// per-test tenants is exactly this pair ("damit parallele Tests im selben Clone
+// nicht kollidieren können"), so the set that exists today is frozen and the
+// next tranche empties it.
+func checkParallelBootstrapTenantRatchet(t *testing.T, root string) []string {
+	t.Helper()
+
+	counts := make(map[string]int)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if strings.HasPrefix(rel, "internal/testdb/") ||
+			strings.Contains(rel, "hermetic_verification_test.go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if bytes.Contains(content, []byte("t.Parallel()")) && bootstrapTenantPattern.Match(content) {
+			counts[filepath.ToSlash(filepath.Dir(rel))]++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+	return shrinkOnlyViolations(counts, parallelBootstrapTenantBaseline)
+}
+
+// sharedPoolAssign captures the variable a file binds the SHARED pool to —
+// `db := testpkg.SetupTestDB(t)` or `db, svc := testutil.SetupAPITest(t)`.
+// Only the first identifier can hold the pool in either signature.
+var sharedPoolAssign = regexp.MustCompile(
+	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
+
+// privatePoolAssign captures variables bound to a PRIVATE pool, which the
+// owning test is allowed (and expected) to close: SetupClosableTestDB, plus
+// hand-built sqlmock/bun handles whose Close is part of the mock contract.
+var privatePoolAssign = regexp.MustCompile(
+	`(?m)^\s*(\w+)\s*(?:,\s*[\w,\s]+)?:?=\s*(?:\w+\.)?(?:SetupClosableTestDB|bun\.NewDB|sqlmock\.New)\(`)
+
+// checkSharedPoolClose flags closes of the shared SetupTestDB pool in any
+// spelling. It resolves the pool variable per file rather than matching three
+// literal one-liners, so `defer testDB.Close()` and
+// `require.NoError(t, db.Close())` are caught too.
 func checkSharedPoolClose(t *testing.T, root string) []string {
 	t.Helper()
 
 	var violations []string
-	closeLine := regexp.MustCompile(
-		`^\s*(defer func\(\) \{ _ = db\.Close\(\) \}\(\)|defer db\.Close\(\)|t\.Cleanup\(func\(\) \{ _ = db\.Close\(\) \}\))\s*$`)
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
@@ -662,16 +779,31 @@ func checkSharedPoolClose(t *testing.T, root string) []string {
 			return nil
 		}
 		text := string(content)
-		// Only files on the shared pool are affected; SetupClosableTestDB
-		// pools are private and may be closed.
-		if !strings.Contains(text, "SetupTestDB(") && !strings.Contains(text, "SetupAPITest(") {
+
+		shared := make(map[string]bool)
+		for _, m := range sharedPoolAssign.FindAllStringSubmatch(text, -1) {
+			shared[m[1]] = true
+		}
+		if len(shared) == 0 {
 			return nil
 		}
+		// A name rebound to a private pool anywhere in the file is ambiguous;
+		// leave it to the reviewer rather than reporting a false positive.
+		for _, m := range privatePoolAssign.FindAllStringSubmatch(text, -1) {
+			delete(shared, m[1])
+		}
+
 		relPath, _ := filepath.Rel(root, path)
 		for i, line := range strings.Split(text, "\n") {
-			if closeLine.MatchString(line) {
-				violations = append(violations,
-					formatViolation(filepath.ToSlash(relPath), i+1, strings.TrimSpace(line)))
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+			for name := range shared {
+				if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.Close\(\)`).MatchString(line) {
+					violations = append(violations,
+						formatViolation(filepath.ToSlash(relPath), i+1, strings.TrimSpace(line)))
+					break
+				}
 			}
 		}
 		return nil

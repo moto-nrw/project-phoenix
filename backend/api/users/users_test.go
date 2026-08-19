@@ -205,8 +205,6 @@ func TestCreatePerson_Success(t *testing.T) {
 	assert.Equal(t, "NewPerson", data["first_name"])
 	assert.Equal(t, "Created", data["last_name"])
 
-	// Cleanup created person
-	_ = int64(data["id"].(float64))
 }
 
 func TestCreatePerson_MissingFirstName(t *testing.T) {
@@ -261,10 +259,6 @@ func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created person
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	_ = int64(data["id"].(float64))
 }
 
 func TestCreatePerson_WithoutPermission(t *testing.T) {

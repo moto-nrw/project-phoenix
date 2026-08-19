@@ -52,11 +52,14 @@ func SetupTestDB(t *testing.T) *bun.DB {
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
 	// without this, every later test in the package would lose test_db_dsn.
-	// Read-then-repair keeps the parallel path write-free while the config
-	// is intact (viper is not thread-safe; resetters run sequentially today).
+	// viper's maps are not thread-safe, so the read and the repair are taken
+	// under one lock — otherwise a package that both resets viper and runs
+	// parallel tests would race here under -race.
+	viperHealMu.Lock()
 	if viper.GetString("test_db_dsn") != packageClone.DSN {
 		applyViperTestConfig()
 	}
+	viperHealMu.Unlock()
 
 	return sharedTestDB
 }
@@ -171,7 +174,10 @@ type TenantScope struct {
 func NewTenantScope(tb testing.TB, db *bun.DB) TenantScope {
 	tb.Helper()
 
-	tenantID := UniqueTestTenantID(tb)
+	// JWT-safe band, not UniqueTestTenantID: a scope tenant travels through
+	// minted test JWTs, and JSON decodes numbers as float64 — a nanosecond
+	// timestamp ID exceeds 2^53 and comes back corrupted.
+	tenantID := uniqueJWTSafeTenantID()
 	EnsureTestTenant(tb, db, tenantID)
 
 	return TenantScope{TenantID: tenantID}

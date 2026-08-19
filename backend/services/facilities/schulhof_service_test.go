@@ -464,8 +464,6 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	assert.True(t, activityGroup.IsOpen)
 	assert.NotZero(t, activityGroup.CategoryID)
 	assert.NotNil(t, activityGroup.PlannedRoomID)
-
-	// Cleanup
 }
 
 func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
@@ -636,8 +634,6 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 	assert.NotEqual(t, activityGroup1.ID, activityGroup2.ID, "New activity group should have a different ID")
 	assert.Equal(t, roomID, *activityGroup2.PlannedRoomID, "Should reuse existing room")
 	assert.Equal(t, categoryID, activityGroup2.CategoryID, "Should reuse existing category")
-
-	// Cleanup
 }
 
 // TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited verifies that

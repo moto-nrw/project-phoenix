@@ -297,10 +297,6 @@ func TestRegister(t *testing.T) {
 		assert.Equal(t, email, data["email"])
 		assert.Equal(t, username, data["username"])
 
-		// Cleanup: the staff-tier role provisioned a person and staff record
-		// alongside the account (#2222), so the account alone is not the whole
-		// footprint.
-		_ = int64(data["id"].(float64))
 	})
 
 	t.Run("bad request with duplicate email", func(t *testing.T) {
@@ -637,10 +633,6 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-		// Cleanup created account and the identity provisioned with it
-		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data := response["data"].(map[string]interface{})
-		_ = int64(data["id"].(float64))
 	})
 }
 
@@ -1024,8 +1016,6 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "guardian", data["base_role"])
 
-		// Cleanup
-		_ = int64(data["id"].(float64))
 	})
 
 	t.Run("update preserves base_role when omitted", func(t *testing.T) {

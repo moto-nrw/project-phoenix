@@ -35,6 +35,10 @@ var (
 	// Every SetupTestDB call returns this handle; tests never close it — the
 	// pool dies with the process. Deliberately never closed.
 	sharedTestDB *bun.DB
+
+	// viperHealMu serializes the viper self-heal in SetupTestDB against
+	// parallel tests in packages that also call viper.Reset().
+	viperHealMu sync.Mutex
 )
 
 // initPackageTestDB is the process-once part of SetupTestDB: environment,
@@ -131,12 +135,21 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 // would silently send integration tests to the shared template database.
 //
 // Pool budget: one pool per test binary, capped at min(GOMAXPROCS, 8) open
-// connections. `go test` runs at most GOMAXPROCS package binaries at once,
-// so the worst case against max_connections is
-// GOMAXPROCS × (pool cap + 1 keeper) — on the 8-vCPU CI runner
-// 8 × 9 = 72 against postgres:17's default max_connections=100, locally
-// well under the compose file's max_connections=200. The cap also matches
-// `-parallel` (default GOMAXPROCS), so parallel tests rarely queue.
+// connections, with idle == open so the pool holds what it opens instead of
+// re-dialing per test. `go test` runs up to GOMAXPROCS package binaries at
+// once, so the steady-state cost is GOMAXPROCS × (pool cap + 1 keeper):
+// 8 × 9 = 72 on the 8-vCPU CI runner, against postgres:17's default
+// max_connections=100. The cap also matches `-parallel` (default
+// GOMAXPROCS), so parallel tests rarely queue.
+//
+// Two caveats worth knowing before raising anything here:
+//   - The per-binary cap stops growing at 8, but the number of concurrent
+//     binaries does not. Past ~21 cores the local budget (cores × 9) exceeds
+//     the compose file's max_connections=200; cap `go test -p` on such a
+//     machine rather than raising the server limit.
+//   - SetupClosableTestDB opens additional private pools (same cap) for the
+//     handful of tests that close their database on purpose. They are
+//     short-lived, but they are on top of this budget.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
 	viper.Set("test_db_dsn", packageClone.DSN)

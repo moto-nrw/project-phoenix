@@ -54,8 +54,6 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		assert.NotNil(t, device.APIKey, "API key should be auto-generated")
 		assert.Equal(t, iotModels.DeviceStatusActive, device.Status, "Status should default to active")
 		assert.NotNil(t, device.LastSeen, "LastSeen should be set")
-
-		// Cleanup
 	})
 
 	t.Run("creates device with provided API key", func(t *testing.T) {
@@ -73,8 +71,6 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Equal(t, providedAPIKey, *device.APIKey, "Should use provided API key")
-
-		// Cleanup
 	})
 
 	t.Run("returns error for nil device", func(t *testing.T) {
