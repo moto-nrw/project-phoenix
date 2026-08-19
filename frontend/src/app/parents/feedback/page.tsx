@@ -201,7 +201,7 @@ export default function ParentFeedbackPage() {
           <Alert type="error" message={t("loadError")} />
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="md"
             onClick={() => void loadSchools()}
           >
@@ -220,67 +220,85 @@ export default function ParentFeedbackPage() {
 
       {!noSchools && (
         <>
-          <div className="flex flex-wrap items-end gap-3">
-            {schools && schools.length > 1 && (
-              <div className="min-w-48">
+          {schools === null ? (
+            <div
+              data-testid="parent-feedback-controls-skeleton"
+              className="flex flex-wrap items-end gap-3"
+              aria-hidden="true"
+            >
+              <div className="min-w-48 space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <div className="min-w-40 space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <Skeleton className="ml-auto h-10 w-32 rounded-lg" />
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              {schools && schools.length > 1 && (
+                <div className="min-w-48">
+                  <label
+                    id="feedback-school-label"
+                    htmlFor="feedback-school"
+                    className="mb-1 block text-xs font-medium text-gray-500"
+                  >
+                    {t("schoolLabel")}
+                  </label>
+                  <CustomSelect
+                    id="feedback-school"
+                    labelId="feedback-school-label"
+                    value={schoolId}
+                    onChange={setSchoolId}
+                    options={schools.map((school) => ({
+                      value: school.id,
+                      label: school.name,
+                    }))}
+                  />
+                </div>
+              )}
+              <div className="min-w-40">
                 <label
-                  id="feedback-school-label"
-                  htmlFor="feedback-school"
+                  id="feedback-sort-label"
+                  htmlFor="feedback-sort"
                   className="mb-1 block text-xs font-medium text-gray-500"
                 >
-                  {t("schoolLabel")}
+                  {t("sortLabel")}
                 </label>
                 <CustomSelect
-                  id="feedback-school"
-                  labelId="feedback-school-label"
-                  value={schoolId}
-                  onChange={setSchoolId}
-                  options={schools.map((school) => ({
-                    value: school.id,
-                    label: school.name,
-                  }))}
+                  id="feedback-sort"
+                  labelId="feedback-sort-label"
+                  value={sortBy}
+                  onChange={(value) => setSortBy(value as SortOption)}
+                  options={[
+                    { value: "score", label: t("sortPopular") },
+                    { value: "newest", label: t("sortNewest") },
+                  ]}
                 />
               </div>
-            )}
-            <div className="min-w-40">
-              <label
-                id="feedback-sort-label"
-                htmlFor="feedback-sort"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                {t("sortLabel")}
-              </label>
-              <CustomSelect
-                id="feedback-sort"
-                labelId="feedback-sort-label"
-                value={sortBy}
-                onChange={(value) => setSortBy(value as SortOption)}
-                options={[
-                  { value: "score", label: t("sortPopular") },
-                  { value: "newest", label: t("sortNewest") },
-                ]}
-              />
+              {boardReady && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  className="ml-auto"
+                  onClick={() => {
+                    setEditPost(null);
+                    setFormOpen(true);
+                  }}
+                >
+                  {t("newEntry")}
+                </Button>
+              )}
             </div>
-            {boardReady && (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                className="ml-auto"
-                onClick={() => {
-                  setEditPost(null);
-                  setFormOpen(true);
-                }}
-              >
-                {t("newEntry")}
-              </Button>
-            )}
-          </div>
+          )}
 
           {loading && (
             <div className="space-y-4">
-              <Skeleton className="h-32 w-full rounded-2xl" />
-              <Skeleton className="h-32 w-full rounded-2xl" />
+              <FeedbackCardSkeleton />
+              <FeedbackCardSkeleton />
             </div>
           )}
 
@@ -345,6 +363,7 @@ export default function ParentFeedbackPage() {
       />
 
       <ConfirmationModal
+        mobileSheet
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
@@ -358,5 +377,33 @@ export default function ParentFeedbackPage() {
         <p className="text-sm text-gray-600">{t("deleteBody")}</p>
       </ConfirmationModal>
     </ParentPage>
+  );
+}
+
+function FeedbackCardSkeleton() {
+  return (
+    <div
+      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+      aria-hidden="true"
+    >
+      <div className="flex gap-4">
+        <div className="flex w-10 shrink-0 flex-col items-center gap-2">
+          <Skeleton className="size-8 rounded-lg" />
+          <Skeleton className="h-5 w-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <Skeleton className="h-5 w-3/5" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <Skeleton className="mt-3 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-4/5" />
+          <div className="mt-4 flex gap-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

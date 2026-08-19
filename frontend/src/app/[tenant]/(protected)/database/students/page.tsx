@@ -38,7 +38,7 @@ import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import { DatabaseSectionSkeleton } from "../section-skeleton";
+import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -57,7 +57,7 @@ function parseGrouping(value: string | null): GroupingMode {
 
 export default function StudentsPage() {
   return (
-    <Suspense fallback={<DatabaseSectionSkeleton />}>
+    <Suspense fallback={<MasterDetailSkeleton />}>
       <StudentsPageContent />
     </Suspense>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Keeps the most recently committed value available to asynchronous callbacks
@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
 export function useLatest<T>(value: T) {
   const ref = useRef(value);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     ref.current = value;
   }, [value]);
 

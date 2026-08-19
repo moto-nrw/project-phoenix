@@ -3,6 +3,8 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -61,6 +63,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Factory provides access to all services
@@ -881,6 +884,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Holidays:      nonWorkingDayService,
 	})
 
+	// Couples pulled-forward day pickup times with the per-block partial
+	// absences (#2360). Shared by the staff pickup-exception writers and the
+	// parent care-exception writers so both derive the same state.
+	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		repos.StudentPickupSchedule,
+		repos.InstanceStudent,
+		db,
+	)
+
 	// Initialize pickup schedule service
 	pickupScheduleService := schedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
@@ -888,6 +901,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupNote,
 		repos.Student,
 		repos.Person,
+		pickupAutoExcusal,
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
@@ -896,6 +910,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
 		repos.InstanceStudent,
+		pickupAutoExcusal,
 		db,
 	)
 
@@ -1227,6 +1242,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindParentMessage,
+		platform.RendererFunc(messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
 		DefaultFrom: defaultFrom,
@@ -1512,6 +1531,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Repo:        repos.FormSchema,
 		PhaseRepo:   repos.Phase,
 		RequestRepo: repos.Request,
+		Settings:    settingsService,
 		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 
@@ -1573,6 +1593,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "parent-events"),
 	)
 
+	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
+	if waker, ok := activeService.(interface {
+		SetGuardianWaker(active.GuardianWaker)
+	}); ok {
+		waker.SetGuardianWaker(pillEmitter)
+	}
+
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
@@ -1617,7 +1644,39 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// Sourced-roster resyncs must also refresh already-materialized future
 		// occurrences (#2147 review) — the materializer never revisits them.
 		InstanceRosters: rosterReconciler,
-		Logger:          logger.With("service", "enrollment-decision"),
+		// Offering-sourced weekly Gehzeit changes move the same baseline a
+		// staff weekly edit does, so they re-derive the auto excusals of the
+		// students' future day exceptions too (#2360). The wrapper reuses an
+		// ambient tenant transaction and opens one otherwise — the resync's
+		// care-day locks are transaction-scoped.
+		ResyncPickupAutoExcusals: func(ctx context.Context, studentIDs []int64) error {
+			return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+				for _, studentID := range studentIDs {
+					if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+		// The reconciler takes these BEFORE writing weekly rows — the same
+		// student → schedule-row → care-day lock order the staff weekly
+		// editors use, so the two weekly writers cannot deadlock against
+		// each other (#2360 review). Uses the ambient tenant transaction;
+		// missing students (concurrent offboarding) are skipped, matching
+		// the resync's tolerance.
+		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
+			for _, studentID := range studentIDs {
+				if err := schedule.LockCareStudent(ctx, db, studentID); err != nil {
+					if errors.Is(err, sql.ErrNoRows) {
+						continue
+					}
+					return err
+				}
+			}
+			return nil
+		},
+		Logger: logger.With("service", "enrollment-decision"),
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {
@@ -1785,12 +1844,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := schedule.NewCareScheduleRequestService(
+	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		arrivalScheduleService,
 		pickupScheduleService,
+		repos.StudentPickupException,
+		repos.Attendance,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -1861,6 +1922,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		repos.AccountTenant,
 	)
+	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
+		notificationPreferencesService,
+		repos.Student,
+		repos.Group,
+		repos.Staff,
+		repos.Account,
+		settingsService,
+		repos.WorkSession,
+	)
+	staffParentMessageNotifier := notifications.NewStaffParentMessageNotifier(
+		notificationsService,
+		staffNotificationRecipients,
+		repos.ParentMessageThread,
+		db,
+		logger.With("producer", "staff_parent_message_notifications"),
+	)
 
 	// Decided change requests reach the parent's devices through the pill
 	// emitter, which is where all three request flows already converge (#1671).
@@ -1878,6 +1955,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "messaging"),
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307): der
+		// Rueckfall fuer alle, die Push nicht eingerichtet haben.
+		Outbox:           emailOutboxService,
+		GuardianProfiles: repos.GuardianProfile,
+		Schools:          repos.School,
+		LoginImages:      settingsService,
+		ParentsURL:       parentsURL,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
@@ -1894,12 +1978,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:            repos.ParentChild,
 		GroupRepo:            repos.Group,
 		InstanceStaffRepo:    repos.InstanceStaff,
-		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
 		RoomRepo:             repos.Room,
 		StaffShiftRepo:       repos.StaffShift,
 		ShiftTypeRepo:        repos.ShiftType,
-		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
 		Outbox:               emailOutboxService,
@@ -1918,11 +2000,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:      repos.GuardianProfile,
+		AttendanceRepo:           repos.Attendance,
 		StatusDayRepo:            repos.StudentStatusDay,
 		MealPlanRepo:             repos.MealPlanEntry,
 		StudentRepo:              repos.Student,
 		PickupExceptionRepo:      repos.StudentPickupException,
 		ArrivalExceptionRepo:     repos.StudentArrivalException,
+		PickupAutoExcusal:        pickupAutoExcusal,
 		Settings:                 settingsService,
 		Broadcaster:              realtimeHub,
 		PersonRepo:               repos.Person,
@@ -1931,6 +2015,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MessageThreadRepo:        repos.ParentMessageThread,
 		MessageRepo:              repos.ParentMessage,
 		MessageReadRepo:          repos.ParentMessageRead,
+		ParentMessageNotifier:    staffParentMessageNotifier,
 		ArrivalSchedules:         arrivalScheduleService,
 		PickupSchedules:          pickupScheduleService,
 		CareRequests:             careRequestService,
@@ -1946,8 +2031,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
-		StudentEnrollmentRepo:    repos.StudentEnrollment,
-		ActivityGroupRepo:        repos.ActivityGroup,
 		OfferingChanges:          offeringChangeRequestService,
 		DB:                       db,
 		Logger:                   logger.With("service", "parent"),
@@ -2047,13 +2130,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	absenceNotifier := notifications.NewAbsenceNotifier(
 		notificationsService,
-		notificationPreferencesService,
-		repos.Student,
-		repos.Group,
-		repos.Staff,
-		repos.Account,
-		settingsService,
-		repos.WorkSession,
+		staffNotificationRecipients,
 		db,
 		logger.With("producer", "absence_notifications"),
 	)

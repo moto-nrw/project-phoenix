@@ -78,6 +78,12 @@ var (
 	// (enrollment.pickup_time_not_allowed) so the parent form can localize the
 	// message and highlight the offending schedule field.
 	ErrPickupTimeNotAllowed = fmt.Errorf("%w: pickup time not allowed", ErrInvalidSubmission)
+	// ErrDepartureModeLimitExceeded wraps ErrInvalidSubmission the same way
+	// and is returned when a child of a restricted target grade submits more
+	// than one departure mode per weekday on a field with single_mode_grades
+	// (Heimweg-Beschränkung, #2381). Own identity so the handler can attach a
+	// stable code (enrollment.departure_mode_limit) for a localized message.
+	ErrDepartureModeLimitExceeded = fmt.Errorf("%w: only one departure mode per weekday allowed", ErrInvalidSubmission)
 	// The three parent-input day errors (#1846/#1885) wrap
 	// ErrInvalidSubmission (HTTP 400) and carry their own identity so the
 	// handler can attach stable codes for localized form messages.
@@ -239,6 +245,12 @@ type SubmitChild struct {
 	CustomData        map[string]any
 	OfferingIDs       []int64
 	OfferingDays      []SubmitOfferingDays
+	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
+	// target offerings during materialization (#2370, per-request staff
+	// override). Only the rule-derived days are suppressed: manual days and
+	// required-lunch derivation are unaffected. Empty on every parent-facing
+	// path — only the staff review decision sets it.
+	ExcludedAutoAddTargetIDs map[int64]bool
 }
 
 // SubmitOfferingDays is one row of SubmitChild.OfferingDays.
@@ -1261,21 +1273,88 @@ func materializeAndValidateChildrenOfferingSelections(
 	openByID map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
 ) ([][]materializedOfferingSelection, error) {
+	return materializeAndValidateChildrenOfferingSelectionsGrandfathering(children, openByID, selectionMode, GrandfatheredOfferings{})
+}
+
+// materializeAndValidateChildrenOfferingSelectionsGrandfathering is the
+// variant used by the admin offering-adjustment path (#2186). Offerings whose
+// ids are in grandfathered are treated as available for the child REGARDLESS
+// of the grade-level availability rule.
+//
+// Why: an availability rule tightened after a child was already booked must
+// not revoke that booking (Bestandsschutz). Without this exemption an admin
+// correcting anything else about such a child would have the whole save
+// rejected with ErrCareOfferingUnavailable — and the offering would also be
+// dropped by materializeOfferingSelections, which only ever emits offerings
+// present in the available set.
+//
+// Callers pass ONLY the offerings the child already holds, so a newly ADDED
+// blocked offering is still rejected. Submit and parent-edit paths pass a
+// zero GrandfatheredOfferings and keep rejecting every blocked offering.
+//
+// The two buckets exist because the two kinds of held DAYS have different
+// lifecycles (#2186 review):
+//
+//   - Manual days have a checkbox. An admin can remove them, so the
+//     exemption lasts only while the id is STILL SELECTED in the submitted
+//     payload. Otherwise a removed offering keeps privileges it no longer
+//     has: a removed required one is demanded back by
+//     validateRequiredOfferings, a removed non-required one keeps
+//     hasChoosableCareOffering true, and a removed auto-add target whose
+//     trigger is still selected gets silently re-created.
+//
+//   - Automatic days have NO checkbox and never appear in a payload at all —
+//     they are derived from their trigger on every save. Requiring them to be
+//     "still selected" would delete them the first time an admin saved an
+//     unrelated correction. They therefore stay eligible for materialization
+//     unconditionally, but are deliberately kept OUT of the validation
+//     catalog: a blocked required one must not be demanded in a payload it
+//     can never appear in.
+//
+// A single booking can hold both kinds at once, which is why the caller may
+// list one id in BOTH sets. Unticking such a booking withdraws only its
+// manual half; the automatic half keeps being re-derived from its trigger.
+func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered GrandfatheredOfferings,
+) ([][]materializedOfferingSelection, error) {
 	out := make([][]materializedOfferingSelection, len(children))
 	for i := range children {
 		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
+		for id := range grandfatheredStillSelected(children[i], grandfathered.Manual) {
+			if offering, ok := openByID[id]; ok {
+				availableByID[id] = offering
+			}
+		}
 		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
+		// Auto-add works off a wider catalog than validation does, so a
+		// holding's automatic days can be re-derived without the offering
+		// becoming selectable, required, or choosable.
+		materializeByID := availableByID
+		if len(grandfathered.Automatic) > 0 {
+			materializeByID = make(map[int64]*enrollmentModels.CareOffering, len(availableByID)+len(grandfathered.Automatic))
+			for id, offering := range availableByID {
+				materializeByID[id] = offering
+			}
+			for id := range grandfathered.Automatic {
+				if offering, ok := openByID[id]; ok {
+					materializeByID[id] = offering
+				}
+			}
+		}
 		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
-		selections, err := materializeOfferingSelections(children[i], availableByID)
+		selections, err := materializeOfferingSelections(children[i], materializeByID)
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
-		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, availableByID)
+		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
 		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, availableByID); err != nil {
 			return nil, err
 		}
@@ -1290,6 +1369,42 @@ func materializeAndValidateChildrenOfferingSelections(
 		out[i] = selections
 	}
 	return out, nil
+}
+
+// GrandfatheredOfferings splits the bookings a child already holds by how an
+// admin can act on them. The sets may overlap: a booking carrying both manual
+// and automatic days belongs in both. See
+// materializeAndValidateChildrenOfferingSelectionsGrandfathering for why the
+// two behave differently.
+type GrandfatheredOfferings struct {
+	// Manual: the booking carries days the admin ticked, so it is removable
+	// and exempt only while still submitted.
+	Manual map[int64]bool
+	// Automatic: the booking carries days derived from a trigger, which are
+	// never submitted and must survive a save that does not mention them.
+	Automatic map[int64]bool
+}
+
+// grandfatheredStillSelected narrows a grandfathering set to the ids the
+// submitted payload still carries for this child. Both the id list and the
+// per-offering day rows count as "selected": either one means the admin kept
+// the booking.
+func grandfatheredStillSelected(child SubmitChild, grandfathered map[int64]bool) map[int64]bool {
+	if len(grandfathered) == 0 {
+		return nil
+	}
+	kept := make(map[int64]bool, len(grandfathered))
+	for _, id := range child.OfferingIDs {
+		if grandfathered[id] {
+			kept[id] = true
+		}
+	}
+	for _, row := range child.OfferingDays {
+		if grandfathered[row.OfferingID] {
+			kept[row.OfferingID] = true
+		}
+	}
+	return kept
 }
 
 func availableCareOfferingsForGrade(catalog map[int64]*enrollmentModels.CareOffering, grade *int16) (map[int64]*enrollmentModels.CareOffering, error) {
@@ -1385,9 +1500,13 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 			if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
 				continue
 			}
+			var ruleDays []string
+			if !child.ExcludedAutoAddTargetIDs[target.ID] {
+				ruleDays = autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
+			}
 			autoDays := unionDaysInOfferingOrder(
 				target.AvailableDays,
-				autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID),
+				ruleDays,
 				autoLunchDaysForTarget(target, selectionByID, openByID),
 			)
 			if len(autoDays) == 0 {
@@ -2174,7 +2293,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
 			return err
 		}
-		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
+		if err := s.validateConstrainedSchedules(schema, editReq, openByID, children); err != nil {
 			return err
 		}
 		byKey := buildFieldsByKey(schema)

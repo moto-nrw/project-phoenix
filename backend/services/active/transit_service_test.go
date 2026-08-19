@@ -5,6 +5,7 @@ import (
 	"time"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -156,6 +157,7 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	assert.Equal(t, targetRoom.ID, *result.RoomID)
 	assert.ElementsMatch(t, []int64{inSourceStudent.ID, transitStudent.ID}, result.Moved)
 	assert.Equal(t, []int64{inTargetStudent.ID}, result.Unchanged)
+	assert.Equal(t, map[int64]int64{inSourceStudent.ID: sourceGroup.ID}, result.PreviousActiveGroupIDs)
 	require.Len(t, result.Skipped, 1)
 	assert.Equal(t, absentStudent.ID, result.Skipped[0].StudentID)
 	assert.Equal(t, activeSvc.StudentMoveSkipNotPresent, result.Skipped[0].Reason)
@@ -181,6 +183,50 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 
 	_, err = service.GetStudentCurrentVisit(ctx, absentStudent.ID)
 	assert.ErrorIs(t, err, activeSvc.ErrVisitNotFound)
+}
+
+func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+	now := time.Now()
+
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-graduate-source")
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-graduate-target")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Move Graduate Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Move Graduate Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveGraduate", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "move-graduate-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveGraduate", "Student", "MGS1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-20*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(t, db,
+		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
+		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, visit.ID,
+	)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", usersModel.StudentStatusAlumnus).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrStudentGraduated)
+	assert.Nil(t, result)
+	reloadedVisit, reloadErr := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, reloadErr)
+	assert.Nil(t, reloadedVisit.ExitTime)
+	assert.Equal(t, sourceGroup.ID, reloadedVisit.ActiveGroupID)
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t *testing.T) {
@@ -442,6 +488,57 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 	assert.Empty(t, result.Moved)
 	assert.ElementsMatch(t, []int64{studentA, studentB}, result.Unchanged)
 	assert.Empty(t, result.Skipped)
+}
+
+func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+	}()
+
+	now := time.Now()
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-binary-stale-source")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Move Binary Stale Source Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-binary-stale-target")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Move Binary Stale Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveBinaryStale", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "move-binary-stale-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveBinaryStale", "Student", "MBS1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-20*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(t, db,
+		sourceActivity.ID, sourceRoom.ID, sourceGroup.ID,
+		targetActivity.ID, targetRoom.ID, targetGroup.ID,
+		staff.ID, device.ID, student.ID, visit.ID,
+	)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Moved)
+	assert.Empty(t, result.Unchanged)
+	assert.Equal(t, []activeSvc.StudentMoveSkipped{{StudentID: student.ID, Reason: activeSvc.StudentMoveSkipConflict}}, result.Skipped)
+
+	reloadedVisit, err := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedVisit.ExitTime, "rejecting the binary no-op must leave the source visit unchanged")
 }
 
 func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *testing.T) {

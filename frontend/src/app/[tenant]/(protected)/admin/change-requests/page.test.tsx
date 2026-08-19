@@ -34,10 +34,6 @@ vi.mock("~/components/students/excused-request-review-list", () => ({
   ExcusedRequestReviewList: () => <div>excused-request-review-list</div>,
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div>loading</div>,
-}));
-
 const mockUseRequirePermission = vi.mocked(useRequirePermission);
 
 /** Sitzung mit den angegebenen Rechten, ohne Admin-Rolle. */
@@ -62,7 +58,9 @@ describe("AdminChangeRequestsPage", () => {
 
     render(<AdminChangeRequestsPage />);
 
-    expect(screen.getByText("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Änderungsanfragen werden geladen…"),
+    ).toBeInTheDocument();
   });
 
   it("renders both review queues once access is ready", () => {

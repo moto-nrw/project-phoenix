@@ -44,6 +44,9 @@ type ParentMessageThread struct {
 	// covered by a staff reply. Personal read cursors remain account-specific.
 	StaffHandledUpToAt        *time.Time `bun:"staff_handled_up_to_at" json:"-"`
 	StaffHandledUpToMessageID *int64     `bun:"staff_handled_up_to_message_id" json:"-"`
+	// LastStaffMessageNotificationAt is the database-clock claim used to
+	// collapse a short burst of guardian messages into one staff notification.
+	LastStaffMessageNotificationAt *time.Time `bun:"last_staff_message_notification_at" json:"-"`
 }
 
 // ParentMessageThreadRepository is the tenant-scoped data-access contract for
@@ -62,6 +65,10 @@ type ParentMessageThreadRepository interface {
 	// messages share a timestamp and the higher id wins. Callers must still insert
 	// the message row separately.
 	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
+	// ClaimStaffMessageNotification atomically opens one notification window for
+	// the thread. It returns false while a previous claim is still inside the
+	// cooldown. PostgreSQL supplies the clock so multiple app hosts agree.
+	ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error)
 	// FindByID returns the thread by id (tenant-scoped), or nil when absent.
 	FindByID(ctx context.Context, id int64) (*ParentMessageThread, error)
 	// FindByStudentGuardian returns the single conversation for a (student,
@@ -90,4 +97,5 @@ type MessageableGuardian struct {
 	Name             string `bun:"name" json:"name"`
 	RelationshipType string `bun:"relationship_type" json:"relationship_type"`
 	IsPrimary        bool   `bun:"is_primary" json:"is_primary"`
+	PortalLocale     string `bun:"portal_locale" json:"-"`
 }

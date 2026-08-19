@@ -26,6 +26,11 @@ const (
 	CareRequestStatusWithdrawn = "withdrawn"
 )
 
+const (
+	CareRequestKindWeeklySchedule = "weekly_schedule"
+	CareRequestKindPickupChange   = "pickup_change"
+)
+
 // CareScheduleChangeRequest is one parent-initiated change to a child's
 // recurring weekly care plan (departure mode + arrival/pickup times per
 // weekday). One row per request carrying the whole canonical payload
@@ -38,6 +43,7 @@ type CareScheduleChangeRequest struct {
 
 	StudentID      int64          `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy    int64          `bun:"submitted_by,notnull" json:"submitted_by"`
+	RequestKind    string         `bun:"request_kind,notnull,default:'weekly_schedule'" json:"request_kind"`
 	Payload        map[string]any `bun:"payload,type:jsonb,notnull" json:"payload"`
 	Status         string         `bun:"status,notnull,default:'pending'" json:"status"`
 	DecisionReason *string        `bun:"decision_reason" json:"decision_reason,omitempty"`
@@ -74,6 +80,9 @@ type CareScheduleChangeRequestRepository interface {
 	// ListPendingForTenant returns every pending request for the current
 	// tenant, newest-first — the staff review queue.
 	ListPendingForTenant(ctx context.Context) ([]*CareScheduleChangeRequest, error)
+	GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*CareScheduleChangeRequest, error)
+	ListPendingForTenantAndKind(ctx context.Context, requestKind string) ([]*CareScheduleChangeRequest, error)
+	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
 
 	// FindPendingByIDForUpdate locks a request row for decision processing.
 	// It returns ErrCareRequestNotFound when the row is missing in the

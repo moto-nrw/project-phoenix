@@ -8,10 +8,8 @@ vi.mock("next-auth/react", () => ({
   useSession: (...args: unknown[]) => mockUseSession(...args),
 }));
 
-const mockUseSelectedLayoutSegment = vi.fn(() => null as string | null);
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  useSelectedLayoutSegment: () => mockUseSelectedLayoutSegment(),
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
@@ -25,12 +23,6 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
-}));
-
-vi.mock("~/components/database/master-detail-skeleton", () => ({
-  MasterDetailSkeleton: () => (
-    <div data-testid="master-detail-skeleton">Loading...</div>
-  ),
 }));
 
 describe("DatabaseLayout", () => {
@@ -74,8 +66,7 @@ describe("DatabaseLayout", () => {
     expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
   });
 
-  it("shows the index card-grid skeleton while session loads on the index page", () => {
-    mockUseSelectedLayoutSegment.mockReturnValue(null);
+  it("shows neutral progress while the session loads", () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: "loading",
@@ -87,22 +78,11 @@ describe("DatabaseLayout", () => {
       </DatabaseLayout>,
     );
 
-    expect(screen.getByTestId("database-index-skeleton")).toBeInTheDocument();
-  });
-
-  it("shows the master-detail skeleton while session loads on a sub-route", () => {
-    mockUseSelectedLayoutSegment.mockReturnValue("students");
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "loading",
+    const loading = screen.getByRole("status", {
+      name: "Berechtigungen werden geprüft…",
     });
-
-    render(
-      <DatabaseLayout>
-        <div>Content</div>
-      </DatabaseLayout>,
-    );
-
-    expect(screen.getByTestId("master-detail-skeleton")).toBeInTheDocument();
+    expect(loading).toBeVisible();
+    expect(loading).not.toHaveClass("fixed");
+    expect(loading).toHaveClass("min-h-40");
   });
 });

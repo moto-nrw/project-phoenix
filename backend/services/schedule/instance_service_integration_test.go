@@ -780,10 +780,24 @@ func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
 	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
 
+	// active.group_supervisors carries a BEFORE UPDATE trigger
+	// (update_modified_column) that overwrites updated_at with the DB clock's
+	// now(), so an explicit future timestamp cannot be written. Bump the row
+	// (the trigger stamps it "now") and move the recorded completion instant
+	// two minutes into the past instead: the conflict predicate
+	// updated_at > completed_at then holds regardless of Go-vs-Postgres clock
+	// skew. Comparing the trigger stamp against the Go-clock completed_at
+	// directly is a sub-millisecond race that made this test flaky.
 	_, err = s.db.NewUpdate().
 		Table("active.group_supervisors").
-		Set("updated_at = ?", time.Now().Add(time.Minute)).
+		Set("updated_at = now()").
 		Where("group_id = ?", started.ActiveGroupID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("completed_at = completed_at - interval '2 minutes'").
+		Where("id = ?", ai.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -1256,25 +1270,40 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	from := timezone.NewDate(2026, 4, 20)
 	to := from.AddDays(6)
 
-	// Five seeded rows inside the window — one of each protected kind.
+	// Six seeded rows inside the window — one of each protected kind.
 	plannedNormal := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	plannedSpont := insertInstance(t, s, from.AddDays(1), scheduleModels.InstanceStatusPlanned, true)
 	active := insertInstance(t, s, from.AddDays(2), scheduleModels.InstanceStatusActive, false)
 	completed := insertInstance(t, s, from.AddDays(3), scheduleModels.InstanceStatusCompleted, false)
 	cancelled := insertInstance(t, s, from.AddDays(4), scheduleModels.InstanceStatusCancelled, false)
+	// #2299: a manual planning-module block without an offering is planned
+	// (is_spontaneous=false) but has no template — materialization could never
+	// recreate it, so a whole-grid re-plan must not delete it.
+	plannedManual := &scheduleModels.ActivityInstance{
+		Date:      from.AddDays(1),
+		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
+		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		RoomID:    s.roomID,
+		Status:    scheduleModels.InstanceStatusPlanned,
+	}
+	plannedManual.SetTenantID(tenant.FromContext(s.ctx))
+	_, err := s.db.NewInsert().Model(plannedManual).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
 	// by ReplanWeek; if so, the cleanup becomes a no-op).
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances",
-			plannedNormal, plannedSpont, active, completed, cancelled)
+			plannedNormal, plannedSpont, active, completed, cancelled, plannedManual.ID)
 	})
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
+	_, err = s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
 	assert.True(t, instanceExists(t, s, plannedSpont), "spontaneous planned must survive")
+	assert.True(t, instanceExists(t, s, plannedManual.ID), "manual no-offering planned block must survive a whole-grid re-plan")
 	assert.True(t, instanceExists(t, s, active), "active must survive")
 	assert.True(t, instanceExists(t, s, completed), "completed must survive")
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
@@ -1489,7 +1518,10 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	assert.True(t, inst.IsSpontaneous)
+	// #2299: is_spontaneous records the creation origin. A planning-module
+	// create without an explicit flag is a planned block even without an
+	// offering link — the lifecycle time guards must apply.
+	assert.False(t, inst.IsSpontaneous)
 	assert.Nil(t, inst.ActivityGroupID)
 
 	isSpontaneous := true
@@ -1536,13 +1568,114 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 
 	assert.Equal(t, "Updated planned instance", updated.Title)
 	assert.Equal(t, "16:00", updated.StartTime.Format("15:04"))
-	assert.True(t, updated.IsSpontaneous, "nil ActivityGroupID should toggle to spontaneous")
+	// #2299: unlinking the offering must NOT flip the block to spontaneous —
+	// is_spontaneous keeps recording the creation origin.
+	assert.False(t, updated.IsSpontaneous, "removing the offering link must not toggle is_spontaneous")
 	assert.Nil(t, updated.ActivityGroupID)
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_staff", "instance_id", ai.ID))
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
 
 	row := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+}
+
+// guardedLifecycleSettings satisfies scheduleSvc.LifecycleSettings for the
+// time-policy pass-through test below.
+type guardedLifecycleSettings struct {
+	leadMinutes       int
+	enforcePlannedEnd bool
+}
+
+func (s guardedLifecycleSettings) ResolveInt(context.Context, string) (int, error) {
+	return s.leadMinutes, nil
+}
+
+func (s guardedLifecycleSettings) ResolveBool(context.Context, string) (bool, error) {
+	return s.enforcePlannedEnd, nil
+}
+
+// #2299 guard pass-through: a block created in the planning module WITHOUT an
+// offering link is subject to the lead-time guard, while an ad-hoc block
+// (explicit IsSpontaneous=true) stays exempt at the same clock.
+func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) {
+	s := buildLifecycle(t)
+	date := timezone.NewDate(2026, 4, 22)
+	// 08:00 Berlin — far before the 14:00 start minus the 15-minute lead.
+	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
+	guarded := scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
+		InstanceRepo:       s.repos.ActivityInstance,
+		InstanceStaffRepo:  s.repos.InstanceStaff,
+		InstanceStudents:   s.repos.InstanceStudent,
+		ExceptionRepo:      s.repos.ActivityException,
+		ActiveGroupRepo:    s.repos.ActiveGroup,
+		SupervisorRepo:     s.repos.GroupSupervisor,
+		VisitRepo:          s.repos.ActiveVisit,
+		RoomRepo:           s.repos.Room,
+		ActivityGroupRepo:  s.repos.ActivityGroup,
+		StaffRepo:          s.repos.Staff,
+		StudentRepo:        s.repos.Student,
+		ActiveService:      s.factory.Active,
+		Materialization:    s.factory.Materialization,
+		CareDayService:     s.factory.CareDay,
+		DeviationEventRepo: s.repos.DeviationEvent,
+		DB:                 s.db,
+		Logger:             slog.Default(),
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
+		Settings:           guardedLifecycleSettings{leadMinutes: 15, enforcePlannedEnd: true},
+		Now:                func() time.Time { return now },
+		EnforceTimePolicy:  true,
+	})
+
+	planned, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:     "Guarded no-offering block",
+		RoomID:    s.roomID,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", planned.ID) })
+
+	_, err = guarded.Start(s.ctx, planned.ID, s.staffID)
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceStartTooEarly,
+		"planning-module block without offering must hit the lead-time guard")
+
+	isSpontaneous := true
+	adhoc, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:          date,
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:         "Ad-hoc block",
+		RoomID:        s.roomID,
+		IsSpontaneous: &isSpontaneous,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", adhoc.ID) })
+
+	started, err := guarded.Start(s.ctx, adhoc.ID, s.staffID)
+	require.NoError(t, err, "ad-hoc block stays exempt from the time policy")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID) })
+}
+
+// #2299: is_spontaneous records the creation origin, so an edit that links an
+// offering to a spontaneous block must not reclassify it as planned either.
+func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedSpontaneousInstance(t, s, false)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
+		Date:            ai.Date,
+		StartTime:       ai.StartTime,
+		EndTime:         ai.EndTime,
+		Title:           ai.Title,
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+	}, nil)
+	require.NoError(t, err)
+
+	assert.True(t, updated.IsSpontaneous, "linking an offering must not toggle is_spontaneous")
+	require.NotNil(t, updated.ActivityGroupID)
+	assert.Equal(t, s.tmplID, *updated.ActivityGroupID)
 }
 
 func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {

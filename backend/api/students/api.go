@@ -184,6 +184,7 @@ func (rs *Resource) Router() chi.Router {
 		// the child between activity groups on a chosen date, so it shares the
 		// users:update gate of the queues it sits next to on the same page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.
@@ -278,6 +279,10 @@ func (rs *Resource) Router() chi.Router {
 		// The users:checkin permission is the gate; any verified staff member may
 		// toggle any student (#2329).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
+		// Batch variant (#2359): one explicit action for a selected set of
+		// children. Same gate as the single endpoint; static path takes
+		// precedence over /{id} in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/school-checkin/batch", rs.schoolCheckinBatchHandler)
 
 		// Student photo (Datenverwaltung). upload + delete: users:update;
 		// serve: users:read. Feature gate + consent enforced in photo.go.

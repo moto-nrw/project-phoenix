@@ -6,6 +6,7 @@ import {
   getChildFeatures,
   listAnnouncements,
   listMyChildren,
+  type Child,
 } from "~/lib/parent-api";
 
 // Resolve whether the parent has any discoverable parent-news. Mirrors
@@ -22,9 +23,11 @@ import {
 // feature endpoint to probe those enrollment-only tenants, so we fall back to
 // the feed itself — any item means the parent has news to open, even with no
 // child to read features on.
-async function fetchAnyNewsEnabled(): Promise<boolean> {
+async function fetchAnyNewsEnabled(
+  knownChildren?: readonly Child[],
+): Promise<boolean> {
   const [children, announcements] = await Promise.all([
-    listMyChildren(),
+    knownChildren ?? listMyChildren(),
     listAnnouncements(),
   ]);
   // Any live feed item (linked-child OR pending-enrollment) is discoverable
@@ -56,10 +59,20 @@ async function fetchAnyNewsEnabled(): Promise<boolean> {
  * no linked school runs news, so the nav/panel stays hidden until the feature
  * is confirmed available rather than leading to an empty page.
  */
-export function useParentNewsEnabled(enabled: boolean): boolean {
+export function useParentNewsEnabled(
+  enabled: boolean,
+  children?: readonly Child[] | null,
+): boolean {
   const { data } = useSWR(
-    enabled ? "parent-news-enabled" : null,
-    fetchAnyNewsEnabled,
+    enabled && children !== null
+      ? children === undefined
+        ? "parent-news-enabled"
+        : [
+            "parent-news-enabled",
+            children.map((child) => child.student_id).join(","),
+          ]
+      : null,
+    () => fetchAnyNewsEnabled(children ?? undefined),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

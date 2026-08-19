@@ -15,6 +15,7 @@ import {
   endOfBerlinDayISO,
   formatChatTime,
   formatChatDateTime,
+  formatChatClockTime,
   formatBerlinDate,
 } from "./date-helpers";
 
@@ -198,6 +199,12 @@ describe("formatBerlinDate", () => {
   it("falls back to the raw input for an unparseable value", () => {
     expect(formatBerlinDate("nicht-datum")).toBe("nicht-datum");
   });
+
+  it("uses the requested locale", () => {
+    expect(formatBerlinDate("2026-07-20T21:59:59.000Z", "en-GB")).toBe(
+      "20/07/2026",
+    );
+  });
 });
 
 describe("groupByDate", () => {
@@ -306,6 +313,13 @@ describe("formatDate", () => {
 
     expect(result).toContain("Mittwoch");
     expect(result).toContain("10. Juni 2026");
+  });
+
+  it("uses the requested locale for parent-facing dates", () => {
+    expect(formatDate("2026-06-10", false, "en-US")).toBe("06/10/2026");
+    expect(formatDate("2026-06-10", true, "en-US")).toContain(
+      "Wednesday, June 10, 2026",
+    );
   });
 });
 
@@ -546,6 +560,12 @@ describe("formatChatTime", () => {
     // HH:MM part
     expect(parts[1]).toMatch(/^\d{2}:\d{2}$/);
   });
+
+  it("uses the requested locale", () => {
+    expect(formatChatTime("2026-06-10T08:05:00Z", "en-GB")).toBe(
+      "10/06, 10:05",
+    );
+  });
 });
 
 describe("formatChatDateTime", () => {
@@ -579,5 +599,27 @@ describe("formatChatDateTime", () => {
     const result = formatChatDateTime("2026-06-10");
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("uses the requested locale", () => {
+    expect(formatChatDateTime("2026-06-10T08:05:00Z", "en-GB")).toBe(
+      "10/06/2026, 10:05",
+    );
+  });
+});
+
+describe("formatChatClockTime", () => {
+  it("formats only the Berlin clock time for compact chat lists", () => {
+    expect(formatChatClockTime("2026-01-01T23:30:00Z")).toBe("00:30");
+  });
+
+  it("returns the raw input for an invalid timestamp", () => {
+    expect(formatChatClockTime("garbage")).toBe("garbage");
+  });
+
+  it("uses the requested locale", () => {
+    expect(formatChatClockTime("2026-06-10T20:05:00Z", "en-US")).toBe(
+      "10:05 PM",
+    );
   });
 });

@@ -98,6 +98,7 @@ DELETE /operator/suggestions/{id}
 DELETE /operator/suggestions/{id}/comments/{commentId}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
+DELETE /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/feedback/{postId}
 DELETE /parent/me/feedback/{postId}/comments/{commentId}
@@ -174,6 +175,7 @@ GET /api/enrollment/admin/requests/{id}/delete-impact
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
+GET /api/enrollment/care-offerings/booking-stats
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
 GET /api/enrollment/care-offerings/{id}/pickup-rollout
@@ -187,6 +189,7 @@ GET /api/enrollment/phases/{id}/
 GET /api/enrollment/phases/{id}/delete-impact
 GET /api/enrollment/phases/{id}/manual-bootstrap
 GET /api/enrollment/phases/{id}/review
+GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
 GET /api/enrollment/requests/{statusToken}/change-requests
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap
@@ -496,8 +499,10 @@ GET /parent/me/children/{studentId}/guardians
 GET /parent/me/children/{studentId}/master-data
 GET /parent/me/children/{studentId}/master-data/requests
 GET /parent/me/children/{studentId}/meal-plan
+GET /parent/me/children/{studentId}/pickup-change-requests
 GET /parent/me/children/{studentId}/related-accounts
 GET /parent/me/children/{studentId}/sick-note
+GET /parent/me/children/{studentId}/today
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
 GET /parent/me/feedback
@@ -675,8 +680,10 @@ POST /api/students/excused-absence-requests/{requestId}/decide
 POST /api/students/export
 POST /api/students/master-data-change-requests/{requestId}/decide
 POST /api/students/offering-change-requests/{requestId}/decide
+POST /api/students/offering-change-requests/{requestId}/preview
 POST /api/students/pickup-schedules/bulk
 POST /api/students/pickup-times/bulk
+POST /api/students/school-checkin/batch
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
@@ -814,6 +821,7 @@ POST /parent/me/children/{studentId}/care-offerings/requests
 POST /parent/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/care-schedule/requests
 POST /parent/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw
+POST /parent/me/children/{studentId}/guardians
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts
 POST /parent/me/children/{studentId}/sick-note

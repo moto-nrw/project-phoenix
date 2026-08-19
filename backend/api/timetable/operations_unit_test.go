@@ -825,6 +825,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
 		{activeSvc.ErrRoomConflict, http.StatusConflict},
 		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
+		{activeSvc.ErrActiveGroupAlreadyEnded, http.StatusConflict},
 		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
 		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
 		{activeSvc.ErrInvalidData, http.StatusBadRequest},
@@ -912,6 +913,9 @@ type stubOpActiveService struct{}
 
 func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
 func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+}
 
 type stubOpArrivalService struct{}
 

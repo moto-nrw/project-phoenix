@@ -440,25 +440,50 @@ export const setupChapters: readonly GuideChapter[] = [
       },
       {
         id: "betreuungszeiten-pflegen",
-        title: "Ankunfts- und Gehzeiten pflegen",
+        title: "Feste Ankunfts- und Abholzeiten eintragen",
         summary:
-          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Kinddetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
+          "Die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten eines Kindes pflegen Sie auf der Kinddetailseite im Tab `Betreuungszeiten` über den `Wochenplan`. Einzelne Abweichungen tragen Sie direkt auf der Tageskarte ein. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
+        searchTerms: [
+          "Abholzeit",
+          "feste Abholzeit",
+          "Gehzeit",
+          "Gehzeiten",
+          "Wochenplan",
+          "Abholnotiz",
+        ],
+        steps: [
+          "`Alle Kinder` öffnen und auf die Karte des Kindes klicken.",
+          "Den Tab `Betreuungszeiten` öffnen.",
+          "Oben rechts auf `Wochenplan` klicken.",
+          "Je Wochentag die regelmäßigen Zeiten für `Ankunft` und `Abholung` im Format `HH:MM` eintragen, zum Beispiel Montag bis Donnerstag `13:45`. Optional je Tag eine Ankunfts- oder Abholnotiz ergänzen.",
+          "Speichern. Würde eine geleerte Zeit einen bestehenden Eintrag entfernen, fragt die App vorher nach.",
+          "Für eine Abweichung an einem einzelnen Tag auf der jeweiligen Tageskarte `Ausnahme` wählen: Neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein Feld `Grund`. Ausnahmen bleiben bestehen, wenn der Wochenplan später geändert wird.",
+        ],
+        callout: {
+          title: "Abholzeiten sind auf den NFC-Tablets sichtbar",
+          body: "Wenn Ihre Einrichtung NFC-Tablets nutzt, werden Abholzeiten und Abholnotizen dort angezeigt und sind für Kinder einsehbar. Schreiben Sie deshalb keine sensiblen Angaben in die Abholnotiz, zum Beispiel Gesundheits- oder Therapiegründe.",
+          tone: "orange",
+        },
+        screenshot:
+          "Tab Betreuungszeiten auf der Kinddetailseite mit den Tageskarten und der Schaltfläche Wochenplan oben rechts.",
+        image: "/help/screens/betreuungszeiten-pflegen.webp",
+      },
+      {
+        id: "betreuungszeiten-mehrere-kinder",
+        title: "Zeiten für mehrere Kinder gleichzeitig setzen",
+        summary:
+          "Wenn viele Kinder dieselben Ankunftszeiten haben, zum Beispiel eine ganze Klasse, setzen Sie sie gesammelt in der Datenverwaltung. Für Gehzeiten wählen Sie die Kinder zuerst selbst aus.",
+        searchTerms: ["Sammelaktion", "Auswahlleiste", "Gruppieren"],
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
-          "Das Kind in der Liste auswählen.",
-          "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
-          "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
-          "Für mehrere Kinder mit denselben Ankunftszeiten oben bei `Gruppieren` `Klasse` oder `Gruppe` wählen. Im Drei-Punkte-Menü der gewünschten Klasse oder OGS-Gruppe `Ankunftszeit bearbeiten` öffnen und die gemeinsamen Zeiten eintragen. Ausgefüllte Wochentage werden für alle Kinder des Filters gesetzt; leere Felder bleiben unverändert.",
-          "Für einige frei zusammengestellte Kinder auf `Auswählen` klicken und die gewünschten Kinder einzeln anhaken. Suche und Gruppenfilter dürfen zwischendurch geändert werden; die Auswahl bleibt erhalten.",
+          "Für alle Kinder einer Klasse oder OGS-Gruppe: oben bei `Gruppieren` `Klasse` oder `Gruppe` wählen. Im Drei-Punkte-Menü der gewünschten Klasse oder Gruppe `Ankunftszeit bearbeiten` öffnen und die gemeinsamen Zeiten eintragen. Ausgefüllte Wochentage werden für alle Kinder des Filters gesetzt; leere Felder bleiben unverändert.",
+          "Für frei zusammengestellte Kinder auf `Auswählen` klicken und die gewünschten Kinder einzeln anhaken. Suche und Gruppenfilter dürfen zwischendurch geändert werden; die Auswahl bleibt erhalten.",
           "Oben in der Auswahlleiste `Ankunftszeiten`, `Gehzeiten` oder `Klassenfahrt` wählen. Bei den Wochenzeiten werden nur ausgefüllte Tage geändert; leere Tage und vorhandene Notizen bleiben unverändert.",
-          "Nach dem Speichern bleibt die Auswahl aktiv, damit bei Bedarf direkt eine weitere Aktion für dieselben Kinder ausgeführt werden kann. Mit `Fertig` wird sie beendet.",
-          "Im Bereich `Gehplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Gehzeiten, Abholer sowie Hinweise eintragen.",
-          "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",
-          "Speichern.",
+          "Nach dem Speichern bleibt die Auswahl aktiv, damit bei Bedarf direkt eine weitere Aktion für dieselben Kinder folgen kann. Mit `Fertig` wird sie beendet.",
         ],
         screenshot:
           "Kinderansicht im Auswahlmodus mit angehakten Kindern, Auswahlleiste und den Aktionen für Ankunft, Gehzeit und Klassenfahrt.",
-        image: "/help/screens/betreuungszeiten-pflegen.webp",
+        image: "/help/screens/betreuungszeiten-mehrere-kinder.webp",
       },
     ],
   },
@@ -546,7 +571,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Gruppieren` die Liste nach `Status`, `Raum`, `Ankunftszeit`, `Gehzeit`, `Abholregelung` oder `Laufgemeinschaft` bündeln. `Nach Laufgemeinschaft` zeigt die Kinder blockweise so, wie sie gemeinsam nach Hause gehen; Kinder ohne Verknüpfung stehen gesammelt am Ende unter `Ohne Laufgemeinschaft`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Zur Abholzeit über `An- & Abmelden` (am Handy die Leiste über der Liste) den Sammelmodus starten: Ein Tipp auf eine Kinderkarte meldet das Kind an oder ab, ohne die Karte zu öffnen. Der farbige Streifen unten auf der Karte nennt die nächste Aktion, grün für `Anmelden` und rot für `Abmelden`. So lässt sich eine gefilterte Aufrufliste abarbeiten, ohne zwischen Ansichten zu wechseln. Der Modus gilt immer für heute; `Fertig` beendet ihn.",
-          "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, darf nur die Gruppenbetreuung des Kindes an- und abmelden; ein Admin kann das unter `Einstellungen` -> `Betrieb` -> `Web-An/Abmeldung Zugriff` auf alle berechtigten Mitarbeitenden ausweiten.",
+          "In der Leiste unter dem Seitenkopf lässt sich das Tippverhalten von `Sofort` auf `Auswahl` umschalten: Ein Tipp markiert das Kind dann nur (`Ausgewählt`), ohne etwas auszulösen. So sieht man zum Beispiel im Verabschiedungskreis, wer schon dasteht und wer noch fehlt. `Anmelden` oder `Abmelden` in der Leiste führt die Aktion anschließend für alle markierten Kinder gesammelt aus. Kinder, bei denen es nicht klappt, werden namentlich genannt und bleiben markiert, sodass ein zweiter Versuch nur ein Tipp ist.",
+          "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Bei einer Sammelaktion kommt diese Nachfrage einmal für die ganze Auswahl. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, fehlt dem Konto das Recht zum An- und Abmelden von Kindern; ein Admin kann es über die Rollenverwaltung vergeben.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
         callout: {
@@ -584,6 +610,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen – die Zeiten selbst bearbeiten Sie über `Zeiten bearbeiten` im Tab `Betreuungszeiten`.",
           "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. Die Schaltfläche `Wochenplan` oben rechts öffnet die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
+          "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
           "Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird. Ebenso fragt die App nach, wenn beim Speichern des Wochenplans eine bereits eingetragene Zeit entfernt würde.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
           "Im Tab `Historie` über `Änderungsverlauf` nachvollziehen, wer wann welche Angaben zum Kind geändert hat (Vorher → Nachher). Sichtbar nur für Admins und Gruppenbetreuer. Direkt im Tab `Stammdaten` zeigt ein ⓘ neben einem Feld, wer es zuletzt geändert hat.",
@@ -650,12 +677,14 @@ export const appChapters: readonly GuideChapter[] = [
           "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
-          "Für Name, Geburtsdatum und Gehzeiten sowie für die dauerhaften Bring- und Abholzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Der Hinweis dort nennt die OGS als Stelle, die die Zeiten pflegt; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
           "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Eltern` > `Änderungsanfragen`, getrennt nach `Stammdaten`, `Betreuungszeiten`, `Betreuungsangebote und AGs` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
           "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart); bei Betreuungsangeboten das gewünschte Startdatum und welche Angebote dazukommen oder wegfallen; bei entschuldigten Abmeldungen die betroffenen Tage und die Begründung der Eltern.",
+          "Angebote, die eine Mitbuchungs-Regel ergänzt, tragen die Markierung `Automatisch mitgebucht` und nennen das Angebot, das die Mitbuchung auslöst. So erkennen Sie, was die Eltern selbst gewählt haben. Über den Haken `Automatisch mitbuchen` können Sie ein solches Angebot für genau diese Anfrage abwählen; die Regel bleibt für alle anderen Anfragen eingeschaltet.",
           "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten, Betreuungsangeboten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
           "Anfragen zu Betreuungsangeboten gelten ab dem gewünschten Datum: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot inzwischen voll, meldet die App das beim Freigeben und die Anfrage bleibt offen.",
-          "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Betreuungsangebote` im Kinderprofil der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
+          "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -696,7 +725,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
-          "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
+          "Ungeplantes Kind über `Weiteres Kind suchen...` finden.",
+          "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
@@ -711,7 +741,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Wird einer Aktivität eine ganze Gruppe, Klasse oder Jahrgangsstufe zugewiesen, gehören alle Kinder dauerhaft dazu. Wer laut seinen `Betreuungszeiten` an diesem Wochentag gar nicht in der OGS ist, erscheint deshalb grau als `Nicht eingeplant` und zählt nicht zu `Erwartet`. Das Kind bleibt trotzdem in der Liste: Kommt es doch, checken Sie es ganz normal ein. Kinder ohne hinterlegte Betreuungszeiten gelten weiterhin als erwartet.",
         },
         screenshot:
-          "Laufende Aufsicht mit Anwesend, Kinder unterwegs und Spontane Aktivität.",
+          "Laufende Aufsicht mit ausgewähltem Suchtreffer vor dem Hinzufügen.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {
@@ -1278,7 +1308,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tageszeilen prüfen: Plan (geplante Schicht), Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
           "Gesetzliche Feiertage (nach dem Bundesland der Einrichtung) tragen das Badge `Feiertag`. An diesen Tagen ist das Soll automatisch 0, es entstehen also keine Minusstunden. Wird an einem Feiertag trotzdem gestempelt, erscheint der Hinweis `Feiertagsarbeit`.",
           "Von der Einrichtung hinterlegte OGS-Schließtage (z. B. pädagogische Tage oder die Sommerschließung) tragen das Badge `Schließtag` und setzen das Soll ebenfalls auf 0. Fällt ein Schließtag auf einen Feiertag, zeigt die Zeile das Feiertag-Badge.",
-          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren oder fehlende Arbeitstage nachtragen. Bei jeder Arbeitszeit-Korrektur einen Grund angeben.",
+          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren. Bei jeder Arbeitszeit-Korrektur einen Grund angeben. Fehlende Arbeitstage kann nur die Leitung nachtragen: unter `Mitarbeitende` die Person öffnen und im Bereich `Zeiterfassung` den Tag ergänzen.",
           "Geänderte Tage aufklappen, um die Änderungshistorie zu sehen. Für Auswertungen den Export im Tabellenkopf nutzen.",
         ],
         callout: {
@@ -1394,6 +1424,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
           "Für Familien, die die Frist verpasst haben, `Anmeldephasen` öffnen und in der passenden Phase im Drei-Punkte-Menü `Nachzügler-Link erstellen` wählen. E-Mail-Adresse der erziehungsberechtigten Person eintragen, optional einen internen Grund notieren und den erzeugten Link an die Familie schicken. Der Link öffnet genau diese Phase trotz geschlossener Frist und kann nur einmal erfolgreich genutzt werden.",
           "Als letzte Absicherung kann ein Admin unter `Anmeldephasen` in der passenden Phase im Drei-Punkte-Menü `Manuelle Anmeldung` wählen. Dort wird dieselbe Formularvorlage wie für Eltern geladen; nach interner Begründung und Bestätigung, dass die Einwilligung extern vorliegt, wird das Kind direkt angelegt und freigegeben.",
+          "Anders als im Elternformular zeigt die manuelle Anmeldung auch die Angebote, die für die gewählte Klassenstufe gesperrt sind: Sie stehen ausgegraut unter `Für dieses Kind nicht wählbar` samt Grund, und unter jedem Angebot steht die aktuelle Belegung. Passt eine Verfügbarkeitsregel nicht, änderst du sie unter `Anmeldungen` -> `Betreuungsangebote` und trägst danach nach.",
           "Unter `Einstellungen` -> `Anmeldung` legen Sie außerdem fest, ob Klassenstufe und Betreuungsangebote abgefragt werden. Ist die Klassenstufe ausgeschaltet, bleibt auch die konkrete Klasse wirkungslos. Ausgeschaltete Betreuungsangebote werden in Eltern-, Bearbeitungs-, Vorschau- und manuellen Formularen nicht angezeigt; der Angebotskatalog bleibt erhalten.",
         ],
         callout: {
@@ -1420,6 +1451,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",
           "Fallen nach der Bestätigung falsche Kerndaten auf, öffne die Anmeldung und wähle beim bestätigten Kind `Anmeldedaten korrigieren`. Berichtige Name, Geburtsdatum, Ziel-Klassenstufe oder Zielklasse und gib einen Grund an. moto aktualisiert damit die Anmeldung und die verknüpften Stammdaten gemeinsam und protokolliert die Korrektur. Ändere in diesem Fall nicht zuerst die Stammdaten, weil die Anmeldung die Quelle für Anmeldestatistiken bleibt.",
           "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Eine Begründung ist Pflicht; die Änderungshistorie bleibt auch nach dem Ausschalten sichtbar und zeigt, wer was wann angepasst hat.",
+          "Im Dialog steht unter jedem Angebot die aktuelle Belegung, zum Beispiel `18 von 20 Plätzen belegt` oder `Ausgebucht`. Angebote, die durch eine Verfügbarkeitsregel für die Klassenstufe dieses Kindes ausgeschlossen sind, erscheinen unter `Für dieses Kind nicht wählbar` mit dem Grund, etwa `Nicht wählbar: nur für Klassen 1–2 (Kind: Klasse 3)`. Ein bereits gebuchtes Angebot bleibt dort mit dem Hinweis `bereits gebucht` erhalten und kann entfernt, aber nicht erneut hinzugefügt werden. Tage, die aus einem anderen Angebot abgeleitet sind, stehen mit dem Hinweis `automatisch mitgebucht` daneben: Sie bleiben bestehen, solange das auslösende Angebot gebucht ist, und lassen sich hier nicht einzeln entfernen. Um ein Kind neu für ein solches Angebot zu buchen, passt du zuerst die Regel unter `Anmeldungen` -> `Betreuungsangebote` an.",
           "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage unter `Änderungsanfragen`. Die Änderungsübersicht zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen.",
           "Hat eine Familie ihre Anmeldung versehentlich zurückgezogen, öffne die zurückgezogene Anmeldung und wähle `Anmeldung wiederherstellen`. Alle zurückgezogenen Kinder stehen danach wieder auf `Eingegangen` und können normal entschieden werden; bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes Betreuungsangebot inzwischen voll, kommt das betroffene Kind stattdessen auf die Warteliste. Voraussetzung: Die Anmeldephase ist noch aktiv und es gibt keine andere aktive Anmeldung für dasselbe Kind.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
@@ -1496,6 +1528,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen. Ist die Warteliste tenantweit ausgeschaltet, nimmt `Warteliste` bei Überbelegung weitere Anmeldungen ohne Wartelistenstatus an.",
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
           "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
+          "Für das nächste Halbjahr im Aktionsmenü `Anschlussphase erstellen` wählen. Die Vorschau zeigt: wird übernommen, muss geprüft werden oder wird nicht übernommen. Bei `Klassenstufe erhöhen` wird die Vorschau neu berechnet. Eltern können danach bestätigen, nur Angebote und Wochentage anpassen oder abmelden. Bei einer Anpassung bleiben alle anderen Angaben erhalten.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1518,9 +1551,11 @@ export const appChapters: readonly GuideChapter[] = [
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen. Die Wochentage sind nicht vorausgewählt: mindestens ein Tag muss aktiv angeklickt werden, und nur die gewählten Tage sind später für Eltern auswählbar - ein Angebot nur für Montag darf also auch nur `Mo` gesetzt haben.",
           "Optional je Wochentag eine `Gehzeit` eintragen, wenn das Angebot ein festes Betreuungsende hat (z. B. `14:30` bei `Ganztagsbetreuung bis 14.30 Uhr`). Beim Speichern fragt die App, ob die Gehzeit auf alle Kinder mit diesem Angebot übertragen werden soll; Kinder mit einer von Hand gepflegten Gehzeit sind im Dialog gelistet und lassen sich einzeln ausnehmen. Die übertragene Gehzeit erscheint in Klassenliste, Kindersuche und auf der Kinderdetailseite und lässt sich dort pro Kind anpassen oder wieder auf die Angebots-Gehzeit zurücksetzen.",
           "Unter `Regeltermin` den passenden Regeltermin aus dem Betreuungsplan verknüpfen, wenn genehmigte Anmeldungen dort erwartet werden sollen. Für jeden angebotenen Wochentag muss die Regeltermin-Serie den gesamten Betreuungszeitraum der Anmeldephase lückenlos abdecken. Jeder Termin braucht eine vollständige Uhrzeit mit Ende und einen wirksamen Raum; eine Raum-Ausnahme gilt nur für ihr konkretes Datum. Bei einem aktiven Angebot müssen außerdem alle verwendeten Planungszeiträume aktiv sein.",
-          "Ohne Verfügbarkeitsregel gilt das Angebot für alle Klassenstufen. Optional `Nur unter Bedingungen anbieten` aktivieren, `Klassenstufe des Kindes` als Quelle wählen und mit `ist eine von` oder `ist keine von` auf die gewünschten Klassenstufen eingrenzen. Bei mehreren Bedingungen festlegen, ob alle oder mindestens eine erfüllt sein muss.",
+          "Ohne Verfügbarkeitsregel gilt das Angebot für alle Klassenstufen. Optional `Nur unter Bedingungen anbieten` aktivieren, `Klassenstufe des Kindes` als Quelle wählen und mit `ist eine von` oder `ist keine von` auf die gewünschten Klassenstufen eingrenzen. Bei mehreren Bedingungen festlegen, ob alle oder mindestens eine erfüllt sein muss. Gesetzte Regeln stehen anschließend in der Angebotsliste als Kennzeichen `Nur für Klassen 1–2` bzw. `Nicht für Klasse 4` in der Spalte `Details`, du musst das Angebot also nicht öffnen, um die Einschränkung zu sehen.",
+          "Schränkst du eine Regel nachträglich ein, meldet der Bereich `Bedingungen für die Verfügbarkeit`, wie viele bestehende Buchungen die neue Bedingung nicht erfüllen. Das ist nur ein Hinweis: Bestehende Buchungen bleiben bestehen, die Regel gilt nur für neue Auswahlen.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
           "Bei der Mitbuchung die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen. Diese Klassenstufen steuern nur die automatische Mitbuchung; sie sind von den Bedingungen für die Verfügbarkeit getrennt.",
+          "Über der Angebotsliste stehen die `Mitbuchungs-Regeln` der Phase. Jeder Satz zeigt: Das erste Angebot wird gebucht, wenn Eltern das zweite wählen. Klassenstufen stehen bei Bedarf dabei.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
@@ -1541,7 +1576,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil und Kind sowie - abhängig von den Einstellungen - Klassenstufe und Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Für Heimwege den Stammdaten-Vorschlag `Erlaubte Heimwege` nutzen: Eltern sehen bei Betreuungsangeboten mit Tagesauswahl nur die gewählten Betreuungstage und wählen pro Betreuungstag mindestens einen Heimweg, zum Beispiel zu Fuß, Bus, Abholung oder mit anderem Kind. Bei `mit anderem Kind` ergänzen Eltern im Pflichtfeld, mit wem das Kind nach Hause geht.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Für Heimwege den Stammdaten-Vorschlag `Erlaubte Heimwege` nutzen: Eltern sehen bei Betreuungsangeboten mit Tagesauswahl nur die gewählten Betreuungstage und wählen pro Betreuungstag mindestens einen Heimweg, zum Beispiel zu Fuß, Bus, Abholung oder mit anderem Kind. Bei `mit anderem Kind` ergänzen Eltern im Pflichtfeld, mit wem das Kind nach Hause geht. Über `Nur ein Heimweg pro Wochentag` lassen sich Jahrgänge eintragen (zum Beispiel `1` für Erstklässler), deren Eltern pro Betreuungstag nur einen Heimweg auswählen dürfen; dafür muss die Abfrage der Klassenstufe in den Einstellungen aktiv sein.",
           "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
           "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
           "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Bei `AGB / Teilnahmebedingungen` wählst du in der Vorlage wie in den Einstellungen zwischen `Text eingeben` und `PDF-Datei hochladen`; diese Auswahl gilt nur für diese Formularvorlage. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
@@ -1555,6 +1590,29 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",
         image: "/help/screens/anmeldeformulare.webp",
+      },
+      {
+        id: "eltern-app-ueberblick",
+        title: "Was Eltern in ihrer App sehen",
+        icon: Users,
+        summary:
+          "Die Eltern-App wurde auf die Aufgaben ausgerichtet, die Familien täglich haben. Wer weiß, was Eltern sehen, beantwortet Rückfragen am Telefon in einem Satz.",
+        steps: [
+          "Unten führen fünf Ziele durch die App: `Start`, `Kinder`, `Nachrichten`, `Kalender` und `Mehr`. Auf dem Computer stehen dieselben Ziele in einer Seitenleiste.",
+          "`Start` zeigt oben nur, was offen ist (ungelesene Nachrichten und Aushänge, unbeantwortete Umfragen und Termineinladungen), darunter je Kind eine Tageskarte. Ist nichts offen, steht dort `Alles erledigt`.",
+          "Die Tageskarte beantwortet zuerst eine Frage: `In der OGS` oder `Nicht in der OGS`. Darunter erklärt eine Zeile den Zeitpunkt, etwa `Seit 12:38 Uhr da` oder `Heute abgemeldet`. Pflegt eine Schule keine Anwesenheit, macht die Karte bewusst keine Ja/Nein-Aussage, sondern schreibt `Status derzeit nicht verfügbar`.",
+          "Von der Tageskarte aus melden Eltern ihr Kind krank, ändern die Abholung für einen Tag oder schreiben der OGS.",
+          "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
+          "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
+          "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite.",
+        ],
+        callout: {
+          title: "Was es nicht mehr gibt",
+          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` sind aus der Eltern-App entfernt; Eltern konnten dort ohnehin nichts anmelden. Der Wochenplan steht nur noch als Anzeige unter `Gebuchte Betreuung`, weil eine frei änderbare Bringzeit zu falschen Elternangaben geführt hat. Produktfeedback gibt es in der Eltern-App nicht mehr.",
+          tone: "orange",
+        },
+        screenshot:
+          "Startseite der Eltern-App: Begrüßung, Bereich Zu erledigen und darunter die Tageskarte eines Kindes mit den drei Hauptaktionen.",
       },
       {
         id: "nachrichten",
@@ -1585,18 +1643,18 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern bearbeiten",
         icon: ClipboardCheck,
         summary:
-          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an den dauerhaften Betreuungszeiten. Anfragen entstehen im Elternportal auf der Stammdaten-Seite des Kindes und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
+          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
         steps: [
-          "Eltern sehen im Elternportal die aktuellen Betreuungszeiten ihres Kindes (Bringzeit, Abholzeit, Abholart je Wochentag) und reichen dort über `Änderung anfragen` einen Vorschlag ein.",
+          "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten` und `Betreuungszeiten`, jeweils mit dem Vergleich `aktuell -> gewünscht`.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten`, `Betreuungszeiten` und `Betreuungsangebote`, jeweils mit dem Vergleich `aktuell -> gewünscht`. Der Bereich `Betreuungszeiten` bekommt keine neuen Anfragen mehr; noch offene Altfälle lassen sich dort weiterhin entscheiden.",
           "Mit `Freigeben` wird die Änderung übernommen: Bei Betreuungszeiten wird der Wochenplan des Kindes direkt aktualisiert.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
-          "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status auf der Stammdaten-Seite).",
+          "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "Die Seite `Änderungsanfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie auf der Stammdaten-Seite zurückziehen.",
+          body: "Die Seite `Änderungsanfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
           tone: "orange",
         },
         screenshot:
@@ -1608,7 +1666,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Elternmitteilungen",
         icon: Megaphone,
         summary:
-          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie als Neuigkeiten im Elternportal. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
+          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Elternbriefe`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail enthält nur den Titel und einen Link ins Elternportal.",
@@ -1642,7 +1700,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Pro Kind, nicht pro Konto",
-          body: "Eltern sehen die Umfrage unter `Neuigkeiten` mit dem Hinweis `Antwort erforderlich`, öffnen sie und antworten dort für jedes ihrer Kinder einzeln; gespeichert wird erst mit `Antwort speichern`. Die Auswertung zählt entsprechend Kinder, nicht Konten – das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können nicht antworten.",
+          body: "Eltern sehen die Umfrage unter `Elternbriefe` mit dem Hinweis `Antwort erforderlich`, öffnen sie und antworten dort für jedes ihrer Kinder einzeln; gespeichert wird erst mit `Antwort speichern`. Die Auswertung zählt entsprechend Kinder, nicht Konten. Das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können nicht antworten.",
           tone: "blue",
         },
         screenshot:
@@ -1792,7 +1850,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Jede Person entscheidet selbst, worüber sie Bescheid bekommt. Ohne diese Auswahl wird nichts verschickt, auch nicht als Push. Die Auswahl gilt für alle Geräte.",
         steps: [
           "Im eigenen Profil den Abschnitt `Benachrichtigungen` öffnen.",
-          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert: `Abholungen` (anstehend, überfällig), `Aktivitäten` (Aktivität im eigenen Aufsichtsraum, nicht gestartete Aktivität, eigener Einsatz aus dem Betreuungsplan) und `Kinder` (Krankmeldung eines Kindes aus den eigenen Gruppen).",
+          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert.",
+          "`Abholungen`: anstehende und überfällige Abholungen.",
+          "`Aktivitäten`: Hinweise zu eigenen Räumen, Aktivitäten und Einsätzen.",
+          "`Kinder`: Krankmeldungen für Kinder aus den eigenen Gruppen.",
+          "`Mitteilungen`: neue Nachrichten von Eltern.",
           "Jeder Schalter speichert sofort. `Alle deaktivieren` oben rechts schaltet alles auf einmal ab.",
           "Steht unter einer Art `Von Ihrer Schule derzeit deaktiviert`, bleibt sie still. Der eigene Schalter darf trotzdem an bleiben und greift wieder, sobald die Schule die Art einschaltet.",
         ],
@@ -1801,8 +1863,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Diese Auswahl beantwortet `worüber`, der nächste Schritt `auf welchem Gerät`. Ohne Push-Freigabe erscheinen die Hinweise weiterhin in der geöffneten App; ohne Auswahl hier kommt auf keinem Weg etwas an.",
           tone: "blue",
         },
-        screenshot:
-          "Profilseite mit dem Abschnitt Benachrichtigungen: Schalter je Art, gruppiert nach Abholungen, Aktivitäten und Kinder, mit der Schaltfläche Alle deaktivieren.",
+        screenshot: "Benachrichtigungen im Profil, nach Themen geordnet.",
       },
       {
         id: "eigenen-geburtstag-anzeigen",
@@ -2379,7 +2440,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Welche Buttons erscheinen",
-          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an.",
+          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an. `nach Hause` erscheint beim Auschecken aus dem eigenen Gruppenraum und vom Schulhof; ist eine Checkout-Zeit hinterlegt, erst ab dieser Uhrzeit.",
           tone: "gray",
         },
         screenshot:

@@ -250,7 +250,11 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 		return err
 	}
 	for _, row := range rows {
-		if row != nil && row.ExcusedFrom != nil {
+		// Auto-derived excusals (pulled-forward pickup time, #2360) do not
+		// block a broad day status: the two coexist via disjoint slot
+		// ownership, and refusing would make every pickup change block a sick
+		// report. Only a staff-set manual partial absence conflicts.
+		if row != nil && row.HasManualPartialAbsence() {
 			if _, matches := requested[row.ExceptionDate]; matches {
 				return ErrStudentStatusDayPartialAbsenceConflict
 			}

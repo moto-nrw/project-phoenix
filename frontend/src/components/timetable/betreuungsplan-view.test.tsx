@@ -1377,7 +1377,14 @@ describe("BetreuungsplanView", () => {
 
     render(<BetreuungsplanView />);
 
-    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    // Chrome (PlanningContextBar title/navigation) renders immediately —
+    // only the calendar-grid content region skeletonizes (showSkeleton
+    // pattern, mirrors staff/page.tsx and rooms/page.tsx).
+    expect(screen.getByText("Betreuungsplan")).toBeVisible();
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(
+      screen.queryByTestId("timetable-page-skeleton"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 
@@ -1514,7 +1521,14 @@ describe("BetreuungsplanView", () => {
     setupSWR({ settingsSchemaLoading: true });
     render(<BetreuungsplanView />);
 
-    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    // Chrome renders immediately; only the content region skeletonizes
+    // while the settings schema (and therefore timetableDisabled) is
+    // still unresolved.
+    expect(screen.getByText("Betreuungsplan")).toBeVisible();
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(
+      screen.queryByTestId("timetable-page-skeleton"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
   });
 

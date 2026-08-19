@@ -21,7 +21,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -89,7 +88,6 @@ type Config struct {
 	ChildRepo            parentModels.ChildRepository
 	GroupRepo            educationModels.GroupRepository
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
-	InstanceStudentRepo  scheduleModels.InstanceStudentRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
@@ -97,11 +95,8 @@ type Config struct {
 	RoomRepo       facilitiesModels.RoomRepository
 	StaffShiftRepo scheduleModels.StaffShiftRepository
 	ShiftTypeRepo  scheduleModels.ShiftTypeRepository
-	// CareDays judges unfinished timetable blocks against the care plan; a
-	// completed block is read from its persisted marker instead (#1747).
-	CareDays    scheduleSvc.CareDayService
-	UserContext usercontext.UserContextService
-	DB          *bun.DB
+	UserContext    usercontext.UserContextService
+	DB             *bun.DB
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
@@ -337,12 +332,7 @@ func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from,
 					appointmentEvents[i].SchoolName = &schoolName
 				}
 			}
-			timetableEvents, err := s.parentTimetableEvents(txCtx, tenantChildren, from, to)
-			if err != nil {
-				return err
-			}
 			events = append(events, appointmentEvents...)
-			events = append(events, timetableEvents...)
 			return nil
 		}); err != nil {
 			return nil, err
@@ -1453,129 +1443,6 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 			event.Description = &notes
 		}
 		events = append(events, event)
-	}
-	return events, nil
-}
-
-// parentCareDays resolves the care-plan verdict for every child in the window,
-// so an unfinished block can be judged against the plan. Returns an empty map
-// when no care-day service is wired, which keeps the previous behaviour (show
-// the event) instead of silently hiding care from parents.
-func (s *service) parentCareDays(
-	ctx context.Context, children []*parentModels.ChildSummary, from, to timezone.Date,
-) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
-	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
-	if s.cfg.CareDays == nil {
-		return empty, nil
-	}
-	studentIDs := distinctChildStudentIDs(children)
-	if len(studentIDs) == 0 {
-		return empty, nil
-	}
-	careDays, err := s.cfg.CareDays.ResolveForRange(ctx, studentIDs, from, to)
-	if err != nil {
-		return nil, err
-	}
-	return careDays, nil
-}
-
-// notScheduledForParent reports whether a timetable block must stay out of the
-// parent calendar because the care plan does not book the child that day
-// (#1747). Showing a care event for a day their child was never booked into is
-// the same false claim the attendance history refuses to make.
-//
-// The verdict has two sources, mirroring instanceStudentCareDay in
-// api/timetable: a completed block is frozen — ending it wrote the marker, and
-// a later care-plan edit must not rewrite what a finished day meant — while a
-// planned or running block carries no marker yet and is judged against the
-// current plan.
-//
-// Only an undecided row can be hidden: a check-in or a hand-made decision tells
-// its own story and outranks the plan. A row a broad day status or partial-day
-// excusal flipped to 'absent' is NOT such a decision — those projections land
-// on every expected row of the day, including days the child was never booked
-// into care, and keep provenance in student_status_day_id or
-// pickup_exception_id (a manual PATCH and a check-in both clear those columns).
-// Those rows stay subject to the care-day filter, or reporting a child sick /
-// partially excused would resurrect a parent-calendar event on a weekday they
-// were never booked for.
-//
-// A cancelled care day ("kommt heute nicht") is deliberately NOT hidden. The
-// day was booked, so the block still exists for that child — same reason
-// ending a block still writes their absence (CareDayStatus.ExemptFromAbsence).
-func notScheduledForParent(
-	instance *scheduleModels.ActivityInstance,
-	row *scheduleModels.InstanceStudent,
-	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
-) bool {
-	if row.Status != scheduleModels.AttendanceStatusExpected &&
-		row.StudentStatusDayID == nil &&
-		row.PickupExceptionID == nil {
-		return false
-	}
-	// Staff can set an unbooked slot back to 'expected' — "the plan is wrong,
-	// this child is coming". That IS the hand-made decision, even though it
-	// lands on the same status the automatic state carries, so it has to be
-	// recognized by its own stamp (#1747 review).
-	if row.ManualStatusAt != nil {
-		return false
-	}
-	if instance.Status == scheduleModels.InstanceStatusCompleted {
-		return row.NotScheduled
-	}
-	return careDays[row.StudentID][instance.Date] == scheduleSvc.CareDayNotScheduled
-}
-
-func (s *service) parentTimetableEvents(ctx context.Context, children []*parentModels.ChildSummary, from, to timezone.Date) ([]Event, error) {
-	events := []Event{}
-	seen := make(map[string]struct{})
-	careDays, err := s.parentCareDays(ctx, children, from, to)
-	if err != nil {
-		return nil, err
-	}
-	for _, child := range children {
-		rows, err := s.cfg.InstanceStudentRepo.FindByStudentAndDateRange(ctx, child.StudentID, from, to)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
-			key := fmt.Sprintf("%d:%d", child.StudentID, row.InstanceID)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			instance, err := s.cfg.ActivityInstanceRepo.FindByID(ctx, row.InstanceID)
-			if err != nil {
-				return nil, err
-			}
-			if instance.Status == scheduleModels.InstanceStatusCancelled {
-				continue
-			}
-			if notScheduledForParent(instance, row, careDays) {
-				continue
-			}
-			timetableID := formatID(instance.ID)
-			studentID := formatID(child.StudentID)
-			tenantID := formatID(child.TenantID)
-			studentName := strings.TrimSpace(child.FirstName + " " + child.LastName)
-			schoolName := child.SchoolName
-			events = append(events, Event{
-				ID:          fmt.Sprintf("timetable:%d:%d", child.StudentID, instance.ID),
-				Source:      EventSourceTimetable,
-				TimetableID: &timetableID,
-				StudentID:   &studentID,
-				StudentName: &studentName,
-				TenantID:    &tenantID,
-				SchoolName:  &schoolName,
-				Title:       instance.Title,
-				Description: instance.Description,
-				StartDate:   instance.Date.String(),
-				EndDate:     instance.Date.String(),
-				StartTime:   formatClock(instance.StartTime),
-				EndTime:     formatClock(instance.EndTime),
-				AllDay:      false,
-			})
-		}
 	}
 	return events, nil
 }

@@ -114,6 +114,75 @@ func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 	assert.True(t, contact.CanManagePickup, "pickup flags of a non-account helper are manageable")
 }
 
+func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	email := "oma.neu@example.test"
+	created, err := svc.CreateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, parentService.CreateGuardianContactInput{
+		Contact: parentService.GuardianContactInput{
+			FirstName: "Helga",
+			LastName:  "Schneider",
+			Email:     &email,
+			Phones: []parentService.GuardianPhoneInput{
+				{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
+			},
+		},
+		RelationshipType:   "relative",
+		CanPickup:          true,
+		IsEmergencyContact: true,
+		PickupNotes:        ptr("Bitte Ausweis mitbringen"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	defer func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("audit.guardian_changes").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", created.GuardianProfileID).Exec(bg)
+	}()
+
+	assert.False(t, created.HasAccount)
+	assert.True(t, created.CanPickup)
+	assert.True(t, created.IsEmergencyContact)
+	assert.Equal(t, "Bitte Ausweis mitbringen", created.PickupNotes)
+	require.Len(t, created.Phones, 1)
+
+	var role string
+	err = db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("guardian_role").
+		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, created.GuardianProfileID).
+		Scan(context.Background(), &role)
+	require.NoError(t, err)
+	assert.Equal(t, authorize.GuardianRolePickupOnly, role)
+}
+
+func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	editorID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "contact-creator", map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+		authorize.GuardianPermissionGuardianEdit: true,
+	})
+	defer cleanup()
+
+	_, err := svc.CreateGuardianContact(context.Background(), accountIDForProfile(t, db, editorID), chain.StudentID, parentService.CreateGuardianContactInput{
+		Contact: parentService.GuardianContactInput{
+			FirstName: "Helga",
+			LastName:  "Schneider",
+		},
+		RelationshipType: "relative",
+		CanPickup:        true,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+}
+
 func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 	defer func() { _ = db.Close() }()

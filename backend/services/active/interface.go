@@ -136,6 +136,14 @@ type Service interface {
 	// CheckOutStudentFromDevice applies "out" for an IoT device after
 	// resolving the active session supervisor used as the checkout principal.
 	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
+	// ProcessSchoolCheckinBatch applies one explicit school check-in/out
+	// action ("in" | "out") to a set of students in a single call (#2359).
+	// The caller must already be authorized (route-level users:checkin gate);
+	// ids the caller cannot act on (unknown, another tenant's, graduated)
+	// come back as OK=false items, unexpected write errors fail the whole
+	// batch. See the implementation doc comment for the ordering and
+	// idempotency contract.
+	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
@@ -197,6 +205,9 @@ type StudentMoveResult struct {
 	Skipped       []StudentMoveSkipped `json:"skipped"`
 	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
 	RoomID        *int64               `json:"room_id,omitempty"`
+	// PreviousActiveGroupIDs records the source observed after move serialization.
+	// It is service metadata and intentionally not part of the bulk-move API.
+	PreviousActiveGroupIDs map[int64]int64 `json:"-"`
 }
 
 // StudentMoveAuthorization carries the caller context needed to authorize
@@ -393,6 +404,11 @@ type AttendanceResult struct {
 	AttendanceID int64     `json:"attendance_id"`
 	StudentID    int64     `json:"student_id"`
 	Timestamp    time.Time `json:"timestamp"`
+	// Changed reports whether THIS call mutated the attendance row: false when
+	// a concurrent caller already established the target state (absorbed
+	// in/in race, already-closed row). Not serialized — it informs the web
+	// no-op display, while the IoT wire format stays byte-identical.
+	Changed bool `json:"-"`
 }
 
 // DailySessionCleanupResult represents the result of ending daily sessions

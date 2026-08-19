@@ -43,6 +43,7 @@ type CareScheduleRequestCapabilitiesResponse struct {
 // CareScheduleWeekdayResponse is one weekday (1=Mon..5=Fri) of the plan.
 type CareScheduleWeekdayResponse struct {
 	Weekday int      `json:"weekday"`
+	Status  string   `json:"status"`
 	Arrival string   `json:"arrival,omitempty"`
 	Pickup  string   `json:"pickup,omitempty"`
 	Modes   []string `json:"modes"`
@@ -110,6 +111,7 @@ func toCareScheduleResponse(v *parentService.ChildCareSchedule) CareScheduleResp
 	for _, wd := range v.Weekdays {
 		resp.Weekdays = append(resp.Weekdays, CareScheduleWeekdayResponse{
 			Weekday: wd.Weekday,
+			Status:  string(wd.Status),
 			Arrival: wd.Arrival,
 			Pickup:  wd.Pickup,
 			Modes:   wd.Modes,

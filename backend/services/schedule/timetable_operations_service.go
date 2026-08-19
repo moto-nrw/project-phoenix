@@ -54,6 +54,7 @@ type OperationPersonService interface {
 type OperationActiveService interface {
 	CreateVisit(ctx context.Context, visit *activeModel.Visit) error
 	EndVisit(ctx context.Context, id int64) error
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
 }
 
 type OperationArrivalService interface {
@@ -162,6 +163,10 @@ type OperationActiveSession struct {
 type OperationRoster struct {
 	Instance OperationRosterInstance `json:"instance"`
 	Rows     []OperationRosterRow    `json:"rows"`
+	// MovedFrom is set only on check-in responses that auto-moved the child
+	// out of another running session (#2386). It carries the origin's display
+	// name; an empty string means the move happened but no name resolved.
+	MovedFrom *string `json:"moved_from,omitempty"`
 }
 
 type OperationRosterInstance struct {
@@ -464,13 +469,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		return nil, err
 	}
 	if current != nil {
-		if current.ActiveGroupID != *inst.ActiveGroupID {
-			return nil, fmt.Errorf("%w: student already has active visit", ErrTimetableOperationConflict)
-		}
-		if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
-			return nil, err
-		}
-		return s.buildRoster(ctx, instanceID)
+		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
 	}
 	now := time.Now()
 	visit := &activeModel.Visit{
@@ -482,8 +481,28 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	staff := &usersModel.Staff{}
 	staff.ID = staffID
 	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	if err := s.deps.ActiveService.CreateVisit(visitCtx, visit); err != nil {
-		return nil, err
+	var createErr error
+	if _, inTx := modelBase.TxFromContext(visitCtx); inTx {
+		createErr = tenant.WithSavepoint(visitCtx, func(savepointCtx context.Context) error {
+			return s.deps.ActiveService.CreateVisit(savepointCtx, visit)
+		})
+	} else {
+		createErr = s.deps.ActiveService.CreateVisit(visitCtx, visit)
+	}
+	if createErr != nil {
+		if errors.Is(createErr, tenant.ErrSavepointControl) {
+			return nil, createErr
+		}
+		if errors.Is(createErr, activeSvc.ErrStudentAlreadyActive) {
+			current, lookupErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
+			if lookupErr != nil && !modelBase.IsNoRows(lookupErr) {
+				return nil, lookupErr
+			}
+			if current != nil {
+				return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
+			}
+		}
+		return nil, createErr
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
 		return nil, err
@@ -494,6 +513,74 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 			slog.String("error", err.Error()))
 	}
 	return s.buildRoster(ctx, instanceID)
+}
+
+func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *activeModel.Visit) (*OperationRoster, error) {
+	if current.ActiveGroupID != *inst.ActiveGroupID {
+		return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
+	}
+	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
+		return nil, err
+	}
+	return s.buildRoster(ctx, instanceID)
+}
+
+// moveStudentFromOtherSession resolves the "child is still recorded present
+// in another running session" check-in conflict by moving the child instead
+// of rejecting (#2386). The shared bulk-move path owns checkout semantics,
+// attendance mirroring, and SSE broadcasts for both the old and new visit.
+// Target authorization already happened in requireCanOperate, so the move's
+// own supervision check is bypassed.
+func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) (*OperationRoster, error) {
+	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, activeSvc.StudentMoveAuthorization{
+		StaffID:              staffID,
+		BypassResourceChecks: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Moved) == 0 && len(result.Unchanged) == 0 {
+		tenant.MarkRollback(ctx)
+		return nil, fmt.Errorf("%w: student could not be moved from other session", ErrTimetableOperationConflict)
+	}
+	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
+		return nil, err
+	}
+	roster, err := s.buildRoster(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Moved) > 0 {
+		movedFrom := ""
+		if previousActiveGroupID := result.PreviousActiveGroupIDs[studentID]; previousActiveGroupID > 0 {
+			movedFrom = s.resolveActiveGroupLabel(ctx, previousActiveGroupID)
+		}
+		roster.MovedFrom = &movedFrom
+	}
+	return roster, nil
+}
+
+// resolveActiveGroupLabel names a running session for the move notice: the
+// owning timetable instance's title when one exists, otherwise the session's
+// activity group name, otherwise its room name. Purely cosmetic — every
+// failure degrades to an empty label instead of an error.
+func (s *timetableOperationsService) resolveActiveGroupLabel(ctx context.Context, activeGroupID int64) string {
+	if inst, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, activeGroupID); err == nil && inst != nil {
+		return inst.Title
+	}
+	group, err := s.deps.ActiveGroupRepo.FindByID(ctx, activeGroupID)
+	if err != nil || group == nil {
+		return ""
+	}
+	if group.GroupID != nil {
+		if activityGroup, err := s.deps.ActivityGroupRepo.FindByID(ctx, *group.GroupID); err == nil && activityGroup != nil {
+			return activityGroup.Name
+		}
+	}
+	if room, err := s.deps.RoomRepo.FindByID(ctx, group.RoomID); err == nil && room != nil {
+		return room.Name
+	}
+	return ""
 }
 
 func (s *timetableOperationsService) markPlannedStudentPresent(ctx context.Context, instanceID, studentID int64) error {

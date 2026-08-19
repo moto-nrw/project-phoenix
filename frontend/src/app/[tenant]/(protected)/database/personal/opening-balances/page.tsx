@@ -12,7 +12,11 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
+import {
+  FormSkeleton,
+  SkeletonRegion,
+  TableSkeleton,
+} from "~/components/ui/page-skeletons";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
 import { useToast } from "~/contexts/ToastContext";
@@ -446,7 +450,15 @@ export default function OpeningBalanceImportPage() {
   );
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion
+        label="Eröffnungssalden-Import wird geladen"
+        className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8"
+      >
+        <FormSkeleton fields={4} />
+        <TableSkeleton rows={5} columns={4} />
+      </SkeletonRegion>
+    );
   }
 
   // Die Datenverwaltung ist bereits adminOnly (database/layout.tsx); die

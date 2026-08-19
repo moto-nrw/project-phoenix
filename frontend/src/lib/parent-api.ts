@@ -20,7 +20,7 @@ import type {
 
 const logger = createLogger({ component: "ParentAPI" });
 
-export type ChildStatus = "pending" | "active" | "inactive" | "alumnus";
+type ChildStatus = "pending" | "active" | "inactive" | "alumnus";
 
 export interface Child {
   readonly student_id: string;
@@ -37,7 +37,7 @@ export interface Child {
 
 // Per-child status values exposed on the enrollment-requests list.
 // Mirrors models/enrollment ChildStatus* constants.
-export type EnrollmentChildStatus =
+type EnrollmentChildStatus =
   | "submitted"
   | "under_review"
   | "approved"
@@ -99,6 +99,8 @@ export interface EnrollablePhase {
 }
 
 export interface ParentProfile {
+  readonly first_name?: string;
+  readonly last_name?: string;
   // null = the guardian has never picked a parents-portal language, so the
   // client keeps the anonymous cookie/Accept-Language locale.
   readonly portal_locale: AppLocale | null;
@@ -169,6 +171,8 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  readonly pickup_manage_allowed?: boolean;
+  readonly guardian_contact_manage_allowed: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
   readonly master_data_edit_enabled: boolean;
@@ -195,14 +199,16 @@ export interface MealPlanEntry {
   readonly note?: string | null;
 }
 
-// One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.
+// One day's pickup override plus OGS-owned arrival state for display.
 // Times are "HH:MM" wall-clock strings; a missing leg has no override that day.
 // `source` is "guardian" for parent-set entries, "staff" for ones the team set.
 export interface CareException {
   readonly date: string;
   readonly pickup_time?: string;
   readonly arrival_time?: string;
+  readonly reason?: string;
   readonly source: string;
+  readonly pickup_source: string;
   readonly updated_at: string;
   // True when a pickup-exception row exists for the day but carries no time —
   // staff's "not coming today" absence marker (StudentPickupException.IsAbsent).
@@ -216,6 +222,18 @@ export interface CareException {
   // resolves the tile to an absence rather than the base-plan pickup. Undefined
   // for ordinary rows.
   readonly arrival_absent?: boolean;
+}
+
+export interface PickupChangeRequest {
+  readonly id: string;
+  readonly date: string;
+  readonly pickup_time: string;
+  readonly previous_pickup_time?: string;
+  readonly reason: string;
+  readonly status: "pending" | "approved" | "rejected" | "withdrawn";
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  readonly reviewed_at?: string;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -285,6 +303,15 @@ export interface GuardianContactPayload {
     readonly label?: string | null;
     readonly is_primary: boolean;
   }[];
+}
+
+// Creates a contact without app access. App access is handled independently by
+// the related-account invitation flow.
+export interface CreateGuardianContactPayload extends GuardianContactPayload {
+  readonly relationship_type: "parent" | "guardian" | "relative" | "other";
+  readonly can_pickup: boolean;
+  readonly is_emergency_contact: boolean;
+  readonly pickup_notes?: string | null;
 }
 
 // Payload for a per-child pickup/relationship edit. Every field optional; an
@@ -535,12 +562,13 @@ export async function submitParentEnrollment(
  * status: "sick" (Krankmeldung, flips the live sick flag) or "excused"
  * (Termin/Abwesenheit, no live flag). Returns the just-submitted days. The
  * backend verifies the caller is a guardian of the child and that the school
- * has the feature enabled; a disabled school surfaces as a thrown error.
+ * has the feature enabled. A trimmed reason is required for both absence types;
+ * a disabled school surfaces as a thrown error.
  */
 export async function submitSickNote(
   studentId: string,
   dates: string[],
-  reason = "",
+  reason: string,
   status: StudentStatusKind = "sick",
 ): Promise<SickNoteSubmitResult> {
   const res = await postJson<SickNoteSubmitResult | StatusDay[]>(
@@ -600,6 +628,76 @@ export async function getChildFeatures(
 }
 
 /**
+ * Der Tagesstatus eines Kindes (#2252). Zweistufig: `at_ogs` beantwortet die
+ * eine Frage ("Ist mein Kind in der OGS?"), `state` erklaert sie.
+ *
+ * `at_ogs` ist `null`, wenn die Frage nicht belastbar zu beantworten ist. Das
+ * Frontend leitet Ebene 1 NIE aus `state` ab; eine Ja/Nein-Aussage ohne Beleg
+ * waere schlimmer als zu schweigen.
+ */
+type ChildTodayState =
+  | "present"
+  | "left"
+  | "expected"
+  | "not_arrived"
+  | "absent"
+  | "no_care"
+  | "unknown";
+
+export interface ChildToday {
+  readonly at_ogs: boolean | null;
+  readonly state: ChildTodayState;
+  /** "HH:MM", nur bei present. */
+  readonly since?: string;
+  /** "HH:MM", nur bei left. */
+  readonly until?: string;
+  /** "HH:MM", nur bei expected und not_arrived. */
+  readonly expected_from?: string;
+  /** "HH:MM", nur wenn das Kind gerade in der OGS ist. */
+  readonly pickup_time?: string;
+}
+
+/** Was angezeigt wird, solange oder falls der Endpunkt nichts liefert. */
+export const UNKNOWN_CHILD_TODAY: ChildToday = {
+  at_ogs: null,
+  state: "unknown",
+};
+
+/**
+ * Holt den Tagesstatus des Kindes.
+ *
+ * Faellt auf `unknown` zurueck, statt zu werfen: der Endpunkt kann fehlen
+ * (404, waehrend das Backend nachzieht) oder der Zugriff auf das Kind ist
+ * entzogen (403). Beides ist "wir wissen es nicht", kein Fehlerzustand, den ein
+ * Elternteil sehen muesste. 401 laesst throwResponseError weiterhin zur
+ * Anmeldung umleiten.
+ *
+ * Genau diese zwei Codes, nicht "ab 403": ein 500er oder ein ausgefallener
+ * Proxy ist ein echter Fehler und darf nicht als gueltiger Unbekannt-Zustand
+ * durchgehen. Alle Aufrufer fangen den Wurf ab und zeigen weiterhin
+ * UNKNOWN_CHILD_TODAY — nur bleibt der Ausfall jetzt als Fehler sichtbar.
+ */
+export async function getChildToday(studentId: string): Promise<ChildToday> {
+  try {
+    return await getJson<ChildToday>(
+      `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
+    );
+  } catch (err) {
+    if (
+      err instanceof ParentApiError &&
+      (err.status === 403 || err.status === 404)
+    ) {
+      logger.warn("parent_child_today_unavailable", {
+        status: err.status,
+        student_id: studentId,
+      });
+      return UNKNOWN_CHILD_TODAY;
+    }
+    throw err;
+  }
+}
+
+/**
  * Fetches the Monday-Friday meal plan for the child's school for the week
  * containing weekStart (YYYY-MM-DD). Returns 403 (meal_plan_disabled) when the
  * school does not run a meal plan; callers gate on meal_plan_enabled first.
@@ -656,6 +754,7 @@ export interface ThreadSummary {
   readonly last_event_type?: string;
   readonly last_request_type?: string;
   readonly last_request_status?: string;
+  readonly last_message_read_by_staff: boolean;
   readonly unread: number;
 }
 
@@ -749,8 +848,8 @@ export async function listAnnouncements(): Promise<ParentAnnouncement[]> {
 }
 
 /**
- * Unread parent-news count for the parents-portal Neuigkeiten badge. A light
- * COUNT endpoint, mirroring the messages badge.
+ * Number of parent letters that still need attention. This includes unread
+ * letters, pending read confirmations, and unanswered open surveys.
  */
 export async function fetchAnnouncementsUnreadCount(): Promise<number> {
   const result = await getJson<{ unread_count: number }>(
@@ -840,24 +939,42 @@ export async function postChildMessage(
 }
 
 /**
- * Sets a one-day pickup and/or arrival override for the child. The two times
- * are the COMPLETE override for the day: a "HH:MM" string sets that leg, an
- * omitted leg (sent as null) clears it. At least one must be present — clearing
- * the whole day goes through deleteCareException. Returns the merged override
- * for the day. The backend verifies guardianship, the feature gate, and refuses
- * to overwrite a staff-set exception (surfaced as a thrown error).
+ * Sets a one-day pickup override for the child. Arrival times remain under OGS
+ * control. The backend verifies guardianship, the feature gate, and refuses to
+ * overwrite a staff-set pickup exception.
  */
 export async function submitCareException(
   studentId: string,
-  params: { date: string; pickupTime?: string; arrivalTime?: string },
-): Promise<CareException> {
-  return postJson<CareException>(
+  params: {
+    date: string;
+    pickupTime: string;
+    reason: string;
+  },
+): Promise<PickupChangeRequest> {
+  return postJson<PickupChangeRequest>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
     {
       date: params.date,
-      pickup_time: params.pickupTime ?? null,
-      arrival_time: params.arrivalTime ?? null,
+      pickup_time: params.pickupTime,
+      reason: params.reason,
     },
+  );
+}
+
+export async function listPickupChangeRequests(
+  studentId: string,
+): Promise<PickupChangeRequest[]> {
+  return getJson<PickupChangeRequest[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests`,
+  );
+}
+
+export async function withdrawPickupChangeRequest(
+  studentId: string,
+  requestId: string,
+): Promise<PickupChangeRequest> {
+  return deleteJson<PickupChangeRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests/${encodeURIComponent(requestId)}`,
   );
 }
 
@@ -880,6 +997,17 @@ export async function listChildGuardians(
 ): Promise<ChildGuardian[]> {
   return getJson<ChildGuardian[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians`,
+  );
+}
+
+/** Adds an accountless contact to the child. */
+export async function createGuardianContact(
+  studentId: string,
+  payload: CreateGuardianContactPayload,
+): Promise<ChildGuardian> {
+  return postJson<ChildGuardian>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians`,
+    payload,
   );
 }
 
@@ -969,6 +1097,7 @@ export async function deleteCareException(
 // `modes` are the allowed departure-mode keys for the day (e.g. ["bus","pickup"]).
 interface CareScheduleWeekday {
   readonly weekday: number;
+  readonly status: "scheduled" | "not_scheduled" | "unknown";
   readonly arrival?: string;
   readonly pickup?: string;
   readonly modes: string[];
@@ -1025,37 +1154,7 @@ export async function getChildCareSchedule(
   );
 }
 
-/**
- * Submits a permanent weekly-plan change request. `payload` carries only the
- * aspects that differ from the current plan (empty string = unchanged); it is
- * wrapped in the backend's `{ payload }` envelope. Returns the refreshed view
- * (now carrying the pending request).
- */
-export async function submitCareScheduleRequest(
-  studentId: string,
-  payload: Record<string, unknown>,
-): Promise<ChildCareSchedule> {
-  return postJson<ChildCareSchedule>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
-    { payload },
-  );
-}
-
-/**
- * Withdraws the guardian's own still-open change request and returns the
- * refreshed view (pending request cleared).
- */
-export async function withdrawCareScheduleRequest(
-  studentId: string,
-  requestId: string,
-): Promise<ChildCareSchedule> {
-  return postJson<ChildCareSchedule>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
-    {},
-  );
-}
-
-// --- Booked care offerings + AGs (#1665) ---
+// --- Booked care offerings (#1665, #2303) ---
 
 /** One booked care offering of the child's current care period. */
 interface CareOfferingItem {
@@ -1075,21 +1174,6 @@ interface CareOfferingItem {
   readonly starts_later?: boolean;
 }
 
-/** One activity-group membership of the child. */
-interface CareGroupItem {
-  readonly id: string;
-  readonly name: string;
-  readonly weekdays: number[];
-  /** First day (YYYY-MM-DD). */
-  readonly valid_from: string;
-  /** Last day (YYYY-MM-DD, inclusive) — absent for open-ended memberships. */
-  readonly valid_until?: string;
-  /** True for rows materialized from an enrollment selection. */
-  readonly from_offering: boolean;
-  /** True while the membership has not started yet (an approved future switch). */
-  readonly starts_later: boolean;
-}
-
 /** One "current -> requested" line of a pending offering change. */
 interface OfferingDiffLine {
   readonly label: string;
@@ -1099,6 +1183,12 @@ interface OfferingDiffLine {
   readonly new_state: "removed" | "booked";
   /** Canonical day keys; empty for an all-day booking. */
   readonly new_days: string[];
+  /** Share of new_days added by a co-booking rule or required lunch (#2365). */
+  readonly new_automatic_days?: string[];
+  /** Rule-derived part of new_automatic_days, excluding required-lunch days. */
+  readonly new_rule_days?: string[];
+  /** Names of the selected offerings whose rule added new_rule_days. */
+  readonly auto_trigger_names?: string[];
 }
 
 /** The child's open offering change request. */
@@ -1130,6 +1220,10 @@ interface OfferingDecision {
   readonly reason?: string;
   /** What the family asked for, so the decision stays readable on its own. */
   readonly requested: OfferingRequestedItem[];
+  /** The frozen diff the decision was made on; absent for older decisions. */
+  readonly applied?: OfferingDiffLine[];
+  /** Rule-added offerings the school excluded for this one request (#2370). */
+  readonly overridden_names?: string[];
 }
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */
@@ -1146,7 +1240,6 @@ export interface ChildCareOfferings {
   readonly period_start?: string;
   readonly period_end?: string;
   readonly offerings: CareOfferingItem[];
-  readonly groups: CareGroupItem[];
   readonly can_request: boolean;
   readonly pending_request?: PendingOfferingChange;
   /** Earliest date a new request may take effect (YYYY-MM-DD). */
@@ -1195,7 +1288,7 @@ export interface OfferingChangeSelectionInput {
   readonly selected_days: string[];
 }
 
-/** Returns the offerings and groups the child is booked into. */
+/** Returns the care offerings the child is booked into. */
 export async function getChildCareOfferings(
   studentId: string,
 ): Promise<ChildCareOfferings> {
@@ -1318,7 +1411,7 @@ export interface MasterDataChangeInput {
   readonly value: unknown;
 }
 
-/** Submits Track B change requests (name, birthday, permanent Gehzeit) for approval. */
+/** Submits Track B change requests (name, birthday, class, permanent Gehzeit) for approval. */
 export async function submitMasterDataRequest(
   studentId: string,
   changes: MasterDataChangeInput[],

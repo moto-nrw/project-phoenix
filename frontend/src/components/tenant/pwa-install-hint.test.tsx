@@ -9,6 +9,7 @@ import {
 } from "./pwa-install-hint";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import {
+  canPromptInstall,
   recordVisit,
   resetInstallPromptForTests,
 } from "~/lib/pwa-install-prompt";
@@ -306,6 +307,17 @@ describe("PwaInstallHint", () => {
     expect(
       screen.queryByText("Zum Startbildschirm hinzufügen"),
     ).not.toBeInTheDocument();
+  });
+
+  it("captures the one-tap install prompt on the protected parents host", () => {
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "parents.moto-app.de");
+    window.location.href = "https://parents.moto-app.de/settings";
+    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
+    stubMatchMedia(false);
+
+    dispatchInstallPrompt();
+
+    expect(canPromptInstall()).toBe(true);
   });
 
   it("replays the captured prompt and hides the card once install is accepted", async () => {

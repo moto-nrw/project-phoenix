@@ -131,7 +131,7 @@ describe("OfferingChangeRequestModal", () => {
 
     expect(
       await screen.findByText(
-        "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
+        "Für diesen Zeitraum ist keine Betreuung buchbar.",
       ),
     ).toBeInTheDocument();
     expect(

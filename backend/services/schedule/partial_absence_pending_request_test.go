@@ -24,6 +24,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
 		repos.InstanceStudent,
+		nil,
 		db,
 	)
 

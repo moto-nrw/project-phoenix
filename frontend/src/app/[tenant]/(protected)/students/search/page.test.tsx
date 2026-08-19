@@ -227,6 +227,13 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     pendingIds: new Set<string>(),
     successCount: 0,
     toggle: vi.fn(),
+    selectionActive: false,
+    setSelectionActive: vi.fn(),
+    selectedIds: new Set<string>(),
+    toggleSelected: vi.fn(),
+    clearSelection: vi.fn(),
+    isBulkRunning: false,
+    runBulk: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
   checkoutConfirmationRoom: () => null,
@@ -1317,8 +1324,11 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
+      // Real chrome (page header) renders immediately; only the results
+      // region skeletonizes while the session resolves (colocation pattern).
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
       expect(
-        screen.getByTestId("students-search-skeleton"),
+        screen.getByTestId("student-card-grid-skeleton"),
       ).toBeInTheDocument();
     });
 
@@ -1446,6 +1456,7 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
+        bfcacheId: "test",
       });
 
       render(<StudentSearchPage />);
@@ -1482,6 +1493,7 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
+        bfcacheId: "test",
       });
 
       render(<StudentSearchPage />);
@@ -1765,6 +1777,7 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
+        bfcacheId: "test",
       });
 
       const useSession = await import("next-auth/react");
@@ -1821,9 +1834,12 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      // Should show loading, NOT empty state
+      // Should show loading, NOT empty state. Real chrome (page header)
+      // renders immediately; only the results region skeletonizes
+      // (colocation pattern).
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
       expect(
-        screen.getByTestId("students-search-skeleton"),
+        screen.getByTestId("student-card-grid-skeleton"),
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
@@ -1840,6 +1856,7 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
+        bfcacheId: "test",
       });
 
       // Default authenticated state with token

@@ -10,10 +10,7 @@ import type {
   OrgAccount,
   SchoolAccount,
 } from "~/lib/operator/provisioning-helpers";
-import {
-  CardSkeletons,
-  SimpleEmptyState,
-} from "../provisioning/provisioning-shared";
+import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSession } from "next-auth/react";
@@ -100,12 +97,6 @@ function OperatorAccountsPageContent() {
     },
   );
 
-  const accountsLoading = selectedSchool
-    ? schoolAccountsLoading
-    : filterOrgId
-      ? orgAccountsLoading
-      : allAccountsLoading;
-
   const refreshAccounts = useCallback(() => {
     return globalMutate(
       (key: unknown) =>
@@ -180,20 +171,18 @@ function OperatorAccountsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
-      {accountsLoading && <CardSkeletons />}
-
-      {!selectedSchool && filterOrgId && !orgAccountsLoading && (
+      {!selectedSchool && filterOrgId && (
         <>
-          {orgAccounts?.length === 0 && (
+          {!orgAccountsLoading && orgAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
             />
-          )}
-          {orgAccounts && orgAccounts.length > 0 && (
+          ) : (
             <AccountsTable
-              accounts={orgAccounts}
+              accounts={orgAccounts ?? []}
               showSchool
+              isLoading={orgAccountsLoading}
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
               onManageTenantAccess={openTenantAccessModal}
@@ -202,18 +191,18 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && !allAccountsLoading && (
+      {!selectedSchool && !filterOrgId && (
         <>
-          {allAccounts?.length === 0 && (
+          {!allAccountsLoading && allAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Es gibt noch keine Konten im System."
             />
-          )}
-          {allAccounts && allAccounts.length > 0 && (
+          ) : (
             <AccountsTable
-              accounts={allAccounts}
+              accounts={allAccounts ?? []}
               showSchool
+              isLoading={allAccountsLoading}
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
               onManageTenantAccess={openTenantAccessModal}
@@ -222,7 +211,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {selectedSchool && !schoolAccountsLoading && (
+      {selectedSchool && (
         <>
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-sm font-semibold text-gray-900">
@@ -240,16 +229,16 @@ function OperatorAccountsPageContent() {
               </span>
             )}
           </div>
-          {schoolAccounts?.length === 0 && (
+          {!schoolAccountsLoading && schoolAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diese Schule gibt es noch keine zugewiesenen Konten."
             />
-          )}
-          {schoolAccounts && schoolAccounts.length > 0 && (
+          ) : (
             <AccountsTable
-              accounts={schoolAccounts}
+              accounts={schoolAccounts ?? []}
               selectedSchool={selectedSchool}
+              isLoading={schoolAccountsLoading}
               onManageCaregiver={openCaregiverModal}
               onManageMFA={openMFAModal}
               onManageTenantAccess={openTenantAccessModal}

@@ -1,12 +1,20 @@
 "use client";
 
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { RoomsGridSkeleton } from "./page-skeleton";
 
-/**
- * Route-level loading UI: renders the same skeleton the page shows while its
- * data loads, so navigation shows one continuous skeleton instead of the
- * generic group-level Loading followed by the page skeleton.
- */
 export default function RoomsLoading() {
-  return <RoomsGridSkeleton />;
+  return (
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch
+        title="Räume"
+        search={{
+          value: "",
+          onChange: () => {},
+          inputProps: { disabled: true },
+        }}
+      />
+      <RoomsGridSkeleton />
+    </div>
+  );
 }

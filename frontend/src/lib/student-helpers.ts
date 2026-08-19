@@ -136,7 +136,7 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
 ] as const;
 
 /** German labels for the departure modes (shown in forms and badges). */
-const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
+export const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",

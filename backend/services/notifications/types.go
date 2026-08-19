@@ -57,6 +57,7 @@ const (
 	TypeActivityOverdue        = "activity_overdue"
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
+	TypeStaffParentMessage     = "staff_parent_message"
 	TypeParentAnnouncement     = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
@@ -199,6 +200,15 @@ func init() {
 		Group:       GroupChildren,
 		Portal:      PortalStaff,
 		TenantGate:  configModel.KeyNotificationsAbsenceReportedEnabled,
+		SortOrder:   1,
+	})
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffParentMessage,
+		Label:       "Nachrichten von Eltern",
+		Description: "Wenn Eltern der OGS eine neue Nachricht schreiben.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		TenantGate:  configModel.KeyParentNotesEnabled,
 		SortOrder:   1,
 	})
 

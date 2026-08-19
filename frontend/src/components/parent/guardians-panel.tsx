@@ -2,53 +2,65 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Plus, ShieldCheck, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import {
-  PhoneIcon,
   EnvelopeSimpleIcon,
   MapPinIcon,
   NoteIcon,
+  PhoneIcon,
 } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   type ChildGuardian,
+  type CreateGuardianContactPayload,
   type GuardianContactPayload,
   type GuardianRelationshipPayload,
+  type RelatedAccount,
   ParentApiError,
+  createGuardianContact,
+  inviteRelatedAccount,
   listChildGuardians,
+  listRelatedAccounts,
+  removeRelatedAccount,
   updateGuardianContact,
   updateGuardianRelationship,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
-import { Modal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Alert } from "~/components/ui/alert";
-import { SectionCard } from "~/components/ui/section-card";
+import { ParentSection } from "~/components/parent/shell/parent-section";
+import { ParentSectionSkeleton } from "~/components/parent/parent-page";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { EmptyState } from "~/components/ui/empty-state";
+import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 
 const logger = createLogger({ component: "GuardiansPanel" });
-
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  parent: "Elternteil",
-  guardian: "Erziehungsberechtigt",
-  relative: "Verwandt",
-  other: "Weitere Person",
-};
-
-const PHONE_TYPE_LABELS: Record<string, string> = {
-  mobile: "Mobil",
-  home: "Festnetz",
-  work: "Geschäftlich",
-  other: "Sonstige",
-};
 
 const PHONE_TYPES = ["mobile", "home", "work", "other"] as const;
 type PhoneType = (typeof PHONE_TYPES)[number];
 const RELATIONSHIP_TYPES = ["parent", "guardian", "relative", "other"] as const;
 type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
+const GUARDIAN_ROLES = [
+  "primary_guardian",
+  "legal_guardian",
+  "co_guardian",
+  "emergency_contact",
+  "pickup_only",
+  "social_worker",
+  "custom",
+] as const;
+type GuardianRole = (typeof GUARDIAN_ROLES)[number];
+type ChildDetailTranslator = ReturnType<
+  typeof useTranslations<"parentChildDetail">
+>;
 
 function isPhoneType(type: string): type is PhoneType {
   return PHONE_TYPES.includes(type as PhoneType);
@@ -105,11 +117,22 @@ function resolveGuardianError(
 
 interface GuardiansPanelProps {
   readonly studentId: string;
+  readonly canInvite: boolean;
+  readonly canRemove: boolean;
+  readonly canAddContact?: boolean;
+  readonly canManagePickup?: boolean;
 }
 
-export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
+export default function GuardiansPanel({
+  studentId,
+  canInvite,
+  canRemove,
+  canAddContact = false,
+  canManagePickup = false,
+}: GuardiansPanelProps) {
   const t = useTranslations("parentChildDetail");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
+  const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
@@ -117,6 +140,17 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
   const [editingPickup, setEditingPickup] = useState<ChildGuardian | null>(
     null,
   );
+  const [addMode, setAddMode] = useState<"contact" | "access" | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  // Bestaetigung fuer den Ausbau eines eingeschraenkten Kontakts (#2172).
+  const [upgradePrompt, setUpgradePrompt] = useState<{
+    email: string;
+    name: string;
+    existingRole?: string;
+  } | null>(null);
   const [message, setMessage] = useState<{
     kind: "success" | "error";
     text: string;
@@ -125,7 +159,12 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
-      setGuardians(await listChildGuardians(studentId));
+      const [guardianList, accountList] = await Promise.all([
+        listChildGuardians(studentId),
+        listRelatedAccounts(studentId).catch(() => [] as RelatedAccount[]),
+      ]);
+      setGuardians(guardianList);
+      setAccounts(accountList);
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -145,6 +184,7 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
 
   const handleSaved = useCallback(
     async (text: string) => {
+      setAddMode(null);
       setEditingContact(null);
       setEditingPickup(null);
       await load();
@@ -153,13 +193,91 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
     [load],
   );
 
+  const accountById = new Map(
+    accounts.map((account) => [account.guardian_profile_id, account]),
+  );
+  const connectedAccounts = accounts.filter(
+    (account) => account.status === "active" || account.status === "pending",
+  );
+
+  const handleInvite = async (email: string, confirmRoleUpgrade = false) => {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setMessage(null);
+    setInviteError(null);
+    try {
+      const result = await inviteRelatedAccount(
+        studentId,
+        trimmed,
+        confirmRoleUpgrade ? { confirmRoleUpgrade: true } : undefined,
+      );
+      if (result.outcome === "existing_contact_restricted") {
+        setAddMode(null);
+        setInviteEmail("");
+        setUpgradePrompt({
+          email: trimmed,
+          name: trimmed,
+          existingRole: result.existing_role,
+        });
+        return;
+      }
+      setUpgradePrompt(null);
+      setInviteEmail("");
+      setAddMode(null);
+      await load();
+      setMessage({
+        kind: "success",
+        text:
+          result.outcome === "pending_approval"
+            ? t("guardians.access.invitePending")
+            : result.outcome === "invited"
+              ? t("guardians.access.inviteSent", { email: trimmed })
+              : t("guardians.access.inviteLinked"),
+      });
+    } catch (err) {
+      logger.error("related_account_invite_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setUpgradePrompt(null);
+      setInviteError(
+        err instanceof ParentApiError &&
+          err.code === "guardian_social_worker_managed"
+          ? t("guardians.errors.socialWorkerManaged")
+          : t("guardians.access.inviteError"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeInvite = () => {
+    if (busy) return;
+    setAddMode(null);
+    setInviteEmail("");
+    setInviteError(null);
+  };
+
+  const handleRemove = async (guardianProfileId: string) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await removeRelatedAccount(studentId, guardianProfileId);
+      setConfirmRemoveId(null);
+      await load();
+      setMessage({ kind: "success", text: t("guardians.access.removed") });
+    } catch (err) {
+      logger.error("related_account_remove_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setMessage({ kind: "error", text: t("guardians.access.removeError") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <SectionCard
-      icon={ShieldCheck}
-      title={t("guardians.title")}
-      description={t("guardians.description")}
-      bodyClassName="mt-4 space-y-3"
-    >
+    <div className="space-y-5">
       {message && (
         <Alert
           type={message.kind === "success" ? "success" : "error"}
@@ -167,29 +285,125 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
         />
       )}
 
-      {isLoading ? (
-        <p className="text-sm text-gray-500">{t("guardians.loading")}</p>
-      ) : guardians.length === 0 ? (
-        <p className="text-sm text-gray-500">{t("guardians.empty")}</p>
-      ) : (
-        guardians.map((g) => (
-          <GuardianRow
-            key={g.guardian_profile_id}
-            guardian={g}
-            onEditContact={() => {
-              setMessage(null);
-              setEditingContact(g);
-            }}
-            onEditPickup={() => {
-              setMessage(null);
-              setEditingPickup(g);
-            }}
+      <ParentSection
+        title={t("guardians.contactsTitle")}
+        description={t("guardians.contactsDescription")}
+        concept="permissions"
+        actions={
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <OgsVisibleBadge />
+            {canAddContact ? (
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={() => {
+                  setAddMode("contact");
+                  setMessage(null);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("guardians.addContact")}
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {isLoading ? (
+          <ParentSectionSkeleton
+            rows={2}
+            showHeader={false}
+            className="shadow-none"
           />
-        ))
-      )}
+        ) : guardians.length === 0 ? (
+          <EmptyState
+            variant="compact"
+            icon={<MotoConceptIcon concept="people" size={24} />}
+            title={t("guardians.empty")}
+          />
+        ) : (
+          guardians.map((g) => (
+            <GuardianRow
+              key={g.guardian_profile_id}
+              guardian={g}
+              access={accountById.get(g.guardian_profile_id)}
+              canInvite={canInvite}
+              busy={busy}
+              onEditContact={() => {
+                setMessage(null);
+                setEditingContact(g);
+              }}
+              onEditPickup={() => {
+                setMessage(null);
+                setEditingPickup(g);
+              }}
+              onGrantAccess={(email, name) => setUpgradePrompt({ email, name })}
+            />
+          ))
+        )}
+      </ParentSection>
+
+      <ParentSection
+        title={t("guardians.access.title")}
+        description={t("guardians.access.description")}
+        concept="people"
+        actions={
+          canInvite ? (
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={() => {
+                setAddMode("access");
+                setInviteError(null);
+                setMessage(null);
+              }}
+            >
+              <MotoConceptIcon
+                concept="enrollments"
+                size={16}
+                className="mr-2"
+              />
+              {t("guardians.access.inviteShort")}
+            </Button>
+          ) : null
+        }
+      >
+        {isLoading ? (
+          <ParentSectionSkeleton
+            rows={2}
+            showHeader={false}
+            className="shadow-none"
+          />
+        ) : connectedAccounts.length === 0 ? (
+          <EmptyState
+            variant="compact"
+            icon={<MotoConceptIcon concept="people" size={24} />}
+            title={t("guardians.access.empty")}
+          />
+        ) : (
+          connectedAccounts.map((account) => (
+            <ConnectedAccountRow
+              key={account.guardian_profile_id}
+              account={account}
+              canRemove={canRemove}
+              busy={busy}
+              confirmingRemove={confirmRemoveId === account.guardian_profile_id}
+              onAskRemove={() =>
+                setConfirmRemoveId(account.guardian_profile_id)
+              }
+              onCancelRemove={() => setConfirmRemoveId(null)}
+              onConfirmRemove={() =>
+                void handleRemove(account.guardian_profile_id)
+              }
+            />
+          ))
+        )}
+      </ParentSection>
 
       {editingContact && (
         <ContactModal
+          mode="edit"
           studentId={studentId}
           guardian={editingContact}
           onClose={() => setEditingContact(null)}
@@ -204,34 +418,253 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
           onSaved={() => handleSaved(t("guardians.pickupSaved"))}
         />
       )}
-    </SectionCard>
+
+      {addMode === "contact" ? (
+        <ContactModal
+          mode="create"
+          studentId={studentId}
+          canManagePickup={canManagePickup}
+          onClose={() => setAddMode(null)}
+          onSaved={() => handleSaved(t("guardians.contactCreated"))}
+        />
+      ) : null}
+
+      {canInvite ? (
+        <Modal
+          isOpen={addMode === "access"}
+          onClose={closeInvite}
+          title={t("guardians.access.invite")}
+          closeLabel={t("guardians.close")}
+          backdropLabel={t("guardians.access.closeInvite")}
+          isDismissDisabled={busy}
+          mobileSheet
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                className="hidden sm:inline-flex"
+                onClick={closeInvite}
+                disabled={busy}
+              >
+                {t("guardians.cancel")}
+              </Button>
+              <Button
+                form="guardian-invite-form"
+                type="submit"
+                size="md"
+                className="w-full sm:w-auto"
+                isLoading={busy}
+                loadingText={t("guardians.access.inviteLoading")}
+                disabled={busy || !inviteEmail.trim()}
+              >
+                {t("guardians.access.send")}
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="guardian-invite-form"
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleInvite(inviteEmail);
+            }}
+          >
+            <div className="space-y-2 text-sm leading-6 text-gray-600">
+              <p>{t("guardians.access.inviteIntro")}</p>
+              <p>{t("guardians.access.inviteDetails")}</p>
+            </div>
+            <div className="space-y-2">
+              <label
+                htmlFor="guardian-invite-email"
+                className="block text-sm font-medium text-gray-800"
+              >
+                {t("guardians.access.emailLabel")}
+              </label>
+              <Input
+                id="guardian-invite-email"
+                type="email"
+                autoComplete="email"
+                required
+                value={inviteEmail}
+                onChange={(event) => {
+                  setInviteEmail(event.target.value);
+                  setInviteError(null);
+                }}
+                placeholder={t("guardians.access.emailPlaceholder")}
+                aria-describedby="guardian-invite-email-hint"
+              />
+              <p
+                id="guardian-invite-email-hint"
+                className="text-xs leading-5 text-gray-500"
+              >
+                {t("guardians.access.emailHint")}
+              </p>
+            </div>
+            {inviteError ? <Alert type="error" message={inviteError} /> : null}
+          </form>
+        </Modal>
+      ) : null}
+
+      <ConfirmationModal
+        mobileSheet
+        isOpen={upgradePrompt !== null}
+        onClose={() => setUpgradePrompt(null)}
+        onConfirm={() => {
+          if (upgradePrompt) void handleInvite(upgradePrompt.email, true);
+        }}
+        title={t("guardians.access.grantTitle")}
+        confirmText={t("guardians.access.grant")}
+        cancelText={t("guardians.cancel")}
+        isConfirmLoading={busy}
+      >
+        <p className="text-sm leading-6 text-gray-600">
+          {upgradePrompt
+            ? guardianRoleLabel(upgradePrompt.existingRole, t)
+              ? t("guardians.access.grantBodyWithRole", {
+                  name: upgradePrompt.name,
+                  role: guardianRoleLabel(upgradePrompt.existingRole, t) ?? "",
+                })
+              : t("guardians.access.grantBody", { name: upgradePrompt.name })
+            : ""}
+        </p>
+      </ConfirmationModal>
+    </div>
+  );
+}
+
+function guardianRoleLabel(
+  role: string | undefined,
+  t: ChildDetailTranslator,
+): string | null {
+  if (!role || !GUARDIAN_ROLES.includes(role as GuardianRole)) return null;
+  return t(`guardians.roles.${role as GuardianRole}`);
+}
+
+function ConnectedAccountRow({
+  account,
+  canRemove,
+  busy,
+  confirmingRemove,
+  onAskRemove,
+  onCancelRemove,
+  onConfirmRemove,
+}: Readonly<{
+  account: RelatedAccount;
+  canRemove: boolean;
+  busy: boolean;
+  confirmingRemove: boolean;
+  onAskRemove: () => void;
+  onCancelRemove: () => void;
+  onConfirmRemove: () => void;
+}>) {
+  const t = useTranslations("parentChildDetail");
+  const name =
+    `${account.first_name} ${account.last_name}`.trim() ||
+    (account.email ?? "");
+  const removable = canRemove && !account.is_primary && !account.is_self;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
+        {initials(account.first_name, account.last_name)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <StatusBadge
+            label={t(`guardians.access.status.${account.status}`)}
+            tone={accessTone(account.status)}
+          />
+          {account.email ? (
+            <span className="truncate text-xs text-gray-500">
+              {account.email}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      {removable ? (
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {confirmingRemove ? (
+            <>
+              <Button
+                type="button"
+                variant="danger"
+                size="md"
+                disabled={busy}
+                onClick={onConfirmRemove}
+              >
+                {t("guardians.access.removeConfirm")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={onCancelRemove}
+              >
+                {t("guardians.cancel")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline_danger"
+              size="md"
+              onClick={onAskRemove}
+            >
+              <X className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
+              {t("guardians.access.remove")}
+            </Button>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function GuardianRow({
   guardian: g,
+  access,
+  canInvite,
+  busy,
   onEditContact,
   onEditPickup,
+  onGrantAccess,
 }: Readonly<{
   guardian: ChildGuardian;
+  access?: RelatedAccount;
+  canInvite: boolean;
+  busy: boolean;
   onEditContact: () => void;
   onEditPickup: () => void;
+  onGrantAccess: (email: string, name: string) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
-  const name = `${g.first_name} ${g.last_name}`.trim() || "Kontakt";
+  const name =
+    `${g.first_name} ${g.last_name}`.trim() ||
+    t("guardians.relationships.contact");
   const relationshipLabel = isRelationshipType(g.relationship_type)
     ? t(`guardians.relationships.${g.relationship_type}`)
-    : (RELATIONSHIP_LABELS[g.relationship_type] ??
-      t("guardians.relationships.contact"));
+    : t("guardians.relationships.contact");
   const hasContact =
     g.phones.length > 0 ||
     Boolean(g.email) ||
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
+  // Von der Schule verwaltete Kontakte (social_worker) weist das Backend ab,
+  // deshalb wird der Ausbau dort gar nicht angeboten (#2172).
+  const grantable =
+    canInvite &&
+    (access?.status === "active_no_access" ||
+      access?.status === "no_account") &&
+    access.guardian_role !== "social_worker" &&
+    Boolean(access.email);
   return (
     <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
-        <span className="bg-moto-teal/15 text-moto-teal-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
@@ -239,8 +672,8 @@ function GuardianRow({
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <span className="text-xs text-gray-500">{relationshipLabel}</span>
             {g.is_primary && (
-              <span className="text-xs font-medium text-gray-500">
-                ({t("guardians.badges.primary")})
+              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+                {t("guardians.badges.primary")}
               </span>
             )}
           </div>
@@ -250,12 +683,12 @@ function GuardianRow({
           {(g.can_pickup || g.is_emergency_contact) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
                   {t("guardians.badges.canPickup")}
                 </span>
               )}
               {g.is_emergency_contact && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
                   {t("guardians.badges.emergency")}
                 </span>
               )}
@@ -272,7 +705,7 @@ function GuardianRow({
                         <MotoDuotoneIcon
                           icon={PhoneIcon}
                           tone="neutral"
-                          size={14}
+                          size={16}
                         />
                       }
                       text={[
@@ -281,7 +714,7 @@ function GuardianRow({
                         p.phone_type && isPhoneType(p.phone_type)
                           ? t(`guardians.phoneTypes.${p.phone_type}`)
                           : p.phone_type
-                            ? (PHONE_TYPE_LABELS[p.phone_type] ?? p.phone_type)
+                            ? t("guardians.phoneTypes.other")
                             : null,
                       ]
                         .filter(Boolean)
@@ -294,7 +727,7 @@ function GuardianRow({
                         <MotoDuotoneIcon
                           icon={EnvelopeSimpleIcon}
                           tone="neutral"
-                          size={14}
+                          size={16}
                         />
                       }
                       text={g.email}
@@ -308,7 +741,7 @@ function GuardianRow({
                         <MotoDuotoneIcon
                           icon={MapPinIcon}
                           tone="neutral"
-                          size={14}
+                          size={16}
                         />
                       }
                       text={[
@@ -376,15 +809,35 @@ function GuardianRow({
                 {g.can_manage_pickup ? (
                   <MotoConceptIcon concept="permissions" size={18} />
                 ) : (
-                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={16} />
+                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={18} />
                 )}
               </Button>
             )}
           </div>
         )}
       </div>
+
+      {grantable && (
+        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-3">
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            disabled={busy}
+            onClick={() => onGrantAccess(access?.email ?? "", name)}
+          >
+            {t("guardians.access.grant")}
+          </Button>
+        </div>
+      )}
     </div>
   );
+}
+
+function accessTone(status: RelatedAccount["status"]): StatusBadgeTone {
+  if (status === "active") return "green";
+  if (status === "pending") return "orange";
+  return "gray";
 }
 
 function ContactLine({
@@ -408,27 +861,36 @@ interface PhoneDraft {
 }
 
 function ContactModal({
+  mode,
   studentId,
-  guardian: g,
+  guardian,
+  canManagePickup = false,
   onClose,
   onSaved,
 }: Readonly<{
+  mode: "create" | "edit";
   studentId: string;
-  guardian: ChildGuardian;
+  guardian?: ChildGuardian;
+  canManagePickup?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }>) {
   const t = useTranslations("parentChildDetail");
-  const [firstName, setFirstName] = useState(g.first_name);
-  const [lastName, setLastName] = useState(g.last_name);
-  const [email, setEmail] = useState(g.email ?? "");
-  const [street, setStreet] = useState(g.address_street ?? "");
-  const [city, setCity] = useState(g.address_city ?? "");
-  const [postal, setPostal] = useState(g.address_postal_code ?? "");
+  const [firstName, setFirstName] = useState(guardian?.first_name ?? "");
+  const [lastName, setLastName] = useState(guardian?.last_name ?? "");
+  const [email, setEmail] = useState(guardian?.email ?? "");
+  const [street, setStreet] = useState(guardian?.address_street ?? "");
+  const [city, setCity] = useState(guardian?.address_city ?? "");
+  const [postal, setPostal] = useState(guardian?.address_postal_code ?? "");
+  const [relationshipType, setRelationshipType] =
+    useState<RelationshipType>("relative");
+  const [canPickup, setCanPickup] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [pickupNotes, setPickupNotes] = useState("");
   const [phones, setPhones] = useState<PhoneDraft[]>(
-    g.phones.length > 0
-      ? g.phones.map((p) => ({
-          id: `${g.guardian_profile_id}-${p.phone_number}-${p.phone_type}`,
+    guardian && guardian.phones.length > 0
+      ? guardian.phones.map((p) => ({
+          id: `${guardian.guardian_profile_id}-${p.phone_number}-${p.phone_type}`,
           phone_number: p.phone_number,
           phone_type: p.phone_type || "mobile",
           label: p.label ?? null,
@@ -481,7 +943,22 @@ function ContactModal({
       })),
     };
     try {
-      await updateGuardianContact(studentId, g.guardian_profile_id, payload);
+      if (mode === "create") {
+        const createPayload: CreateGuardianContactPayload = {
+          ...payload,
+          relationship_type: relationshipType,
+          can_pickup: canManagePickup && canPickup,
+          is_emergency_contact: canManagePickup && isEmergency,
+          pickup_notes: pickupNotes.trim() || null,
+        };
+        await createGuardianContact(studentId, createPayload);
+      } else if (guardian) {
+        await updateGuardianContact(
+          studentId,
+          guardian.guardian_profile_id,
+          payload,
+        );
+      }
       onSaved();
     } catch (err) {
       logger.error("guardian_contact_save_failed", {
@@ -497,25 +974,102 @@ function ContactModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("guardians.contactTitle")}
+      title={
+        mode === "create"
+          ? t("guardians.createContactTitle")
+          : t("guardians.contactTitle")
+      }
       closeLabel={t("guardians.close")}
+      mobileSheet
       footer={
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <div className="flex w-full justify-end gap-2">
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            className="hidden sm:inline-flex"
+            onClick={onClose}
+          >
             {t("guardians.cancel")}
           </Button>
           <Button
             type="button"
             size="md"
+            className="w-full sm:w-auto"
             disabled={busy}
             onClick={() => void handleSave()}
           >
-            {t("guardians.save")}
+            {mode === "create"
+              ? t("guardians.createContact")
+              : t("guardians.save")}
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
+        {mode === "create" ? (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-gray-600">
+              {t("guardians.createContactIntro")}
+            </p>
+            <div>
+              <p className="mb-1 text-sm font-medium text-gray-700">
+                {t("guardians.relationshipLabel")}
+              </p>
+              <CustomSelect
+                value={relationshipType}
+                options={RELATIONSHIP_TYPES.map((type) => ({
+                  value: type,
+                  label: t(`guardians.relationships.${type}`),
+                }))}
+                onChange={(value) =>
+                  setRelationshipType(value as RelationshipType)
+                }
+                ariaLabel={t("guardians.relationshipLabel")}
+              />
+            </div>
+            {canManagePickup ? (
+              <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+                <label
+                  htmlFor="new-contact-can-pickup"
+                  className="flex items-start gap-3"
+                >
+                  <Checkbox
+                    id="new-contact-can-pickup"
+                    checked={canPickup}
+                    onChange={(event) => setCanPickup(event.target.checked)}
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-gray-900">
+                      {t("guardians.canPickupLabel")}
+                    </span>
+                    <span className="mt-0.5 block text-gray-500">
+                      {t("guardians.canPickupDescription")}
+                    </span>
+                  </span>
+                </label>
+                <label
+                  htmlFor="new-contact-emergency"
+                  className="flex items-start gap-3"
+                >
+                  <Checkbox
+                    id="new-contact-emergency"
+                    checked={isEmergency}
+                    onChange={(event) => setIsEmergency(event.target.checked)}
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-gray-900">
+                      {t("guardians.emergencyLabel")}
+                    </span>
+                    <span className="mt-0.5 block text-gray-500">
+                      {t("guardians.emergencyDescription")}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {error && (
           <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
             {error}
@@ -523,22 +1077,30 @@ function ContactModal({
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
+            id={`guardian-${mode}-first-name`}
             label={t("guardians.firstName")}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
           />
           <Input
+            id={`guardian-${mode}-last-name`}
             label={t("guardians.lastName")}
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
           />
         </div>
         <Input
+          id={`guardian-${mode}-email`}
           label={t("guardians.email")}
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+        {mode === "create" ? (
+          <p className="-mt-2 text-xs leading-5 text-gray-500">
+            {t("guardians.emailDoesNotInvite")}
+          </p>
+        ) : null}
         <Input
           label={t("guardians.street")}
           value={street}
@@ -625,6 +1187,25 @@ function ContactModal({
             </Button>
           )}
         </div>
+        {mode === "create" ? (
+          <div>
+            <label
+              htmlFor="new-contact-pickup-notes"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              {t("guardians.pickupNotes")}
+            </label>
+            <textarea
+              id="new-contact-pickup-notes"
+              value={pickupNotes}
+              onChange={(event) => setPickupNotes(event.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder={t("guardians.pickupNotesPlaceholder")}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+            />
+          </div>
+        ) : null}
       </div>
     </Modal>
   );
@@ -715,14 +1296,22 @@ function PickupModal({
           : t("guardians.pickupNotes")
       }
       closeLabel={t("guardians.close")}
+      mobileSheet
       footer={
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <div className="flex w-full justify-end gap-2">
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            className="hidden sm:inline-flex"
+            onClick={onClose}
+          >
             {t("guardians.cancel")}
           </Button>
           <Button
             type="button"
             size="md"
+            className="w-full sm:w-auto"
             disabled={busy}
             onClick={() => void handleSave()}
           >

@@ -52,6 +52,14 @@ const PUBLIC_TENANT_PATHS = [
   "/reset-password",
 ] as const;
 
+const PUBLIC_PARENT_PATHS = [
+  "/login",
+  "/reset-password",
+  "/email-confirm",
+  "/accept-guardian-invite",
+  "/enroll/status",
+] as const;
+
 function notify(): void {
   for (const subscriber of subscribers) subscriber();
 }
@@ -83,6 +91,39 @@ function isCurrentProtectedTenantPath(): boolean {
     if (publicPath === "/") return pathname === publicPath;
     return pathname === publicPath || pathname.startsWith(`${publicPath}/`);
   });
+}
+
+function isCurrentParentInstallHost(): boolean {
+  const configuredHost = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+  if (!configuredHost) {
+    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+  }
+  const hostname = new URL(`http://${configuredHost}`).hostname;
+  return window.location.hostname.toLowerCase() === hostname.toLowerCase();
+}
+
+function isCurrentProtectedParentPath(): boolean {
+  const pathname = window.location.pathname.replace(/^\/parents(?=\/|$)/, "");
+  return !PUBLIC_PARENT_PATHS.some(
+    (publicPath) =>
+      pathname === publicPath || pathname.startsWith(`${publicPath}/`),
+  );
+}
+
+// Never suppress Chrome unless the replacement card can actually render, or the
+// visitor is left with no install affordance at all.
+function canCaptureInstallPrompt(): boolean {
+  if (isCurrentTenantInstallHost()) {
+    return isCurrentProtectedTenantPath() && isInstallHintEligible(window);
+  }
+  if (isCurrentParentInstallHost()) {
+    return isCurrentProtectedParentPath() && isInstallHintEligible(window);
+  }
+  return false;
+}
+
+function isCurrentInstallHost(): boolean {
+  return isCurrentTenantInstallHost() || isCurrentParentInstallHost();
 }
 
 /**
@@ -129,24 +170,17 @@ export function dismissInstallHint(win: Window): void {
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
-    // Only Android tenant surfaces render our one-tap UI. Chrome must retain
-    // its native install promotion on desktop and every other portal.
-    if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {
+    if (!isAndroidDevice(window.navigator)) {
       return;
     }
-    // Public routes have no custom install card, so Chrome owns the event
-    // there. Retaining an uncancelled one-shot event would leave a later
-    // protected page with a prompt Chrome may already have consumed.
-    if (!isCurrentProtectedTenantPath()) return;
-    // Do not suppress Chrome unless the replacement card can actually render.
-    if (!isInstallHintEligible(window)) return;
+    if (!canCaptureInstallPrompt()) return;
 
     event.preventDefault();
     deferredPrompt = event as BeforeInstallPromptEvent;
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    if (!isCurrentTenantInstallHost() || !isAndroidDevice(window.navigator)) {
+    if (!isCurrentInstallHost() || !isAndroidDevice(window.navigator)) {
       return;
     }
     deferredPrompt = null;

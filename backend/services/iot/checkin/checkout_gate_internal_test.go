@@ -16,13 +16,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -58,6 +61,31 @@ type mockEducationService struct {
 
 func (m *mockEducationService) GetGroup(_ context.Context, _ int64) (*education.Group, error) {
 	return m.group, m.err
+}
+
+// mockFacilitiesService is a minimal mock for testing the Schulhof branch of
+// ShouldShowDailyCheckoutWithGroup. Only FindRoomByName is exercised — it is
+// the single call FindCanonicalSchulhofRoom makes.
+type mockFacilitiesService struct {
+	facilitiesSvc.Service
+	room *facilityModels.Room
+	err  error
+}
+
+func (m *mockFacilitiesService) FindRoomByName(_ context.Context, _ string) (*facilityModels.Room, error) {
+	return m.room, m.err
+}
+
+// newSchulhofFacilities builds a facilities mock returning the canonical
+// Schulhof room (correct name, marked as a system room) under roomID.
+func newSchulhofFacilities(roomID int64) *mockFacilitiesService {
+	return &mockFacilitiesService{
+		room: &facilityModels.Room{
+			Model:    base.Model{ID: roomID},
+			Name:     constants.SchulhofRoomName,
+			IsSystem: true,
+		},
+	}
 }
 
 // newMockSettingsService builds a configtest.Mock reproducing the behavior of
@@ -488,6 +516,117 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false when education service errors")
+}
+
+// =============================================================================
+// Schulhof daily-checkout TESTS (#2377)
+//
+// A child leaving from the schoolyard must be OFFERED "nach Hause" without
+// being sent home automatically: PyrePortal renders its destination modal only
+// for action "checked_out", so the availability flag and the action upgrade
+// must disagree at the Schulhof.
+// =============================================================================
+
+// newSchulhofScenario builds the GS-Barnstorf shape: the student's group owns a
+// room, and the visit being closed happened in the Schulhof room instead.
+func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *active.Visit) {
+	t.Helper()
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	const groupRoomID, schulhofRoomID = int64(42), int64(7)
+	groupRoom := groupRoomID
+
+	s := &CheckinService{
+		settings:   newMockSettingsService(map[string]string{}, nil, nil),
+		education:  &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &groupRoom}},
+		facilities: newSchulhofFacilities(schulhofRoomID),
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: schulhofRoomID}}
+	return s, student, visit
+}
+
+func TestShouldShowDailyCheckoutWithGroup_SchulhofRoom_Offered(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "nach Hause must be offered when checking out from the Schulhof")
+}
+
+func TestShouldUpgradeToDailyCheckout_SchulhofRoom_NoAutoUpgrade(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+
+	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
+	assert.False(t, result,
+		"the Schulhof must not auto-send the child home — the action has to stay checked_out so PyrePortal renders the destination modal")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_SchulhofRoom_BeforeCheckoutTime(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+	// A configured time in the future must still suppress the offer: the
+	// Schulhof relaxes the ROOM gate, never the time gate.
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "the time gate still applies at the Schulhof")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_NotOffered(t *testing.T) {
+	s, student, _ := newSchulhofScenario(t)
+	// Same school, but the child left an ordinary room that is neither their
+	// group room nor the yard.
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "an ordinary room must not offer nach Hause")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NoSchulhofRoomProvisioned(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+	// A school that never enabled the yard has no Schulhof room; the lookup
+	// failing must not make the scan fail.
+	s.facilities = &mockFacilitiesService{
+		err: &facilitiesSvc.FacilitiesError{Op: "find room by name", Err: facilitiesSvc.ErrRoomNotFound},
+	}
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "a missing Schulhof room means not offered, not an error")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NonCanonicalSchulhofRoom(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+	// An unprotected room that merely matches case-insensitively must not be
+	// adopted as the yard (FindCanonicalSchulhofRoom rejects it).
+	s.facilities = &mockFacilitiesService{
+		room: &facilityModels.Room{
+			Model:    base.Model{ID: 7},
+			Name:     constants.SchulhofRoomName,
+			IsSystem: false,
+		},
+	}
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "a non-system room named Schulhof must not unlock nach Hause")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilFacilitiesService(t *testing.T) {
+	s, student, visit := newSchulhofScenario(t)
+	s.facilities = nil
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "a nil facilities service must not panic the checkout gate")
+}
+
+func TestShouldUpgradeToDailyCheckout_OwnGroupRoom_StillUpgrades(t *testing.T) {
+	s, student, _ := newSchulhofScenario(t)
+	// Leaving the child's OWN group room keeps the pre-existing automatic
+	// daily checkout — this fix must not change that path.
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 42}}
+
+	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
+	assert.True(t, result, "the own-group-room auto-upgrade is unchanged")
 }
 
 // =============================================================================

@@ -48,7 +48,7 @@ func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *tes
 			AND setting_key LIKE 'operations.parent_care_%_request_enabled'
 		ORDER BY tenant_id, setting_key
 	`, enabledTenant, disabledTenant).Scan(ctx, &rows))
-	require.Len(t, rows, 6)
+	require.Len(t, rows, 4)
 	for _, got := range rows {
 		assert.Equal(t, got.TenantID == enabledTenant, got.Enabled, got.Key)
 	}
@@ -60,5 +60,5 @@ func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *tes
 			AND setting_key LIKE 'operations.parent_care_%_request_enabled'
 			AND action = 'set'
 	`, enabledTenant, disabledTenant).Scan(ctx, &auditCount))
-	assert.Equal(t, 6, auditCount)
+	assert.Equal(t, 4, auditCount)
 }

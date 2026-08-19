@@ -416,11 +416,45 @@ func (s *masterDataReviewService) applyApprovedChange(ctx context.Context, req *
 	switch req.Target {
 	case userModels.DataChangeTargetPerson:
 		return s.applyPersonChange(ctx, req)
+	case userModels.DataChangeTargetStudent:
+		return s.applyStudentChange(ctx, req, reviewedBy)
 	case userModels.DataChangeTargetDeparture:
 		return s.applyDepartureChange(ctx, req, reviewedBy)
 	default:
 		return ErrReviewInvalidTarget
 	}
+}
+
+func (s *masterDataReviewService) applyStudentChange(ctx context.Context, req *userModels.StudentDataChangeRequest, reviewedBy int64) error {
+	if req.FieldKey != "school_class" {
+		return ErrReviewInvalidTarget
+	}
+	var value string
+	if err := json.Unmarshal(req.NewValue, &value); err != nil {
+		return ErrReviewInvalidValue
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ErrReviewInvalidValue
+	}
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+	if err != nil {
+		return fmt.Errorf("review: load student: %w", err)
+	}
+	if !jsonRawEqual(jsonString(student.SchoolClass), req.OldValue) {
+		return ErrReviewStaleValue
+	}
+	before := *student
+	student.SchoolClass = value
+	if err := s.studentRepo.Update(ctx, student); err != nil {
+		return fmt.Errorf("review: update student class: %w", err)
+	}
+	if s.studentAudit != nil {
+		if err := s.studentAudit.RecordChangesForActor(ctx, &before, student, reviewedBy); err != nil {
+			return fmt.Errorf("review: audit student class: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *masterDataReviewService) applyPersonChange(ctx context.Context, req *userModels.StudentDataChangeRequest) error {

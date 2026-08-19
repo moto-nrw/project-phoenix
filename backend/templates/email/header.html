@@ -26,13 +26,13 @@
 {{define "school-brand"}}
 <div class="school-brand">
     {{if .LogoURL}}
-    <img class="school-logo" src="{{.LogoURL}}" alt="{{if .SchoolName}}{{.SchoolName}}{{else}}Logo der Schule{{end}}" />
+    <img class="school-logo" src="{{.LogoURL}}" alt="{{if .SchoolName}}{{.SchoolName}}{{else if .SchoolLogoAlt}}{{.SchoolLogoAlt}}{{else}}Logo der Schule{{end}}" />
     {{else}}
     <div class="school-logo-fallback">OGS</div>
     {{end}}
     <div class="school-brand-copy">
-        <p class="school-kicker">{{if .BrandKicker}}{{.BrandKicker}}{{else}}Online-Anmeldung{{end}}</p>
-        <p class="school-name">{{if .SchoolName}}{{.SchoolName}}{{else}}Ihre OGS{{end}}</p>
+        <p class="school-kicker">{{if .BrandKicker}}{{.BrandKicker}}{{else if .DefaultBrandKicker}}{{.DefaultBrandKicker}}{{else}}Online-Anmeldung{{end}}</p>
+        <p class="school-name">{{if .SchoolName}}{{.SchoolName}}{{else if .DefaultSchoolName}}{{.DefaultSchoolName}}{{else}}Ihre OGS{{end}}</p>
     </div>
 </div>
 {{end}}

@@ -50,9 +50,16 @@ type OfferingChangeRequest struct {
 	ParentNote     *string        `bun:"parent_note" json:"parent_note,omitempty"`
 	Status         string         `bun:"status,notnull,default:'pending'" json:"status"`
 	DecisionReason *string        `bun:"decision_reason" json:"decision_reason,omitempty"`
-	ReviewedBy     *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
-	ReviewedAt     *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
-	AppliedAt      *time.Time     `bun:"applied_at" json:"applied_at,omitempty"`
+	// DecisionSnapshot freezes the "current → requested" diff (including which
+	// lines a Mitbuchungs-Regel added and any per-request overrides) at the
+	// moment the request was decided. Recap views read only this snapshot, so a
+	// later rule change cannot rewrite history (ADR 0002). Nil on rows decided
+	// before the column existed; recap readers then fall back to the stored
+	// payload (the guardian's own selection), exactly as before the column.
+	DecisionSnapshot *OfferingChangeDecisionSnapshot `bun:"decision_snapshot,type:jsonb" json:"decision_snapshot,omitempty"`
+	ReviewedBy       *int64                          `bun:"reviewed_by" json:"reviewed_by,omitempty"`
+	ReviewedAt       *time.Time                      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
+	AppliedAt        *time.Time                      `bun:"applied_at" json:"applied_at,omitempty"`
 }
 
 // IsTerminal reports whether the row can still be decided or withdrawn.
@@ -63,6 +70,39 @@ func (r *OfferingChangeRequest) IsTerminal() bool {
 	default:
 		return false
 	}
+}
+
+// OfferingChangeDecisionSnapshot is the frozen review diff stored on a decided
+// request (see the DecisionSnapshot field).
+type OfferingChangeDecisionSnapshot struct {
+	Diff []OfferingChangeSnapshotEntry `json:"diff"`
+	// OverriddenOfferings lists the Mitbuchungs-Regel targets staff excluded
+	// for this one request at approval time (#2370).
+	OverriddenOfferings []OfferingChangeSnapshotOffering `json:"overridden_offerings,omitempty"`
+}
+
+// OfferingChangeSnapshotEntry is one frozen diff line.
+type OfferingChangeSnapshotEntry struct {
+	OfferingID int64    `json:"offering_id"`
+	Label      string   `json:"label"`
+	OldState   string   `json:"old_state"`
+	OldDays    []string `json:"old_days,omitempty"`
+	NewState   string   `json:"new_state"`
+	NewDays    []string `json:"new_days,omitempty"`
+	// NewAutomaticDays is the share of NewDays a Mitbuchungs-Regel (or the
+	// required-lunch derivation) added rather than the parents.
+	NewAutomaticDays []string `json:"new_automatic_days,omitempty"`
+	// NewRuleDays is the subset added specifically by a Mitbuchungs-Regel.
+	NewRuleDays []string `json:"new_rule_days,omitempty"`
+	// AutoTriggerNames names the selected offerings that triggered the
+	// automatic share; empty for the required-lunch derivation.
+	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
+}
+
+// OfferingChangeSnapshotOffering names one overridden rule target.
+type OfferingChangeSnapshotOffering struct {
+	OfferingID int64  `json:"offering_id"`
+	Name       string `json:"name"`
 }
 
 // OfferingChangeRequestSelection is one desired offering inside the payload.
@@ -107,4 +147,7 @@ type OfferingChangeRequestRepository interface {
 	// withdrawals pass reviewedBy = nil; applied is set only when the switch was
 	// actually written.
 	Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error
+
+	// UpdateDecisionSnapshot stores the frozen review diff on a decided row.
+	UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *OfferingChangeDecisionSnapshot) error
 }

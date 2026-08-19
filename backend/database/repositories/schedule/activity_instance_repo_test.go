@@ -690,6 +690,15 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	require.NoError(t, repo.Create(ctx, plain))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", plain.ID)
 
+	// legacyManual: migration 1.15.303 reclassified legacy planned spontaneous
+	// rows as non-spontaneous, but they remain unlinked to a template and must
+	// not be removed by a whole-grid re-plan.
+	legacyManual := buildInstance(1, fx.roomID, nil, date,
+		time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC), "LegacyManual")
+	require.NoError(t, repo.Create(ctx, legacyManual))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", legacyManual.ID)
+
 	// absentDev: carries an absent instance_staff row → preserved.
 	absentDev := buildInstance(1, fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -719,10 +728,14 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	// preserveDeviations=true (re-plan semantics): deviated instances survive.
 	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, true)
 	require.NoError(t, err)
-	assert.EqualValues(t, 1, deleted, "only the non-deviated instance is deleted")
+	assert.EqualValues(t, 1, deleted, "only the template-backed non-deviated instance is deleted")
 
 	_, err = repo.FindByID(ctx, plain.ID)
 	assert.True(t, modelBase.IsNoRows(err), "plain instance must be deleted")
+
+	gotLegacyManual, err := repo.FindByID(ctx, legacyManual.ID)
+	require.NoError(t, err, "legacy manual instance must be preserved")
+	assert.Equal(t, legacyManual.ID, gotLegacyManual.ID)
 
 	gotAbsent, err := repo.FindByID(ctx, absentDev.ID)
 	require.NoError(t, err, "instance with an absent staff row must be preserved")

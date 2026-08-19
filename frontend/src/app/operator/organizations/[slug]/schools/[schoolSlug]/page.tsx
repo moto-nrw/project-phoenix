@@ -45,6 +45,7 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
+import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -410,9 +411,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   if ((!organizations || schoolsLoading) && !school) {
     return (
-      <div className="w-full py-10 text-center text-gray-500">
-        Wird geladen…
-      </div>
+      <SkeletonRegion label="Schule wird geladen">
+        <DetailSkeleton sections={1} fieldsPerSection={3} />
+      </SkeletonRegion>
     );
   }
 
@@ -507,57 +508,51 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           </div>
 
           <TabsPrimitive.Content value="konten" className="mt-4">
-            {accountsLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
+            {!accountsLoading &&
+            (!schoolAccounts || schoolAccounts.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Konten für diese Schule.
               </div>
-            ) : schoolAccounts && schoolAccounts.length > 0 ? (
+            ) : (
               <AccountsTable
-                accounts={schoolAccounts}
+                accounts={schoolAccounts ?? []}
+                isLoading={accountsLoading}
                 selectedSchool={selectedSchoolForTable}
                 onManageCaregiver={openCaregiverModal}
                 onManageMFA={openMFAModal}
               />
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Konten für diese Schule.
-              </div>
             )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            {devicesLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
+            {!devicesLoading &&
+            (!schoolDevices || schoolDevices.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Geräte für diese Schule.
               </div>
-            ) : schoolDevices && schoolDevices.length > 0 ? (
+            ) : (
               <DevicesTable
-                devices={schoolDevices}
+                devices={schoolDevices ?? []}
+                isLoading={devicesLoading}
                 onSetKey={setSetKeyDevice}
                 onTransfer={setTransferDevice}
                 onDelete={setDeleteDevice}
               />
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Geräte für diese Schule.
-              </div>
             )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="personen" className="mt-4">
-            {personsLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
-              </div>
-            ) : schoolPersons && schoolPersons.length > 0 ? (
-              <PersonsTable
-                persons={schoolPersons}
-                onDelete={setDeletePersonTarget}
-              />
-            ) : (
+            {!personsLoading &&
+            (!schoolPersons || schoolPersons.length === 0) ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diese Schule.
               </div>
+            ) : (
+              <PersonsTable
+                persons={schoolPersons ?? []}
+                isLoading={personsLoading}
+                onDelete={setDeletePersonTarget}
+              />
             )}
           </TabsPrimitive.Content>
         </Tabs>

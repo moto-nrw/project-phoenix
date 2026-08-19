@@ -8,7 +8,6 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -241,11 +240,7 @@ export function StudentDokumenteTab({
     },
   ];
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error || !data) {
+  if (error) {
     return (
       <Alert type="error" message="Dokumente konnten nicht geladen werden." />
     );
@@ -352,6 +347,7 @@ export function StudentDokumenteTab({
           columns={columns}
           rows={filtered}
           getRowKey={(doc) => doc.id}
+          isLoading={isLoading}
           defaultSortKey="uploaded"
           defaultSortDirection="desc"
           paginationResetKey={filter}

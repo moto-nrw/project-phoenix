@@ -339,6 +339,14 @@ describe("useHelpSearch", () => {
     act(() => result.current.setQuery("Kindersuche"));
     expect(result.current.hits[0]?.record.title).toBe("Alle Kinder");
   });
+
+  it("ranks the Wochenplan chapter first for Abholzeit (#2368)", () => {
+    const { result } = renderHook(() => useHelpSearch());
+    act(() => result.current.setQuery("Abholzeit"));
+    expect(result.current.hits[0]?.record.title).toBe(
+      "Feste Ankunfts- und Abholzeiten eintragen",
+    );
+  });
 });
 
 describe("HelpHashScroll", () => {

@@ -210,12 +210,19 @@ type FormField struct {
 	// historical behaviour). When set, every per-weekday time a parent
 	// submits must be a member of this list. Only valid on a
 	// weekday_schedule field; rejected on every other type.
-	AllowedTimes []string             `json:"allowed_times,omitempty"`
-	Validation   *FormFieldValidation `json:"validation,omitempty"`
-	SortOrder    int                  `json:"sort_order"`
-	AppliesToCh  bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
-	Target       string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
-	VisibleWhen  *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
+	AllowedTimes []string `json:"allowed_times,omitempty"`
+	// SingleModeGrades is the Heimweg-Beschränkung (#2381): target grade
+	// levels whose children may pick at most ONE departure mode per weekday
+	// on this weekday_multi_mode field. Parents still choose WHICH mode.
+	// Empty/absent = unrestricted multi-select (the historical behaviour);
+	// children without a target grade level are never restricted. Only valid
+	// on the allowed-departure-modes field; rejected everywhere else.
+	SingleModeGrades []int                `json:"single_mode_grades,omitempty"`
+	Validation       *FormFieldValidation `json:"validation,omitempty"`
+	SortOrder        int                  `json:"sort_order"`
+	AppliesToCh      bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
+	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
+	VisibleWhen      *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
 }
 
 const CoreRequirementGuardianPhone = "guardian_phone"
@@ -403,7 +410,26 @@ func (f *FormField) validateInfo() error {
 	if len(f.AllowedTimes) > 0 {
 		return fmt.Errorf("information field %q must not declare allowed_times", f.Key)
 	}
+	if len(f.SingleModeGrades) > 0 {
+		return fmt.Errorf("information field %q must not declare single_mode_grades", f.Key)
+	}
 	return nil
+}
+
+// SingleModeAppliesTo reports whether this field's Heimweg-Beschränkung
+// restricts the given target grade level. A nil grade (grade collection off,
+// or a legacy request without one) is never restricted — the rule keys on the
+// declared target grade and silently falls back to multi-select without it.
+func (f *FormField) SingleModeAppliesTo(grade *int16) bool {
+	if grade == nil {
+		return false
+	}
+	for _, g := range f.SingleModeGrades {
+		if g == int(*grade) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateQuestion enforces the constraints for answer-collecting fields
@@ -447,6 +473,24 @@ func (f *FormField) validateQuestion() error {
 			seen[t] = true
 			f.AllowedTimes[i] = t
 		}
+	}
+
+	// SingleModeGrades (Heimweg-Beschränkung, #2381) only makes sense on
+	// the allowed-departure-modes field; anywhere else it would silently
+	// do nothing, so reject it. Grade bounds and dedup reuse the shared
+	// grade-list normalization.
+	if len(f.SingleModeGrades) > 0 {
+		if f.Target != TargetStudentAllowedDepartureModes {
+			return fmt.Errorf("field %q: single_mode_grades is only valid on the allowed-departure-modes field", f.Key)
+		}
+		if !f.AppliesToCh {
+			return fmt.Errorf("field %q: single_mode_grades requires a child field", f.Key)
+		}
+		normalized, err := normalizeGradeLevelList("single_mode_grades", f.SingleModeGrades)
+		if err != nil {
+			return fmt.Errorf("field %q: %w", f.Key, err)
+		}
+		f.SingleModeGrades = normalized
 	}
 
 	// Structured types are only meaningful when paired with their
@@ -588,6 +632,24 @@ func (w WeekdayMultiMode) Validate() error {
 				return fmt.Errorf("weekday %q contains duplicate mode %q", day, mode)
 			}
 			seen[mode] = true
+		}
+	}
+	return nil
+}
+
+// ValidateSingleSelection checks the plan is well-formed AND every weekday
+// carries at most one departure mode. Backs the server-side Heimweg-
+// Beschränkung (#2381): the public form renders a single-choice picker for
+// restricted grades, but a scripted or stale client could still POST several
+// modes per day. Callers must only invoke this for children whose target
+// grade is restricted (FormField.SingleModeAppliesTo).
+func (w WeekdayMultiMode) ValidateSingleSelection() error {
+	if err := w.Validate(); err != nil {
+		return err
+	}
+	for day, modes := range w {
+		if len(modes) > 1 {
+			return fmt.Errorf("weekday %q allows only one departure mode, got %d", day, len(modes))
 		}
 	}
 	return nil

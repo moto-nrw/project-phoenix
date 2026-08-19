@@ -32,6 +32,7 @@ type reminderPushDelivery struct {
 	occurrence  timezone.Date
 	accountID   int64
 	profileIDs  []int64
+	locale      string
 
 	// from and to are the scan window this occurrence fell due in. Preparation
 	// re-measures the occurrence against them, because an edit between claim and
@@ -333,6 +334,7 @@ func (s *service) enqueueAppointmentReminder(
 
 	queued := 0
 	pushProfilesByAccount := make(map[int64][]int64, len(guardianIDs))
+	pushLocaleByAccount := make(map[int64]string, len(guardianIDs))
 	seen := make(map[int64]struct{}, len(guardianIDs))
 	for _, id := range guardianIDs {
 		if _, done := seen[id]; done {
@@ -377,6 +379,9 @@ func (s *service) enqueueAppointmentReminder(
 			}
 			if len(optedIn) > 0 {
 				pushProfilesByAccount[*profile.AccountID] = append(pushProfilesByAccount[*profile.AccountID], id)
+				if profile.PortalLocale != nil {
+					pushLocaleByAccount[*profile.AccountID] = *profile.PortalLocale
+				}
 			}
 		}
 	}
@@ -400,6 +405,7 @@ func (s *service) enqueueAppointmentReminder(
 			occurrence:  occurrence,
 			accountID:   accountID,
 			profileIDs:  append([]int64(nil), claimedProfileIDs...),
+			locale:      pushLocaleByAccount[accountID],
 			from:        from,
 			to:          to,
 		})
@@ -470,7 +476,7 @@ func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []remin
 			// the claims are actually held at, not the one the scan started with.
 			delivery.appointment = appointment
 			delivery.profileIDs = profileIDs
-			dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, appointment, []int64{delivery.accountID}, studentIDs)
+			dispatched, err := s.dispatchGuardianAccountReminderDevicesLocalized(ctx, appointment, []int64{delivery.accountID}, studentIDs, delivery.locale)
 			if err == nil && dispatched {
 				return
 			}

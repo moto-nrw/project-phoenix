@@ -187,3 +187,24 @@ func (r *OfferingChangeRequestRepository) Decide(
 	}
 	return nil
 }
+
+// UpdateDecisionSnapshot stores the frozen review diff on a decided row (ADR
+// 0002). Separate from Decide so the existing race-guarded transition keeps
+// its signature; callers write the snapshot in the same transaction.
+func (r *OfferingChangeRequestRepository) UpdateDecisionSnapshot(
+	ctx context.Context,
+	id int64,
+	snapshot *enrollment.OfferingChangeDecisionSnapshot,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*enrollment.OfferingChangeRequest)(nil)).
+		ModelTableExpr(tableExprOfferingChangeRequestsAsReq).
+		Set("decision_snapshot = ?", snapshot).
+		Set("updated_at = ?", time.Now()).
+		Where(`"offering_change_request".id = ?`, id)
+	q = base.WithTenantFilter(ctx, q, "offering_change_request")
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "update offering change decision snapshot", Err: err}
+	}
+	return nil
+}

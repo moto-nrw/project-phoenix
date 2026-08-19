@@ -269,7 +269,7 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
 		reminders: []*usersModels.AnnouncementPollReminderRecipient{
-			{AccountID: 101, Email: ""},
+			{AccountID: 101, Email: "", PortalLocale: "en"},
 		},
 	}
 	notifier := &fakeNotifier{}
@@ -291,6 +291,9 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	}
 	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
 		t.Fatalf("unexpected push recipients: %+v", notifier.events)
+	}
+	if notifier.events[0].Title != "Reminder: poll open" {
+		t.Fatalf("unexpected localized reminder title: %q", notifier.events[0].Title)
 	}
 }
 
@@ -396,6 +399,38 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		event.Priority != notifications.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
+func TestPublish_GroupsGuardianPushesByPortalLocale(t *testing.T) {
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(false),
+		audience: []*usersModels.AnnouncementRecipientStatus{
+			{AccountID: 101, PortalLocale: "de"},
+			{AccountID: 202, PortalLocale: "en"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Notifier: notifier,
+		ParentsURL: "https://parents.example.test", Logger: slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if len(notifier.events) != 2 {
+		t.Fatalf("expected one event per locale, got %d", len(notifier.events))
+	}
+	titles := make(map[string][]int64, len(notifier.events))
+	for _, event := range notifier.events {
+		titles[event.Title] = event.Audience.GuardianAccountIDs
+	}
+	if !slices.Equal(titles["Neue Elternmitteilung"], []int64{101}) {
+		t.Fatalf("unexpected German audience: %v", titles["Neue Elternmitteilung"])
+	}
+	if !slices.Equal(titles["New parent announcement"], []int64{202}) {
+		t.Fatalf("unexpected English audience: %v", titles["New parent announcement"])
 	}
 }
 

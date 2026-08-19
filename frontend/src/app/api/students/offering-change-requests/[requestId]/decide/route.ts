@@ -4,6 +4,8 @@ import { createPostHandler } from "~/lib/route-wrapper.server";
 interface DecideBody {
   approve: boolean;
   reason?: string;
+  /** Rule-added offerings staff unticked for this one approval (#2370). */
+  excluded_offering_ids?: string[];
 }
 
 interface BackendEnvelope<T> {

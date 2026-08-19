@@ -9,6 +9,7 @@ import useSWR from "swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
 import { OperatorCommentAccordion } from "~/components/operator/operator-comment-accordion";
 import { useSession } from "next-auth/react";
@@ -225,7 +226,11 @@ export default function OperatorSuggestionsPage() {
         }}
       />
 
-      {isLoading && <SuggestionSkeletons />}
+      {isLoading && (
+        <SkeletonRegion label="Feedback wird geladen">
+          <SuggestionSkeletons />
+        </SkeletonRegion>
+      )}
       {!isLoading && filteredSuggestions.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <svg

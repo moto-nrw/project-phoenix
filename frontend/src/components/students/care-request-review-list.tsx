@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -31,6 +31,12 @@ function decideErrorMessage(code: string | undefined): string {
       return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Anfrage kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
     case "change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
+    case "pickup_change_conflict":
+      return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
+    case "pickup_change_completed":
+      return "Das Kind wurde bereits ausgecheckt. Die Abholzeit kann nicht mehr geändert werden.";
+    case "pickup_change_expired":
+      return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }
@@ -147,8 +153,12 @@ export function CareRequestReviewList() {
         suppressSelfReloadRef.current = false;
         setNotice(
           approve
-            ? "Betreuungszeiten übernommen"
-            : "Betreuungszeit-Anfrage abgelehnt",
+            ? row.request_kind === "pickup_change"
+              ? "Abholzeit übernommen"
+              : "Betreuungszeiten übernommen"
+            : row.request_kind === "pickup_change"
+              ? "Abholzeit-Anfrage abgelehnt"
+              : "Betreuungszeit-Anfrage abgelehnt",
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -166,7 +176,13 @@ export function CareRequestReviewList() {
     [reasons],
   );
 
-  if (loading) return <Loading fullPage={false} />;
+  if (loading) {
+    return (
+      <SkeletonRegion label="Betreuungszeit-Anfragen werden geladen">
+        <ListSkeleton rows={3} avatar={false} />
+      </SkeletonRegion>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -206,6 +222,14 @@ export function CareRequestReviewList() {
             onReject={() => void decide(row, false)}
           >
             <ReviewDiffPanel>
+              {row.request_reason && (
+                <p className="mb-3 text-sm text-gray-700">
+                  <span className="font-medium text-gray-900">
+                    Grund der Eltern:
+                  </span>{" "}
+                  {row.request_reason}
+                </p>
+              )}
               {row.diff.length === 0 && (
                 <span className="text-sm text-gray-500">—</span>
               )}

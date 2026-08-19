@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Skeleton } from "~/components/ui/skeleton";
 
 type SortDirection = "asc" | "desc";
 
@@ -31,6 +32,9 @@ interface DataTableProps<T> {
   headerActions?: ReactNode;
   caption?: string;
   isLoading?: boolean;
+  // Skeleton rows shown while isLoading; match the typical result count so
+  // the swap to real rows doesn't jump.
+  loadingRowCount?: number;
   rowClassName?: (row: T) => string;
   defaultSortKey?: string;
   defaultSortDirection?: SortDirection;
@@ -52,6 +56,84 @@ const alignClass: Record<
   center: "text-center",
 };
 
+// Class constants shared between the real table and its skeleton state so
+// the two cannot drift apart — the skeleton IS this table's own markup.
+const surfaceClass =
+  "moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md";
+const tableClass = "w-full border-collapse text-left text-sm";
+const headRowClass =
+  "border-b border-gray-100 text-xs font-medium text-gray-500";
+const headCellClass = "px-3 py-3 sm:px-5";
+const bodyRowClass = "border-b border-gray-50 last:border-0";
+const bodyCellClass = "px-3 py-3 align-middle sm:px-5";
+
+// Deterministic width cycle: varied line lengths read as real data without
+// Math.random() (SSR-hydration-safe). First column widest, like a name.
+const skeletonWidths = ["w-3/4", "w-1/2", "w-2/3", "w-2/5", "w-3/5"];
+
+function skeletonWidth(row: number, col: number): string {
+  if (col === 0) return "w-32";
+  return skeletonWidths[(row + col) % skeletonWidths.length] ?? "w-2/3";
+}
+
+function SkeletonBodyRows({
+  columnCount,
+  rows,
+}: Readonly<{ columnCount: number; rows: number }>) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, r) => (
+        <tr key={r} className={bodyRowClass} aria-hidden="true">
+          {Array.from({ length: columnCount }, (_, c) => (
+            <td key={c} className={bodyCellClass}>
+              <Skeleton className={`h-4 rounded ${skeletonWidth(r, c)}`} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Standalone loading table for call sites that don't have column definitions
+ * at hand (page-level fallbacks). Reuses the exact class constants of the
+ * real DataTable above; header cells show bars since the labels are unknown.
+ * Prefer `<DataTable isLoading>` whenever the columns exist — that renders
+ * the real header labels.
+ */
+export function DataTableSkeleton({
+  rows = 6,
+  columns = 5,
+  caption = false,
+}: Readonly<{ rows?: number; columns?: number; caption?: boolean }>) {
+  return (
+    <div className="w-full" aria-hidden="true">
+      {caption && <Skeleton className="mb-3 h-4 w-56 rounded" />}
+      <div className={surfaceClass}>
+        <div className="overflow-x-auto">
+          <table className={tableClass}>
+            <thead>
+              <tr className={headRowClass}>
+                {Array.from({ length: columns }, (_, c) => (
+                  <th key={c} scope="col" className={headCellClass}>
+                    <Skeleton
+                      className={`h-3 rounded ${c === 0 ? "w-24" : "w-16"}`}
+                    />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <SkeletonBodyRows columnCount={columns} rows={rows} />
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DataTable<T>({
   columns,
   rows,
@@ -61,6 +143,7 @@ export function DataTable<T>({
   headerActions,
   caption,
   isLoading,
+  loadingRowCount = 6,
   rowClassName,
   defaultSortKey,
   defaultSortDirection = "asc",
@@ -125,6 +208,11 @@ export function DataTable<T>({
 
   return (
     <div className="w-full">
+      {isLoading && (
+        <output aria-live="polite" className="sr-only">
+          Wird geladen…
+        </output>
+      )}
       {(caption ?? headerActions) && (
         <div className="mb-3 flex items-center justify-between gap-3">
           {caption ? (
@@ -142,11 +230,11 @@ export function DataTable<T>({
           wird im inneren Container. Sonst zeichnet der Browser die
           Scrollleiste quer durch die abgerundeten Ecken und über den unteren
           Rand hinaus. */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div className={surfaceClass}>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className={tableClass}>
             <thead>
-              <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+              <tr className={headRowClass}>
                 {columns.map((col) => {
                   const align = alignClass[col.align ?? "left"];
                   const sortable = Boolean(col.sortValue);
@@ -156,7 +244,7 @@ export function DataTable<T>({
                       <th
                         key={col.key}
                         scope="col"
-                        className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
+                        className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
                       >
                         {col.header}
                       </th>
@@ -190,7 +278,7 @@ export function DataTable<T>({
                       key={col.key}
                       scope="col"
                       aria-sort={ariaSort}
-                      className={`px-3 py-3 sm:px-5 ${align} ${col.headerClassName ?? ""}`}
+                      className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
                     >
                       <button
                         type="button"
@@ -213,14 +301,10 @@ export function DataTable<T>({
             </thead>
             <tbody>
               {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-5 py-10 text-center text-sm text-gray-500"
-                  >
-                    Wird geladen…
-                  </td>
-                </tr>
+                <SkeletonBodyRows
+                  columnCount={columns.length}
+                  rows={loadingRowCount}
+                />
               ) : sortedRows.length === 0 ? (
                 <tr>
                   <td
@@ -234,7 +318,7 @@ export function DataTable<T>({
                 visibleRows.map((row) => {
                   const rowKey = getRowKey(row);
                   const rowClasses = [
-                    "border-b border-gray-50 last:border-0 transition-colors",
+                    `${bodyRowClass} transition-colors`,
                     clickable ? "cursor-pointer hover:bg-gray-50" : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
@@ -266,7 +350,7 @@ export function DataTable<T>({
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 py-3 align-middle text-gray-900 sm:px-5 ${align} ${col.className ?? ""}`}
+                            className={`${bodyCellClass} text-gray-900 ${align} ${col.className ?? ""}`}
                           >
                             {col.render(row)}
                           </td>

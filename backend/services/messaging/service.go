@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -94,6 +95,15 @@ type Config struct {
 	// sent past consent.
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
+
+	// Outbox, GuardianProfiles, Schools and ParentsURL queue the guardian e-mail
+	// for a new OGS message (#2307). All are optional so bare-constructed unit
+	// test services remain silent. LoginImages only decorates the mail header.
+	Outbox           platformModels.OutboxEnqueuer
+	GuardianProfiles GuardianProfileFinder
+	Schools          SchoolFinder
+	LoginImages      LoginImageResolver
+	ParentsURL       string
 }
 
 // NewService wires a staff messaging service.
@@ -379,7 +389,11 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	}
 
 	accountID := accountIDFromCtx(ctx)
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
 
@@ -455,7 +469,11 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
@@ -543,7 +561,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // does NOT move the sender's read cursor) is shared with the parent side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
+func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) (*usersModels.ParentMessage, error) {
 	msg := &usersModels.ParentMessage{
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
@@ -556,9 +574,9 @@ func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
-		return fmt.Errorf("messaging: append staff message: %w", err)
+		return nil, fmt.Errorf("messaging: append staff message: %w", err)
 	}
-	return nil
+	return msg, nil
 }
 
 // requireEnabled blocks writes (reply, new thread, open) when the school has
@@ -671,11 +689,24 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 	if len(optedIn) == 0 {
 		return
 	}
+	locale := ""
+	if s.GuardianProfiles != nil {
+		profile, profileErr := s.GuardianProfiles.FindByAccountID(ctx, thread.GuardianAccountID)
+		if profileErr != nil {
+			s.Logger.Warn("messaging: load guardian locale for push failed",
+				slog.Int64("thread_id", thread.ID),
+				slog.String("error", profileErr.Error()),
+			)
+		} else if profile != nil && profile.PortalLocale != nil {
+			locale = *profile.PortalLocale
+		}
+	}
+	title, notificationBody := notifications.ParentMessageCopy(locale)
 
 	err = s.Notifier.Notify(ctx, notifications.Event{
 		Type:     notifications.TypeParentMessage,
-		Title:    "Neue Nachricht der OGS",
-		Body:     "Sie haben eine neue Nachricht im Elternportal.",
+		Title:    title,
+		Body:     notificationBody,
 		DeepLink: "/messages",
 		Priority: notifications.PriorityNormal,
 		Audience: notifications.Audience{

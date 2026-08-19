@@ -12,9 +12,13 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import {
+  SkeletonRegion,
+  PageHeaderSkeleton,
+  ListSkeleton,
+} from "~/components/ui/page-skeletons";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -428,7 +432,7 @@ function SubstitutionPageContent() {
   }, [searchTerm, statusFilter]);
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return <SubstitutionPageSkeleton />;
   }
 
   if (openCareGroupMode) {
@@ -452,7 +456,11 @@ function SubstitutionPageContent() {
 
   const renderTeacherList = () => {
     if (isLoading) {
-      return <Loading fullPage={false} />;
+      return (
+        <SkeletonRegion label="Fachkräfte werden geladen…">
+          <ListSkeleton rows={6} />
+        </SkeletonRegion>
+      );
     }
 
     if (filteredTeachers.length === 0) {
@@ -793,10 +801,19 @@ function SubstitutionPageContent() {
   );
 }
 
+function SubstitutionPageSkeleton() {
+  return (
+    <SkeletonRegion label="Gruppenzugriff wird geladen">
+      <PageHeaderSkeleton />
+      <ListSkeleton rows={6} />
+    </SkeletonRegion>
+  );
+}
+
 export default function SubstitutionPage() {
   return (
     <RoleGuard variant="adminOnly">
-      <Suspense fallback={<Loading fullPage={false} />}>
+      <Suspense fallback={<SubstitutionPageSkeleton />}>
         <SubstitutionPageContent />
       </Suspense>
     </RoleGuard>

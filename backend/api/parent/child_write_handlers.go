@@ -29,7 +29,8 @@ const (
 // SubmitSickNoteRequest is the wire shape for POST
 // /parent/me/children/{studentId}/sick-note. Status is the absence kind the
 // parent chose: "sick" (Krankmeldung) or "excused" (Termin/Abwesenheit). An
-// empty status defaults to "sick" so older clients keep working.
+// empty status defaults to "sick" so older clients keep working. Reason is
+// required for both absence kinds.
 type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
@@ -269,6 +270,8 @@ type ChildFeaturesResponse struct {
 	NotesEnabled                 bool `json:"notes_enabled"`
 	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
+	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
@@ -305,6 +308,8 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
+		PickupManageAllowed:          flags.PickupManageAllowed,
+		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
@@ -441,6 +446,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_no_changes"))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
+	case errors.Is(err, parentService.ErrCareExceptionAlreadyLeft):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_already_left"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
 	case errors.Is(err, parentService.ErrExcusedRequestNotFound):
@@ -461,6 +468,10 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_request_field_disabled"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_required"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonTooLong):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_too_long"))
 	case errors.Is(err, parentService.ErrPastCareDate):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_past_date"))
 	case errors.Is(err, parentService.ErrCareDateTooFar):

@@ -232,10 +232,11 @@ type AnnouncementPollChildStatus struct {
 // AnnouncementPollReminderRecipient is one guardian to remind about a poll they
 // have not answered for a given child: the account, their address and name.
 type AnnouncementPollReminderRecipient struct {
-	AccountID int64  `bun:"account_id"`
-	Email     string `bun:"email"`
-	FirstName string `bun:"first_name"`
-	LastName  string `bun:"last_name"`
+	AccountID    int64  `bun:"account_id"`
+	Email        string `bun:"email"`
+	FirstName    string `bun:"first_name"`
+	LastName     string `bun:"last_name"`
+	PortalLocale string `bun:"portal_locale"`
 }
 
 // ParentAnnouncementRead is a guardian account's read/ack state for one
@@ -302,6 +303,7 @@ type AnnouncementRecipientStatus struct {
 	AccountID      int64      `bun:"account_id" json:"account_id"`
 	FirstName      string     `bun:"first_name" json:"first_name"`
 	LastName       string     `bun:"last_name" json:"last_name"`
+	PortalLocale   string     `bun:"portal_locale" json:"-"`
 	ReadAt         *time.Time `bun:"read_at" json:"read_at,omitempty"`
 	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 }

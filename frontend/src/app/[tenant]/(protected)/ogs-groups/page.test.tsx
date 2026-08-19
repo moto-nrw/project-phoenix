@@ -509,8 +509,12 @@ describe("OGSGroupPage", () => {
   it("shows loading state initially", async () => {
     render(<OGSGroupPage />);
 
-    // Initial loading state should show the page-shell skeleton
-    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
+    // Real chrome (header) renders immediately; only the student-grid data
+    // region skeletonizes while access/data resolve (showSkeleton pattern).
+    expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("student-card-grid-skeleton"),
+    ).toBeInTheDocument();
   });
 
   it("renders with SSE error boundary wrapper", () => {
@@ -586,8 +590,12 @@ describe("OGSGroupPage", () => {
 
     render(<OGSGroupPage />);
 
-    // Should show the page-shell skeleton while SWR is loading
-    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
+    // Header renders immediately; the student-grid data region shows the
+    // skeleton while SWR is loading (showSkeleton pattern).
+    expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("student-card-grid-skeleton"),
+    ).toBeInTheDocument();
   });
 
   it("displays group data when available", async () => {

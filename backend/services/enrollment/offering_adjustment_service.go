@@ -30,6 +30,17 @@ type offeringAdjustmentSnapshot struct {
 	AvailableDays         []string `json:"available_days,omitempty"`
 }
 
+// appliedOfferingAdjustment carries the exact materialization persisted by the
+// shared adjustment path. The change-request decision uses it for its snapshot
+// so a second catalog read cannot describe a different booking.
+type appliedOfferingAdjustment struct {
+	Child      *enrollmentModels.RequestChild
+	Before     []*enrollmentModels.RequestChildOffering
+	Selections []materializedOfferingSelection
+	Offerings  map[int64]*enrollmentModels.CareOffering
+	Overridden []enrollmentModels.OfferingChangeSnapshotOffering
+}
+
 func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
 	if s.OfferingAdjustmentRepo == nil {
 		return nil, fmt.Errorf("decision: offering adjustment repo not configured")
@@ -45,7 +56,11 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 }
 
 func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
-	return s.updateChildOfferings(ctx, input, true)
+	result, err := s.updateChildOfferings(ctx, input, true)
+	if err != nil {
+		return nil, err
+	}
+	return result.Child, nil
 }
 
 // applyApprovedChangeRequestOfferings applies an offering proposal whose
@@ -54,6 +69,17 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 // care-offerings setting before using this shared path; generic form
 // corrections intentionally preserve their frozen offering snapshot.
 func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	result, err := s.applyApprovedChangeRequestOfferingsWithResult(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return result.Child, nil
+}
+
+func (s *decisionService) applyApprovedChangeRequestOfferingsWithResult(
+	ctx context.Context,
+	input UpdateChildOfferingsInput,
+) (*appliedOfferingAdjustment, error) {
 	return s.updateChildOfferings(ctx, input, false)
 }
 
@@ -61,7 +87,7 @@ func (s *decisionService) updateChildOfferings(
 	ctx context.Context,
 	input UpdateChildOfferingsInput,
 	enforceLiveCapability bool,
-) (*enrollmentModels.RequestChild, error) {
+) (*appliedOfferingAdjustment, error) {
 	if enforceLiveCapability {
 		enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 		if err != nil {
@@ -153,13 +179,14 @@ func (s *decisionService) updateChildOfferings(
 	}
 
 	submitChild := SubmitChild{
-		FirstName:        child.FirstName,
-		LastName:         child.LastName,
-		DateOfBirth:      child.DateOfBirth,
-		TargetGradeLevel: child.TargetGradeLevel,
-		CustomData:       child.CustomData,
-		OfferingIDs:      make([]int64, 0, len(input.Offerings)),
-		OfferingDays:     make([]SubmitOfferingDays, 0, len(input.Offerings)),
+		FirstName:                child.FirstName,
+		LastName:                 child.LastName,
+		DateOfBirth:              child.DateOfBirth,
+		TargetGradeLevel:         child.TargetGradeLevel,
+		CustomData:               child.CustomData,
+		OfferingIDs:              make([]int64, 0, len(input.Offerings)),
+		OfferingDays:             make([]SubmitOfferingDays, 0, len(input.Offerings)),
+		ExcludedAutoAddTargetIDs: input.ExcludedAutoAddTargetIDs,
 	}
 	seen := make(map[int64]bool, len(input.Offerings))
 	for _, row := range input.Offerings {
@@ -197,7 +224,18 @@ func (s *decisionService) updateChildOfferings(
 		allowedOfferingByID[id] = offering
 	}
 	children := []SubmitChild{submitChild}
-	materialized, err := materializeAndValidateChildrenOfferingSelections(children, allowedOfferingByID, phase.CareOfferingSelectionMode)
+	grandfathered := grandfatheredOfferingsFromLinks(beforeLinks)
+	overridden, err := validateAppliedOfferingOverrides(
+		input.ExcludedAutoAddTargetIDs, submitChild, allowedOfferingByID,
+		phase.CareOfferingSelectionMode, grandfathered,
+	)
+	if err != nil {
+		return nil, err
+	}
+	reason = adjustmentReasonWithOverrides(reason, overridden)
+	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		children, allowedOfferingByID, phase.CareOfferingSelectionMode, grandfathered,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
 	}
@@ -274,7 +312,88 @@ func (s *decisionService) updateChildOfferings(
 	if err := s.ReconcileOfferingPickupForStudentsByAccount(ctx, []int64{*child.CreatedStudentID}, input.ActorAccountID); err != nil {
 		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
 	}
-	return s.RequestChildRepo.FindByID(ctx, child.ID)
+	updated, err := s.RequestChildRepo.FindByID(ctx, child.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &appliedOfferingAdjustment{
+		Child: updated, Before: beforeLinks, Selections: selections, Offerings: offeringByID, Overridden: overridden,
+	}, nil
+}
+
+func validateAppliedOfferingOverrides(
+	excluded map[int64]bool,
+	child SubmitChild,
+	allowed map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered GrandfatheredOfferings,
+) ([]enrollmentModels.OfferingChangeSnapshotOffering, error) {
+	if len(excluded) == 0 {
+		return nil, nil
+	}
+	child.ExcludedAutoAddTargetIDs = nil
+	base, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		[]SubmitChild{child}, allowed, selectionMode, grandfathered,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
+	}
+	excludedIDs := make([]int64, 0, len(excluded))
+	for offeringID := range excluded {
+		excludedIDs = append(excludedIDs, offeringID)
+	}
+	sort.Slice(excludedIDs, func(i, j int) bool { return excludedIDs[i] < excludedIDs[j] })
+	return validateExcludedAutoTargets(excludedIDs, base[0], allowed)
+}
+
+func adjustmentReasonWithOverrides(
+	reason string,
+	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
+) string {
+	if len(overridden) == 0 {
+		return reason
+	}
+	names := make([]string, 0, len(overridden))
+	for _, offering := range overridden {
+		names = append(names, offering.Name)
+	}
+	return reason + " · Mitbuchung nicht angewendet: " + strings.Join(names, ", ")
+}
+
+// grandfatheredOfferingsFromLinks classifies the bookings a child already
+// holds for the Bestandsschutz exemption (#2186): an availability rule
+// tightened after the fact does not revoke what is already on file for THIS
+// child, even when the grade rule now excludes it. Newly added blocked
+// offerings are not on file and are still rejected with
+// ErrCareOfferingUnavailable.
+//
+// The split follows the DAYS on each link, not the link as a whole: manual
+// days are what the admin ticked and can untick, automatic days are derived
+// from a trigger and never appear in a payload at all. A link can carry both,
+// so the two buckets deliberately OVERLAP (#2186 review) — unticking such a
+// booking withdraws only its manual half, and its automatic half must still be
+// re-derived while the trigger stays selected. Classifying a mixed link as
+// manual only dropped it out of the auto-materialization catalog on that very
+// save and deleted its automatic days.
+func grandfatheredOfferingsFromLinks(links []*enrollmentModels.RequestChildOffering) GrandfatheredOfferings {
+	grandfathered := GrandfatheredOfferings{
+		Manual:    make(map[int64]bool, len(links)),
+		Automatic: make(map[int64]bool, len(links)),
+	}
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		if len(link.AutomaticSelectedDays) > 0 {
+			grandfathered.Automatic[link.CareOfferingID] = true
+		}
+		// Legacy links carry neither breakdown, only SelectedDays. Nothing
+		// derived those, so they are manual by construction.
+		if len(link.ManualSelectedDays) > 0 || len(link.AutomaticSelectedDays) == 0 {
+			grandfathered.Manual[link.CareOfferingID] = true
+		}
+	}
+	return grandfathered
 }
 
 // validateAdjustmentEffectiveFrom keeps a dated switch inside the window it

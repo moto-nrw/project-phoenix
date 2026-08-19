@@ -97,6 +97,17 @@
   --color-moto-stone-strong: #44403c;
   --color-moto-stone-soft: #f5f5f4;
 
+  /* Aus moto-nrw/website src/app/globals.css. Die Website ist die einzige
+     Designquelle; diese Werte fehlten der App bisher. */
+  --color-moto-gray-150: #eef0f3;
+  --color-moto-ink: #030712;
+  /* Rot der Website. Die App fuehrt daneben --color-moto-red (#dc2626) fuer
+     das Personal-Portal weiter; eine app-weite Angleichung ist bewusst NICHT
+     Teil dieses Vorhabens. */
+  --color-parent-red: #dc3545;
+  --color-parent-red-strong: #d42220;
+  --color-parent-red-soft: #fdf2f3;
+
   --shadow-sm: 0 1px 2px rgba(3, 7, 18, 0.06);
   --shadow-md: 0 8px 24px rgba(3, 7, 18, 0.08);
   --shadow-lg: 0 20px 50px rgba(3, 7, 18, 0.1);

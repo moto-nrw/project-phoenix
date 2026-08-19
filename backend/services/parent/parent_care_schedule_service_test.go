@@ -87,7 +87,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 }
 
 func carePayload() map[string]any {
-	return map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "08:00"}}}
+	return map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "pickup": "15:30"}}}
 }
 
 // TestCreateCareScheduleRequest_Happy persists a pending request and returns it
@@ -138,20 +138,26 @@ func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 	require.NotNil(t, view.PendingRequest)
 }
 
-func TestCreateCareScheduleRequest_RejectsMixedPayloadWhenOneFieldIsDisabled(t *testing.T) {
+func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *testing.T) {
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
 		configModels.KeyParentCareArrivalRequestEnabled: true,
-		configModels.KeyParentCarePickupRequestEnabled:  false,
+		configModels.KeyParentCarePickupRequestEnabled:  true,
 		configModels.KeyParentCareModeRequestEnabled:    true,
 	})
+	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, view.RequestCapabilities.Arrival)
+	assert.True(t, view.RequestCapabilities.Pickup)
+	assert.True(t, view.RequestCapabilities.DepartureMode)
+
 	payload := map[string]any{"weekdays": []any{map[string]any{
 		"weekday": 1, "arrival": "08:00", "pickup": "16:00",
 	}}}
-	_, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, payload)
+	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, payload)
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 
 	var count int
@@ -159,7 +165,7 @@ func TestCreateCareScheduleRequest_RejectsMixedPayloadWhenOneFieldIsDisabled(t *
 		SELECT COUNT(*) FROM schedule.care_schedule_change_requests
 		WHERE tenant_id = ? AND student_id = ?
 	`, chain.TenantID, chain.StudentID).Scan(context.Background(), &count))
-	assert.Zero(t, count, "a mixed allowed/disabled payload must be rejected atomically")
+	assert.Zero(t, count, "an arrival change must be rejected atomically")
 }
 
 func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {

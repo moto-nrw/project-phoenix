@@ -14,11 +14,7 @@ import {
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { DataTable } from "~/components/ui/data-table";
-import {
-  EmptyState,
-  PlusIcon,
-  CardSkeletons,
-} from "../provisioning/provisioning-shared";
+import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
@@ -188,93 +184,88 @@ export default function OperatorSchoolsPage() {
         mobileActionButton={mobileActionButton}
       />
 
-      {summariesLoading && <CardSkeletons />}
+      <div className="mt-6">
+        {deletedSummaries.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                schoolDelete.showTrash
+                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Papierkorb ({deletedSummaries.length})
+            </button>
+          </div>
+        )}
 
-      {!summariesLoading && (
-        <div className="mt-6">
-          {deletedSummaries.length > 0 && (
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() =>
-                  schoolDelete.setShowTrash(!schoolDelete.showTrash)
-                }
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  schoolDelete.showTrash
-                    ? "bg-red-100 text-red-700 hover:bg-red-200"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Papierkorb ({deletedSummaries.length})
-              </button>
-            </div>
-          )}
-
-          {schoolDelete.showTrash ? (
-            <div className="mt-4 space-y-4">
-              {deletedSummaries.map((summary) => {
-                const parentOrgDeleted = deletedOrgIds.has(
-                  summary.organizationId,
-                );
-                return (
-                  <DeletedEntityCard
-                    key={summary.id}
-                    name={summary.name}
-                    subtitle={summary.subdomain}
-                    extraSubtitle={summary.organizationName}
-                    deletedAt={summary.deletedAt}
-                    onRestore={() => requestRestore(summary)}
-                    restoreDisabled={parentOrgDeleted}
-                    restoreDisabledReason={
-                      parentOrgDeleted
-                        ? "Träger ist gelöscht. Bitte zuerst den Träger wiederherstellen."
-                        : undefined
-                    }
-                  />
-                );
-              })}
-            </div>
-          ) : activeSummaries.length === 0 ? (
-            <EmptyState
-              title="Keine Schulen"
-              description="Erstellen Sie eine neue Schule unter einem Träger."
-              buttonLabel="Neue Schule"
-              onAction={() => setCreateSchoolOpen(true)}
-            />
-          ) : (
-            <DataTable
-              columns={columns}
-              rows={activeSummaries}
-              getRowKey={(row) => row.id}
-              onRowClick={handleRowClick}
-              defaultSortKey="name"
-            />
-          )}
-
-          {schoolDelete.deleteTarget && (
-            <SchoolSoftDeleteModal
-              target={schoolDelete.deleteTarget}
-              inputId="delete-school-confirm"
-              confirmInput={schoolDelete.deleteConfirmInput}
-              onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
-              errorMessage={schoolDelete.softDeleteError}
-              isProcessing={schoolDelete.isProcessing}
-              onCancel={() => schoolDelete.setDeleteTarget(null)}
-              onConfirm={() => void schoolDelete.handleSoftDelete()}
-            />
-          )}
-
-          <SchoolRestoreModal
-            target={schoolDelete.restoreTarget}
-            setTarget={schoolDelete.setRestoreTarget}
-            onConfirm={() => void schoolDelete.handleRestore()}
-            isProcessing={schoolDelete.isProcessing}
-            errorMessage={schoolDelete.softDeleteError}
-            confirmDisabled={schoolRestoreParentDeleted}
-            confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
+        {schoolDelete.showTrash ? (
+          <div className="mt-4 space-y-4">
+            {deletedSummaries.map((summary) => {
+              const parentOrgDeleted = deletedOrgIds.has(
+                summary.organizationId,
+              );
+              return (
+                <DeletedEntityCard
+                  key={summary.id}
+                  name={summary.name}
+                  subtitle={summary.subdomain}
+                  extraSubtitle={summary.organizationName}
+                  deletedAt={summary.deletedAt}
+                  onRestore={() => requestRestore(summary)}
+                  restoreDisabled={parentOrgDeleted}
+                  restoreDisabledReason={
+                    parentOrgDeleted
+                      ? "Träger ist gelöscht. Bitte zuerst den Träger wiederherstellen."
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        ) : !summariesLoading && activeSummaries.length === 0 ? (
+          <EmptyState
+            title="Keine Schulen"
+            description="Erstellen Sie eine neue Schule unter einem Träger."
+            buttonLabel="Neue Schule"
+            onAction={() => setCreateSchoolOpen(true)}
           />
-        </div>
-      )}
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={activeSummaries}
+            getRowKey={(row) => row.id}
+            onRowClick={handleRowClick}
+            defaultSortKey="name"
+            isLoading={summariesLoading}
+          />
+        )}
+
+        {schoolDelete.deleteTarget && (
+          <SchoolSoftDeleteModal
+            target={schoolDelete.deleteTarget}
+            inputId="delete-school-confirm"
+            confirmInput={schoolDelete.deleteConfirmInput}
+            onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
+            errorMessage={schoolDelete.softDeleteError}
+            isProcessing={schoolDelete.isProcessing}
+            onCancel={() => schoolDelete.setDeleteTarget(null)}
+            onConfirm={() => void schoolDelete.handleSoftDelete()}
+          />
+        )}
+
+        <SchoolRestoreModal
+          target={schoolDelete.restoreTarget}
+          setTarget={schoolDelete.setRestoreTarget}
+          onConfirm={() => void schoolDelete.handleRestore()}
+          isProcessing={schoolDelete.isProcessing}
+          errorMessage={schoolDelete.softDeleteError}
+          confirmDisabled={schoolRestoreParentDeleted}
+          confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
+        />
+      </div>
 
       <CreateSchoolModal
         isOpen={createSchoolOpen}

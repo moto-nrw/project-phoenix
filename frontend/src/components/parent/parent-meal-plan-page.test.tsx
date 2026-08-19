@@ -1,0 +1,247 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+
+const mocks = vi.hoisted(() => ({
+  getChildFeatures: vi.fn(),
+  getChildMealPlan: vi.fn(),
+  listMyChildren: vi.fn(),
+  today: "2026-08-12",
+}));
+
+vi.mock("~/lib/parent-api", () => ({
+  getChildFeatures: mocks.getChildFeatures,
+  getChildMealPlan: mocks.getChildMealPlan,
+  listMyChildren: mocks.listMyChildren,
+}));
+
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => mocks.today,
+}));
+
+import { ParentMealPlanPage } from "./parent-meal-plan-page";
+
+describe("ParentMealPlanPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.today = "2026-08-12";
+    mocks.listMyChildren.mockResolvedValue([
+      {
+        student_id: "child-1",
+        tenant_id: "school-1",
+        school_name: "OGS Am Berg",
+      },
+    ]);
+    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: true });
+    mocks.getChildMealPlan.mockResolvedValue([]);
+  });
+
+  it("keeps the final page geometry while the meal plan is loading", () => {
+    mocks.listMyChildren.mockReturnValue(new Promise(() => {}));
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Essensplan", level: 1 }),
+    ).toBeInTheDocument();
+    const loadingStatus = screen.getByRole("status", {
+      name: "Essensplan wird geladen",
+    });
+    const skeleton = screen.getByTestId("meal-plan-week-skeleton");
+    const desktopGrid = skeleton.querySelector(".grid-cols-5");
+    const animatedParts = skeleton.querySelectorAll(".animate-pulse");
+
+    expect(loadingStatus).toBeInTheDocument();
+    expect(desktopGrid?.children).toHaveLength(5);
+    expect(animatedParts.length).toBeGreaterThan(10);
+    for (const part of animatedParts) {
+      expect(part).toHaveClass("motion-reduce:animate-none");
+    }
+  });
+
+  it("navigates between calendar weeks directly above the plan", async () => {
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Essensplan", level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Essen in der OGS")).toBeInTheDocument();
+
+    const previousWeek = screen.getByRole("button", {
+      name: "Vorherige Woche",
+    });
+    const nextWeek = screen.getByRole("button", { name: "Nächste Woche" });
+    const weekStatus = within(
+      screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+    ).getByRole("status");
+    expect(previousWeek).toBeDisabled();
+    expect(
+      await screen.findByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).toBeInTheDocument();
+    expect(nextWeek).toBeEnabled();
+    expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
+    expect(weekStatus).toHaveTextContent("10.08. bis 14.08.2026");
+
+    fireEvent.click(nextWeek);
+
+    await waitFor(() => {
+      expect(previousWeek).toBeEnabled();
+      expect(nextWeek).toBeDisabled();
+      expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-17",
+      );
+      expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
+      expect(weekStatus).toHaveTextContent("17.08. bis 21.08.2026");
+    });
+  });
+
+  it("keeps the week container stable while the next week loads", async () => {
+    let resolveNextWeek: (entries: []) => void = () => undefined;
+    const nextWeekRequest = new Promise<[]>((resolve) => {
+      resolveNextWeek = resolve;
+    });
+    mocks.getChildMealPlan
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(nextWeekRequest);
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).toBeInTheDocument();
+    const navigation = screen.getByRole("navigation", {
+      name: "Kalenderwoche wechseln",
+    });
+    fireEvent.click(
+      within(navigation).getByRole("button", { name: "Nächste Woche" }),
+    );
+
+    const skeleton = await screen.findByTestId("meal-plan-week-skeleton");
+    expect(navigation.closest("section")).toContainElement(skeleton);
+
+    await act(async () => {
+      resolveNextWeek([]);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("meal-plan-week-skeleton"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("uses the ISO calendar week at the turn of the year", async () => {
+    mocks.today = "2026-12-30";
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+      ).getByRole("status"),
+    ).toHaveTextContent("KW 53");
+  });
+
+  it("renders the populated week as the primary content", async () => {
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+      },
+    ]);
+
+    render(<ParentMealPlanPage />);
+
+    const dishes = await screen.findAllByText("Gemüse-Lasagne");
+    expect(dishes).not.toHaveLength(0);
+    const weekStatus = within(
+      screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+    ).getByRole("status");
+    expect(weekStatus.closest("section")).toContainElement(dishes[0]!);
+    expect(screen.getAllByText("mit Salat")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("distinguishes missing children from a disabled school meal plan", async () => {
+    mocks.listMyChildren.mockResolvedValue([]);
+
+    const { rerender } = render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText("Noch kein Kind verknüpft"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+      ),
+    ).not.toBeInTheDocument();
+
+    mocks.listMyChildren.mockResolvedValue([
+      {
+        student_id: "child-1",
+        tenant_id: "school-1",
+        school_name: "OGS Am Berg",
+      },
+    ]);
+    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: false });
+    rerender(<ParentMealPlanPage key="disabled-school" />);
+
+    expect(
+      await screen.findByText(
+        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a load error when resolving the schools fails", async () => {
+    mocks.listMyChildren.mockRejectedValue(new Error("network failed"));
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText("Essensplan konnte nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a load error when the selected week fails", async () => {
+    mocks.getChildMealPlan.mockRejectedValue(new Error("network failed"));
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText("Essensplan konnte nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).not.toBeInTheDocument();
+  });
+});

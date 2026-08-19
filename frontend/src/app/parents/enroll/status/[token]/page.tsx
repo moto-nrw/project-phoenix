@@ -3,7 +3,10 @@
 import { Suspense, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { EnrollmentStatusView } from "~/components/enrollment/enrollment-status-view";
-import { PublicEnrollmentPageShell } from "~/components/enrollment/public-enrollment-shell";
+import {
+  PublicEnrollmentContentSkeleton,
+  PublicEnrollmentPageShell,
+} from "~/components/enrollment/public-enrollment-shell";
 import { useOneTimeQueryFlag } from "~/lib/hooks/use-one-time-query-flag";
 
 interface PageProps {
@@ -12,7 +15,13 @@ interface PageProps {
 
 export default function ParentEnrollmentStatusPage({ params }: PageProps) {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <PublicEnrollmentPageShell>
+          <PublicEnrollmentContentSkeleton sections={2} />
+        </PublicEnrollmentPageShell>
+      }
+    >
       <ParentEnrollmentStatusPageContent params={params} />
     </Suspense>
   );

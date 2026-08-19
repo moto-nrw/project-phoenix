@@ -1,12 +1,20 @@
 "use client";
 
-import { StaffPageSkeleton } from "./page-skeleton";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { StaffCardsSkeleton } from "./page-skeleton";
 
-/**
- * Route-level loading UI: renders the same skeleton the page shows while its
- * data loads, so navigation shows one continuous skeleton instead of the
- * generic group-level Loading followed by the page skeleton.
- */
 export default function StaffLoading() {
-  return <StaffPageSkeleton />;
+  return (
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch
+        title="Mitarbeiter"
+        search={{
+          value: "",
+          onChange: () => {},
+          inputProps: { disabled: true },
+        }}
+      />
+      <StaffCardsSkeleton />
+    </div>
+  );
 }

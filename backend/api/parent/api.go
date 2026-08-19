@@ -183,8 +183,9 @@ func (rs *Resource) Router() chi.Router {
 		// the calling account's guardian links inside the service — the
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
-		//   - care-exception: set/clear a one-day pickup & arrival time
+		//   - care-exception: set or clear a one-day pickup time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
+		r.Get("/me/children/{studentId}/today", rs.getChildTodayStatus)
 		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
@@ -218,6 +219,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+		r.Get("/me/children/{studentId}/pickup-change-requests", rs.listPickupChangeRequests)
+		r.Delete("/me/children/{studentId}/pickup-change-requests/{requestId}", rs.withdrawPickupChangeRequest)
 
 		// Permanent weekly care plan (#1803) — read view on the Stammdaten
 		// page plus the change-request lifecycle (create / withdraw). Staff
@@ -227,7 +230,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
 		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
 
-		// Booked care offerings + activity groups (#1665) — read view plus the
+		// Booked care offerings (#1665): read view plus the
 		// post-enrollment change-request lifecycle. Approved requests are
 		// applied by the enrollment domain on a chosen effective date.
 		r.Get("/me/children/{studentId}/care-offerings", rs.getChildCareOfferings)
@@ -261,6 +264,7 @@ func (rs *Resource) Router() chi.Router {
 		// permissions; a guardian with their own portal account can never have
 		// their personal data edited by another parent.
 		r.Get("/me/children/{studentId}/guardians", rs.listChildGuardians)
+		r.Post("/me/children/{studentId}/guardians", rs.createGuardianContact)
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/contact", rs.updateGuardianContact)
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/pickup", rs.updateGuardianRelationship)
 

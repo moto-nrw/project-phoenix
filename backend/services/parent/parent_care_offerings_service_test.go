@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -113,32 +112,6 @@ func (s careOfferingRepoStub) ListByIDs(
 	_ []int64,
 ) ([]*enrollmentModels.CareOffering, error) {
 	return s.offerings, s.err
-}
-
-type studentEnrollmentRepoStub struct {
-	activitiesModels.StudentEnrollmentRepository
-	rows []*activitiesModels.StudentEnrollment
-	err  error
-}
-
-func (s studentEnrollmentRepoStub) FindByStudentID(
-	_ context.Context,
-	_ int64,
-) ([]*activitiesModels.StudentEnrollment, error) {
-	return s.rows, s.err
-}
-
-type activityGroupRepoStub struct {
-	activitiesModels.GroupRepository
-	groups []*activitiesModels.Group
-	err    error
-}
-
-func (s activityGroupRepoStub) FindByIDs(
-	_ context.Context,
-	_ []int64,
-) ([]*activitiesModels.Group, error) {
-	return s.groups, s.err
 }
 
 type offeringChangesStub struct {
@@ -259,7 +232,6 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	description := "Mit Mittagessen"
 	price := 4200
 	sourceChildID := int64(301)
-	validUntil := today.AddDays(10)
 	futureStart := today.AddDays(15)
 	note := "Ab Februar bitte dienstags"
 	createdAt := time.Now().Add(-time.Hour)
@@ -283,8 +255,6 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		Name:      "Zukünftige Betreuung",
 		SortOrder: 30,
 	}
-	firstGroup := &activitiesModels.Group{Model: base.Model{ID: 51}, Name: "Später"}
-	secondGroup := &activitiesModels.Group{Model: base.Model{ID: 52}, Name: "Aktuell"}
 	changes := &offeringChangesStub{
 		earliest: today.AddDays(15),
 		view: &enrollmentSvc.OfferingChangeView{
@@ -321,34 +291,6 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	svc.CareOfferingRepo = careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{
 		firstOffering, nil, secondOffering, futureOffering,
 	}}
-	svc.StudentEnrollmentRepo = studentEnrollmentRepoStub{rows: []*activitiesModels.StudentEnrollment{
-		nil,
-		{
-			ActivityGroupID:          51,
-			ValidFrom:                today.AddDays(5),
-			ValidUntil:               &validUntil,
-			EnrollmentRequestChildID: &sourceChildID,
-			SelectedWeekdays:         []int{5, 1},
-		},
-		{
-			ActivityGroupID:  52,
-			ValidFrom:        today.AddDays(-5),
-			SelectedWeekdays: []int{3, 2},
-		},
-		{
-			ActivityGroupID: 53,
-			ValidFrom:       today.AddDays(-20),
-			ValidUntil:      &today,
-		},
-		{
-			ActivityGroupID: 999,
-			ValidFrom:       today,
-		},
-	}}
-	svc.ActivityGroupRepo = activityGroupRepoStub{groups: []*activitiesModels.Group{
-		firstGroup, nil, secondGroup,
-	}}
-
 	view, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
 	require.NoError(t, err)
 
@@ -361,13 +303,6 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	assert.True(t, view.Offerings[2].StartsLater)
 	require.NotNil(t, view.Offerings[2].ValidFrom)
 	assert.Equal(t, futureStart, *view.Offerings[2].ValidFrom)
-	require.Len(t, view.Groups, 2)
-	assert.Equal(t, "Aktuell", view.Groups[0].Name)
-	assert.Equal(t, []int{2, 3}, view.Groups[0].Weekdays)
-	assert.False(t, view.Groups[0].FromOffering)
-	assert.Equal(t, "Später", view.Groups[1].Name)
-	assert.True(t, view.Groups[1].StartsLater)
-	assert.True(t, view.Groups[1].FromOffering)
 	assert.True(t, view.CanRequest)
 	assert.Empty(t, view.ChangesDisabledReason)
 	assert.Equal(t, changes.earliest, view.EarliestEffectiveFrom)
@@ -390,14 +325,11 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 	db := careOfferingsTestDB(t)
 	svc := careOfferingsService(db, permittedCareOfferingsChild(), nil)
 	svc.RequestChildRepo = carePeriodRepoStub{}
-	svc.StudentEnrollmentRepo = studentEnrollmentRepoStub{}
 
 	view, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
 	require.NoError(t, err)
 	assert.Empty(t, view.Offerings)
 	assert.NotNil(t, view.Offerings)
-	assert.Empty(t, view.Groups)
-	assert.NotNil(t, view.Groups)
 	assert.False(t, view.CanRequest)
 	assert.Equal(t, OfferingChangesReasonNoEnrollment, view.ChangesDisabledReason)
 }
@@ -421,7 +353,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 			Model: base.Model{ID: 1}, Name: "Nachmittagsbetreuung",
 		}}},
 	}}
-	view := &ChildCareOfferings{Offerings: []CareOfferingSelection{}, Groups: []CareGroupMembership{}}
+	view := &ChildCareOfferings{Offerings: []CareOfferingSelection{}}
 
 	_, err := svc.loadChildCareOfferings(context.Background(), 22, today, view)
 	require.NoError(t, err)
@@ -463,24 +395,6 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 				svc.RequestChildRepo = currentCarePeriodStub()
 				svc.RequestChildOfferingRepo = childOfferingRepoStub{links: []*enrollmentModels.RequestChildOffering{{CareOfferingID: 1}}}
 				svc.CareOfferingRepo = careOfferingRepoStub{err: dependencyErr}
-			},
-		},
-		{
-			name: "student enrollments",
-			setup: func(svc *service) {
-				svc.RequestChildRepo = carePeriodRepoStub{}
-				svc.StudentEnrollmentRepo = studentEnrollmentRepoStub{err: dependencyErr}
-			},
-		},
-		{
-			name: "activity groups",
-			setup: func(svc *service) {
-				svc.RequestChildRepo = carePeriodRepoStub{}
-				svc.StudentEnrollmentRepo = studentEnrollmentRepoStub{rows: []*activitiesModels.StudentEnrollment{{
-					ActivityGroupID: 1,
-					ValidFrom:       timezone.TodayDate(),
-				}}}
-				svc.ActivityGroupRepo = activityGroupRepoStub{err: dependencyErr}
 			},
 		},
 		{

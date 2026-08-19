@@ -21,7 +21,7 @@ they are checked in this order:
 | 2 | Delivery window `notifications.active_window_start`/`_end` (`test` events exempt) | `router.withinActiveWindow` |
 | 3 | The type's school-wide gate, if it has one (`TypeDefinition.TenantGate`) | `PreferenceService.FilterOptedIn` |
 | 4 | The recipient's own consent for that type | `PreferenceService.FilterOptedIn` |
-| 5 | `notifications.on_duty_only`, for personal staff notifications | the reminder tick / absence producer |
+| 5 | `notifications.on_duty_only`, for personal staff notifications | the reminder tick / shared staff recipient resolver |
 
 Gate 1 defaults to **on** since the personal-notification epic. That is only
 safe because gates 3–5 exist: every producer routes through consent, and an
@@ -309,6 +309,23 @@ all three staff-side entry points
 `excused_request_service.go`). Every call runs after the absence transaction
 commits; the producer opens a fresh tenant transaction for its RLS-scoped
 recipient and consent reads.
+
+### Guardian messages to staff (`services/notifications/staff_parent_message_producer.go`)
+
+After a guardian message commits, `NotifyStaffParentMessage` addresses the
+child's fixed-group staff, today's active substitutions and the school's
+effective admins. The shared staff recipient resolver then applies the
+`staff_parent_message` consent and `notifications.on_duty_only`. The guardian
+account that wrote the message is excluded in case it also has a staff role.
+
+The notification uses `ScopeStaff`, contains no child or guardian name and
+opens `/messages/{threadID}`. A database-backed claim on the thread suppresses
+further notifications for 60 seconds, so a short sequence of chat messages
+does not create one system notification per message. The existing
+`parent_message` SSE broadcast still updates the unread badge independently.
+Existing accounts receive no preference backfill: because no prior staff
+notification existed for this direction, the new switch starts off until each
+person explicitly enables it.
 
 ### Parent announcements (`services/announcement/service.go`)
 

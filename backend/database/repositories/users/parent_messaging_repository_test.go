@@ -286,6 +286,37 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	require.NoError(t, repo.LockForMessageAppend(followUpCtx, thread.ID))
 }
 
+func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentMessageThreadRepository(db)
+	ctx := tenantCtx()
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, repo.Create(ctx, thread))
+
+	claimed, err := repo.ClaimStaffMessageNotification(ctx, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.True(t, claimed, "the first parent message claims the notification window")
+
+	claimed, err = repo.ClaimStaffMessageNotification(ctx, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a second message inside the window is suppressed")
+
+	_, err = db.NewUpdate().
+		TableExpr(`users.parent_message_threads AS "parent_message_thread"`).
+		Set("last_staff_message_notification_at = clock_timestamp() - INTERVAL '61 seconds'").
+		Where(`"parent_message_thread".id = ?`, thread.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	claimed, err = repo.ClaimStaffMessageNotification(ctx, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a later follow-up starts a new notification window")
+}
+
 // newRequestCreatedPill builds a "request created" event pill as the emitter
 // stores it: a system event attributed to the GUARDIAN side (event_actor_kind),
 // so it counts as unread to a staff reader. actorAccountID is the submitting

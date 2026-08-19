@@ -12,8 +12,8 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { CardSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -117,10 +117,9 @@ function InviteModeDependentEmptyState({
 }) {
   if (state.status === "loading") {
     return (
-      <Loading
-        message="Einladungs-Einstellung wird geladen…"
-        fullPage={false}
-      />
+      <SkeletonRegion label="Einladungs-Einstellung wird geladen…">
+        <CardSkeleton rows={2} />
+      </SkeletonRegion>
     );
   }
 

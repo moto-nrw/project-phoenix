@@ -145,6 +145,33 @@ func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, th
 	return nil
 }
 
+// ClaimStaffMessageNotification atomically claims one staff-notification
+// window for a thread. The database clock keeps the decision consistent across
+// processes and avoids application-host clock skew.
+func (r *ParentMessageThreadRepository) ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error) {
+	if cooldown <= 0 {
+		return false, errors.New("staff message notification cooldown must be positive")
+	}
+	query := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*users.ParentMessageThread)(nil)).
+		ModelTableExpr(tableExprParentMessageThreadsAsThread).
+		Set("last_staff_message_notification_at = clock_timestamp()").
+		Where(`"parent_message_thread".id = ?`, threadID).
+		Where(`("parent_message_thread".last_staff_message_notification_at IS NULL
+			OR "parent_message_thread".last_staff_message_notification_at < clock_timestamp() - (? * INTERVAL '1 microsecond'))`, cooldown.Microseconds())
+	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "claim staff parent-message notification", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "count claimed staff parent-message notifications", Err: err}
+	}
+	return rows == 1, nil
+}
+
 // ListGuardiansForStudent returns the child's account-holding guardians who may
 // actually use the parent portal for THIS child, primary first, for the staff
 // "new conversation" recipient picker. A guardian is included only when the
@@ -173,6 +200,7 @@ func (r *ParentMessageThreadRepository) ListGuardiansForStudent(ctx context.Cont
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
 		ColumnExpr("sg.relationship_type AS relationship_type").
 		ColumnExpr("sg.is_primary AS is_primary").
+		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
 		Join("JOIN users.guardian_profiles AS gp ON gp.id = sg.guardian_profile_id").
 		Join("JOIN auth.account_tenants AS at ON at.account_id = gp.account_id AND at.tenant_id = sg.tenant_id AND at.status = ?", auth.AccountTenantStatusActive).
 		Where("sg.student_id = ?", studentID).

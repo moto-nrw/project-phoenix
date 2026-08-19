@@ -144,6 +144,28 @@ describe("SchoolCheckinModeMobile", () => {
       expect(onToggle).toHaveBeenCalledOnce();
     });
 
+    it("locks the Fertig button while disabled (bulk request in flight)", () => {
+      const onToggle = vi.fn();
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={onToggle}
+          successCount={0}
+          pendingCount={2}
+          selectionActive
+          selectedCount={2}
+          disabled
+        />,
+      );
+
+      const fertig = screen.getByRole("button", {
+        name: /An- und Abmelde-Modus beenden/i,
+      });
+      expect(fertig).toBeDisabled();
+      fireEvent.click(fertig);
+      expect(onToggle).not.toHaveBeenCalled();
+    });
+
     it("publishes install-hint clearance only below md", () => {
       const { unmount } = render(
         <SchoolCheckinModeMobile

@@ -8,6 +8,7 @@ import {
   syncExistingPushSubscription,
   unsubscribePush,
   unsubscribePushSilently,
+  verifyPushConfiguration,
 } from "./push-api";
 
 const vapidPublicKey =
@@ -202,6 +203,20 @@ describe("push-api", () => {
     expect(isPushConfigurationMissing(new Error("unrelated"))).toBe(false);
   });
 
+  it("checks server configuration without requesting notification permission", async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({ data: { public_key: vapidPublicKey } }),
+    );
+
+    await expect(verifyPushConfiguration("parent")).resolves.toBeUndefined();
+
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/parent/me/push/public-key",
+      expect.any(Object),
+    );
+  });
+
   it("uses the server error message when available", async () => {
     fetchMock.mockResolvedValueOnce(
       response({ error: "push is disabled" }, 409),
@@ -345,7 +360,7 @@ describe("push-api", () => {
     expect(needsIOSInstall()).toBe(false);
   });
 
-  it("detects iPadOS desktop user agents and supported browsers", () => {
+  it("requires installation on iPadOS even when the browser exposes push", () => {
     Object.defineProperty(navigator, "userAgent", {
       configurable: true,
       value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)",
@@ -359,6 +374,6 @@ describe("push-api", () => {
 
     vi.stubGlobal("PushManager", class PushManager {});
     expect(isPushSupported()).toBe(true);
-    expect(needsIOSInstall()).toBe(false);
+    expect(needsIOSInstall()).toBe(true);
   });
 });

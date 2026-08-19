@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   uploadEnrollmentLegalDocument: vi.fn(),
   getTemplates: vi.fn(),
   listCalendarPeriods: vi.fn(),
+  fetchCareOfferingBookingStats: vi.fn(),
   gradeLevelMax: 13,
   enrollmentFormProps: [] as Array<{
     lockChildStructure?: boolean;
@@ -166,6 +167,14 @@ vi.mock("~/lib/care-offering-api", () => ({
     at_most_one: "Höchstens eines",
   },
 }));
+
+vi.mock("~/lib/care-offering-booking-stats", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    fetchCareOfferingBookingStats: mocks.fetchCareOfferingBookingStats,
+  };
+});
 
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
@@ -364,6 +373,8 @@ beforeEach(() => {
     blocks: [],
   });
   mocks.listCareOfferings.mockReset();
+  mocks.fetchCareOfferingBookingStats.mockReset();
+  mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
   mocks.renameSchema.mockReset();
@@ -568,6 +579,54 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  it("names the edited offering in the auto-add rule and previews the rule direction", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "trigger", name: "Ganztag" }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Ganztag")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+
+    // Without a name yet, the generic wording stays.
+    expect(
+      screen.getByText(
+        "Dieses Angebot wird automatisch mitgebucht, wenn Eltern eines dieser Angebote wählen:",
+      ),
+    ).toBeVisible();
+
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    expect(
+      screen.getByText(
+        "„Randstunde“ wird automatisch mitgebucht, wenn Eltern eines dieser Angebote wählen:",
+      ),
+    ).toBeVisible();
+
+    // No preview until a trigger is checked.
+    expect(
+      screen.queryByText(/Andersherum gilt das nicht/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+
+    expect(
+      screen.getByText(
+        "Wenn Eltern „Ganztag“ wählen, wird „Randstunde“ automatisch mitgebucht.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Andersherum gilt das nicht: Wer nur „Randstunde“ wählt, bekommt die anderen Angebote nicht automatisch dazu.",
+      ),
+    ).toBeVisible();
+  });
+
   it("clears hidden auto-add trigger IDs when an edited offering changes phase", async () => {
     mocks.listPhases.mockResolvedValue([
       phase(),
@@ -768,6 +827,182 @@ describe("CareOfferingsEditor", () => {
     expect(
       screen.queryByText(/Der Name nennt nur einen Wochentag/),
     ).not.toBeInTheDocument();
+  });
+
+  function availabilityFieldset() {
+    return within(
+      screen.getByRole("group", { name: "Bedingungen für die Verfügbarkeit" }),
+    );
+  }
+
+  async function openAvailabilityRuleEditor(offeringName: string) {
+    fireEvent.click(
+      screen.getByRole("button", { name: `Aktionen für ${offeringName}` }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    );
+  }
+
+  // #2186: the catalog listed every other offering attribute as a pill but
+  // not the availability rule, so a restriction was only discoverable by
+  // opening the offering and scrolling to "Bedingungen für die Verfügbarkeit".
+  it("shows a set availability rule as a pill in the catalog", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: [1, 2] },
+          ],
+        },
+      }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.getByText("Nur für Klassen 1–2")).toBeInTheDocument();
+  });
+
+  // #2186 review: a "mindestens eine Bedingung" rule built from two disjoint
+  // not_in conditions admits every grade, so calling it a restriction in the
+  // catalog misinforms the admin.
+  it("shows no pill for a rule that turns nobody away", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        name: "Randstunde",
+        availability_rule: {
+          match: "any",
+          conditions: [
+            { source: "grade_level", operator: "not_in", value: [1] },
+            { source: "grade_level", operator: "not_in", value: [2] },
+          ],
+        },
+      }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.queryByText(/^Nur für/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Nicht für/)).not.toBeInTheDocument();
+  });
+
+  it("shows no availability pill for an unrestricted offering", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    expect(screen.queryByText(/^Nur für Klasse/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Nicht für Klasse/)).not.toBeInTheDocument();
+  });
+
+  // #2186: tightening a rule leaves contradicting bookings in place
+  // (Bestandsschutz). Without this hint the data just looks inconsistent.
+  it("warns how many existing bookings a rule contradicts", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Randstunde" }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 20,
+        booked: 14,
+        grade_levels: { "1": 12, "3": 2 },
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+
+    await openAvailabilityRuleEditor("Randstunde");
+    // Restrict to grade 1: the two grade-3 bookings now contradict the rule.
+    fireEvent.click(
+      availabilityFieldset().getByRole("button", { name: "Klasse 1" }),
+    );
+
+    expect(
+      await screen.findByText(
+        /2 bestehende Buchungen erfüllen diese Bedingung nicht\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/die Regel gilt nur für neue Auswahlen/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not warn when every booking satisfies the rule", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Randstunde" }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 20,
+        booked: 12,
+        grade_levels: { "1": 12 },
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+
+    await openAvailabilityRuleEditor("Randstunde");
+    fireEvent.click(
+      availabilityFieldset().getByRole("button", { name: "Klasse 1" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText(/bestehende Buchung/)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("does not warn for a brand-new offering, which has no bookings", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering({ id: "offer-1" })]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 20,
+        booked: 14,
+        grade_levels: { "3": 14 },
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    );
+    fireEvent.click(
+      availabilityFieldset().getByRole("button", { name: "Klasse 1" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText(/bestehende Buchung/)).not.toBeInTheDocument(),
+    );
   });
 
   it("does not warn for names without a single-weekday claim", async () => {
@@ -1666,6 +1901,54 @@ describe("CareOfferingsEditor", () => {
         expect.objectContaining({ auto_add_grade_levels: [2, 5, 13] }),
       ),
     );
+  });
+
+  // #2367: a reversed rule direction must be visible without a test
+  // enrollment, so the phase catalog lists every active rule as a sentence.
+  it("lists the phase's active Mitbuchungs-Regeln as plain sentences", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        id: "1",
+        name: "Ganztagsbetreuung bis 14.30 Uhr",
+        auto_add_trigger_offering_ids: ["2"],
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: [1, 2] },
+          ],
+        },
+      }),
+      offering({ id: "2", name: "Randstunde" }),
+      offering({
+        id: "3",
+        name: "Inaktives Ziel",
+        is_active: false,
+        auto_add_trigger_offering_ids: ["2"],
+      }),
+    ]);
+
+    const { unmount } = render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Mitbuchungs-Regeln")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "„Ganztagsbetreuung bis 14.30 Uhr“ wird automatisch mitgebucht, wenn „Randstunde“ gewählt wird (Klassen 1–2).",
+      ),
+    ).toBeInTheDocument();
+    // A rule on an inactive offering cannot fire, so it stays out of the list.
+    const sentences = screen.getAllByText(/wird automatisch mitgebucht/);
+    expect(sentences).toHaveLength(1);
+    unmount();
+
+    // Without any rule the panel stays away entirely.
+    mocks.listCareOfferings.mockResolvedValue([
+      offering(),
+      offering({ id: "2", name: "Randstunde" }),
+    ]);
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.queryByText("Mitbuchungs-Regeln")).not.toBeInTheDocument();
   });
 
   it("shows empty and error states", async () => {

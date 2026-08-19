@@ -29,7 +29,6 @@ import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
-import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
@@ -711,11 +710,13 @@ export default function SlotListsPage() {
   // timetable.enabled=false hides the page just like the Betreuungsplan/Vertretung
   // guards and the sidebar (#1565 review). getSettingValue returns undefined when
   // the user cannot read settings, so the page renders normally by default.
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(authStatus === "authenticated", {
+  const { data: settingsSchema } = useSettingsSchema(
+    authStatus === "authenticated",
+    {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-    });
+    },
+  );
   const timetableDisabled =
     getSettingValue(settingsSchema, "timetable.enabled") === false;
   const initialState = useMemo(
@@ -2046,10 +2047,6 @@ export default function SlotListsPage() {
     });
     return cols;
   }, [isPickupBased, source]);
-
-  if (authStatus === "loading" || settingsSchemaLoading) {
-    return <Loading fullPage={false} />;
-  }
 
   if (timetableDisabled) {
     return (

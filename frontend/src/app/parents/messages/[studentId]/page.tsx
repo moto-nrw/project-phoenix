@@ -1,9 +1,22 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
+import { ParentPageSkeleton } from "~/components/parent/parent-page";
 
 export default function ParentChildConversationPage({
+  params,
+}: {
+  readonly params: Promise<{ studentId: string }>;
+}) {
+  return (
+    <Suspense fallback={<ParentPageSkeleton rows={1} />}>
+      <ParentChildConversationContent params={params} />
+    </Suspense>
+  );
+}
+
+function ParentChildConversationContent({
   params,
 }: {
   readonly params: Promise<{ studentId: string }>;

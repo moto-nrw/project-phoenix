@@ -38,9 +38,9 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-vi.mock("../section-skeleton", () => ({
-  DatabaseSectionSkeleton: () => (
-    <div data-testid="database-section-skeleton">Loading</div>
+vi.mock("~/components/database/master-detail-skeleton", () => ({
+  MasterDetailSkeleton: () => (
+    <div data-testid="master-detail-skeleton">Loading</div>
   ),
 }));
 
@@ -396,7 +396,7 @@ describe("StudentsPage", () => {
 
     render(<StudentsPage />);
 
-    expect(screen.getByTestId("database-section-skeleton")).toBeVisible();
+    expect(screen.getByTestId("master-detail-skeleton")).toBeVisible();
   });
 
   it("renders the page with students data", async () => {

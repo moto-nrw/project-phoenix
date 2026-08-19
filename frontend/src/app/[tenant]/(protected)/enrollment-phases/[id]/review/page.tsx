@@ -3,9 +3,9 @@
 import { use } from "react";
 import Link from "next/link";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
-import { Loading } from "~/components/ui/loading";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {
@@ -19,7 +19,12 @@ interface PageProps {
 export default function RolloverReviewPage({ params }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequireAdmin();
-  if (!isReady) return <Loading fullPage={false} />;
+  if (!isReady)
+    return (
+      <SkeletonRegion label="Prüfliste wird geladen">
+        <ListSkeleton rows={5} avatar={false} />
+      </SkeletonRegion>
+    );
 
   return (
     <div className="-mt-1.5 w-full">

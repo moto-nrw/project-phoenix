@@ -181,11 +181,6 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Note: substitution-helpers are not mocked - using actual implementations
 
-// Mock Loading
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div aria-label="Lädt...">Loading...</div>,
-}));
-
 import { useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- test mock
 import { useRouter } from "next/navigation";
@@ -339,6 +334,10 @@ describe("SubstitutionsPage", () => {
 
       render(<SubstitutionsPage />);
 
+      // RoleGuard (not touched by this migration) gates on session status
+      // itself and renders its own (unmocked) Loading fallback before
+      // SubstitutionPageContent's own status==="loading" branch is ever
+      // reached — so this asserts RoleGuard's real loading output.
       expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
     });
 
@@ -362,7 +361,9 @@ describe("SubstitutionsPage", () => {
 
       render(<SubstitutionsPage />);
 
-      expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Fachkräfte werden geladen…"),
+      ).toBeInTheDocument();
     });
 
     it("shows error message when data fetch fails", () => {

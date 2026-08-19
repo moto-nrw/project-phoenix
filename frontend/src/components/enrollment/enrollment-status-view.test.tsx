@@ -454,3 +454,117 @@ describe("EnrollmentStatusView", () => {
     expect(await screen.findByText("Nicht möglich")).toBeInTheDocument();
   });
 });
+
+describe("EnrollmentStatusView renewal adjust (#2251)", () => {
+  beforeEach(() => {
+    mockFetchStatus.mockReset();
+    mockListEnrollmentChangeRequests.mockReset();
+    mockListEnrollmentChangeRequests.mockResolvedValue([]);
+    mockWithdrawStatus.mockReset();
+    mockConfirmRenewal.mockReset();
+  });
+
+  it("offers the reduced adjust flow next to confirm and decline (opt-in)", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung bestätigen" }),
+    ).toBeInTheDocument();
+    const adjustLink = screen.getByRole("link", {
+      name: "Angebote und Wochentage anpassen",
+    });
+    expect(adjustLink.getAttribute("href")).toContain("/adjust");
+    expect(
+      screen.getByRole("button", { name: "Anmeldung ablehnen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers adjust and unsubscribe on the opt-out banner", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "auto_renewed",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("link", {
+        name: "Angebote und Wochentage anpassen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the adjust link while a change request is already open", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      }),
+    );
+    mockListEnrollmentChangeRequests.mockResolvedValue([changeRequest()]);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung bestätigen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Angebote und Wochentage anpassen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the adjust link when the renewal is not editable as a change request", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "direct_edit",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung bestätigen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Angebote und Wochentage anpassen" }),
+    ).not.toBeInTheDocument();
+  });
+});

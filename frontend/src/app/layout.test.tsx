@@ -112,6 +112,15 @@ describe("RootLayout", () => {
       ]);
     });
 
+    it("uses localized metadata on the parent host", async () => {
+      headerState.host = "eltern.moto-app.de";
+
+      const metadata = await generateMetadata();
+
+      expect(metadata.title).toBe("moto Eltern");
+      expect(metadata.description).toContain("Betreuung Ihres Kindes");
+    });
+
     it("uses operator favicon assets on the operator host", async () => {
       headerState.host = "operator.moto-app.de";
 

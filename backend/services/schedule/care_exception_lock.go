@@ -19,3 +19,11 @@ import (
 func LockCareExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
 	return careplanning.LockStudentAndExceptionDay(ctx, db, studentID, date)
 }
+
+// LockCareStudent takes only the student row FOR UPDATE — the shared first
+// lock of every care-day writer. Weekly-schedule writers acquire it before
+// touching schedule rows so their later per-day locks (auto-excusal resync)
+// keep the student → day order instead of inverting it.
+func LockCareStudent(ctx context.Context, db *bun.DB, studentID int64) error {
+	return careplanning.LockStudent(ctx, db, studentID)
+}

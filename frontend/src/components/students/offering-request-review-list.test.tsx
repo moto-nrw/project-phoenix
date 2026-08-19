@@ -6,10 +6,11 @@ import {
   OfferingRequestApiError,
   decideOfferingChangeRequest,
   listOfferingChangeRequests,
+  previewOfferingChangeRequest,
   type StaffOfferingRequest,
 } from "~/lib/offering-request-review-api";
 
-// Mock only the two network functions; keep the real error class so the
+// Mock only the network functions; keep the real error class so the
 // component's `err instanceof OfferingRequestApiError` branch resolves.
 vi.mock("~/lib/offering-request-review-api", async (importActual) => {
   const actual =
@@ -18,11 +19,13 @@ vi.mock("~/lib/offering-request-review-api", async (importActual) => {
     ...actual,
     listOfferingChangeRequests: vi.fn(),
     decideOfferingChangeRequest: vi.fn(),
+    previewOfferingChangeRequest: vi.fn(),
   };
 });
 
 const mockList = vi.mocked(listOfferingChangeRequests);
 const mockDecide = vi.mocked(decideOfferingChangeRequest);
+const mockPreview = vi.mocked(previewOfferingChangeRequest);
 
 function request(
   overrides: Partial<StaffOfferingRequest> = {},
@@ -33,7 +36,14 @@ function request(
     student_name: "Lara Beispiel",
     status: "pending",
     effective_from: "2027-02-01",
-    diff: [{ label: "Regelbetreuung", old: "Mo, Di, Mi", new: "Mo, Di" }],
+    diff: [
+      {
+        offering_id: "1",
+        label: "Regelbetreuung",
+        old: "Mo, Di, Mi",
+        new: "Mo, Di",
+      },
+    ],
     created_at: "2026-07-30T09:00:00Z",
     ...overrides,
   };
@@ -50,6 +60,7 @@ describe("OfferingRequestReviewList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockList.mockResolvedValue([request()]);
+    mockPreview.mockResolvedValue({ selections: [] });
   });
 
   it("lists a pending request with its effective date and diff", async () => {
@@ -125,6 +136,273 @@ describe("OfferingRequestReviewList", () => {
 
     expect(
       screen.getByText(/Nachricht der Eltern: Neuer Arbeitsbeginn/),
+    ).toBeInTheDocument();
+  });
+
+  // Mitbuchungs-Regeln (#2365/#2370): rule-added lines are marked, name their
+  // trigger, and can be unticked for this one approval.
+  const ruleDiff = [
+    {
+      offering_id: "5",
+      label: "Randstunde",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+    },
+    {
+      offering_id: "9",
+      label: "Ganztagsbetreuung bis 14.30 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+      automatic: true,
+      automatic_days: "Mo, Di, Mi, Do, Fr",
+      trigger_ids: ["5"],
+      trigger_names: ["Randstunde"],
+      optoutable: true,
+    },
+    {
+      offering_id: "11",
+      label: "Ganztagsbetreuung bis 16 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+      automatic: true,
+      automatic_days: "Mo, Di, Mi, Do, Fr",
+      trigger_ids: ["9"],
+      trigger_names: ["Ganztagsbetreuung bis 14.30 Uhr"],
+      optoutable: true,
+    },
+  ];
+
+  const mixedRuleDiff = [
+    {
+      offering_id: "9",
+      label: "Ganztagsbetreuung bis 14.30 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi",
+      automatic: true,
+      automatic_days: "Di, Mi",
+      rule_days: "Di",
+      new_when_excluded: "Mo, Mi",
+      trigger_ids: ["5"],
+      trigger_names: ["Randstunde"],
+      optoutable: true,
+    },
+  ];
+
+  it("marks a rule-added line and names its trigger", async () => {
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    expect(screen.getAllByText("Automatisch mitgebucht")).toHaveLength(2);
+    expect(
+      screen.getByText(/weil „Randstunde“ gewählt ist/),
+    ).toBeInTheDocument();
+  });
+
+  it("attributes only rule-derived days to the selected trigger", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    expect(
+      screen.getByText(/Die Tage Di kommen automatisch dazu, weil/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Tage Di, Mi kommen automatisch dazu, weil/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the automatic-addition hint after opting out", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    mockPreview.mockResolvedValue({
+      selections: [{ offering_id: "9", new: "Mo, Mi" }],
+    });
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/kommen automatisch dazu/),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("describes the disabled co-booking rule after opting out", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    mockPreview.mockResolvedValue({
+      selections: [{ offering_id: "9", new: "Mo, Mi" }],
+    });
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Mitbuchungs-Regel gilt für diese Anfrage nicht.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("sends unticked rule-added lines as excluded on approve", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    mockPreview.mockResolvedValue({
+      selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
+    });
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined, ["9"]),
+    );
+  });
+
+  it("keeps manual and required days visible when rule days are unticked", async () => {
+    mockPreview.mockResolvedValue({
+      selections: [{ offering_id: "9", new: "Mo, Mi" }],
+    });
+    mockList.mockResolvedValue([
+      request({
+        diff: [
+          {
+            offering_id: "9",
+            label: "Ganztagsbetreuung bis 14.30 Uhr",
+            old: "nicht gebucht",
+            new: "Mo, Di, Mi",
+            automatic: true,
+            automatic_days: "Di, Mi",
+            new_when_excluded: "Mo, Mi",
+            trigger_ids: ["5"],
+            trigger_names: ["Randstunde"],
+            optoutable: true,
+          },
+        ],
+      }),
+    ]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(await screen.findByText("Mo, Mi")).toBeInTheDocument();
+    expect(screen.queryByText("Mo, Di, Mi")).not.toBeInTheDocument();
+  });
+
+  it("recomputes downstream rule days after a partial override", async () => {
+    mockPreview.mockResolvedValue({
+      selections: [
+        { offering_id: "5", new: "Di" },
+        { offering_id: "9", new: "Mo, Mi" },
+        { offering_id: "11", new: "Mo, Mi" },
+      ],
+    });
+    mockList.mockResolvedValue([
+      request({
+        diff: [
+          {
+            offering_id: "5",
+            label: "Randstunde",
+            old: "nicht gebucht",
+            new: "Di",
+          },
+          {
+            offering_id: "9",
+            label: "Ganztagsbetreuung bis 14.30 Uhr",
+            old: "nicht gebucht",
+            new: "Mo, Di, Mi",
+            automatic: true,
+            automatic_days: "Di",
+            new_when_excluded: "Mo, Mi",
+            trigger_ids: ["5"],
+            trigger_names: ["Randstunde"],
+            optoutable: true,
+          },
+          {
+            offering_id: "11",
+            label: "Ganztagsbetreuung bis 16 Uhr",
+            old: "nicht gebucht",
+            new: "Mo, Di, Mi",
+            automatic: true,
+            automatic_days: "Mo, Di, Mi",
+            trigger_ids: ["9"],
+            trigger_names: ["Ganztagsbetreuung bis 14.30 Uhr"],
+            optoutable: true,
+          },
+        ],
+      }),
+    ]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    await waitFor(() => {
+      const downstream = screen.getByText(
+        /Ganztagsbetreuung bis 16 Uhr/,
+      ).parentElement;
+      expect(downstream?.textContent).toContain("Mo, Mi");
+      expect(downstream?.textContent).not.toContain("Mo, Di, Mi");
+      expect(downstream?.textContent).not.toContain("Kommt automatisch dazu");
+    });
+  });
+
+  it("greys a line whose trigger was unticked", async () => {
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    mockPreview.mockResolvedValue({
+      selections: [
+        { offering_id: "5", new: "Mo, Di, Mi, Do, Fr" },
+        { offering_id: "9", new: "abgemeldet", removed: true },
+        { offering_id: "11", new: "abgemeldet", removed: true },
+      ],
+    });
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        /Entfällt, weil „Ganztagsbetreuung bis 14.30 Uhr“ nicht mitgebucht wird/,
+      ),
     ).toBeInTheDocument();
   });
 });

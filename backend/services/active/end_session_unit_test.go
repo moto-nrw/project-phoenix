@@ -203,6 +203,7 @@ type mockVisitRepository struct {
 	listActiveStudentIDsByRoomIDFunc      func(ctx context.Context, roomID int64) ([]int64, error)
 	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
 	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	endVisitsByIDsFunc                    func(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error)
 	transferVisitsFromRecentSessionsFunc  func(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 }
@@ -345,6 +346,13 @@ func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.V
 }
 
 func (m *mockVisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
+
+func (m *mockVisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error) {
+	if m.endVisitsByIDsFunc != nil {
+		return m.endVisitsByIDsFunc(ctx, ids, at)
+	}
 	return nil, nil
 }
 

@@ -235,6 +235,13 @@ type StudentRepository interface {
 	// companion writer follows and could therefore deadlock — see the
 	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
 	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
+
+	// FindByIDsForUpdate fetches and locks the given student rows in one
+	// SELECT … ORDER BY id FOR UPDATE (the project-wide ascending-id lock
+	// order), so batch writers acquire all their row locks in one query and
+	// overlapping batches serialize instead of deadlocking. Unknown or
+	// foreign ids are absent from the returned map.
+	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members

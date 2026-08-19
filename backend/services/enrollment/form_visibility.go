@@ -496,11 +496,16 @@ func (s *requestService) validateConstrainedSchedules(
 	schema *enrollmentModels.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
+	existingChildren ...[]*enrollmentModels.RequestChild,
 ) error {
 	if schema == nil {
 		return nil
 	}
 	byKey := buildFieldsByKey(schema)
+	var existingBySubmittedChild []*enrollmentModels.RequestChild
+	if len(existingChildren) > 0 {
+		existingBySubmittedChild = matchExistingChildrenBySubmittedIdentity(existingChildren[0], req.Children)
+	}
 
 	// scheduleDays scopes which weekdays are inspected. A nil set means "all
 	// days" (guardian-level fields, which are not care-day scoped); a per-child
@@ -562,16 +567,62 @@ func (s *requestService) validateConstrainedSchedules(
 		scheduleDays := relevantCareDaysForChild(child, openByID)
 		for i := range schema.Fields {
 			f := &schema.Fields[i]
-			if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || !f.AppliesToCh {
+			if !f.AppliesToCh || !fieldVisible(f, childCtx) {
 				continue
 			}
-			if !fieldVisible(f, childCtx) {
-				continue
+			if f.Target == enrollmentModels.TargetSchedulePickup && len(f.AllowedTimes) > 0 {
+				if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
+					return err
+				}
 			}
-			if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
-				return err
+			if f.Target == enrollmentModels.TargetStudentAllowedDepartureModes &&
+				f.SingleModeAppliesTo(child.TargetGradeLevel) {
+				if idx < len(existingBySubmittedChild) &&
+					unchangedSingleModeDepartureAnswer(existingBySubmittedChild[idx], child, f.Key) {
+					continue
+				}
+				if err := checkSingleModeDeparture(f, child.CustomData, idx); err != nil {
+					return err
+				}
 			}
 		}
+	}
+	return nil
+}
+
+// unchangedSingleModeDepartureAnswer preserves a multi-select answer that was
+// accepted before a single-mode rule was configured. A replacement edit or
+// change request may resubmit every custom-data value while changing something
+// unrelated. A changed target grade still revalidates because it can newly put
+// the child under the rule.
+func unchangedSingleModeDepartureAnswer(existing *enrollmentModels.RequestChild, submitted SubmitChild, key string) bool {
+	if existing == nil || !sameGradeLevel(existing.TargetGradeLevel, submitted.TargetGradeLevel) {
+		return false
+	}
+	return jsonEqual(existing.CustomData[key], submitted.CustomData[key])
+}
+
+func sameGradeLevel(left, right *int16) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
+}
+
+// checkSingleModeDeparture enforces the Heimweg-Beschränkung (#2381) on one
+// child's allowed-departure-modes answer: at most one mode per weekday. Only
+// called for children whose target grade the field restricts. Unlike the
+// pickup-times gate this checks every submitted day, not just care days —
+// multi-mode answers are not care-day-pruned before persistence, so an
+// off-care-day entry would be stored as-is and must satisfy the rule too.
+func checkSingleModeDeparture(f *enrollmentModels.FormField, answers map[string]any, childIdx int) error {
+	raw, ok := answers[f.Key]
+	if !ok || raw == nil {
+		return nil
+	}
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return fmt.Errorf("%w: child %d field %q: invalid departure modes", ErrInvalidSubmission, childIdx, f.Key)
+	}
+	if err := modes.ValidateSingleSelection(); err != nil {
+		return fmt.Errorf("%w: child %d field %q: %v", ErrDepartureModeLimitExceeded, childIdx, f.Key, err)
 	}
 	return nil
 }

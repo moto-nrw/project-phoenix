@@ -41,11 +41,16 @@ func NewCareScheduleChangeRequestRepository(db *bun.DB) schedule.CareScheduleCha
 // GetPendingForStudent returns the student's open request, or nil when none
 // exists. The partial unique index guarantees at most one.
 func (r *CareScheduleChangeRequestRepository) GetPendingForStudent(ctx context.Context, studentID int64) (*schedule.CareScheduleChangeRequest, error) {
+	return r.GetPendingForStudentAndKind(ctx, studentID, schedule.CareRequestKindWeeklySchedule)
+}
+
+func (r *CareScheduleChangeRequestRepository) GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*schedule.CareScheduleChangeRequest, error) {
 	row := new(schedule.CareScheduleChangeRequest)
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(row).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
 		Where(`"care_schedule_change_request".student_id = ?`, studentID).
+		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
@@ -62,10 +67,15 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudent(ctx context.C
 // ListPendingForTenant returns every pending request for the current tenant
 // (resolved via RLS / the tenant filter), newest-first.
 func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.Context) ([]*schedule.CareScheduleChangeRequest, error) {
+	return r.ListPendingForTenantAndKind(ctx, schedule.CareRequestKindWeeklySchedule)
+}
+
+func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx context.Context, requestKind string) ([]*schedule.CareScheduleChangeRequest, error) {
 	var rows []*schedule.CareScheduleChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
@@ -75,6 +85,22 @@ func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.C
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
+	}
+	return rows, nil
+}
+
+func (r *CareScheduleChangeRequestRepository) ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*schedule.CareScheduleChangeRequest, error) {
+	var rows []*schedule.CareScheduleChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".student_id = ?`, studentID).
+		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
+		Where(`("care_schedule_change_request".status = ? OR "care_schedule_change_request".updated_at >= ?)`, schedule.CareRequestStatusPending, since)
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	query = query.OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`)
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: err}
 	}
 	return rows, nil
 }

@@ -81,14 +81,6 @@ vi.mock("~/components/ui/password-change-modal", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading...
-    </div>
-  ),
-}));
-
 vi.mock("~/components/settings/passkey-settings-section", () => ({
   PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
 }));
@@ -156,6 +148,16 @@ vi.mock("lucide-react", () => ({
   // Used by the BirthdayVisibilitySection (#1542).
   Cake: (props: Record<string, unknown>) => (
     <svg data-testid="cake-icon" {...props} />
+  ),
+  // Used by the PushInstallSteps inside the PushNotificationSection.
+  Share: (props: Record<string, unknown>) => (
+    <svg data-testid="share-icon" {...props} />
+  ),
+  Plus: (props: Record<string, unknown>) => (
+    <svg data-testid="plus-icon" {...props} />
+  ),
+  House: (props: Record<string, unknown>) => (
+    <svg data-testid="house-icon" {...props} />
   ),
 }));
 
@@ -228,7 +230,7 @@ describe("ProfilePage", () => {
 
       render(<ProfilePage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByLabelText("Profil wird geladen…")).toBeInTheDocument();
     });
   });
 

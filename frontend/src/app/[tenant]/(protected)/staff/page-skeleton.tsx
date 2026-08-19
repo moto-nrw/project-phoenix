@@ -28,33 +28,23 @@ function StaffCardSkeleton() {
   );
 }
 
-export function StaffPageSkeleton() {
+/**
+ * Data-region skeleton: just the staff-card grid. The real header
+ * (PageHeaderWithSearch) renders immediately regardless of loading state —
+ * only this data-bound region skeletonizes while staff data loads.
+ */
+export function StaffCardsSkeleton() {
   return (
     <div
       role="status"
       aria-busy="true"
       aria-label="Mitarbeitende werden geladen"
       data-testid="staff-page-skeleton"
-      className="-mt-1.5 w-full"
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
     >
-      {/* PageHeaderWithSearch placeholder: title + search field + filter chips */}
-      <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-6 w-32 rounded" />
-          <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-8 w-24 rounded-full" />
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <StaffCardSkeleton key={i} />
-        ))}
-      </div>
+      {Array.from({ length: 6 }, (_, i) => (
+        <StaffCardSkeleton key={i} />
+      ))}
     </div>
   );
 }

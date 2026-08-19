@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, X } from "lucide-react";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
@@ -398,7 +398,11 @@ export default function StudentImportPage() {
   };
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion label="Kinder-Import wird geladen…">
+        <FormSkeleton fields={2} />
+      </SkeletonRegion>
+    );
   }
 
   return (

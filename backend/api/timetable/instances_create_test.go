@@ -150,7 +150,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	assert.Equal(t, "14:00", got.StartTime)
 	assert.Equal(t, "15:00", got.EndTime)
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
-	assert.True(t, got.IsSpontaneous, "no activity_group_id ⇒ spontaneous")
+	assert.True(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
 	assert.False(t, got.IsLive)
 	assert.Equal(t, s.roomID, got.RoomID)
 	assert.NotEmpty(t, got.RoomName, "room name should resolve via RoomRepo")

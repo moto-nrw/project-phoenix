@@ -19,11 +19,12 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -286,9 +287,12 @@ export function EnrollmentStatusView({
 
   if (loading) {
     return (
-      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
-        {t("loading")}
-      </div>
+      <>
+        <span role="status" className="sr-only">
+          {t("loading")}
+        </span>
+        <PublicEnrollmentContentSkeleton sections={2} />
+      </>
     );
   }
 
@@ -460,6 +464,9 @@ function EnrollmentStatusContent({
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
+  const adjustHref = pathname?.startsWith("/parents")
+    ? `/parents/enroll/status/${encodeURIComponent(token)}/adjust`
+    : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -503,6 +510,7 @@ function EnrollmentStatusContent({
       ) : null}
 
       <RenewalBanners
+        adjustHref={canRequestChange ? adjustHref : null}
         confirmingRenewal={confirmingRenewal}
         showOptInBanner={showOptInBanner}
         showOptOutBanner={showOptOutBanner}
@@ -652,6 +660,8 @@ function EnrollmentStatusSummary({
 }
 
 interface RenewalBannersProps {
+  /** Link to the reduced offerings/weekdays flow; null while a change request is already open (#2251). */
+  readonly adjustHref: string | null;
   readonly confirmingRenewal: boolean;
   readonly showOptInBanner: boolean;
   readonly showOptOutBanner: boolean;
@@ -661,6 +671,7 @@ interface RenewalBannersProps {
 }
 
 function RenewalBanners({
+  adjustHref,
   confirmingRenewal,
   showOptInBanner,
   showOptOutBanner,
@@ -695,6 +706,11 @@ function RenewalBanners({
             >
               {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
             </button>
+            {adjustHref && (
+              <ButtonLink href={adjustHref} variant="surface" size="md">
+                {t("renewalAdjust")}
+              </ButtonLink>
+            )}
             <button
               type="button"
               onClick={handleWithdraw}
@@ -704,6 +720,7 @@ function RenewalBanners({
               {withdrawingAll ? t("declining") : t("declineEnrollment")}
             </button>
           </div>
+          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
         </section>
       ) : null}
       {showOptOutBanner ? (
@@ -712,16 +729,22 @@ function RenewalBanners({
             {t("autoRenewedTitle")}
           </h2>
           <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {adjustHref && (
+              <ButtonLink href={adjustHref} variant="surface" size="md">
+                {t("renewalAdjust")}
+              </ButtonLink>
+            )}
             <button
               type="button"
               onClick={handleWithdraw}
               disabled={withdrawingAll}
-              className="h-10 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
               {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
             </button>
           </div>
+          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
         </section>
       ) : null}
     </>

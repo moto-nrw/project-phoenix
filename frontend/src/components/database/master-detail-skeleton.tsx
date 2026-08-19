@@ -37,7 +37,7 @@ export function MasterDetailSkeleton({
       data-testid="master-detail-skeleton"
       className="-mt-1.5 flex w-full flex-col"
     >
-      <PageHeaderSkeleton />
+      <PageHeaderSkeleton actions={1} />
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           selectedId={null}

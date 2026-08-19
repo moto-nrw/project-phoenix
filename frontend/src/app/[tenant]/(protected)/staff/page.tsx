@@ -48,7 +48,7 @@ import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
-import { StaffPageSkeleton } from "./page-skeleton";
+import { StaffCardsSkeleton } from "./page-skeleton";
 
 function DocumentDirectory({
   entries,
@@ -573,22 +573,23 @@ function StaffPageContent() {
     view,
   ]);
 
-  if (status === "loading" || isLoading || isDocumentDirectoryLoading) {
-    return <StaffPageSkeleton />;
-  }
+  const showSkeleton =
+    status === "loading" || isLoading || isDocumentDirectoryLoading;
 
-  if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
-    return <ForbiddenPage />;
-  }
+  if (!showSkeleton) {
+    if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
+      return <ForbiddenPage />;
+    }
 
-  if (documentDirectoryOnly) {
-    return (
-      <DocumentDirectory
-        entries={documentDirectory ?? []}
-        error={documentDirectoryError}
-        onRetry={() => void mutateDocumentDirectory()}
-      />
-    );
+    if (documentDirectoryOnly) {
+      return (
+        <DocumentDirectory
+          entries={documentDirectory ?? []}
+          error={documentDirectoryError}
+          onRetry={() => void mutateDocumentDirectory()}
+        />
+      );
+    }
   }
 
   return (
@@ -596,15 +597,19 @@ function StaffPageContent() {
       {/* PageHeaderWithSearch - Title only on mobile */}
       <PageHeaderWithSearch
         title={isMobile ? "Mitarbeiter" : ""}
-        badge={{
-          icon: <MotoConceptIcon concept="staff" size={20} />,
-          count:
-            view === "accounts"
-              ? accountRows.length
-              : view === "documents"
-                ? (documentDirectory?.length ?? 0)
-                : filteredStaff.length,
-        }}
+        badge={
+          showSkeleton
+            ? undefined
+            : {
+                icon: <MotoConceptIcon concept="staff" size={20} />,
+                count:
+                  view === "accounts"
+                    ? accountRows.length
+                    : view === "documents"
+                      ? (documentDirectory?.length ?? 0)
+                      : filteredStaff.length,
+              }
+        }
         search={
           // Im Änderungsprotokoll filtert die Komponente selbst; ein
           // wirkungsloses Suchfeld wäre irreführend.
@@ -628,303 +633,320 @@ function StaffPageContent() {
         }}
       />
 
-      {/* Sektion 1 — Eingehende Anfragen (#1419), nur für Genehmigende. Die
-          Inbox trägt die offenen Anträge samt Detail; das aggregierte
-          pending_requests_count aus dem Dashboard-Endpoint wäre daneben eine
-          zweite, ärmere Anzeige derselben Zahl und bleibt deshalb ungenutzt. */}
-      {canReviewAbsences && (
-        <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
-      )}
+      {showSkeleton ? (
+        <StaffCardsSkeleton />
+      ) : (
+        <>
+          {/* Sektion 1 — Eingehende Anfragen (#1419), nur für Genehmigende. Die
+              Inbox trägt die offenen Anträge samt Detail; das aggregierte
+              pending_requests_count aus dem Dashboard-Endpoint wäre daneben eine
+              zweite, ärmere Anzeige derselben Zahl und bleibt deshalb ungenutzt. */}
+          {canReviewAbsences && (
+            <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
+          )}
 
-      {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
-      {canReadUsers && <SchoolOverviewSection />}
+          {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
+          {canReadUsers && <SchoolOverviewSection />}
 
-      {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
-          beantworten verschiedene Fragen; der Umschalter erscheint nur mit
-          time_tracking:manage. */}
-      {canManageTimeTracking && (
-        <Tabs
-          value={view}
-          onValueChange={(value) =>
-            setSelectedView(
-              value as "status" | "accounts" | "audit" | "documents",
-            )
-          }
-          className="mb-4"
-        >
-          <TabsList variant="line">
-            {canReadUsers && <TabsTrigger value="status">Status</TabsTrigger>}
-            <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
-            <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
-            {canAccessDocuments && (
-              <TabsTrigger value="documents">Personalunterlagen</TabsTrigger>
+          {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
+              beantworten verschiedene Fragen; der Umschalter erscheint nur mit
+              time_tracking:manage. */}
+          {canManageTimeTracking && (
+            <Tabs
+              value={view}
+              onValueChange={(value) =>
+                setSelectedView(
+                  value as "status" | "accounts" | "audit" | "documents",
+                )
+              }
+              className="mb-4"
+            >
+              <TabsList variant="line">
+                {canReadUsers && (
+                  <TabsTrigger value="status">Status</TabsTrigger>
+                )}
+                <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
+                <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
+                {canAccessDocuments && (
+                  <TabsTrigger value="documents">
+                    Personalunterlagen
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </Tabs>
+          )}
+
+          {/* Änderungsprotokoll (#1417): cross-MA audit feed, eigene Filter in der
+              Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
+          {view === "audit" && canManageTimeTracking && (
+            <StaffAuditLog staffOptions={auditStaffOptions} />
+          )}
+
+          {view === "documents" &&
+            canManageTimeTracking &&
+            canAccessDocuments && (
+              <DocumentDirectory
+                entries={documentDirectory ?? []}
+                error={documentDirectoryError}
+                onRetry={() => void mutateDocumentDirectory()}
+                embedded
+              />
             )}
-          </TabsList>
-        </Tabs>
-      )}
 
-      {/* Änderungsprotokoll (#1417): cross-MA audit feed, eigene Filter in der
-          Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
-      {view === "audit" && canManageTimeTracking && (
-        <StaffAuditLog staffOptions={auditStaffOptions} />
-      )}
+          {view === "accounts" && (
+            <StaffTimeAccountsTable
+              rows={accountRows}
+              year={accounts?.year ?? monthAnchor.year}
+              month={accounts?.month ?? monthAnchor.month}
+              onPrevMonth={() => shiftMonth(-1)}
+              onNextMonth={() => shiftMonth(1)}
+              canGoNextMonth={!isCurrentOrFutureMonth}
+              monthClose={monthClose}
+              monthCloseError={
+                monthCloseStatusError
+                  ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
+                  : null
+              }
+              onRetryMonthClose={() => void mutateMonthClose()}
+              monthIsOver={!isCurrentOrFutureMonth}
+              onCloseMonth={() => setShowCloseModal(true)}
+              onExport={() => setShowExportModal(true)}
+              onOpeningBalances={
+                userIsAdmin
+                  ? () => router.push("/database/personal/opening-balances")
+                  : undefined
+              }
+              isLoading={accountsLoading && !accounts}
+              error={
+                accountsError
+                  ? "Zeitkonten konnten nicht geladen werden."
+                  : null
+              }
+              onRowClick={(row) =>
+                router.push(
+                  `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                )
+              }
+              saldoPreset={saldoPreset}
+              onSaldoPresetChange={setSaldoPreset}
+              customSaldoHours={customSaldoHours}
+              onCustomSaldoHoursChange={setCustomSaldoHours}
+              showCustomSaldo={showCustomSaldo}
+              onShowCustomSaldoChange={setShowCustomSaldo}
+              paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
+            />
+          )}
 
-      {view === "documents" && canManageTimeTracking && canAccessDocuments && (
-        <DocumentDirectory
-          entries={documentDirectory ?? []}
-          error={documentDirectoryError}
-          onRetry={() => void mutateDocumentDirectory()}
-          embedded
-        />
-      )}
+          {showCloseModal && (
+            <MonthCloseReasonModal
+              title={`Monat abschließen — ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
+              description={
+                <>
+                  <p>
+                    Der Abschluss friert den Saldo zum Monatsende für{" "}
+                    <strong>alle Mitarbeitenden</strong> ein. Spätere Monate
+                    rechnen ab dann mit diesem eingefrorenen Übertrag weiter.
+                  </p>
+                  <p>
+                    Werden danach noch Zeiten in diesem Monat geändert, bleibt
+                    der Übertrag stehen; die Abweichung wird auf der Monatskarte
+                    der Person angezeigt.
+                  </p>
+                  <p>
+                    Bereits abgeschlossene Konten bleiben unverändert; nur
+                    offene Konten werden eingefroren.
+                  </p>
+                </>
+              }
+              submitLabel="Monat abschließen"
+              successMessage="Monat abgeschlossen."
+              onSubmit={handleCloseMonth}
+              onClose={() => setShowCloseModal(false)}
+            />
+          )}
 
-      {view === "accounts" && (
-        <StaffTimeAccountsTable
-          rows={accountRows}
-          year={accounts?.year ?? monthAnchor.year}
-          month={accounts?.month ?? monthAnchor.month}
-          onPrevMonth={() => shiftMonth(-1)}
-          onNextMonth={() => shiftMonth(1)}
-          canGoNextMonth={!isCurrentOrFutureMonth}
-          monthClose={monthClose}
-          monthCloseError={
-            monthCloseStatusError
-              ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
-              : null
-          }
-          onRetryMonthClose={() => void mutateMonthClose()}
-          monthIsOver={!isCurrentOrFutureMonth}
-          onCloseMonth={() => setShowCloseModal(true)}
-          onExport={() => setShowExportModal(true)}
-          onOpeningBalances={
-            userIsAdmin
-              ? () => router.push("/database/personal/opening-balances")
-              : undefined
-          }
-          isLoading={accountsLoading && !accounts}
-          error={
-            accountsError ? "Zeitkonten konnten nicht geladen werden." : null
-          }
-          onRowClick={(row) =>
-            router.push(
-              `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
-            )
-          }
-          saldoPreset={saldoPreset}
-          onSaldoPresetChange={setSaldoPreset}
-          customSaldoHours={customSaldoHours}
-          onCustomSaldoHoursChange={setCustomSaldoHours}
-          showCustomSaldo={showCustomSaldo}
-          onShowCustomSaldoChange={setShowCustomSaldo}
-          paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
-        />
-      )}
+          {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
+              komplett aus dem Backend. */}
+          <StaffTimeExportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            year={accounts?.year ?? monthAnchor.year}
+            month={accounts?.month ?? monthAnchor.month}
+          />
 
-      {showCloseModal && (
-        <MonthCloseReasonModal
-          title={`Monat abschließen — ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
-          description={
-            <>
-              <p>
-                Der Abschluss friert den Saldo zum Monatsende für{" "}
-                <strong>alle Mitarbeitenden</strong> ein. Spätere Monate rechnen
-                ab dann mit diesem eingefrorenen Übertrag weiter.
-              </p>
-              <p>
-                Werden danach noch Zeiten in diesem Monat geändert, bleibt der
-                Übertrag stehen; die Abweichung wird auf der Monatskarte der
-                Person angezeigt.
-              </p>
-              <p>
-                Bereits abgeschlossene Konten bleiben unverändert; nur offene
-                Konten werden eingefroren.
-              </p>
-            </>
-          }
-          submitLabel="Monat abschließen"
-          successMessage="Monat abgeschlossen."
-          onSubmit={handleCloseMonth}
-          onClose={() => setShowCloseModal(false)}
-        />
-      )}
-
-      {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
-          komplett aus dem Backend. */}
-      <StaffTimeExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        year={accounts?.year ?? monthAnchor.year}
-        month={accounts?.month ?? monthAnchor.month}
-      />
-
-      {/* Error Display */}
-      {view === "status" && error && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-4">
-          {error}
-        </div>
-      )}
-
-      {/* Staff Grid */}
-      {view === "status" &&
-        (filteredStaff.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <MotoConceptIcon concept="staff" size={48} />
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  Kein Personal gefunden
-                </h3>
-                <p className="text-gray-600">
-                  Versuchen Sie Ihre Suchkriterien anzupassen.
-                </p>
-              </div>
+          {/* Error Display */}
+          {view === "status" && error && (
+            <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-4">
+              {error}
             </div>
-          </div>
-        ) : (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStaff.map((staffMember) => {
-                const locationStatus = getStaffLocationStatus(staffMember);
-                const displayType = getStaffDisplayType(staffMember);
-                const cardInfo = getStaffCardInfo(staffMember);
-                const notes = formatStaffNotes(staffMember.staffNotes, 80);
-                const supervisions = staffMember.supervisions ?? [];
-                const pendingRequestCount =
-                  pendingByStaff.get(Number(staffMember.id)) ?? 0;
+          )}
 
-                const canNavigateToStaff = userIsAdmin || canAccessDocuments;
-                const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
-                const navigateToStaff = () =>
-                  router.push(
-                    `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
-                  );
+          {/* Staff Grid */}
+          {view === "status" &&
+            (filteredStaff.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <MotoConceptIcon concept="staff" size={48} />
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Kein Personal gefunden
+                    </h3>
+                    <p className="text-gray-600">
+                      Versuchen Sie Ihre Suchkriterien anzupassen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                  {filteredStaff.map((staffMember) => {
+                    const locationStatus = getStaffLocationStatus(staffMember);
+                    const displayType = getStaffDisplayType(staffMember);
+                    const cardInfo = getStaffCardInfo(staffMember);
+                    const notes = formatStaffNotes(staffMember.staffNotes, 80);
+                    const supervisions = staffMember.supervisions ?? [];
+                    const pendingRequestCount =
+                      pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                return (
-                  <div
-                    key={staffMember.id}
-                    {...(canNavigateToStaff
-                      ? {
-                          role: "button" as const,
-                          tabIndex: 0,
-                          onClick: navigateToStaff,
-                          onKeyDown: (e: React.KeyboardEvent) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              navigateToStaff();
+                    const canNavigateToStaff =
+                      userIsAdmin || canAccessDocuments;
+                    const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
+                    const navigateToStaff = () =>
+                      router.push(
+                        `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                      );
+
+                    return (
+                      <div
+                        key={staffMember.id}
+                        {...(canNavigateToStaff
+                          ? {
+                              role: "button" as const,
+                              tabIndex: 0,
+                              onClick: navigateToStaff,
+                              onKeyDown: (e: React.KeyboardEvent) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  navigateToStaff();
+                                }
+                              },
                             }
-                          },
-                        }
-                      : {})}
-                    className={cardClassName}
-                  >
-                    <div className="relative p-4">
-                      <div className="relative flex min-h-[104px] flex-col">
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
+                          : {})}
+                        className={cardClassName}
+                      >
+                        <div className="relative p-4">
+                          <div className="relative flex min-h-[104px] flex-col">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
                                 und Nachname ließ jede Karte wie zwei Personen
                                 aussehen. */}
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              <h3 className="truncate text-base font-bold text-gray-900">
-                                {staffMember.firstName} {staffMember.lastName}
-                              </h3>
-                              {canNavigateToStaff && (
-                                <CaretRightIcon
-                                  className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
-                                  aria-hidden="true"
-                                />
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <h3 className="truncate text-base font-bold text-gray-900">
+                                    {staffMember.firstName}{" "}
+                                    {staffMember.lastName}
+                                  </h3>
+                                  {canNavigateToStaff && (
+                                    <CaretRightIcon
+                                      className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-gray-500">
+                                  {staffMember.specialization ?? displayType}
+                                </p>
+                              </div>
+
+                              <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                                {/* Kein Glow, kein Pulsieren: 20 gleichzeitig
+                                leuchtende Badges sind Lärm, kein Status. */}
+                                <span
+                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${locationStatus.badgeColor}`}
+                                  style={{
+                                    backgroundColor:
+                                      locationStatus.customBgColor,
+                                  }}
+                                >
+                                  <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
+                                  {locationStatus.label}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="flex-1 space-y-2">
+                              {pendingRequestCount > 0 && (
+                                <div className="text-moto-orange-strong flex items-center gap-1.5 text-xs font-medium">
+                                  <BellSimpleRingingIcon
+                                    className="text-moto-orange h-[18px] w-[18px] shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span>
+                                    <span className="font-semibold">
+                                      {pendingRequestCount}
+                                    </span>{" "}
+                                    {pendingRequestCount === 1
+                                      ? "offener Abwesenheitsantrag"
+                                      : "offene Abwesenheitsanträge"}
+                                  </span>
+                                </div>
+                              )}
+
+                              {supervisions.length > 0 && (
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">
+                                    Aktuelle Aufsicht:
+                                  </span>
+                                  <ul className="mt-0.5 list-inside">
+                                    {supervisions.map((supervision) => (
+                                      <li
+                                        key={`${supervision.roomId}-${supervision.activeGroupId}`}
+                                      >
+                                        • {supervision.roomName}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {cardInfo.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {cardInfo.map((info) => (
+                                    <span
+                                      key={info}
+                                      className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+                                    >
+                                      {info}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {notes && (
+                                <p className="text-xs text-gray-500 italic transition-colors duration-300 md:group-hover:text-gray-600">
+                                  {notes}
+                                </p>
                               )}
                             </div>
-                            <p className="mt-0.5 truncate text-xs text-gray-500">
-                              {staffMember.specialization ?? displayType}
-                            </p>
+
+                            {canNavigateToStaff && (
+                              <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
+                                {userIsAdmin
+                                  ? "Tippen für mehr Infos"
+                                  : "Tippen für Personalunterlagen"}
+                              </p>
+                            )}
                           </div>
-
-                          <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                            {/* Kein Glow, kein Pulsieren: 20 gleichzeitig
-                                leuchtende Badges sind Lärm, kein Status. */}
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${locationStatus.badgeColor}`}
-                              style={{
-                                backgroundColor: locationStatus.customBgColor,
-                              }}
-                            >
-                              <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
-                              {locationStatus.label}
-                            </span>
-                          </span>
                         </div>
-
-                        <div className="flex-1 space-y-2">
-                          {pendingRequestCount > 0 && (
-                            <div className="text-moto-orange-strong flex items-center gap-1.5 text-xs font-medium">
-                              <BellSimpleRingingIcon
-                                className="text-moto-orange h-[18px] w-[18px] shrink-0"
-                                aria-hidden="true"
-                              />
-                              <span>
-                                <span className="font-semibold">
-                                  {pendingRequestCount}
-                                </span>{" "}
-                                {pendingRequestCount === 1
-                                  ? "offener Abwesenheitsantrag"
-                                  : "offene Abwesenheitsanträge"}
-                              </span>
-                            </div>
-                          )}
-
-                          {supervisions.length > 0 && (
-                            <div className="text-sm text-gray-600">
-                              <span className="font-medium">
-                                Aktuelle Aufsicht:
-                              </span>
-                              <ul className="mt-0.5 list-inside">
-                                {supervisions.map((supervision) => (
-                                  <li
-                                    key={`${supervision.roomId}-${supervision.activeGroupId}`}
-                                  >
-                                    • {supervision.roomName}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {cardInfo.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {cardInfo.map((info) => (
-                                <span
-                                  key={info}
-                                  className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                                >
-                                  {info}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {notes && (
-                            <p className="text-xs text-gray-500 italic transition-colors duration-300 md:group-hover:text-gray-600">
-                              {notes}
-                            </p>
-                          )}
-                        </div>
-
-                        {canNavigateToStaff && (
-                          <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
-                            {userIsAdmin
-                              ? "Tippen für mehr Infos"
-                              : "Tippen für Personalunterlagen"}
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+        </>
+      )}
     </div>
   );
 }
