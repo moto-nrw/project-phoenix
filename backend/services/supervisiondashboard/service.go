@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -51,16 +50,12 @@ type Dependencies struct {
 	Settings    configService.SettingsService
 	Pickups     scheduleService.PickupScheduleService
 	Arrivals    scheduleService.ArrivalScheduleService
-	Logger      *slog.Logger
 	Now         func() time.Time
 }
 
 type service struct{ deps Dependencies }
 
 func NewService(deps Dependencies) Getter {
-	if deps.Logger == nil {
-		deps.Logger = slog.Default()
-	}
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}

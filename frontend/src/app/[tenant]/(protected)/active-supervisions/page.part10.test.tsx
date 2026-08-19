@@ -980,7 +980,7 @@ describe("RoleGuard integration", () => {
   });
 });
 
-describe("Admin fallback dashboard fetcher", () => {
+describe("Aggregate fetcher error contract", () => {
   const mockMutate = vi.fn();
 
   beforeEach(async () => {
@@ -1006,184 +1006,11 @@ describe("Admin fallback dashboard fetcher", () => {
 
   afterEach(() => cleanup());
 
-  // Helper: mock useSWRAuth so the dashboard fetcher actually runs
+  // Capture the dashboard fetcher without invoking it — invoked manually so
+  // rejections stay contained in the test instead of escaping to vitest.
   function captureFetcher(): {
-    getPromise: () => Promise<unknown> | undefined;
+    getFetcher: () => (() => Promise<unknown>) | undefined;
   } {
-    let dashboardPromise: Promise<unknown> | undefined;
-    vi.mocked(useSWRAuth).mockImplementation(((
-      key: string | null,
-      fetcher: (() => Promise<unknown>) | undefined,
-    ) => {
-      if (
-        key?.startsWith("active-supervision-dashboard") &&
-        fetcher &&
-        !dashboardPromise
-      ) {
-        dashboardPromise = fetcher();
-      }
-      return {
-        data: null,
-        isLoading: true,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never;
-    }) as never);
-    return { getPromise: () => dashboardPromise };
-  }
-
-  it("populates supervisedGroups and schulhofStatus from fallback endpoints", async () => {
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/api/active-supervision-dashboard")) {
-        return Promise.resolve({ ok: false, status: 500 });
-      }
-      if (url.includes("/api/active/supervisors/all")) {
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: [
-                {
-                  id: 1,
-                  name: "Group 1",
-                  room_id: 10,
-                  room: { id: 10, name: "Kunstraum" },
-                },
-              ],
-            }),
-        });
-      }
-      if (url.includes("/api/active/schulhof/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: {
-                data: {
-                  exists: true,
-                  room_id: 99,
-                  room_name: "Schulhof",
-                  active_group_id: 42,
-                  is_user_supervising: true,
-                  supervision_id: 123,
-                  supervisor_count: 1,
-                  student_count: 5,
-                  supervisors: [
-                    {
-                      id: 1,
-                      staff_id: 2,
-                      name: "Super",
-                      is_current_user: true,
-                    },
-                  ],
-                },
-              },
-            }),
-        });
-      }
-      return Promise.reject(new Error(`unexpected: ${url}`));
-    });
-
-    const { getPromise } = captureFetcher();
-    render(<MeinRaumPage />);
-    await waitFor(() => expect(getPromise()).toBeDefined());
-
-    const result = (await getPromise()) as {
-      supervisedGroups: Array<{ id: string; room_id?: string }>;
-      schulhofStatus: { exists: boolean; supervisorCount: number } | null;
-      firstRoomId: string | null;
-    };
-    expect(result.supervisedGroups).toHaveLength(1);
-    expect(result.supervisedGroups[0]?.room_id).toBe("10");
-    expect(result.firstRoomId).toBe("10");
-    expect(result.schulhofStatus?.exists).toBe(true);
-    expect(result.schulhofStatus?.supervisorCount).toBe(1);
-  });
-
-  it("returns empty supervisedGroups when supervisors endpoint fails", async () => {
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/api/active-supervision-dashboard")) {
-        return Promise.resolve({ ok: false, status: 403 });
-      }
-      if (url.includes("/api/active/supervisors/all")) {
-        return Promise.resolve({ ok: false });
-      }
-      if (url.includes("/api/active/schulhof/status")) {
-        return Promise.reject(new Error("network"));
-      }
-      return Promise.reject(new Error("unexpected"));
-    });
-
-    const { getPromise } = captureFetcher();
-    render(<MeinRaumPage />);
-    await waitFor(() => expect(getPromise()).toBeDefined());
-
-    const result = (await getPromise()) as {
-      supervisedGroups: unknown[];
-      schulhofStatus: unknown;
-      firstRoomId: string | null;
-    };
-    expect(result.supervisedGroups).toEqual([]);
-    expect(result.schulhofStatus).toBeNull();
-    expect(result.firstRoomId).toBeNull();
-  });
-
-  it("omits schulhofStatus when schulhof.exists is false", async () => {
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/api/active-supervision-dashboard")) {
-        return Promise.resolve({ ok: false, status: 500 });
-      }
-      if (url.includes("/api/active/supervisors/all")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ data: [] }),
-        });
-      }
-      if (url.includes("/api/active/schulhof/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: {
-                data: {
-                  exists: false,
-                  room_name: "",
-                  is_user_supervising: false,
-                  supervisor_count: 0,
-                  student_count: 0,
-                },
-              },
-            }),
-        });
-      }
-      return Promise.reject(new Error("unexpected"));
-    });
-
-    const { getPromise } = captureFetcher();
-    render(<MeinRaumPage />);
-    await waitFor(() => expect(getPromise()).toBeDefined());
-
-    const result = (await getPromise()) as { schulhofStatus: unknown };
-    expect(result.schulhofStatus).toBeNull();
-  });
-
-  it("skips fallback entirely for non-admin and throws on BFF failure", async () => {
-    const { useSession } = await import("next-auth/react");
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "test-token", isAdmin: false } },
-      status: "authenticated",
-    } as never);
-
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/api/active-supervision-dashboard")) {
-        return Promise.resolve({ ok: false, status: 500 });
-      }
-      return Promise.reject(new Error("should not be called"));
-    });
-
-    // Capture the fetcher without invoking — invoke manually below to contain
-    // the rejection inside the test instead of letting it escape to vitest.
     let capturedFetcher: (() => Promise<unknown>) | undefined;
     vi.mocked(useSWRAuth).mockImplementation(((
       key: string | null,
@@ -1204,11 +1031,54 @@ describe("Admin fallback dashboard fetcher", () => {
         isValidating: false,
       } as never;
     }) as never);
+    return { getFetcher: () => capturedFetcher };
+  }
 
+  it("throws on aggregate failure for admins too — no silent fallback fan-out (#2096)", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`));
+    });
+    global.fetch = fetchMock;
+
+    const { getFetcher } = captureFetcher();
     render(<MeinRaumPage />);
-    await waitFor(() => expect(capturedFetcher).toBeDefined());
+    await waitFor(() => expect(getFetcher()).toBeDefined());
 
-    await expect(capturedFetcher!()).rejects.toThrow("BFF request failed: 500");
+    await expect(getFetcher()!()).rejects.toThrow("BFF request failed: 500");
+
+    // The former admin fallback fan-out endpoints must never be contacted:
+    // silently-empty partial payloads are the failure mode #2096 removed.
+    const urls = fetchMock.mock.calls.map(([u]) => String(u));
+    expect(urls.some((u) => u.includes("/api/active/supervisors/all"))).toBe(
+      false,
+    );
+    expect(urls.some((u) => u.includes("/api/active/schulhof/status"))).toBe(
+      false,
+    );
+  });
+
+  it("throws on aggregate failure for non-admins", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: false } },
+      status: "authenticated",
+    } as never);
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      return Promise.reject(new Error("should not be called"));
+    });
+
+    const { getFetcher } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getFetcher()).toBeDefined());
+
+    await expect(getFetcher()!()).rejects.toThrow("BFF request failed: 500");
   });
 });
 

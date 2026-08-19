@@ -251,7 +251,8 @@ interface BFFDashboardResponse {
   // Folded-in sections of the selected session (#2096): the aggregate
   // resolves group_id (or the first supervised session) and ships its
   // visits, tracking indicators, and pickup/arrival times in the same
-  // response. Optional so the admin fallback payload stays minimal.
+  // response. Optional so a cached payload from an older backend degrades
+  // gracefully instead of breaking the page.
   selectedGroupId?: string | null;
   trackingIndicators?: TrackingIndicatorsResponse;
   pickupTimes?: Array<{
@@ -1088,103 +1089,14 @@ function MeinRaumPageContent() {
   );
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
-  // When student_checkin/checkout events occur, global SSE invalidates "visit*" caches,
-  // which triggers SWR refetch for supervision-visits-* keys automatically.
+  // When relevant events occur, global SSE invalidates the aggregated
+  // "active-supervision-dashboard-" cache, which triggers the SWR refetch.
   // NOTE: Do NOT call useGlobalSSE() here - it's already called in TenantAuthWrapper.
   // Calling it again would create a duplicate SSE connection.
-
-  // Admin fallback: when BFF fails, load supervised groups directly
-  const fetchAdminDashboardFallback =
-    useCallback(async (): Promise<BFFDashboardResponse> => {
-      const [groupsRes, schulhofRes] = await Promise.all([
-        fetch("/api/active/supervisors/all", {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }),
-        fetch("/api/active/schulhof/status", {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }).catch(() => null),
-      ]);
-
-      let supervisedGroups: BFFDashboardResponse["supervisedGroups"] = [];
-      if (groupsRes.ok) {
-        const json = (await groupsRes.json()) as {
-          data?: Array<{
-            id: number;
-            name?: string;
-            room_id?: number;
-            room?: { id: number; name: string };
-          }>;
-        };
-        supervisedGroups = (json.data ?? []).map((g) => ({
-          id: g.id.toString(),
-          name: g.name ?? "",
-          room_id: g.room_id?.toString(),
-          room: g.room
-            ? { id: g.room.id.toString(), name: g.room.name }
-            : undefined,
-        }));
-      }
-
-      let schulhofStatus: BFFDashboardResponse["schulhofStatus"] = null;
-      if (schulhofRes?.ok) {
-        const json = (await schulhofRes.json()) as {
-          data?: {
-            data?: {
-              exists: boolean;
-              room_id?: number;
-              room_name: string;
-              active_group_id?: number;
-              is_user_supervising: boolean;
-              supervision_id?: number;
-              supervisor_count: number;
-              student_count: number;
-              supervisors?: Array<{
-                id: number;
-                staff_id: number;
-                name: string;
-                is_current_user: boolean;
-              }>;
-            };
-          };
-        };
-        const s = json.data?.data;
-        if (s?.exists) {
-          schulhofStatus = {
-            exists: true,
-            roomId: s.room_id?.toString() ?? null,
-            roomName: s.room_name,
-            activityGroupId: null,
-            activeGroupId: s.active_group_id?.toString() ?? null,
-            isUserSupervising: s.is_user_supervising,
-            supervisionId: s.supervision_id?.toString() ?? null,
-            supervisorCount: s.supervisor_count,
-            studentCount: s.student_count,
-            supervisors: (s.supervisors ?? []).map((sup) => ({
-              id: sup.id.toString(),
-              staffId: sup.staff_id.toString(),
-              name: sup.name,
-              isCurrentUser: sup.is_current_user,
-            })),
-          };
-        }
-      }
-
-      return {
-        supervisedGroups,
-        unclaimedGroups: [],
-        currentStaff: null,
-        educationalGroups: [],
-        firstRoomVisits: [],
-        firstRoomId:
-          supervisedGroups.length > 0
-            ? (supervisedGroups[0]?.room_id ?? null)
-            : null,
-        schulhofStatus,
-        plannedNow: [],
-      };
-    }, []);
+  //
+  // There is deliberately NO client-side fallback fan-out when the aggregate
+  // fails: silently-empty partial payloads are the failure mode #2096
+  // removed. Errors surface via dashboardError instead.
 
   // Get current room ID (the selected session's active group id)
   const currentRoomId = currentRoom?.id;
@@ -1233,13 +1145,8 @@ function MeinRaumPageContent() {
       }
 
       if (!response.ok) {
-        // Admin fallback: load data directly from individual endpoints
-        if (isAdmin(session)) {
-          logger.info("bff_failed_admin_fallback", {
-            status: response.status,
-          });
-          return await fetchAdminDashboardFallback();
-        }
+        // No silent fallback fan-out (#2096): a failed aggregate is an
+        // error, never a partial-empty payload — admins included.
         throw new Error(`BFF request failed: ${response.status}`);
       }
 
@@ -1261,7 +1168,7 @@ function MeinRaumPageContent() {
   // Reconcile selection and aggregate: whenever the visible session changes
   // through any path (tab click, Schulhof open, URL/localStorage restore)
   // and the cached aggregate belongs to another session, re-run the fetch.
-  // Payloads without selectedGroupId (admin fallback) never trigger this.
+  // Payloads without selectedGroupId (older backend) never trigger this.
   useEffect(() => {
     requestedGroupIdRef.current = currentRoomId ?? null;
     if (!currentRoomId || !dashboardData) return;
@@ -1380,7 +1287,7 @@ function MeinRaumPageContent() {
     // revalidation while the user views another room must NOT overwrite
     // their current view.
     const firstRoom = activeRooms[0];
-    // A payload without selectedGroupId (admin fallback) keeps the former
+    // A payload without selectedGroupId (older backend) keeps the former
     // semantics: its visits belong to the first room.
     const selectedRoom = data.selectedGroupId
       ? activeRooms.find((r) => r.id === data.selectedGroupId)

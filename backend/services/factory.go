@@ -2196,7 +2196,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:    settingsService,
 		Pickups:     pickupScheduleService,
 		Arrivals:    arrivalScheduleService,
-		Logger:      logger.With("service", "supervision-dashboard"),
 	})
 
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
