@@ -7,8 +7,13 @@ Go backend for Project Phoenix (Chi router, BUN ORM, PostgreSQL multi-schema). R
 Day-to-day run/build/migrate commands are Docker-Compose-first — see the root `CLAUDE.md` Essential Commands table. Backend-specific:
 
 ```bash
-# Testing
-go test ./...                       # All tests (APP_ENV=test auto-set by SetupTestDB)
+# Testing — self-initializing lifecycle (ADR 0004): SetupTestDB starts the
+# postgres-test container if needed, rebuilds the phoenix_test template when
+# migrations changed, and gives each package binary a run-stamped clone.
+../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
+go test ./...                       # All tests (works standalone; clones are GC'd by the next run)
+PHX_TEST_LEFTOVERS=1 ../scripts/test-backend.sh   # Opt-in: report rows tests left behind (diagnosis, not a gate)
+go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
 go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
 go test ./services/active/... -v    # Specific package
 go test -race ./...                 # Race detection
