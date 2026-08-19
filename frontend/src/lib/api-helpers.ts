@@ -1,5 +1,6 @@
 // lib/api-helpers.ts
 import { isBrowserContext } from "./api-url";
+import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for API helpers
@@ -238,7 +239,7 @@ export async function fetchWithRetry<T>(
   if (response.status === 401 && onAuthFailure && getNewToken) {
     const errorText = await response.text();
     logger.info("token expired, attempting refresh", {
-      url,
+      url: sanitizeEndpoint(url),
       method,
       status: response.status,
       error_text: errorText,
@@ -266,7 +267,7 @@ export async function fetchWithRetry<T>(
     const accessDeniedStatuses = [401, 403];
     if (accessDeniedStatuses.includes(response.status)) {
       logger.warn("api access denied", {
-        url,
+        url: sanitizeEndpoint(url),
         method,
         status: response.status,
         error_text: errorText.substring(0, 200),
@@ -275,7 +276,7 @@ export async function fetchWithRetry<T>(
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
     const logContext = {
-      url,
+      url: sanitizeEndpoint(url),
       method,
       status: response.status,
       error_text: errorText.substring(0, 200),

@@ -749,6 +749,50 @@ describe("fetchWithRetry", () => {
     expect(consoleSpies.warn).toHaveBeenCalled();
   });
 
+  // Issue #2105: these log lines are shipped to /api/logs and land in Loki,
+  // so query values (student names, e-mail addresses from staff-UI searches)
+  // must never appear in them.
+  it("strips query values from logged URLs", async () => {
+    mockFetchRetry.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve("Forbidden"),
+    } as Response);
+
+    await fetchWithRetry(
+      "http://api.test/api/students?search=Mustermann&first_name=Erika",
+      "test-token",
+    );
+
+    expect(consoleSpies.warn).toHaveBeenCalledWith(
+      "api access denied",
+      expect.objectContaining({ url: "http://api.test/api/students" }),
+    );
+    expect(JSON.stringify(consoleSpies.warn.mock.calls)).not.toContain(
+      "Mustermann",
+    );
+  });
+
+  it("strips query values from error-level logs", async () => {
+    mockFetchRetry.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve("boom"),
+    } as Response);
+
+    await expect(
+      fetchWithRetry("http://api.test/api/students?search=Mustermann", "t"),
+    ).rejects.toThrow("API error: 500");
+
+    expect(consoleSpies.error).toHaveBeenCalledWith(
+      "api error",
+      expect.objectContaining({ url: "http://api.test/api/students" }),
+    );
+    expect(JSON.stringify(consoleSpies.error.mock.calls)).not.toContain(
+      "Mustermann",
+    );
+  });
+
   it("throws error for non-access-denied errors (4xx bugs)", async () => {
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,

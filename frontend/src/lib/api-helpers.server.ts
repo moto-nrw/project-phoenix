@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { canonicalForwardedFor } from "./client-headers.server";
+import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for API helpers
@@ -251,20 +252,6 @@ function parseContentLength(value: string | null): number | null {
 
 function parseResponseContentLength(response: Response): number | null {
   return parseContentLength(response.headers?.get?.("content-length") ?? null);
-}
-
-function sanitizeEndpoint(endpoint: string): string {
-  const [path = ""] = endpoint.split("?");
-  return path
-    .split("/")
-    .map((segment) => {
-      if (!segment) return segment;
-      if (/^\d+$/.test(segment)) return "{id}";
-      if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) return "{uuid}";
-      if (/^[A-Za-z0-9_-]{16,}$/.test(segment)) return "{token}";
-      return segment;
-    })
-    .join("/");
 }
 
 function extractTokenContext(token: string): {
