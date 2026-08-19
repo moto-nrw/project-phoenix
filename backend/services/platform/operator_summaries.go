@@ -107,7 +107,7 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 		if err != nil {
 			return nil, err
 		}
-		usage := &SchoolPWAUsage{WindowDays: int(pwa.UsageWindow.Hours() / 24)}
+		usage := &SchoolPWAUsage{WindowDays: pwa.UsageWindowDays}
 		for _, row := range rows {
 			portalUsage := PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {

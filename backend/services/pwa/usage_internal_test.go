@@ -37,7 +37,7 @@ func (r *recordingUsageRepository) RecordSeen(_ context.Context, usage *iot.PWAS
 	return nil
 }
 
-func (r *recordingUsageRepository) DeleteOlderThan(_ context.Context, cutoff time.Time) (int, error) {
+func (r *recordingUsageRepository) DeleteLastSeenBefore(_ context.Context, cutoff time.Time) (int, error) {
 	r.deletedCutoff = cutoff
 	return r.deleteCount, r.deleteErr
 }

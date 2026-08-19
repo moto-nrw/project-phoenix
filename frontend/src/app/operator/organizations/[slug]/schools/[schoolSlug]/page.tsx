@@ -326,7 +326,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     // Honest wording: this counts standalone-mode usage in the window, never
     // "installed" — the browser offers no reliable install signal.
     const pwaTooltip =
-      "Nutzung als installierte App (Standalone-Modus) in den letzten 30 Tagen";
+      "App vom Startbildschirm aus benutzt (Standalone-Modus), letzte 30 Tage. Zählt keine Nutzung im Browser-Tab.";
     const pwaValue = (usage?: {
       standaloneUsers: number;
       eligibleUsers: number;

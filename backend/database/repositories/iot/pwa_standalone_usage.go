@@ -43,10 +43,12 @@ func (r *PWAStandaloneUsageRepository) RecordSeen(ctx context.Context, usage *io
 	return nil
 }
 
-// DeleteOlderThan removes rows whose last_seen_at is before cutoff and
+// DeleteLastSeenBefore removes rows whose last_seen_at is before cutoff and
 // returns the number of deleted rows. Scoped to the current tenant when one
-// is set on the context (the GDPR cleanup job runs per tenant).
-func (r *PWAStandaloneUsageRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
+// is set on the context (the GDPR cleanup job runs per tenant). Named apart
+// from the generic DeleteOlderThan, which compares a DATE column via
+// timezone.Date — last_seen_at is a TIMESTAMPTZ instant.
+func (r *PWAStandaloneUsageRepository) DeleteLastSeenBefore(ctx context.Context, cutoff time.Time) (int, error) {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*iot.PWAStandaloneUsage)(nil)).
 		ModelTableExpr(tablePWAStandaloneUsage).

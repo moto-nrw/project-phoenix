@@ -99,7 +99,7 @@ func TestPWAStandaloneUsageRepository(t *testing.T) {
 			account.ID, iotModels.PushPortalStaff)
 		require.NoError(t, err)
 
-		deleted, err := repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -30))
+		deleted, err := repo.DeleteLastSeenBefore(ctx, time.Now().AddDate(0, 0, -30))
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, deleted, 1)
 

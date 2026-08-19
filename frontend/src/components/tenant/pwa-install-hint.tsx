@@ -103,12 +103,12 @@ export function PwaInstallHint() {
     setPlatform(null);
   }, [installationCompleted]);
 
-  // Install-funnel signal (#2189): the one-tap install card became visible.
-  const promptShown = platform === "android" && oneTapInstallReady;
+  // Install-funnel signal (#2189): the install-hint card became visible —
+  // any platform, so the shown count covers the manual iOS card too.
   useEffect(() => {
-    if (!promptShown) return;
+    if (!platform) return;
     trackEvent("pwa_install_prompt_shown");
-  }, [promptShown]);
+  }, [platform]);
 
   if (!platform || installationCompleted) return null;
 

@@ -42,7 +42,9 @@ type PWAStandaloneUsageRepository interface {
 	// RecordSeen inserts or refreshes a usage row keyed by
 	// (tenant_id, account_id, portal), advancing last_seen_at.
 	RecordSeen(ctx context.Context, usage *PWAStandaloneUsage) error
-	// DeleteOlderThan removes rows of the current tenant whose last_seen_at
-	// is before cutoff and returns the number of deleted rows.
-	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error)
+	// DeleteLastSeenBefore removes rows of the current tenant whose
+	// last_seen_at is before cutoff and returns the number of deleted rows.
+	// Deliberately NOT the generic DeleteOlderThan: that one targets DATE
+	// columns via timezone.Date, while last_seen_at is a TIMESTAMPTZ instant.
+	DeleteLastSeenBefore(ctx context.Context, cutoff time.Time) (int, error)
 }

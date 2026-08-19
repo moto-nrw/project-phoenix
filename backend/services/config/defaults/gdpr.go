@@ -182,14 +182,14 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRPWAUsageRetentionDays,
 		Label:           "Aufbewahrungsdauer App-Nutzungsdaten (Tage)",
-		Description:     "Wie lange gespeichert wird, wer die App zuletzt als installierte App (vom Startbildschirm) benutzt hat. Ältere Einträge werden automatisch gelöscht.",
+		Description:     "Wie lange gespeichert wird, wer die App zuletzt vom Startbildschirm aus (Standalone-Modus) benutzt hat. Ältere Einträge werden automatisch gelöscht.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
-		SortOrder:       40,
+		SortOrder:       15,
 		Validation:      &config.ValidationRules{Min: &minPWAUsageRetentionDays, Max: &maxPWAUsageRetentionDays},
 		DependsOn: &config.Dependency{
 			Key:       config.KeyDataCleanupEnabled,

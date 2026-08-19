@@ -43,6 +43,10 @@ func (rs *Resource) Router() chi.Router {
 // mode. Idempotent: repeated reports only advance last_seen_at.
 func (rs *Resource) reportUsage(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		return
+	}
 	if err := rs.Service.ReportStaff(r.Context(), int64(claims.ID)); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("App-Nutzung konnte nicht gespeichert werden.", err))
 		return

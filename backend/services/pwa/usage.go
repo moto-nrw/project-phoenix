@@ -20,9 +20,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// UsageWindow is the reporting window of the standalone-usage metric:
-// "used the app in standalone mode within the last 30 days".
-const UsageWindow = 30 * 24 * time.Hour
+// UsageWindowDays / UsageWindow define the reporting window of the
+// standalone-usage metric: "used the app in standalone mode within the last
+// 30 days".
+const (
+	UsageWindowDays = 30
+	UsageWindow     = UsageWindowDays * 24 * time.Hour
+)
 
 // snapshotTTL bounds how often a Prometheus scrape may hit the database.
 const snapshotTTL = time.Minute
@@ -102,15 +106,16 @@ func (s *usageService) ReportParent(ctx context.Context, accountID int64) error 
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
+		prototype := iot.PWAStandaloneUsage{AccountID: accountID, Portal: iot.PushPortalParent}
+		if err := prototype.Validate(); err != nil {
+			return err
+		}
 		// A guardian mid-offboarding simply has nothing to report — never an
 		// error, the report endpoint is fire-and-forget telemetry.
 		for _, mapping := range mappings {
-			usage := &iot.PWAStandaloneUsage{AccountID: accountID, Portal: iot.PushPortalParent}
+			usage := prototype
 			usage.SetTenantID(mapping.TenantID)
-			if err := usage.Validate(); err != nil {
-				return err
-			}
-			if err := s.repo.RecordSeen(txCtx, usage); err != nil {
+			if err := s.repo.RecordSeen(txCtx, &usage); err != nil {
 				return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
 			}
 		}
@@ -137,7 +142,7 @@ func (s *usageService) CleanupExpiredUsage(ctx context.Context) (*CleanupResult,
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
-	deleted, err := s.repo.DeleteOlderThan(ctx, cutoff)
+	deleted, err := s.repo.DeleteLastSeenBefore(ctx, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("delete expired pwa usage rows: %w", err)
 	}
