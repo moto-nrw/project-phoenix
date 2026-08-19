@@ -117,6 +117,14 @@ func (m *mockRepo) AccountMatchesAnnouncement(ctx context.Context, tenantID, ann
 func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
 }
+
+// ResolveDeliveryRecipients satisfies the interface extension from #2384. These
+// tests drive plain Mitteilungen, which never take the tracked delivery path, so
+// an empty result is the correct answer rather than a stub that could mask a
+// wrong path being taken.
+func (m *mockRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+	return nil, nil
+}
 func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	return m.schoolNameFn(ctx, tenantID)
 }

@@ -35,6 +35,17 @@ type OutboxEnqueuer interface {
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
+// DeliveryRecorder is the slice of the delivery repository this package needs:
+// write the per-recipient rows behind the staff matrix, and drop them when an
+// announcement is retracted. Declared here (rather than importing the repository
+// interface wholesale) for the same reason OutboxEnqueuer is — the service
+// depends on the operations it uses, not on a data-access surface.
+type DeliveryRecorder interface {
+	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []*platformModels.EmailDelivery) error
+	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
+	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]*platformModels.EmailDeliveryStatus, error)
+}
+
 const (
 	maxTitleLen   = 200
 	maxBodyLen    = 4000
@@ -136,8 +147,12 @@ type ServiceConfig struct {
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
 	Preferences notifications.PreferenceService
-	ParentsURL  string
-	Logger      *slog.Logger
+	// Deliveries records who an Elternbrief was addressed to and what happened
+	// to their mail. Optional: without it the letter still publishes and mails
+	// still go out, only the staff matrix stays empty.
+	Deliveries DeliveryRecorder
+	ParentsURL string
+	Logger     *slog.Logger
 }
 
 type service struct {
@@ -146,6 +161,7 @@ type service struct {
 	outbox      OutboxEnqueuer
 	notifier    notifications.Service
 	preferences notifications.PreferenceService
+	deliveries  DeliveryRecorder
 	parentsURL  string
 	logger      *slog.Logger
 }
@@ -162,6 +178,7 @@ func NewService(cfg ServiceConfig) Service {
 		outbox:      cfg.Outbox,
 		notifier:    cfg.Notifier,
 		preferences: cfg.Preferences,
+		deliveries:  cfg.Deliveries,
 		parentsURL:  cfg.ParentsURL,
 		logger:      logger,
 	}
@@ -367,6 +384,11 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if err := s.cancelPendingEmails(ctx, id); err != nil {
 		return err
 	}
+	// Delivery rows carry the same weak link (related_entity_id, no FK), so they
+	// need the same explicit cleanup.
+	if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("announcement: delete: %w", err)
 	}
@@ -445,7 +467,16 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			// into e-mail for an announcement expects it to leave. The e-mail
 			// path applies its own consent rule (see enqueueAnnouncementEmails).
 			if fresh.SendEmail {
-				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
+				// An Elternbrief (and any announcement mailing beyond the portal
+				// audience) takes the tracked path: it records one delivery row per
+				// addressed person, including the ones that get nothing, because the
+				// recipient matrix is the deliverable. Everything else keeps the
+				// original untracked path unchanged.
+				enqueue := s.enqueueAnnouncementEmails
+				if needsDeliveryTracking(fresh) {
+					enqueue = s.enqueueTrackedEmails
+				}
+				if err := enqueue(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
 				}
 			}
@@ -741,6 +772,27 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	return nil
 }
 
+// dropDeliveryRows removes the recipient matrix of a retracted or deleted
+// announcement. A republish resolves the audience live and writes a fresh set,
+// so keeping the old rows would only show a matrix for a wording parents never
+// saw — and would strand recipients who have since been unlinked.
+func (s *service) dropDeliveryRows(ctx context.Context, tenantID, id int64) error {
+	if s.deliveries == nil {
+		return nil
+	}
+	dropped, err := s.deliveries.DeleteForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
+	if err != nil {
+		return fmt.Errorf("announcement: drop delivery rows: %w", err)
+	}
+	if dropped > 0 {
+		s.logger.Info("parent announcement delivery rows dropped",
+			slog.Int64("announcement_id", id),
+			slog.Int64("dropped", dropped),
+		)
+	}
+	return nil
+}
+
 func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -757,6 +809,9 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 		// unpublish -> edit -> republish, so a still-pending mail with the old
 		// wording must not go out after the announcement is pulled.
 		if err := s.cancelPendingEmails(ctx, id); err != nil {
+			return nil, err
+		}
+		if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
 			return nil, err
 		}
 		a.PublishedAt = nil

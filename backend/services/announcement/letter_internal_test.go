@@ -1,0 +1,361 @@
+package announcement
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"testing"
+	"time"
+
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+)
+
+// --- doubles -----------------------------------------------------------------
+//
+// Deliberately separate from the fakes in service_publish_internal_test.go: that
+// fakeOutbox returns an outbox row with id 0, which cannot express "this mail was
+// queued and here is its id" — the exact link the delivery matrix is built on.
+
+type letterRepo struct {
+	usersModels.ParentAnnouncementRepository
+	announcement *usersModels.ParentAnnouncement
+	recipients   []*usersModels.AnnouncementDeliveryRecipient
+}
+
+func (r *letterRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+	return r.announcement, nil
+}
+
+func (r *letterRepo) ListTargets(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+	return nil, nil
+}
+
+func (r *letterRepo) ListOptions(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementOption, error) {
+	return nil, nil
+}
+
+func (r *letterRepo) PublishIfDraft(_ context.Context, _ int64, publishedAt time.Time) (bool, error) {
+	r.announcement.PublishedAt = &publishedAt
+	return true, nil
+}
+
+func (r *letterRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {
+	r.announcement.PublishedAt = publishedAt
+	return nil
+}
+
+func (r *letterRepo) SchoolName(_ context.Context, _ int64) (string, error) {
+	return "OGS Testschule", nil
+}
+
+func (r *letterRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+	return nil, nil
+}
+
+func (r *letterRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+	return r.recipients, nil
+}
+
+// letterOutbox hands out increasing ids so a delivery row can point at a real
+// outbox entry.
+type letterOutbox struct {
+	requests []platformService.EnqueueRequest
+	nextID   int64
+	cancels  int
+}
+
+func (o *letterOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	o.requests = append(o.requests, req)
+	o.nextID++
+	row := &platformModels.EmailOutbox{}
+	row.ID = o.nextID
+	return row, nil
+}
+
+func (o *letterOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
+	o.cancels++
+	return 0, nil
+}
+
+type letterDeliveries struct {
+	rows     []*platformModels.EmailDelivery
+	replaced int
+	deleted  int
+}
+
+func (d *letterDeliveries) ReplaceForEntity(_ context.Context, _ int64, _ string, _ int64, rows []*platformModels.EmailDelivery) error {
+	d.replaced++
+	d.rows = rows
+	return nil
+}
+
+func (d *letterDeliveries) DeleteForEntity(_ context.Context, _ int64, _ string, _ int64) (int64, error) {
+	d.deleted++
+	n := int64(len(d.rows))
+	d.rows = nil
+	return n, nil
+}
+
+func (d *letterDeliveries) ListForEntity(_ context.Context, _ int64, _ string, _ int64) ([]*platformModels.EmailDeliveryStatus, error) {
+	return nil, nil
+}
+
+func contact(profileID int64, accountID *int64, email string, portal bool) *usersModels.AnnouncementDeliveryRecipient {
+	return &usersModels.AnnouncementDeliveryRecipient{
+		GuardianProfileID: profileID,
+		AccountID:         accountID,
+		FirstName:         "Vor",
+		LastName:          "Nach",
+		Email:             email,
+		HasPortalAccess:   portal,
+	}
+}
+
+func acct(id int64) *int64 { return &id }
+
+func letterDraft(mode, audience string) *usersModels.ParentAnnouncement {
+	a := &usersModels.ParentAnnouncement{
+		Title:                   "Ausflug",
+		Body:                    "Liebe Eltern, am Freitag fahren wir in den Zoo.",
+		Priority:                usersModels.ParentAnnouncementPriorityInfo,
+		SendEmail:               true,
+		RequiresAcknowledgement: mode == usersModels.ParentAnnouncementDeliveryLetter,
+		DeliveryMode:            mode,
+		EmailAudience:           audience,
+		Active:                  true,
+	}
+	a.ID = 42
+	a.TenantID = 7
+	return a
+}
+
+func newLetterService(repo *letterRepo, outbox *letterOutbox, deliveries *letterDeliveries) Service {
+	return NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   &fakeNotifier{},
+		Outbox:     outbox,
+		Deliveries: deliveries,
+		ParentsURL: "https://eltern.example.test",
+		Logger:     slog.Default(),
+	})
+}
+
+// --- tests -------------------------------------------------------------------
+
+// The whole point of the Elternbrief: the parent can read the letter without
+// opening the app, and is told where the binding confirmation happens.
+func TestPublishLetterMailCarriesBodyAndAckHint(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+	}
+	outbox := &letterOutbox{}
+	svc := newLetterService(repo, outbox, &letterDeliveries{})
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("queued %d mails, want 1", len(outbox.requests))
+	}
+	payload := outbox.requests[0].Payload
+
+	if got := payload[emailPayloadBody]; got != repo.announcement.Body {
+		t.Errorf("body = %q, want the announcement body", got)
+	}
+	if got, _ := payload[emailPayloadAckRequired].(bool); !got {
+		t.Error("ack_required must be true for an Elternbrief")
+	}
+	if got, _ := payload[emailPayloadKicker].(string); got != letterEmailKicker {
+		t.Errorf("kicker = %q, want %q", got, letterEmailKicker)
+	}
+	// The link must point at the letter, not at the portal root.
+	url, _ := payload[emailPayloadPortalURL].(string)
+	if !strings.Contains(url, "brief=42") {
+		t.Errorf("portal_url = %q, want a deep link containing brief=42", url)
+	}
+	if key := outbox.requests[0].IdempotencyKey; key == "" || !strings.Contains(key, "mama@example.test") {
+		t.Errorf("idempotency key = %q, want one scoped to the address", key)
+	}
+}
+
+// A plain Mitteilung must keep the pre-#2384 behaviour exactly: no body in the
+// mail, no delivery rows.
+func TestPublishStandardAnnouncementStaysUntracked(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly),
+		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+	}
+	deliveries := &letterDeliveries{}
+	// ResolveAudienceEmails is what the untracked path uses; the embedded nil
+	// interface would panic if the tracked path were taken by mistake, which is
+	// exactly the regression this test guards.
+	svc := newLetterService(repo, &letterOutbox{}, deliveries)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected the untracked path (which this fake does not implement)")
+		}
+		if deliveries.replaced != 0 {
+			t.Errorf("delivery rows written %d times, want 0 for a plain Mitteilung", deliveries.replaced)
+		}
+	}()
+	_, _ = svc.Publish(context.Background(), 42)
+}
+
+// The matrix has to show the people who get nothing — that is the data the
+// school needs in order to fix it.
+func TestPublishLetterRecordsUnreachableRecipients(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+			contact(1, acct(11), "mama@example.test", true), // ok
+			contact(2, acct(12), "", true),                  // keine Adresse
+			contact(3, nil, "opa@example.test", false),      // kein Portalzugang
+		},
+	}
+	outbox := &letterOutbox{}
+	deliveries := &letterDeliveries{}
+	svc := newLetterService(repo, outbox, deliveries)
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("queued %d mails, want 1 (only the reachable guardian)", len(outbox.requests))
+	}
+	if len(deliveries.rows) != 3 {
+		t.Fatalf("recorded %d delivery rows, want 3 (everyone addressed)", len(deliveries.rows))
+	}
+	want := map[int64]string{
+		1: platformModels.ReachabilityOK,
+		2: platformModels.ReachabilityNoEmail,
+		3: platformModels.ReachabilityNoPortal,
+	}
+	for _, row := range deliveries.rows {
+		got := row.Reachability
+		if exp := want[*row.GuardianProfileID]; got != exp {
+			t.Errorf("guardian %d: reachability = %q, want %q", *row.GuardianProfileID, got, exp)
+		}
+		if got == platformModels.ReachabilityOK && !row.Queued() {
+			t.Errorf("guardian %d: reachable but no outbox row linked", *row.GuardianProfileID)
+		}
+		if got != platformModels.ReachabilityOK && row.Queued() {
+			t.Errorf("guardian %d: unreachable but a mail was queued", *row.GuardianProfileID)
+		}
+	}
+}
+
+// all_contacts is the school saying "this content may leave the portal". The
+// person still cannot acknowledge, and the row must keep saying so.
+func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
+		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+			contact(1, acct(11), "mama@example.test", true),
+			contact(3, nil, "opa@example.test", false),
+		},
+	}
+	outbox := &letterOutbox{}
+	deliveries := &letterDeliveries{}
+	svc := newLetterService(repo, outbox, deliveries)
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(outbox.requests) != 2 {
+		t.Fatalf("queued %d mails, want 2 (portal and non-portal guardian)", len(outbox.requests))
+	}
+	for _, row := range deliveries.rows {
+		if !row.Queued() {
+			t.Errorf("guardian %d: expected a queued mail with all_contacts", *row.GuardianProfileID)
+		}
+		if *row.GuardianProfileID == 3 && row.Reachability != platformModels.ReachabilityOK {
+			t.Errorf("guardian 3: reachability = %q, want ok once mailed", row.Reachability)
+		}
+	}
+}
+
+// Two guardians of the same child often share one mailbox. One mail, two rows,
+// both correctly reported as sent — sending twice to the same address would look
+// like spam and break "genau ein E-Mail-Versand pro adressierter Adresse".
+func TestPublishLetterSharedAddressSendsOnce(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+			contact(1, acct(11), "familie@example.test", true),
+			contact(2, acct(12), "  Familie@Example.test ", true),
+		},
+	}
+	outbox := &letterOutbox{}
+	deliveries := &letterDeliveries{}
+	svc := newLetterService(repo, outbox, deliveries)
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("queued %d mails, want 1 for a shared address", len(outbox.requests))
+	}
+	if len(deliveries.rows) != 2 {
+		t.Fatalf("recorded %d delivery rows, want 2", len(deliveries.rows))
+	}
+	first, second := deliveries.rows[0], deliveries.rows[1]
+	if !first.Queued() || !second.Queued() {
+		t.Fatal("both guardians must be linked to the queued mail")
+	}
+	if *first.OutboxID != *second.OutboxID {
+		t.Errorf("outbox ids %d and %d differ; both rows describe the same mail",
+			*first.OutboxID, *second.OutboxID)
+	}
+}
+
+// Retracting must clear the matrix: a republish resolves the audience live, and
+// a stale row would describe a wording parents never saw.
+func TestUnpublishDropsDeliveryRows(t *testing.T) {
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+	}
+	deliveries := &letterDeliveries{}
+	svc := newLetterService(repo, &letterOutbox{}, deliveries)
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(deliveries.rows) == 0 {
+		t.Fatal("precondition: expected delivery rows after publish")
+	}
+	if _, err := svc.Unpublish(context.Background(), 42); err != nil {
+		t.Fatalf("Unpublish: %v", err)
+	}
+	if deliveries.deleted == 0 {
+		t.Error("Unpublish must drop the delivery rows")
+	}
+	if len(deliveries.rows) != 0 {
+		t.Errorf("%d delivery rows survived the retraction", len(deliveries.rows))
+	}
+}
+
+// The correction path (unpublish → edit → republish) must send again, while a
+// retry of the same publication must not.
+func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	first := time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+	a.PublishedAt = &first
+	keyA := letterIdempotencyKey(a, "mama@example.test")
+	if keyA != letterIdempotencyKey(a, "mama@example.test") {
+		t.Error("same publication must produce a stable key")
+	}
+	if keyA == letterIdempotencyKey(a, "papa@example.test") {
+		t.Error("different addresses must produce different keys")
+	}
+	second := first.Add(time.Hour)
+	a.PublishedAt = &second
+	if keyA == letterIdempotencyKey(a, "mama@example.test") {
+		t.Error("a republication must produce a new key so the correction is delivered")
+	}
+}

@@ -578,6 +578,65 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	return rows, nil
 }
 
+// ResolveDeliveryRecipients returns every guardian linked to a child the
+// announcement's student-based targets reach, with no portal-access filter —
+// the input for the per-recipient delivery rows behind the staff matrix (#2384).
+//
+// Two things make this different from ResolveAudienceEmails, and both are the
+// point: guardians WITHOUT parent_portal.access are included (so the matrix can
+// show "kein Portalzugang" instead of silently omitting the person), and
+// guardians without an address are included (so the school sees the gap it has
+// to fix). Whether such a person is actually mailed is the caller's decision,
+// taken from the announcement's email_audience.
+//
+// has_portal_access is aggregated with bool_or across the reached children: a
+// guardian who has portal access for one addressed child but not another can
+// see the announcement, so they count as reachable in moto.
+func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementDeliveryRecipient, error) {
+	var rows []*users.AnnouncementDeliveryRecipient
+	sqlStr := fmt.Sprintf(`
+		SELECT gp.id AS guardian_profile_id,
+			gp.account_id,
+			COALESCE(gp.first_name, '') AS first_name,
+			COALESCE(gp.last_name, '')  AS last_name,
+			COALESCE(LOWER(BTRIM(gp.email)), '') AS email,
+			COALESCE(gp.portal_locale, '') AS portal_locale,
+			bool_or(
+				sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND gp.account_id IS NOT NULL
+				AND EXISTS (
+					SELECT 1 FROM auth.account_tenants act
+					WHERE act.account_id = gp.account_id
+						AND act.tenant_id = gp.tenant_id
+						AND act.status = 'active'
+				)
+			) AS has_portal_access
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = ? AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		-- Same alumnus rule as every other audience query (#405): a graduated
+		-- child's guardians drop out entirely.
+		AND s.status <> 'alumnus'
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+		GROUP BY gp.id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale
+		ORDER BY LOWER(COALESCE(gp.last_name, '')), LOWER(COALESCE(gp.first_name, '')), gp.id`,
+		activeActivityGroupExists("?"))
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement delivery recipients", Err: err}
+	}
+	return rows, nil
+}
+
 // SchoolName returns the tenant's school name (empty when unknown).
 func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	var name string

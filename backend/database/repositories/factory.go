@@ -205,6 +205,7 @@ type Factory struct {
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
 	EmailOutbox              platformModels.EmailOutboxCleanupRepository
+	EmailDelivery            platformModels.EmailDeliveryRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -422,6 +423,7 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+		EmailDelivery:            platformRepo.NewEmailDeliveryRepository(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),

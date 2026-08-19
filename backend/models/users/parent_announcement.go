@@ -358,6 +358,26 @@ type AnnouncementRecipient struct {
 	LastName  string `bun:"last_name"`
 }
 
+// AnnouncementDeliveryRecipient is one guardian linked to a reached child,
+// resolved WITHOUT the portal-access filter that ResolveAudienceEmails applies.
+// It is the input for the per-recipient delivery rows behind the staff matrix
+// (#2384), which must also show the people that get nothing — a guardian with
+// no address, or one without portal access.
+//
+// HasPortalAccess is true when the guardian can actually see the announcement in
+// moto: a students_guardians link granting parent_portal.access on at least one
+// reached child, a linked account, and an active tenant membership. Only those
+// people can ever acknowledge.
+type AnnouncementDeliveryRecipient struct {
+	GuardianProfileID int64  `bun:"guardian_profile_id"`
+	AccountID         *int64 `bun:"account_id"`
+	FirstName         string `bun:"first_name"`
+	LastName          string `bun:"last_name"`
+	Email             string `bun:"email"`
+	HasPortalAccess   bool   `bun:"has_portal_access"`
+	PortalLocale      string `bun:"portal_locale"`
+}
+
 // AnnouncementRecipientStatus is one guardian account in an announcement's
 // live audience together with that account's read/ack state — the staff-facing
 // "wer hat gelesen/bestätigt" list behind the reach counts. Resolved live, so
@@ -453,6 +473,15 @@ type ParentAnnouncementRepository interface {
 	// non-empty e-mail) an announcement currently reaches, for the publish-time
 	// e-mail notification.
 	ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
+	// ResolveDeliveryRecipients returns EVERY guardian linked to a child the
+	// announcement's student-based targets reach — including those without an
+	// address and those without portal access — so the recipient matrix can show
+	// who gets nothing and why. Unlike ResolveAudienceEmails it applies no
+	// parent_portal.access filter; the caller decides who is mailed from the
+	// announcement's email_audience. The pending_enrollment target is deliberately
+	// not covered: those guardians have no student link, and an Elternbrief may
+	// not target them at all.
+	ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementDeliveryRecipient, error)
 	// SchoolName returns the tenant's school name (for e-mail greetings/subject).
 	SchoolName(ctx context.Context, tenantID int64) (string, error)
 	// AudienceRecipients returns the guardian accounts an announcement currently
