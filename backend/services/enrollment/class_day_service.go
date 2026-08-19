@@ -29,11 +29,12 @@ type ClassDayRow struct {
 	LastName  string `json:"last_name"`
 	// ListEntry marks a class-list-only entry (#2382): a child of the class
 	// cohort with NO OGS record ("Keine Betreuung"). StudentID is 0;
-	// ListEntryID carries the users.class_list_entries id. The row never
-	// stays, never has offerings, times or a departure plan — and unlike a
-	// missing plan of an OGS child, that is a statement, not a gap.
+	// ListEntryID carries the users.class_list_entries id, serialized as a
+	// JSON string because JavaScript clients round numbers beyond 2^53. The
+	// row never stays, never has offerings, times or a departure plan — and
+	// unlike a missing plan of an OGS child, that is a statement, not a gap.
 	ListEntry   bool     `json:"list_entry,omitempty"`
-	ListEntryID int64    `json:"list_entry_id,omitempty"`
+	ListEntryID int64    `json:"list_entry_id,string,omitempty"`
 	GroupName   string   `json:"group_name,omitempty"`
 	Registered  bool     `json:"registered"`
 	StaysToday  bool     `json:"stays_today"`

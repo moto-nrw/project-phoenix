@@ -14,6 +14,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
+import { SectionCard } from "~/components/ui/section-card";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -71,6 +72,14 @@ function rowStatusFor(errors: ImportError[]): RowStatus {
   if (errors.some((e) => e.severity === "error")) return "error";
   if (errors.some((e) => e.severity === "warning")) return "warning";
   return "new";
+}
+
+// The generic import engine records rows that are already on the class list
+// as already_exists row errors and never fills SkippedCount — the skipped
+// share has to be derived from the row results.
+function countAlreadyExists(rows: ImportRowResult[]): number {
+  return rows.filter((r) => r.Errors.some((e) => e.code === "already_exists"))
+    .length;
 }
 
 function toDisplayEntry(row: ImportRowResult): DisplayEntry {
@@ -261,8 +270,11 @@ export default function ClassListImportPage() {
         // Partial success: keep preview visible so the user sees which rows
         // were skipped (already on the class list) or failed.
         setPreviewData(importData.Errors.map(toDisplayEntry));
+        const skipped = countAlreadyExists(importData.Errors);
+        const failed = importData.ErrorCount - skipped;
         toast.warning(
-          `${importData.CreatedCount} angelegt, ${importData.ErrorCount} übersprungen`,
+          `${importData.CreatedCount} angelegt, ${skipped} übersprungen` +
+            (failed > 0 ? `, ${failed} fehlgeschlagen` : ""),
         );
       } else {
         setImportComplete(true);
@@ -319,11 +331,12 @@ export default function ClassListImportPage() {
     }
   };
 
+  const existingCount = countAlreadyExists(importResult?.Errors ?? []);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.SkippedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: existingCount,
+    errors: (importResult?.ErrorCount ?? 0) - existingCount,
   };
 
   if (status === "loading") {
@@ -339,58 +352,49 @@ export default function ClassListImportPage() {
       <BackButton referrer="/database/students/class-list" />
 
       {/* Info Section */}
-      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <Info
-              className="text-moto-blue-strong h-6 w-6"
-              aria-hidden="true"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              Sammelimport für Klassenlisteneinträge
-            </h3>
-            <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>
-                Tragen Sie pro Kind nur Vorname, Nachname und Klasse ein — mehr
-                braucht ein Klassenlisteneintrag nicht
-              </li>
-              <li>
-                Kinder, die bereits in moto angelegt sind, werden übersprungen —
-                sie stehen schon auf der Klassenliste
-              </li>
-              <li>
-                Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-              </li>
-              <li>Bestätigen Sie den Import</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <SectionCard
+        kicker="Klassenliste"
+        title="Sammelimport für Klassenlisteneinträge"
+        icon={Info}
+      >
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>
+            Tragen Sie pro Kind nur Vorname, Nachname und Klasse ein — mehr
+            braucht ein Klassenlisteneintrag nicht
+          </li>
+          <li>
+            Kinder, die bereits in moto angelegt sind, werden übersprungen — sie
+            stehen schon auf der Klassenliste
+          </li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
         <div className="relative">
           <Alert type="error" message={error} />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Download Template */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 1: Vorlage herunterladen
-        </h3>
+      <SectionCard
+        kicker="Schritt 1"
+        title="Vorlage herunterladen"
+        icon={Download}
+      >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -437,7 +441,7 @@ export default function ClassListImportPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
       {/* Upload Section */}
       <UploadSection
@@ -461,18 +465,12 @@ export default function ClassListImportPage() {
             errors={stats.errors}
           />
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
-            <div className="border-b border-gray-100 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <ListChecks
-                  className="h-5 w-5 text-gray-600"
-                  aria-hidden="true"
-                />
-                Schritt 3: Datenvorschau
-              </h3>
-            </div>
-
-            <div className="space-y-2 p-3">
+          <SectionCard
+            kicker="Schritt 3"
+            title="Datenvorschau"
+            icon={ListChecks}
+          >
+            <div className="space-y-2">
               {previewData.map((entry, idx) => (
                 <StudentRowCard
                   key={entry.row}
@@ -488,7 +486,7 @@ export default function ClassListImportPage() {
                 />
               ))}
             </div>
-          </div>
+          </SectionCard>
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />

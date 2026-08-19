@@ -123,7 +123,7 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	body := rec.Body.String()
 	assert.Contains(t, body, "Klassentag")
 	assert.Contains(t, body, "NurListe")
-	assert.Contains(t, body, fmt.Sprintf(`"list_entry_id":%d`, entry.ID))
+	assert.Contains(t, body, fmt.Sprintf(`"list_entry_id":"%d"`, entry.ID))
 	assert.Contains(t, body, `"list_entry":true`)
 }
 

@@ -195,11 +195,12 @@ type ClassRosterRow struct {
 	EnrollmentSummary string `json:"enrollment_summary"`
 	// ListEntry marks a class-list-only entry (#2382): a child of the class
 	// cohort with NO OGS record. StudentID is 0 for these rows; ListEntryID
-	// carries the users.class_list_entries id instead. The row exists only so
-	// the Klassenverband is complete — it can never carry offerings, times or
-	// guardians.
+	// carries the users.class_list_entries id instead, serialized as a JSON
+	// string because JavaScript clients round numbers beyond 2^53. The row
+	// exists only so the Klassenverband is complete — it can never carry
+	// offerings, times or guardians.
 	ListEntry      bool                   `json:"list_entry,omitempty"`
-	ListEntryID    int64                  `json:"list_entry_id,omitempty"`
+	ListEntryID    int64                  `json:"list_entry_id,string,omitempty"`
 	Offerings      []CareUsageRowOffering `json:"offerings"`
 	OfferingsByDay map[string][]string    `json:"offerings_by_day"`
 	CareDays       []string               `json:"care_days"`
