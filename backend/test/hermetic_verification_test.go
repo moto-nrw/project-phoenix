@@ -1188,6 +1188,7 @@ var serialTestBaseline = map[string]int{
 	"api/iot":                           7,
 	"api/iot/checkin":                   14,
 	"api/operator":                      30,
+	"api/schedules":                     2,
 	"api/staff":                         15,
 	"api/staff-shifts":                  1,
 	"api/students":                      13,
