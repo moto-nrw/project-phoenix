@@ -1633,9 +1633,11 @@ type careDiffSource struct {
 	studentDone bool
 
 	arrivalMap  map[int]string
+	arrivalErr  error
 	arrivalDone bool
 
 	pickupMap  map[int]string
+	pickupErr  error
 	pickupDone bool
 }
 
@@ -1652,33 +1654,36 @@ func (d *careDiffSource) getStudent(ctx context.Context) (*usersModels.Student, 
 	return d.student, d.studentErr
 }
 
-// getArrival / getPickup are best-effort: a load failure yields an empty map
-// so the diff shows "—" as the current value rather than failing the whole
-// diff.
-func (d *careDiffSource) getArrival(ctx context.Context) map[int]string {
+func (d *careDiffSource) getArrival(ctx context.Context) (map[int]string, error) {
 	if !d.arrivalDone {
 		d.arrivalDone = true
 		d.arrivalMap = map[int]string{}
-		if cur, err := d.s.arrival.GetStudentArrivalSchedules(ctx, d.studentID); err == nil {
-			for _, a := range cur {
-				d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
-			}
+		cur, err := d.s.arrival.GetStudentArrivalSchedules(ctx, d.studentID)
+		if err != nil {
+			d.arrivalErr = fmt.Errorf("schedule: load arrival schedules for diff: %w", err)
+			return nil, d.arrivalErr
+		}
+		for _, a := range cur {
+			d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
 		}
 	}
-	return d.arrivalMap
+	return d.arrivalMap, d.arrivalErr
 }
 
-func (d *careDiffSource) getPickup(ctx context.Context) map[int]string {
+func (d *careDiffSource) getPickup(ctx context.Context) (map[int]string, error) {
 	if !d.pickupDone {
 		d.pickupDone = true
 		d.pickupMap = map[int]string{}
-		if cur, err := d.s.pickup.GetStudentPickupSchedules(ctx, d.studentID); err == nil {
-			for _, pc := range cur {
-				d.pickupMap[pc.Weekday] = pc.PickupTime.Format("15:04")
-			}
+		cur, err := d.s.pickup.GetStudentPickupSchedules(ctx, d.studentID)
+		if err != nil {
+			d.pickupErr = fmt.Errorf("schedule: load pickup schedules for diff: %w", err)
+			return nil, d.pickupErr
+		}
+		for _, pc := range cur {
+			d.pickupMap[pc.Weekday] = pc.PickupTime.Format("15:04")
 		}
 	}
-	return d.pickupMap
+	return d.pickupMap, d.pickupErr
 }
 
 func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, src *careDiffSource, payload map[string]any) ([]RequestDiffEntry, error) {
@@ -1691,8 +1696,14 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 		return nil, err
 	}
 
-	arrivalMap := src.getArrival(ctx)
-	pickupMap := src.getPickup(ctx)
+	arrivalMap, err := src.getArrival(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pickupMap, err := src.getPickup(ctx)
+	if err != nil {
+		return nil, err
+	}
 	hasCarePlan := len(arrivalMap) > 0 || len(pickupMap) > 0
 
 	weekdays := append([]careWeekdayPayload(nil), p.Weekdays...)

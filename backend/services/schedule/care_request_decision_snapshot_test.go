@@ -6,6 +6,9 @@ package schedule_test
 // Hermetic: real test DB, fixtures with cleanup, no hardcoded IDs.
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -16,6 +19,15 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+type failingPickupReadService struct {
+	schedule.PickupScheduleService
+	err error
+}
+
+func (s failingPickupReadService) GetStudentPickupSchedules(context.Context, int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	return nil, s.err
+}
 
 // upsertMondayPickup writes the child's live Monday pickup time directly —
 // the "data changed after the decision" step of the freeze scenario.
@@ -102,6 +114,35 @@ func TestDecide_RejectAlsoFreezesDiff(t *testing.T) {
 		Weekday:  1,
 		CareKind: schedule.DiffCareKindPickup,
 	}}, item.Diff)
+}
+
+func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
+	f := newCareFixture(t)
+	readErr := errors.New("pickup plan unavailable")
+	rejectingService := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+	req := f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "pickup": "16:00"},
+	))
+
+	_, err := rejectingService.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "nicht möglich", ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	item := historyItemByID(t, f, req.ID)
+	assert.Nil(t, item.Diff, "an unavailable pickup plan must not produce a fabricated snapshot")
+	assert.NotEmpty(t, item.Requested, "history must fall back to the payload summary")
 }
 
 // TestWithdraw_LeavesNoSnapshot: a guardian withdrawal is not a staff
