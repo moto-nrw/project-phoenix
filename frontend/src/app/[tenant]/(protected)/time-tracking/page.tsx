@@ -143,13 +143,25 @@ function getErrorMessage(err: unknown): string {
   return "";
 }
 
+// Reads the stable machine code of a failed request. `buildApiError` puts it on
+// `ApiError.code` and leaves `message` as the human-readable backend text, so
+// the code is never in the message; the JSON fallback covers the callers that
+// surface the raw response body as the message instead.
+function getErrorCode(err: unknown): string | undefined {
+  if (err !== null && typeof err === "object" && "code" in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code !== "") return code;
+  }
+  return /"code":"([^"]+)"/.exec(getErrorMessage(err))?.[1];
+}
+
 // Maps backend error messages to user-friendly German messages
 function friendlyError(err: unknown, fallback: string): string {
   const msg = getErrorMessage(err);
 
   // Stable machine codes win over the human-readable message: their text can
   // carry dynamic content (e.g. the conflicting interval of an overlap).
-  const stableCode = /"code":"([^"]+)"/.exec(msg)?.[1];
+  const stableCode = getErrorCode(err);
   if (stableCode === "work_session_overlap") {
     return "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.";
   }

@@ -36,45 +36,55 @@ func init() {
 // time — which also keeps the kiosk's concurrent-scan race detection working:
 // two simultaneous check-ins both insert an open row, and the loser still
 // hits a unique violation.
+//
+// Both directions swap the two guards inside ONE transaction: the table must
+// never be left without any uniqueness protection, which is exactly what a
+// failing second statement would cause if the first had already committed.
 func workSessionBlocksUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.305: Allowing multiple work session blocks per day...")
 
-	if _, err := db.NewRaw(`
-		ALTER TABLE active.work_sessions
-		DROP CONSTRAINT IF EXISTS uq_work_sessions_staff_date;
-	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed dropping uq_work_sessions_staff_date: %w", err)
-	}
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			CREATE UNIQUE INDEX IF NOT EXISTS uq_work_sessions_staff_date_open
+			ON active.work_sessions (staff_id, date)
+			WHERE check_out_time IS NULL;
+		`); err != nil {
+			return fmt.Errorf("failed creating uq_work_sessions_staff_date_open: %w", err)
+		}
 
-	if _, err := db.NewRaw(`
-		CREATE UNIQUE INDEX IF NOT EXISTS uq_work_sessions_staff_date_open
-		ON active.work_sessions (staff_id, date)
-		WHERE check_out_time IS NULL;
-	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed creating uq_work_sessions_staff_date_open: %w", err)
-	}
+		if _, err := tx.ExecContext(ctx, `
+			ALTER TABLE active.work_sessions
+			DROP CONSTRAINT IF EXISTS uq_work_sessions_staff_date;
+		`); err != nil {
+			return fmt.Errorf("failed dropping uq_work_sessions_staff_date: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // workSessionBlocksDown restores the strict one-per-day constraint. This can
 // only succeed while no staff member has recorded more than one block on a
-// single day; days with multiple blocks must be merged manually first.
+// single day; days with multiple blocks must be merged manually first. When
+// that is not the case the ADD CONSTRAINT fails, the transaction rolls back,
+// and the partial index stays in place — the table keeps the guard it had.
 func workSessionBlocksDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.305: Restoring one work session per day...")
 
-	if _, err := db.NewRaw(`
-		DROP INDEX IF EXISTS active.uq_work_sessions_staff_date_open;
-	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed dropping uq_work_sessions_staff_date_open: %w", err)
-	}
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			ALTER TABLE active.work_sessions
+			ADD CONSTRAINT uq_work_sessions_staff_date UNIQUE (staff_id, date);
+		`); err != nil {
+			return fmt.Errorf("failed restoring uq_work_sessions_staff_date: %w", err)
+		}
 
-	if _, err := db.NewRaw(`
-		ALTER TABLE active.work_sessions
-		ADD CONSTRAINT uq_work_sessions_staff_date UNIQUE (staff_id, date);
-	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed restoring uq_work_sessions_staff_date: %w", err)
-	}
+		if _, err := tx.ExecContext(ctx, `
+			DROP INDEX IF EXISTS active.uq_work_sessions_staff_date_open;
+		`); err != nil {
+			return fmt.Errorf("failed dropping uq_work_sessions_staff_date_open: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }

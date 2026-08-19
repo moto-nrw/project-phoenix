@@ -148,15 +148,10 @@ export function AdminSessionEditModal({
         session_id: session?.id ?? null,
         error: msg,
       });
-      // The overlap 409 carries a stable code (#2402); its message holds the
-      // dynamic conflicting interval and is not user-presentable as-is.
-      if (msg.includes('"code":"work_session_overlap"')) {
-        setError(
-          "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
-        );
-      } else {
-        setError(msg || "Speichern fehlgeschlagen.");
-      }
+      // The overlap 409 carries a stable code (#2402); staffSessionService
+      // already maps it to its German message, the raw backend text (with the
+      // dynamic conflicting interval) never reaches here.
+      setError(msg || "Speichern fehlgeschlagen.");
     } finally {
       setIsSaving(false);
     }

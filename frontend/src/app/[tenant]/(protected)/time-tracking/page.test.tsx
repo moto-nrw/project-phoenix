@@ -4118,13 +4118,14 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
-      // The message carries the conflicting interval — only the code is a
-      // usable mapping key.
-      vi.mocked(timeTrackingService.checkIn).mockRejectedValue(
-        new Error(
-          '{"status":"error","error":"work session overlaps an existing block (08:00–12:00)","code":"work_session_overlap"}',
-        ),
+      // Exactly what buildApiError produces: the human-readable backend text
+      // (carrying the conflicting interval) as the message, the stable code on
+      // the error object — never inside the message.
+      const overlapError = Object.assign(
+        new Error("work session overlaps an existing block (08:00–12:00)"),
+        { status: 409, code: "work_session_overlap" },
       );
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValue(overlapError);
       render(<TimeTrackingPage />);
 
       selectPresentMode();

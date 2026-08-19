@@ -1300,9 +1300,9 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to update session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to update session: ${response.statusText}`,
       );
     }
   }
@@ -1322,12 +1322,29 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to create session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to create session: ${response.statusText}`,
       );
     }
   }
+}
+
+// Admin session writes fail with a stable code; the accompanying message
+// carries dynamic content (the conflicting interval) and is not presentable
+// as-is, so the mapping happens here instead of by sniffing the raw body in
+// the modal.
+async function throwSessionWriteError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  const error = await readStaffAPIError(response, fallback);
+  if (error.code === "work_session_overlap") {
+    throw new Error(
+      "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+    );
+  }
+  throw new Error(error.message);
 }
 
 interface StaffAPIError {
