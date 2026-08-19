@@ -30,7 +30,7 @@ export const ManyTabsMobileDropdown: Story = {
       { id: "students", label: "Schüler" },
       { id: "settings", label: "Einstellungen" },
       { id: "activities", label: "Aktivitäten" },
-      { id: "feedback", label: "Feedback" },
+      { id: "rooms", label: "Räume" },
     ],
     activeTab: "activities",
   },
