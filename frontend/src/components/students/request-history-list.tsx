@@ -12,10 +12,6 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
@@ -41,53 +37,9 @@ import {
   fieldLabel,
   formatValue as formatMasterDataValue,
 } from "~/components/students/master-data-review-list";
+import { RequestReviewCard } from "~/components/students/request-review-card";
 
 const logger = createLogger({ component: "RequestHistoryList" });
-
-const STATUS_META: Record<string, { label: string; tone: StatusBadgeTone }> = {
-  approved: { label: "Freigegeben", tone: "green" },
-  rejected: { label: "Abgelehnt", tone: "red" },
-  withdrawn: { label: "Zurückgezogen", tone: "gray" },
-  auto_applied: { label: "Automatisch übernommen", tone: "gray" },
-};
-
-/** Flat read-only card for one decided request. */
-export function RequestHistoryCard({
-  childName,
-  summary,
-  status,
-  decidedAt,
-  decidedByName,
-  reason,
-  children,
-}: Readonly<{
-  childName: string;
-  summary?: string;
-  status: string;
-  decidedAt: string;
-  decidedByName?: string;
-  reason?: string;
-  children?: ReactNode;
-}>) {
-  const meta = STATUS_META[status] ?? { label: status, tone: "gray" as const };
-  return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-medium text-gray-900">{childName}</span>
-        {summary && <span className="text-sm text-gray-600">· {summary}</span>}
-        <StatusBadge label={meta.label} tone={meta.tone} />
-      </div>
-      <p className="mt-1 text-xs text-gray-500">
-        Entschieden am {formatDate(decidedAt)}
-        {decidedByName ? ` von ${decidedByName}` : ""}
-      </p>
-      {reason && (
-        <p className="mt-1 text-sm text-gray-600 italic">„{reason}“</p>
-      )}
-      {children && <div className="mt-2">{children}</div>}
-    </div>
-  );
-}
 
 interface HistoryPageResult<T> {
   readonly items: readonly T[];
@@ -200,20 +152,22 @@ export function MasterDataHistoryList() {
       getKey={(row) => row.id}
       skeletonLabel="Historie wird geladen"
       renderItem={(row) => (
-        <RequestHistoryCard
+        <RequestReviewCard
           childName={`${row.first_name} ${row.last_name}`}
           summary={fieldLabel(row.field_key)}
-          status={row.status}
-          decidedAt={row.decided_at}
-          decidedByName={row.decided_by_name}
-          reason={row.review_reason}
+          history={{
+            status: row.status,
+            decidedAt: row.decided_at,
+            decidedByName: row.decided_by_name,
+            reason: row.review_reason,
+          }}
         >
           <p className="text-sm text-gray-700">
             {formatMasterDataValue(row.field_key, row.old_value, "leer")}
             {" → "}
             {formatMasterDataValue(row.field_key, row.new_value, "leer")}
           </p>
-        </RequestHistoryCard>
+        </RequestReviewCard>
       )}
     />
   );
@@ -226,13 +180,19 @@ export function CareRequestHistoryList() {
       getKey={(row) => row.id}
       skeletonLabel="Historie wird geladen"
       renderItem={(row) => (
-        <RequestHistoryCard
+        <RequestReviewCard
           childName={`${row.first_name} ${row.last_name}`}
-          summary="Betreuungszeiten"
-          status={row.status}
-          decidedAt={row.decided_at}
-          decidedByName={row.decided_by_name}
-          reason={row.decision_reason}
+          summary={
+            row.request_kind === "pickup_change"
+              ? "Abholzeit"
+              : "Betreuungszeiten"
+          }
+          history={{
+            status: row.status,
+            decidedAt: row.decided_at,
+            decidedByName: row.decided_by_name,
+            reason: row.decision_reason,
+          }}
         >
           {row.requested.length > 0 && (
             <div className="space-y-1 rounded-lg bg-gray-50 p-3">
@@ -249,7 +209,7 @@ export function CareRequestHistoryList() {
               ))}
             </div>
           )}
-        </RequestHistoryCard>
+        </RequestReviewCard>
       )}
     />
   );
@@ -262,13 +222,15 @@ export function OfferingRequestHistoryList() {
       getKey={(row) => row.id}
       skeletonLabel="Historie wird geladen"
       renderItem={(row) => (
-        <RequestHistoryCard
+        <RequestReviewCard
           childName={row.student_name}
           summary="Betreuungsangebote und AGs"
-          status={row.status}
-          decidedAt={row.decided_at}
-          decidedByName={row.decided_by_name}
-          reason={row.reason}
+          history={{
+            status: row.status,
+            decidedAt: row.decided_at,
+            decidedByName: row.decided_by_name,
+            reason: row.reason,
+          }}
         >
           {row.diff.length > 0 && (
             <div className="space-y-1 rounded-lg bg-gray-50 p-3">
@@ -282,7 +244,7 @@ export function OfferingRequestHistoryList() {
               ))}
             </div>
           )}
-        </RequestHistoryCard>
+        </RequestReviewCard>
       )}
     />
   );
@@ -295,19 +257,21 @@ export function ExcusedRequestHistoryList() {
       getKey={(row) => row.id}
       skeletonLabel="Historie wird geladen"
       renderItem={(row) => (
-        <RequestHistoryCard
+        <RequestReviewCard
           childName={`${row.first_name} ${row.last_name}`}
           summary="Entschuldigte Abmeldung"
-          status={row.status}
-          decidedAt={row.decided_at}
-          decidedByName={row.decided_by_name}
-          reason={row.reason}
+          history={{
+            status: row.status,
+            decidedAt: row.decided_at,
+            decidedByName: row.decided_by_name,
+            reason: row.reason,
+          }}
         >
           <p className="text-sm text-gray-700">
             {row.dates.map((d) => formatDate(d)).join(", ")}
             {row.note ? ` · ${row.note}` : ""}
           </p>
-        </RequestHistoryCard>
+        </RequestReviewCard>
       )}
     />
   );

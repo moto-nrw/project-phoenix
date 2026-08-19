@@ -190,7 +190,7 @@ type CareScheduleRequestService interface {
 	// newest-first, enriched with child names and live diffs — the staff
 	// review queue on the Änderungsanfragen page.
 	ListPending(ctx context.Context) ([]*CareRequestReviewItem, error)
-	// ListHistory returns decided weekly-schedule requests
+	// ListHistory returns decided care-schedule requests
 	// newest-decision-first, keyset paginated on (updated_at, id). A zero
 	// beforeUpdatedAt returns the first page; next is nil when no older rows
 	// exist beyond this page.
@@ -531,10 +531,17 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, beforeUpda
 }
 
 // careRequestedSummaryFrom renders the REQUESTED side of a decided
-// weekly-schedule payload, with no live reads: the "current" side has moved on
+// weekly-schedule or pickup-change payload, with no live reads: the "current" side has moved on
 // since the decision, so unlike careScheduleDiffFrom the Old fields stay empty.
 // An undecodable payload yields an empty summary (the row still lists).
 func careRequestedSummaryFrom(payload map[string]any) []RequestDiffEntry {
+	if date, pickup, _, err := parsePickupChangePayload(payload); err == nil {
+		return []RequestDiffEntry{{
+			Label:    date.String() + " · Abholzeit",
+			New:      pickup.Format("15:04"),
+			CareKind: DiffCareKindPickup,
+		}}
+	}
 	p, err := decodeCarePayload[careSchedulePayload](payload)
 	if err != nil {
 		return nil

@@ -84,7 +84,7 @@ type CareScheduleChangeRequestRepository interface {
 	ListPendingForTenantAndKind(ctx context.Context, requestKind string) ([]*CareScheduleChangeRequest, error)
 	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
 
-	// ListDecidedForTenant returns the tenant's decided weekly-schedule rows
+	// ListDecidedForTenant returns the tenant's decided care-schedule rows
 	// (approved, rejected, withdrawn) newest-decision-first via keyset
 	// pagination on (updated_at, id); a zero beforeUpdatedAt returns the first
 	// page.

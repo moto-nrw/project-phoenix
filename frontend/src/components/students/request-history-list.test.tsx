@@ -2,19 +2,30 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CareRequestHistoryList,
   MasterDataHistoryList,
-  RequestHistoryCard,
 } from "./request-history-list";
+import { RequestReviewCard } from "./request-review-card";
+import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
 
 const { mockListHistory } = vi.hoisted(() => ({
   mockListHistory: vi.fn(),
+}));
+const { mockListCareHistory } = vi.hoisted(() => ({
+  mockListCareHistory: vi.fn(),
 }));
 
 vi.mock("~/lib/master-data-review-api", () => ({
   listMasterDataChangeRequestHistory: (
     cursor?: string,
   ): ReturnType<typeof mockListHistory> => mockListHistory(cursor),
+}));
+
+vi.mock("~/lib/care-request-review-api", () => ({
+  listCareScheduleChangeRequestHistory: (
+    cursor?: string,
+  ): ReturnType<typeof mockListCareHistory> => mockListCareHistory(cursor),
 }));
 
 function entry(
@@ -108,19 +119,49 @@ describe("MasterDataHistoryList", () => {
   });
 });
 
-describe("RequestHistoryCard", () => {
+describe("RequestReviewCard", () => {
   it("lässt bei automatisch übernommenen Änderungen die Person weg", () => {
     render(
-      <RequestHistoryCard
+      <RequestReviewCard
         childName="Lara Lehmann"
-        status="auto_applied"
-        decidedAt="2026-08-18T10:00:00Z"
+        history={{ status: "auto_applied", decidedAt: "2026-08-18T10:00:00Z" }}
       />,
     );
 
     expect(screen.getByText("Automatisch übernommen")).toBeInTheDocument();
     expect(
       screen.getByText(/Entschieden am 18\.08\.2026$/),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("CareRequestHistoryList", () => {
+  it("zeigt die Abholzeit einer entschiedenen Abholzeit-Anfrage", async () => {
+    const pickupRequest: StaffCareRequestHistoryEntry = {
+      id: "pickup-1",
+      student_id: "42",
+      first_name: "Lara",
+      last_name: "Lehmann",
+      status: "rejected",
+      request_kind: "pickup_change",
+      requested: [
+        {
+          label: "20.08.2026 · Abholzeit",
+          old: "",
+          new: "15:30",
+          care_kind: "pickup",
+        },
+      ],
+      decision_reason: "Nicht möglich",
+      created_at: "2026-08-17T09:00:00Z",
+      decided_at: "2026-08-18T10:00:00Z",
+    };
+    mockListCareHistory.mockResolvedValue({ items: [pickupRequest] });
+
+    render(<CareRequestHistoryList />);
+
+    expect(
+      await screen.findByText("20.08.2026 · Abholzeit: 15:30"),
     ).toBeInTheDocument();
   });
 });

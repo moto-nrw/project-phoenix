@@ -89,7 +89,7 @@ func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx co
 	return rows, nil
 }
 
-// ListDecidedForTenant returns the tenant's decided weekly-schedule requests
+// ListDecidedForTenant returns the tenant's decided care-schedule requests
 // (approved, rejected, withdrawn) newest-decision-first via keyset pagination
 // on (updated_at, id). Every Decide stamps updated_at and decided rows are
 // terminal, so it is the decision instant (withdrawn rows carry no
@@ -99,7 +99,6 @@ func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.C
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
-		Where(`"care_schedule_change_request".request_kind = ?`, schedule.CareRequestKindWeeklySchedule).
 		Where(`"care_schedule_change_request".status IN (?)`, bun.List([]string{
 			schedule.CareRequestStatusApproved,
 			schedule.CareRequestStatusRejected,

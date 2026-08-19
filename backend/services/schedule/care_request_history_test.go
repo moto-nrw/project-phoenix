@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -80,4 +81,35 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	require.Len(t, page2, 1)
 	assert.NotEqual(t, page1[0].Request.ID, page2[0].Request.ID, "pages must not overlap")
 	assert.Nil(t, next2, "two decided rows fit exactly two pages of one")
+}
+
+func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
+	f := newCareFixture(t)
+	date := timezone.TodayDate().AddDays(1)
+	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
+
+	req, err := f.svc.CreatePickupChangeRequest(
+		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		date, pickupTime, "Heute später",
+	)
+	require.NoError(t, err)
+	_, err = f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	items, _, err := f.svc.ListHistory(f.staffCtx(f.staffAccount), time.Time{}, 0, 25)
+	require.NoError(t, err)
+	var got *schedule.CareRequestHistoryItem
+	for _, item := range items {
+		if item.Request.ID == req.ID {
+			got = item
+			break
+		}
+	}
+	require.NotNil(t, got)
+	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, got.Request.RequestKind)
+	require.Equal(t, []schedule.RequestDiffEntry{{
+		Label: date.String() + " · Abholzeit", New: "15:30", CareKind: schedule.DiffCareKindPickup,
+	}}, got.Requested)
 }
