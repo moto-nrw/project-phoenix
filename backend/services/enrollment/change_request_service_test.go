@@ -138,6 +138,45 @@ func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enroll
 	return r.ChangeRequestRepository.Create(ctx, row)
 }
 
+// liftTakeoverStamp clears created_student_id on the request's children and
+// returns the restore func. ADR 0003 blocks NEW change requests for a child
+// that is already taken over into care; rows that were created before the
+// takeover — every pending row that existed when the rule shipped — still have
+// to be decidable. The tests of the approval and correction machinery build
+// exactly that state: the change request is created while the stamp is lifted,
+// then the stamp goes back on before the decision runs.
+func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	children, err := env.repos.RequestChild.ListByRequestID(ctx, requestID)
+	require.NoError(t, err)
+	stamps := make(map[int64]int64, len(children))
+	for _, child := range children {
+		if child.CreatedStudentID == nil {
+			continue
+		}
+		stamps[child.ID] = *child.CreatedStudentID
+	}
+	if len(stamps) > 0 {
+		_, err = env.db.NewUpdate().
+			TableExpr("enrollment.request_children").
+			Set("created_student_id = NULL").
+			Where("request_id = ?", requestID).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+	return func() {
+		for childID, studentID := range stamps {
+			_, err := env.db.NewUpdate().
+				TableExpr("enrollment.request_children").
+				Set("created_student_id = ?", studentID).
+				Where("id = ?", childID).
+				Exec(ctx)
+			require.NoError(t, err)
+		}
+	}
+}
+
 func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
 		enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
@@ -730,11 +769,13 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 		SelectedDays: []string{"tue"},
 	}}
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	restoreTakeover := liftTakeoverStamp(t, env, result.Request.ID)
 	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
 		Submission: proposed,
 		ParentNote: "Bitte Betreuungsangebot wechseln.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 	require.True(t, created.ChangeRequest.CareOfferingsEnabledAtCreation)
 
 	careOfferingsEnabled = false
@@ -818,11 +859,13 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 	proposed.Children[0].ID = result.Children[0].ID
 	proposed.Children[0].TargetGradeLevel = &grade
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	restoreTakeover := liftTakeoverStamp(t, env, result.Request.ID)
 	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
 		Submission: proposed,
 		ParentNote: "Klassenstufe nachreichen.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
 		Note:           "Klassenstufe freigegeben.",
 		ActorAccountID: env.creatorID,
@@ -936,11 +979,13 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
 			proposed.Children[0].ID = result.Children[0].ID
 			proposed.Children[0].FirstName = "Lina-Marie"
+			restoreTakeover := liftTakeoverStamp(t, env, result.Request.ID)
 			created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
 				Submission: proposed,
 				ParentNote: "Bitte den Vornamen ändern.",
 			})
 			require.NoError(t, err)
+			restoreTakeover()
 			if openStatus == enrollmentModels.ChangeRequestStatusNeedsParentResponse {
 				_, err = svc.AskQuestion(ctx, created.ChangeRequest.ID, enrollmentService.ChangeRequestMessageInput{
 					Body:           "Bitte bestätigen Sie die Schreibweise.",
@@ -1015,11 +1060,13 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 	proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
 	proposed.Children[0].ID = result.Children[0].ID
 	proposed.Children[0].FirstName = "Lina-Marie"
+	restoreTakeover := liftTakeoverStamp(t, env, result.Request.ID)
 	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
 		Submission: proposed,
 		ParentNote: "Bitte den Vornamen ändern.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 	_, err = svc.Reject(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
 		Note:           "Die Schreibweise ist bereits korrekt.",
 		ActorAccountID: env.creatorID,
@@ -1063,11 +1110,13 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
 	proposed.Children[0].ID = result.Children[0].ID
 	proposed.Children[0].FirstName = "Lina-Marie"
+	restoreTakeover := liftTakeoverStamp(t, env, result.Request.ID)
 	created, err := regularService.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
 		Submission: proposed,
 		ParentNote: "Bitte den Vornamen ändern.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 
 	storedChild, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
 	require.NoError(t, err)
@@ -1610,11 +1659,13 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 		},
 	}
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	restoreTakeover := liftTakeoverStamp(t, env, requestRow.ID)
 	created, err := svc.Create(ctx, requestRow.StatusToken, enrollmentService.CreateChangeRequestInput{
 		Submission: proposed,
 		ParentNote: "Bitte Abholzeit anpassen.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 	reviewerWithoutStaff := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff-change-request")
 
 	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{

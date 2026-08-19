@@ -30,6 +30,9 @@ var (
 	ErrChangeRequestInvalidStatus = errors.New("enrollment change request has invalid status")
 	ErrChangeRequestInvalidData   = errors.New("enrollment change request data is invalid")
 	ErrChangeRequestConflict      = errors.New("enrollment change request conflicts with newer enrollment data")
+	// ErrChangeRequestChildLocked refuses a change to a child that is already
+	// taken over into care. Those changes run through the parent app (ADR 0003).
+	ErrChangeRequestChildLocked = errors.New("enrollment change request cannot change a child that is already in care")
 )
 
 type CreateChangeRequestInput struct {
@@ -205,6 +208,9 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 			return err
 		}
 		proposedSnapshot := submitSnapshot(prepared)
+		if err := ensureTakenOverChildrenUnchanged(children, baseSnapshot, proposedSnapshot); err != nil {
+			return err
+		}
 		note := strings.TrimSpace(input.ParentNote)
 		var notePtr *string
 		if note != "" {
@@ -2200,6 +2206,35 @@ func persistedSnapshot(
 		}
 	}
 	return snapshot
+}
+
+// ensureTakenOverChildrenUnchanged refuses a change request that would alter a
+// child already taken over into care (ADR 0003). Both snapshots are index-
+// aligned with children — validateChangeRequestChildIdentity pins that in
+// prepareProposed — so comparing row by row is enough. id and status are
+// bookkeeping the persisted snapshot carries and the proposal does not.
+func ensureTakenOverChildrenUnchanged(children []*enrollmentModels.RequestChild, base, proposed map[string]any) error {
+	baseRows := sliceFromAny(base["children"])
+	proposedRows := sliceFromAny(proposed["children"])
+	for i, child := range children {
+		if !ChildTakenOver(child) {
+			continue
+		}
+		if i >= len(baseRows) || i >= len(proposedRows) {
+			return ErrChangeRequestChildLocked
+		}
+		if !jsonEqual(comparableChildSnapshot(baseRows[i]), comparableChildSnapshot(proposedRows[i])) {
+			return ErrChangeRequestChildLocked
+		}
+	}
+	return nil
+}
+
+func comparableChildSnapshot(raw any) map[string]any {
+	row := maps.Clone(mapFromAny(raw))
+	delete(row, "id")
+	delete(row, "status")
+	return row
 }
 
 func snapshotDiff(base, proposed map[string]any) map[string]any {

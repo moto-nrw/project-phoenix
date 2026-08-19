@@ -273,6 +273,70 @@ describe("EnrollmentStatusView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("points a fully taken-over enrollment at the parents app (ADR 0003)", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "none",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+            locked: true,
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Änderungen laufen über die Eltern-App"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the change form for a sibling and marks only the locked child", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+            locked: true,
+          },
+          {
+            id: "8",
+            first_name: "Timo",
+            last_name: "Muster",
+            status: "waitlisted",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(await screen.findByText("Timo Muster")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "Änderungen für dieses Kind laufen über die Eltern-App.",
+      ),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByText("Änderungen laufen über die Eltern-App"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "Änderung anfragen" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("confirms pending renewals and reloads the status", async () => {
     mockFetchStatus
       .mockResolvedValueOnce(

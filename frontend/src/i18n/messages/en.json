@@ -922,6 +922,15 @@
       "home": "Private",
       "work": "Work",
       "other": "Other"
+    },
+    "locked": {
+      "badge": "Already in care",
+      "birthday": "Date of birth",
+      "grade": "Grade",
+      "care": "Booked offerings",
+      "noCare": "No offerings booked.",
+      "hint": "Changes for {name} now go through the parents app.",
+      "noAccess": "No access to the parents app yet? Just let the OGS know."
     }
   },
   "enrollmentStatus": {
@@ -1105,7 +1114,11 @@
     "renewalAdjustHint": "You can continue care unchanged, adjust only offerings or weekdays, or end care at the end of the current period. All other data stays unchanged.",
     "adjustTitle": "Adjust offerings and weekdays",
     "adjustDescription": "Adjust only the care offerings and booked weekdays. All other data stays unchanged and is not requested again.",
-    "adjustSubmit": "Send adjustment"
+    "adjustSubmit": "Send adjustment",
+    "lockedChildHint": "Changes for this child go through the parents app.",
+    "lockedAllTitle": "Changes go through the parents app",
+    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? Just let the OGS know.",
+    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? Just let the OGS know."
   },
   "parentMasterData": {
     "title": "Details and care",

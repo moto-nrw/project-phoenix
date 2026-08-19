@@ -453,6 +453,11 @@ function EnrollmentStatusContent({
   );
   const canRequestChange =
     status.edit_mode === "change_request" && !hasOpenChangeRequest;
+  // Every child taken over into care: the status link stays readable and
+  // points at the parents app instead of a change form (ADR 0003).
+  const allLocked =
+    status.children.length > 0 &&
+    status.children.every((child) => child.locked);
   const pendingRenewalCount = status.children.filter(
     (child) => child.status === "pending_renewal",
   ).length;
@@ -493,6 +498,19 @@ function EnrollmentStatusContent({
         <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-2xl border p-4 text-sm">
           {info}
         </div>
+      ) : null}
+
+      {allLocked ? (
+        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("lockedAllTitle")}
+          </h2>
+          <p className="text-sm leading-6 text-gray-600">
+            {status.children.length > 1
+              ? t("lockedAllBodyMany")
+              : t("lockedAllBodyOne")}
+          </p>
+        </section>
       ) : null}
 
       {canRequestChange || changeRequests.length > 0 ? (
@@ -792,6 +810,11 @@ function EnrollmentChildRow({
             {child.status_reason ? (
               <p className="mt-1 text-sm text-gray-600">
                 {child.status_reason}
+              </p>
+            ) : null}
+            {child.locked ? (
+              <p className="mt-1 text-sm text-gray-600">
+                {t("lockedChildHint")}
               </p>
             ) : null}
           </div>

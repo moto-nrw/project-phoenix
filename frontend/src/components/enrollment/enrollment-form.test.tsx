@@ -2273,6 +2273,61 @@ describe("EnrollmentForm", () => {
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
   });
 
+  it("renders a taken-over child read-only and keeps the sibling editable", async () => {
+    // ADR 0003: after the takeover the child's data stays readable, but every
+    // change for it runs through the parents app.
+    const draft = editDraft([
+      { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      { id: "c-2", first_name: "Berta", last_name: "Bach" },
+    ]);
+    draft.children[0]!.locked = true;
+
+    renderForm({ initialDraft: draft, lockChildStructure: true });
+    await waitForLoaded();
+
+    // Guardian name plus the one editable child — the locked child has no
+    // inputs at all.
+    expect(screen.getAllByLabelText("Vorname *")).toHaveLength(2);
+    expect(screen.getByText("Anton Alster")).toBeInTheDocument();
+    expect(screen.getByText("Schon in der Betreuung")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Änderungen für Anton Alster laufen jetzt über die Eltern-App\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("submits a taken-over child unchanged", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    const draft = editDraft([
+      { id: "c-1", first_name: "Anton", last_name: "Alster" },
+    ]);
+    draft.children[0]!.locked = true;
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      lockChildStructure: true,
+      initialDraft: draft,
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+    const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]).toMatchObject({
+      first_name: "Anton",
+      last_name: "Alster",
+      date_of_birth: "2018-04-15",
+      target_grade_level: 2,
+    });
+  });
+
   it("adds a conditional required offering when hydrating an edit draft", async () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
     const noFieldSchema = schema();

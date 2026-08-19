@@ -45,6 +45,7 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
+import { formatDate } from "~/lib/date-helpers";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import {
   copyStableObjectKey,
@@ -113,6 +114,12 @@ interface ChildDraft {
    */
   offering_days: Record<string, Set<string>>;
   custom: Record<string, unknown>;
+  /**
+   * Taken over into care (ADR 0003): the card renders read-only and the
+   * values travel back unchanged, because the backend refuses a change
+   * request that touches this child.
+   */
+  locked?: boolean;
 }
 
 // GuardianDraft is one ADDITIONAL guardian (co-guardian) the parent can
@@ -1724,6 +1731,17 @@ export function EnrollmentForm({
             child,
             childOfferings,
           );
+          if (child.locked) {
+            return (
+              <LockedChildCard
+                key={child.clientId}
+                child={child}
+                offerings={offerings}
+                collectGradeLevel={collectGradeLevel}
+                tr={tr}
+              />
+            );
+          }
           return (
             <div
               key={child.clientId}
@@ -2321,6 +2339,73 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   };
 }
 
+// LockedChildCard renders a child that is already taken over into care: the
+// status link keeps its data readable, but every change for it runs through
+// the parents app (ADR 0003). The values stay in form state untouched, so the
+// submitted payload carries them back unchanged — the backend refuses a change
+// request that touches a locked child.
+function LockedChildCard({
+  child,
+  offerings,
+  collectGradeLevel,
+  tr,
+}: {
+  readonly child: ChildDraft;
+  readonly offerings: readonly PublicCareOffering[];
+  readonly collectGradeLevel: boolean;
+  readonly tr: EnrollmentFormTranslator;
+}) {
+  const name = `${child.first_name} ${child.last_name}`.trim();
+  const booked = offerings
+    .filter((offering) => child.offering_ids.has(offering.id))
+    .map((offering) => offering.name);
+  return (
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+          {name || tr("structured.child")}
+        </h3>
+        <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-gray-600">
+          <Lock className="h-3 w-3" aria-hidden="true" />
+          {tr("locked.badge")}
+        </span>
+      </div>
+      <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-semibold text-gray-500">
+            {tr("locked.birthday")}
+          </dt>
+          <dd className="text-gray-900">
+            {child.date_of_birth ? formatDate(child.date_of_birth) : "-"}
+          </dd>
+        </div>
+        {collectGradeLevel && child.target_grade_level ? (
+          <div>
+            <dt className="text-xs font-semibold text-gray-500">
+              {tr("locked.grade")}
+            </dt>
+            <dd className="text-gray-900">
+              {tr("fields.grade", { grade: child.target_grade_level })}
+            </dd>
+          </div>
+        ) : null}
+        <div className="sm:col-span-2">
+          <dt className="text-xs font-semibold text-gray-500">
+            {tr("locked.care")}
+          </dt>
+          <dd className="text-gray-900">
+            {booked.length > 0 ? booked.join(", ") : tr("locked.noCare")}
+          </dd>
+        </div>
+      </dl>
+      <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
+        {tr("locked.hint", { name: name || tr("structured.child") })}{" "}
+        {tr("locked.noAccess")}
+      </p>
+    </div>
+  );
+}
+
 function draftChildren(
   draft: EnrollmentEditDraft,
   requiredOfferingIDs: readonly string[] = [],
@@ -2363,6 +2448,7 @@ function draftChildren(
       offering_ids: offeringIDs,
       offering_days: offeringDays,
       custom: child.custom_data ?? {},
+      locked: child.locked ?? false,
     };
   });
 }
