@@ -97,6 +97,9 @@ func ensurePWAStandaloneUsage(ctx context.Context, db *bun.DB) error {
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 
+		ALTER TABLE iot.pwa_standalone_usage ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE iot.pwa_standalone_usage FORCE ROW LEVEL SECURITY;
+
 		DROP POLICY IF EXISTS tenant_isolation_iot_pwa_standalone_usage ON iot.pwa_standalone_usage;
 		CREATE POLICY tenant_isolation_iot_pwa_standalone_usage ON iot.pwa_standalone_usage
 			FOR ALL

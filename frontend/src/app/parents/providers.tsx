@@ -2,7 +2,6 @@
 
 import { SessionProvider } from "next-auth/react";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
-import { PwaUsageReporter } from "~/components/pwa/pwa-usage-reporter";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 
 /**
@@ -30,7 +29,6 @@ export function ParentProviders({
       refetchOnWindowFocus={false}
     >
       <PushSubscriptionSync portal="parent" />
-      <PwaUsageReporter portal="parent" />
       <ParentLocaleProvider>{children}</ParentLocaleProvider>
     </SessionProvider>
   );

@@ -5,7 +5,6 @@ import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
-import { PwaUsageReporter } from "~/components/pwa/pwa-usage-reporter";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 
@@ -30,7 +29,6 @@ export function TenantProviders({
   return (
     <SessionProvider refetchInterval={4 * 60} refetchOnWindowFocus={false}>
       <PushSubscriptionSync portal="tenant" />
-      <PwaUsageReporter portal="tenant" />
       <TenantProvider
         tenantSlug={tenantSlug}
         tenant={tenant}
