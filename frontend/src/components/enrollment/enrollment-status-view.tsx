@@ -544,6 +544,7 @@ function EnrollmentStatusContent({
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
         justSubmitted={justSubmitted}
+        parentsHref={parentsHref}
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -690,6 +691,7 @@ interface RenewalBannersProps {
   readonly withdrawingAll: boolean;
   readonly onConfirmRenewal: () => Promise<void>;
   readonly onWithdraw: (childId?: string) => void;
+  readonly parentsHref: string;
 }
 
 function RenewalBanners({
@@ -794,6 +796,7 @@ function EnrollmentChildRow({
   child,
   isWithdrawing,
   onWithdraw,
+  parentsHref,
 }: EnrollmentChildRowProps) {
   const t = useTranslations("enrollmentStatus");
   const handleWithdraw = () => {
@@ -819,7 +822,7 @@ function EnrollmentChildRow({
             {child.locked ? (
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
                 <span>{t("lockedChildHint")}</span>
-                <ButtonLink href="/parents" size="sm">
+                <ButtonLink href={parentsHref} size="sm">
                   {t("lockedAllAction")}
                 </ButtonLink>
               </div>
@@ -853,12 +856,14 @@ function EnrollmentChildrenSection({
   justSubmitted,
   withdrawingChild,
   onWithdraw,
+  parentsHref,
 }: Readonly<{
   enrollments: StatusChild[];
   hasMultipleChildren: boolean;
   justSubmitted: boolean;
   withdrawingChild: string | null;
   onWithdraw: (childId?: string) => void;
+  parentsHref: string;
 }>) {
   const t = useTranslations("enrollmentStatus");
   return (
@@ -886,6 +891,7 @@ function EnrollmentChildrenSection({
               child={child}
               isWithdrawing={withdrawingChild === child.id}
               onWithdraw={onWithdraw}
+              parentsHref={parentsHref}
             />
           );
         })}
