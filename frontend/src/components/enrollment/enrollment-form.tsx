@@ -904,6 +904,7 @@ export function EnrollmentForm({
       }
     }
     for (const [i, c] of children.entries()) {
+      if (c.locked) continue;
       const childCtx = childConditionCtx(c);
       const childOfferings = availableCareOfferings(
         offerings,
@@ -1035,6 +1036,7 @@ export function EnrollmentForm({
     // "at least one" / "exactly one"; otherwise a required base offering
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
+      if (c.locked) continue;
       const childOfferings = availableCareOfferings(
         offerings,
         c.target_grade_level,
@@ -2563,6 +2565,7 @@ function seedRequiredAvailableOfferings(
   offerings: readonly PublicCareOffering[],
 ): ChildDraft[] {
   return children.map((c) => {
+    if (c.locked) return c;
     const nextIDs = new Set(c.offering_ids);
     availableCareOfferings(offerings, c.target_grade_level)
       .filter((offering) => offering.is_required)
