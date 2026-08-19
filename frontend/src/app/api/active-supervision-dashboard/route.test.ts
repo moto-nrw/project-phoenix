@@ -145,6 +145,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         groups: [
           {
             id: "7",
+            name: "Malen",
             room_id: "10",
             room_name: "Raum 101",
             room_color: "#83CD2D",
@@ -269,7 +270,7 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(data.supervisedGroups).toEqual([
       {
         id: "7",
-        name: "",
+        name: "Malen",
         room_id: "10",
         room: { id: "10", name: "Raum 101", color: "#83CD2D" },
       },

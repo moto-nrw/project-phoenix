@@ -63,10 +63,11 @@ func NewService(deps Dependencies) Getter {
 }
 
 // Group is one supervised (or, under admin overview / open care, any active)
-// session tab. The wire shape carries only what the page renders: room label,
-// color, and ids for selection.
+// session tab. The wire shape carries only what the page renders: the session
+// label, room label, color, and ids for selection.
 type Group struct {
 	ID        int64   `json:"id,string"`
+	Name      string  `json:"name"`
 	RoomID    *int64  `json:"room_id,string,omitempty"`
 	RoomName  string  `json:"room_name,omitempty"`
 	RoomColor *string `json:"room_color,omitempty"`
@@ -295,6 +296,10 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 				groups = append(groups, group)
 			}
 		}
+		groups, err = s.loadGroupsWithRelations(ctx, groups)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		supervised, err := s.deps.UserContext.GetMySupervisedGroups(ctx)
 		if err != nil {
@@ -311,12 +316,18 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 	result := make([]Group, 0, len(groups))
 	for _, group := range groups {
 		item := Group{ID: group.ID}
+		if group.ActualGroup != nil {
+			item.Name = group.ActualGroup.Name
+		}
 		if group.RoomID > 0 {
 			roomID := group.RoomID
 			item.RoomID = &roomID
 			if room := rooms[group.RoomID]; room != nil {
 				item.RoomName = room.Name
 				item.RoomColor = room.Color
+				if item.Name == "" {
+					item.Name = room.Name
+				}
 			}
 		}
 		result = append(result, item)
@@ -324,6 +335,28 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 	sort.SliceStable(result, func(i, j int) bool {
 		return collation.CompareGerman(result[i].RoomName, result[j].RoomName) < 0
 	})
+	return result, nil
+}
+
+// loadGroupsWithRelations fills the template activity relation for the broad
+// overview path, whose list query intentionally returns only active-group
+// columns. The supervised path already uses the same bulk lookup internally.
+func (s *service) loadGroupsWithRelations(ctx context.Context, groups []*activeModels.Group) ([]*activeModels.Group, error) {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	loaded, err := s.deps.Active.GetActiveGroupsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load active group relations: %w", err)
+	}
+
+	result := make([]*activeModels.Group, 0, len(groups))
+	for _, group := range groups {
+		if loadedGroup := loaded[group.ID]; loadedGroup != nil {
+			result = append(result, loadedGroup)
+		}
+	}
 	return result, nil
 }
 

@@ -16,6 +16,7 @@ import type { CareDayStatus } from "~/lib/timetable-types";
 
 interface WireGroup {
   id: string;
+  name: string;
   room_id?: string;
   room_name?: string;
   room_color?: string | null;
@@ -300,7 +301,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
   return {
     supervisedGroups: (wire.groups ?? []).map((g) => ({
       id: g.id,
-      name: "",
+      name: g.name,
       room_id: g.room_id,
       room: g.room_id
         ? {

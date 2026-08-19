@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -30,6 +31,7 @@ import (
 type mockActiveService struct {
 	activeService.Service
 	listActiveGroupsFn         func() ([]*activeModels.Group, error)
+	getActiveGroupsByIDsFn     func(ids []int64) (map[int64]*activeModels.Group, error)
 	getRoomsByIDsFn            func(ids []int64) ([]*facilitiesModels.Room, error)
 	getUnclaimedActiveGroupsFn func() ([]*activeModels.Group, error)
 	getTrackingIndicatorsFn    func(studentIDs []int64, labels []string) (map[int64][]bool, error)
@@ -37,6 +39,10 @@ type mockActiveService struct {
 
 func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModels.Group, error) {
 	return m.listActiveGroupsFn()
+}
+
+func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
+	return m.getActiveGroupsByIDsFn(ids)
 }
 
 func (m *mockActiveService) GetRoomsByIDs(_ context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
@@ -193,7 +199,7 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	active := &mockActiveService{
 		listActiveGroupsFn: func() ([]*activeModels.Group, error) {
 			return []*activeModels.Group{
-				{Model: base.Model{ID: 11}, RoomID: 21, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Zebra", Color: &color}},
+				{Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Zebra", Color: &color}},
 				{Model: base.Model{ID: 12}, RoomID: 22},
 				{Model: base.Model{ID: 13}, RoomID: 22},
 				{Model: base.Model{ID: 14}, RoomID: 23, EndTime: &endedAt},
@@ -202,6 +208,14 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 		getRoomsByIDsFn: func(ids []int64) ([]*facilitiesModels.Room, error) {
 			assert.Equal(t, []int64{22}, ids)
 			return []*facilitiesModels.Room{{Model: base.Model{ID: 22}, Name: "Adler"}}, nil
+		},
+		getActiveGroupsByIDsFn: func(ids []int64) (map[int64]*activeModels.Group, error) {
+			assert.Equal(t, []int64{11, 12, 13}, ids)
+			return map[int64]*activeModels.Group{
+				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Zebra", Color: &color}},
+				12: {Model: base.Model{ID: 12}, RoomID: 22, Room: &facilitiesModels.Room{Model: base.Model{ID: 22}, Name: "Adler"}},
+				13: {Model: base.Model{ID: 13}, RoomID: 22, Room: &facilitiesModels.Room{Model: base.Model{ID: 22}, Name: "Adler"}},
+			}, nil
 		},
 	}
 	settings := &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil }}
@@ -214,6 +228,8 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	assert.Equal(t, "Adler", groups[1].RoomName)
 	assert.Equal(t, "Zebra", groups[2].RoomName)
 	assert.Equal(t, &color, groups[2].RoomColor)
+	assert.Equal(t, "Malen", groups[2].Name)
+	assert.Equal(t, "Adler", groups[0].Name)
 
 	active.listActiveGroupsFn = func() ([]*activeModels.Group, error) { return nil, errors.New("boom") }
 	_, err = svc.resolveGroups(ctx)
