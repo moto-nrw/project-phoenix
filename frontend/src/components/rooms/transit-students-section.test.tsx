@@ -380,13 +380,13 @@ describe("TransitStudentsSection", () => {
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
     // The needle list must cover the /active-supervisions caches too:
-    // when this section is embedded there, the room grid
-    // (supervision-visits-*) and roster (timetable-roster-*) would
-    // otherwise only refresh via SSE.
+    // when this section is embedded there, the aggregated dashboard key
+    // (matched via "dashboard", carrying the room's visits since #2096)
+    // and roster (timetable-roster-*) would otherwise only refresh via SSE.
     expect(vi.mocked(useTenantMutateMatching)).toHaveBeenCalledWith(
       expect.arrayContaining([
         "room-students-",
-        "supervision-visits-",
+        "dashboard",
         "timetable-roster-",
       ]),
     );

@@ -653,21 +653,6 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
   });
 
   it("switches to a different room when tab is clicked and loads visits", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
-    // Mock loadRoomVisits to return visit data for the second room
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue([
-      {
-        studentId: "s10",
-        studentName: "Room B Student",
-        schoolClass: "4a",
-        groupName: "Gruppe B",
-        activeGroupId: "room-2",
-        checkInTime: new Date(),
-        isActive: true,
-      },
-    ] as never);
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -709,15 +694,37 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       isValidating: false,
     } as never;
 
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: dashboardData,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue(swrNull);
+    // The aggregate carries the selected session's visits (#2096): a room
+    // switch re-runs the dashboard fetch via mutate, whose next response is
+    // scoped to room-2.
+    const dashboardRef: { current: unknown } = { current: dashboardData };
+    mockMutate.mockImplementation(async () => {
+      dashboardRef.current = {
+        ...dashboardData,
+        selectedGroupId: "room-2",
+        firstRoomVisits: [
+          {
+            studentId: "s10",
+            studentName: "Room B Student",
+            schoolClass: "4a",
+            groupName: "Gruppe B",
+            activeGroupId: "room-2",
+            checkInTime: new Date().toISOString(),
+            isActive: true,
+          },
+        ],
+      };
+    });
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardRef.current,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : swrNull) as never);
 
     render(<MeinRaumPage />);
 
@@ -726,46 +733,21 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       expect(screen.getByText("Room A Student")).toBeInTheDocument();
     });
 
-    // Click the second room's tab - triggers switchToRoom and loadRoomVisits
+    // Click the second room's tab - triggers switchToRoom -> mutateDashboard
     const tabB = screen.getByTestId("tab-room-2");
     fireEvent.click(tabB);
 
-    // After switching, the second room's student should appear
     await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("room-2");
+      expect(mockMutate).toHaveBeenCalled();
     });
 
+    // After switching, the second room's student should appear
     await waitFor(() => {
       expect(screen.getByText("Room B Student")).toBeInTheDocument();
     });
   });
 
   it("shows the selected parallel Schulhof group's student count", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue([
-      {
-        studentId: "s10",
-        studentName: "Parallel Student A",
-        schoolClass: "4a",
-        groupName: "Gruppe A",
-        activeGroupId: "yard-parallel",
-        checkInTime: new Date(),
-        isActive: true,
-      },
-      {
-        studentId: "s11",
-        studentName: "Parallel Student B",
-        schoolClass: "4b",
-        groupName: "Gruppe B",
-        activeGroupId: "yard-parallel",
-        checkInTime: new Date(),
-        isActive: true,
-      },
-    ] as never);
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -815,15 +797,45 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       isValidating: false,
     } as never;
 
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: dashboardData,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue(swrNull);
+    // Switching to the parallel yard session re-runs the aggregate; its next
+    // response carries that session's two visits (#2096).
+    const dashboardRef: { current: unknown } = { current: dashboardData };
+    mockMutate.mockImplementation(async () => {
+      dashboardRef.current = {
+        ...dashboardData,
+        selectedGroupId: "yard-parallel",
+        firstRoomVisits: [
+          {
+            studentId: "s10",
+            studentName: "Parallel Student A",
+            schoolClass: "4a",
+            groupName: "Gruppe A",
+            activeGroupId: "yard-parallel",
+            checkInTime: new Date().toISOString(),
+            isActive: true,
+          },
+          {
+            studentId: "s11",
+            studentName: "Parallel Student B",
+            schoolClass: "4b",
+            groupName: "Gruppe B",
+            activeGroupId: "yard-parallel",
+            checkInTime: new Date().toISOString(),
+            isActive: true,
+          },
+        ],
+      };
+    });
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardRef.current,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : swrNull) as never);
 
     render(<MeinRaumPage />);
 
@@ -831,9 +843,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     fireEvent.click(parallelTab);
 
     await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("yard-parallel");
+      expect(mockMutate).toHaveBeenCalled();
     });
     await waitFor(() => {
       expect(screen.getByTestId("page-header")).toHaveAttribute(
@@ -912,15 +922,12 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     );
   });
 
-  it("handles 403 error from loadRoomVisits gracefully when switching rooms", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
-    // Mock getActiveGroupVisitsWithDisplay to throw a 403 error.
-    // loadRoomVisits catches 403 internally and returns [] (lines 473-480),
-    // so switchToRoom receives empty students without throwing.
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockRejectedValue(
-      new Error("Request failed: 403"),
-    );
+  it("shows the permission notice when switching to a forbidden session", async () => {
+    // The aggregate answers 403 for a session outside the caller's scope;
+    // the fetcher's group_id retry failed too, so mutate rejects. Unlike the
+    // former silently-swallowed per-room 403 (#2096), the page now surfaces
+    // the permission problem.
+    mockMutate.mockRejectedValue(new Error("Request failed: 403"));
 
     const dashboardData = {
       supervisedGroups: [
@@ -979,35 +986,25 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       expect(screen.getByText("Initial Student")).toBeInTheDocument();
     });
 
-    // Click the second room's tab - triggers switchToRoom -> loadRoomVisits
+    // Click the second room's tab - triggers switchToRoom -> mutateDashboard
     const tabB = screen.getByTestId("tab-room-2");
     fireEvent.click(tabB);
 
-    // loadRoomVisits catches 403 and returns empty - no error alert shown
+    // The permission notice appears and the previous room's students are
+    // cleared instead of lingering under the wrong heading.
     await waitFor(() => {
       expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("room-2");
-    });
-
-    // Room shows empty students state (no crash, graceful degradation)
-    await waitFor(() => {
-      expect(
-        screen.getByText("Keine Kinder in diesem Raum"),
+        screen.getByText(
+          'Keine Berechtigung für "Raum B". Kontaktieren Sie einen Administrator.',
+        ),
       ).toBeInTheDocument();
     });
-
-    // No error alert should be shown (403 is handled silently in loadRoomVisits)
-    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+    expect(screen.queryByText("Initial Student")).not.toBeInTheDocument();
   });
 
-  it("handles non-403 error from loadRoomVisits", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
-    // Mock loadRoomVisits to throw a generic error
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockRejectedValue(
-      new Error("Network timeout"),
-    );
+  it("handles non-403 error when switching rooms", async () => {
+    // A generic aggregate failure while switching surfaces the load error.
+    mockMutate.mockRejectedValue(new Error("Network timeout"));
 
     const dashboardData = {
       supervisedGroups: [
@@ -1186,22 +1183,8 @@ describe("ID-based selection coverage: localStorage room restore", () => {
   });
 
   it("restores room from localStorage when no URL param is present", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
     // Set localStorage to point to room r2 (the second room)
     localStorage.setItem("sidebar-last-room", "r2");
-
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue([
-      {
-        studentId: "s20",
-        studentName: "Restored Student",
-        schoolClass: "2a",
-        groupName: "G2",
-        activeGroupId: "room-2",
-        checkInTime: new Date(),
-        isActive: true,
-      },
-    ] as never);
 
     const dashboardData = {
       supervisedGroups: [
@@ -1244,24 +1227,43 @@ describe("ID-based selection coverage: localStorage room restore", () => {
       isValidating: false,
     } as never;
 
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: dashboardData,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue(swrNull);
+    // The restore path calls switchToRoom, which re-runs the aggregate; its
+    // next response is scoped to the restored session (#2096).
+    const dashboardRef: { current: unknown } = { current: dashboardData };
+    mockMutate.mockImplementation(async () => {
+      dashboardRef.current = {
+        ...dashboardData,
+        selectedGroupId: "room-2",
+        firstRoomVisits: [
+          {
+            studentId: "s20",
+            studentName: "Restored Student",
+            schoolClass: "2a",
+            groupName: "G2",
+            activeGroupId: "room-2",
+            checkInTime: new Date().toISOString(),
+            isActive: true,
+          },
+        ],
+      };
+    });
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardRef.current,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : swrNull) as never);
 
     render(<MeinRaumPage />);
 
-    // The URL sync effect should find savedRoom via allRooms.find(r => r.room_id === "r2")
-    // and call switchToRoom, which calls loadRoomVisits
+    // The URL sync effect should find savedRoom via allRooms.find(r =>
+    // r.room_id === "r2") and call switchToRoom -> mutateDashboard
     await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("room-2");
+      expect(mockMutate).toHaveBeenCalled();
     });
 
     await waitFor(() => {
@@ -1642,7 +1644,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
   });
 });
 
-describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
+describe("ID-based selection coverage: forbidden-session 403 handling", () => {
   const mockMutate = vi.fn();
   const originalInnerWidth = window.innerWidth;
 
@@ -1703,13 +1705,9 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
   });
 
   it("shows permission error for 403 and clears students", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
-    // loadRoomVisits catches 403 and returns empty, but switchToRoom re-throws
-    // other errors. Let's test the 403 path in switchToRoom (lines 991-996)
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockRejectedValue(
-      new Error("Request failed: 403"),
-    );
+    // The aggregate's mutate rejects with 403 for a session outside the
+    // caller's scope (#2096) — switchToRoom shows the permission notice.
+    mockMutate.mockRejectedValue(new Error("Request failed: 403"));
 
     const dashboardData = {
       supervisedGroups: [
@@ -1772,13 +1770,16 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
     const restrictedTab = screen.getByTestId("tab-room-no-access");
     fireEvent.click(restrictedTab);
 
-    // loadRoomVisits internally catches 403 and returns [], but the code
-    // in switchToRoom proceeds normally with empty students
+    // switchToRoom surfaces the permission notice and clears the previous
+    // room's students.
     await waitFor(() => {
       expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("room-no-access");
+        screen.getByText(
+          'Keine Berechtigung für "Restricted Room". Kontaktieren Sie einen Administrator.',
+        ),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText("Allowed Student")).not.toBeInTheDocument();
   });
 });
 

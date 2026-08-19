@@ -73,16 +73,16 @@ export function TransitStudentsSection({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
   const mutateKey = useTenantMutate();
-  // "supervision-visits-" and "timetable-roster-" keep the
-  // /active-supervisions room grid and roster in sync when this section
-  // is embedded there — without them the assigned children only appear
-  // once an SSE event happens to arrive.
+  // "dashboard" (matching the aggregated active-supervision-dashboard key,
+  // which carries the room's visits since #2096) and "timetable-roster-"
+  // keep the /active-supervisions room grid and roster in sync when this
+  // section is embedded there — without them the assigned children only
+  // appear once an SSE event happens to arrive.
   const mutateMatching = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
     "rooms-list",
     "dashboard",
-    "supervision-visits-",
     "timetable-roster-",
   ]);
 
