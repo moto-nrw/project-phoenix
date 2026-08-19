@@ -417,6 +417,7 @@ function StudentsPageContent() {
 
   const canShowDetail = !loading && filteredStudents.length > 0;
   const canViewEnrollments = hasPermission(session, "config:manage");
+  const canCreateStudents = hasPermission(session, "users:create");
   const canDeleteStudents = hasPermission(session, "users:delete");
   const canUpdateStudents = hasPermission(session, "users:update");
 
@@ -590,7 +591,11 @@ function StudentsPageContent() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
-        onCreateListEntry={handleCreateListEntry}
+        // Same gate as POST /api/class-list-entries (users:create) — without
+        // the permission the modal must not offer the "Nur Klassenliste" mode.
+        onCreateListEntry={
+          canCreateStudents ? handleCreateListEntry : undefined
+        }
         groups={allGroups}
       />
 

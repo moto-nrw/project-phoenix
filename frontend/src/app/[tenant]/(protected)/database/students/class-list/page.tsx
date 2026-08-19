@@ -34,6 +34,7 @@ import {
   type ClassListEntry,
 } from "~/lib/class-list-entries-api";
 import { hasPermission } from "~/lib/auth-utils";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -468,7 +469,10 @@ export default function ClassListEntriesPage() {
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p
+              className="text-xs font-semibold tracking-wide uppercase"
+              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
+            >
               Klassenlisteneinträge
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
