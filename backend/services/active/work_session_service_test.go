@@ -3392,3 +3392,24 @@ func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "work session overlaps an existing block")
 }
+
+// The frontend picks the block to edit by id (#2402). A JSON number would be
+// parsed as a float64-backed JS number and rounded past 2^53 before the client
+// could stringify it, so the wire has to carry the id quoted.
+func TestWSSessionResponse_SerializesIDAsString(t *testing.T) {
+	day := timezone.NewDate(2026, 8, 17)
+	// Beyond Number.MAX_SAFE_INTEGER (9007199254740991): a numeric wire value
+	// would come back as ...992 in the browser.
+	session := wsClosedBlock(9007199254740993, day, 8, 12)
+
+	raw, err := json.Marshal(&SessionResponse{WorkSession: session, NetMinutes: 240})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(raw), `"id":"9007199254740993"`)
+
+	var wire struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &wire))
+	assert.Equal(t, "9007199254740993", wire.ID)
+}

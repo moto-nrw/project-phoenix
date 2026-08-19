@@ -4,7 +4,11 @@ import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
 
 // Backend response types (snake_case, numbers for IDs)
 export interface BackendWorkSession {
-  id: number;
+  // The history endpoints quote the int64 id (SessionResponse.MarshalJSON) so
+  // the block-edit lookup compares exact decimals; the single-session
+  // endpoints still serialize the raw model and send a number. `.toString()`
+  // below normalizes both to the canonical decimal string.
+  id: number | string;
   staff_id: number;
   date: string;
   status: "present" | "home_office";

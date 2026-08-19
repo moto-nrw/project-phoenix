@@ -727,9 +727,10 @@ interface StaffSessionBreak {
 }
 
 export interface StaffHistorySession {
-  // Backend int64, kept as its canonical decimal string (project-wide
-  // int64→string convention) so id matching never goes through a lossy
-  // Number() round trip.
+  // Backend int64, quoted as a decimal string ON THE WIRE already
+  // (SessionResponse.MarshalJSON) and carried through unchanged: parsing it as
+  // a JSON number would round anything past 2^53 before any client-side
+  // .toString() could run, and the block-edit lookup matches on this id.
   id?: string;
   date: string;
   status?: "present" | "home_office";
@@ -750,12 +751,6 @@ export interface StaffHistorySession {
   audit_count?: number;
 }
 
-// Wire row of /time-tracking/history: identical to StaffHistorySession
-// except that the backend serializes the int64 id as a JSON number.
-type BackendStaffHistorySession = Omit<StaffHistorySession, "id"> & {
-  id?: number;
-};
-
 class StaffHistoryService {
   async getHistory(
     staffId: string,
@@ -769,13 +764,12 @@ class StaffHistoryService {
     if (!response.ok) {
       throw new Error(`Failed to fetch staff history: ${response.statusText}`);
     }
+    // The wire row IS StaffHistorySession — the id arrives quoted, so there is
+    // nothing to convert and no number to round.
     const json = (await response.json()) as {
-      data: { sessions: BackendStaffHistorySession[] };
+      data: { sessions: StaffHistorySession[] };
     };
-    return (json.data.sessions ?? []).map((session) => ({
-      ...session,
-      id: session.id != null ? session.id.toString() : undefined,
-    }));
+    return json.data.sessions ?? [];
   }
 }
 
