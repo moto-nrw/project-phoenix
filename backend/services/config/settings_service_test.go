@@ -2051,7 +2051,6 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	cleanup := func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-		_ = db.Close()
 	}
 
 	return svc, school, cleanup
@@ -2098,7 +2097,6 @@ func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
 	// Pre-populate the school with other settings via direct SQL
 	ctx := testpkg.TenantContext(1)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	_, err := db.ExecContext(ctx,
 		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,
 		school.ID)

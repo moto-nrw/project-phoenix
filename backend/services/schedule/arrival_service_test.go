@@ -46,7 +46,6 @@ func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 
 func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -82,7 +81,6 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -118,7 +116,6 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 
 func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -180,7 +177,6 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 
 func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -251,7 +247,6 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 
 func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -281,7 +276,6 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -317,7 +311,6 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 
 func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -381,7 +374,6 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -411,7 +403,6 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 
 func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -456,7 +447,6 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 
 func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -489,7 +479,6 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 
 func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupArrivalScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "ArrivalPatch", "1a")
@@ -531,7 +520,6 @@ func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *te
 
 func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupArrivalScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "ArrivalClear", "1a")
@@ -568,7 +556,6 @@ func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
 
 func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -598,7 +585,6 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -635,7 +621,6 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 
 func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -690,7 +675,6 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -719,7 +703,6 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -756,7 +739,6 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -799,7 +781,6 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 
 func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -845,7 +826,6 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 
 func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -875,7 +855,6 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -912,7 +891,6 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 
 func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -959,7 +937,6 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 
 func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1156,7 +1133,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1311,7 +1287,6 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 
 func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)

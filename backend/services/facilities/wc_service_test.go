@@ -75,7 +75,6 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 
 func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)
@@ -98,7 +97,6 @@ func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)
@@ -120,7 +118,6 @@ func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)
@@ -146,7 +143,6 @@ func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)
@@ -171,7 +167,6 @@ func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_ReuseExistingRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)

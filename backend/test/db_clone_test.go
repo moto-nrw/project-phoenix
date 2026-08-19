@@ -17,7 +17,6 @@ import (
 
 func TestSetupTestDBUsesPackageClone(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var currentDB string
 	err := db.NewRaw(`SELECT current_database()`).Scan(context.Background(), &currentDB)
@@ -41,7 +40,6 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			db := SetupTestDB(t)
-			defer func() { _ = db.Close() }()
 
 			var one int
 			require.NoError(t, db.NewRaw(`SELECT 1`).Scan(context.Background(), &one))
@@ -52,7 +50,6 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 
 func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	scope := NewTenantScope(t, db)
 	require.NotZero(t, scope.TenantID)

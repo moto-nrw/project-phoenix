@@ -17,7 +17,6 @@ import (
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -100,7 +99,6 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 
 func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -136,7 +134,6 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 
 func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -180,7 +177,6 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 
 func TestActivityExceptionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -231,7 +227,6 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 
 func TestActivityExceptionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -267,7 +262,6 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 
 func TestActivityExceptionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -318,7 +312,6 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 
 func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
@@ -363,7 +356,6 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 // Catalog code: 'c' = CASCADE, 'n' = SET NULL.
 func TestActivityExceptionFKOnDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 

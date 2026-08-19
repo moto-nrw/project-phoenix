@@ -14,7 +14,6 @@ import (
 
 func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -56,7 +55,6 @@ func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 
 func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -87,7 +85,6 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 
 func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)

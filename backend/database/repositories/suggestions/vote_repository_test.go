@@ -15,7 +15,6 @@ import (
 
 func TestVoteRepository_Upsert(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -72,7 +71,6 @@ func TestVoteRepository_Upsert(t *testing.T) {
 
 func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -102,7 +100,6 @@ func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 
 func TestVoteRepository_FindByPostAndVoter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
 	ctx := testpkg.TenantContext(1)

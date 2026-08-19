@@ -21,7 +21,6 @@ const operatorMFATestJWTSecret = "test-secret-must-be-at-least-32-chars-long-for
 func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)

@@ -18,7 +18,6 @@ import (
 
 func TestDeviceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -56,7 +55,6 @@ func TestDeviceRepository_Create(t *testing.T) {
 
 func TestDeviceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -78,7 +76,6 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 
 func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -100,7 +97,6 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 
 func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).Device
@@ -133,7 +129,6 @@ func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 
 func TestDeviceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -154,7 +149,6 @@ func TestDeviceRepository_Update(t *testing.T) {
 
 func TestDeviceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -176,7 +170,6 @@ func TestDeviceRepository_Delete(t *testing.T) {
 
 func TestDeviceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -193,7 +186,6 @@ func TestDeviceRepository_List(t *testing.T) {
 
 func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -228,7 +220,6 @@ func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
 
 func TestDeviceRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -264,7 +255,6 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 
 func TestDeviceRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -282,7 +272,6 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 
 func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -315,7 +304,6 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 
 func TestDeviceRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -355,7 +343,6 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 
 func TestDeviceRepository_FindByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -388,7 +375,6 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 
 func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -437,7 +423,6 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 
 func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -459,7 +444,6 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 
 func TestDeviceRepository_UpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -495,7 +479,6 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 
 func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -527,7 +510,6 @@ func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
 
 func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -601,7 +583,6 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 
 func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -642,7 +623,6 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 
 func TestDeviceRepository_UpdateRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)
@@ -719,7 +699,6 @@ func TestDeviceRepository_UpdateRoomID(t *testing.T) {
 
 func TestDeviceRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(1)

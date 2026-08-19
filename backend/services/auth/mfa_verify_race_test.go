@@ -47,7 +47,6 @@ func (r *raceLosingChallengeRepo) MarkConsumed(_ context.Context, id int64, _ ti
 func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	realChallengeRepo := repos.MFAEmailChallenge
@@ -117,7 +116,6 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	realChallengeRepo := repos.MFAEmailChallenge

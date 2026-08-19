@@ -80,7 +80,6 @@ func TestWebPushDeliverSynchronouslyReportsMissingSubscribers(t *testing.T) {
 		require.NoError(t, err)
 		db := bun.NewDB(sqlDB, pgdialect.New())
 		t.Cleanup(func() {
-			_ = db.Close()
 			_ = sqlDB.Close()
 		})
 		beginErr := errors.New("connection lost")

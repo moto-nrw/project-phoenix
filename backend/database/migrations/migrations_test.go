@@ -115,7 +115,6 @@ func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 
 func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	if err := downOperatorRefreshTokens(ctx, db); err != nil {

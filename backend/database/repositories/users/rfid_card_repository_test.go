@@ -29,7 +29,6 @@ func generateHexID(prefix string) string {
 
 func TestRFIDCardRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -77,7 +76,6 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 
 func TestRFIDCardRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -103,7 +101,6 @@ func TestRFIDCardRepository_FindByID(t *testing.T) {
 
 func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -126,7 +123,6 @@ func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 
 func TestRFIDCardRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -156,7 +152,6 @@ func TestRFIDCardRepository_Delete(t *testing.T) {
 
 func TestRFIDCardRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -188,7 +183,6 @@ func TestRFIDCardRepository_List(t *testing.T) {
 
 func TestRFIDCardRepository_Deactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)
@@ -221,7 +215,6 @@ func TestRFIDCardRepository_Deactivate(t *testing.T) {
 
 func TestRFIDCardRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
 	ctx := testpkg.TenantContext(1)

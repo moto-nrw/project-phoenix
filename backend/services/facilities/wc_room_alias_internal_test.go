@@ -79,7 +79,6 @@ func createWCRoomAliasRoomInternal(t *testing.T, db *bun.DB, name string) *facil
 
 func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCRoomAliasArtifactsInternal(t, db)
 	defer cleanupWCRoomAliasArtifactsInternal(t, db)
@@ -118,7 +117,6 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 	// before the IoT WC button works. That's acceptable: no silent data
 	// adoption, no invisible cross-layer drift.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCRoomAliasArtifactsInternal(t, db)
 	defer cleanupWCRoomAliasArtifactsInternal(t, db)
@@ -149,7 +147,6 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 // downstream side-effect, this one asserts the lookup primitive.
 func TestFindToiletRoom_SkipsLowercaseWCRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCRoomAliasArtifactsInternal(t, db)
 	defer cleanupWCRoomAliasArtifactsInternal(t, db)

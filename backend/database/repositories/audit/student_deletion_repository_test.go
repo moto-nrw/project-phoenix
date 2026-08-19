@@ -14,7 +14,6 @@ import (
 
 func TestStudentDeletionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repo := repositories.NewFactory(db).StudentDeletionAudit
 
 	assert.ErrorContains(t, repo.Create(context.Background(), nil), "audit event is required")

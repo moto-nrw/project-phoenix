@@ -24,11 +24,6 @@ import (
 // TestUpdateSessionActivity tests updating session activity timestamp
 func TestUpdateSessionActivity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -110,11 +105,6 @@ func TestUpdateSessionActivity(t *testing.T) {
 // TestValidateSessionTimeout tests timeout validation logic
 func TestValidateSessionTimeout(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -228,11 +218,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 // TestGetSessionTimeoutInfo tests retrieving timeout information
 func TestGetSessionTimeoutInfo(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

@@ -22,7 +22,6 @@ import (
 // reject with a 409 without committing any partial link deletions.
 func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 

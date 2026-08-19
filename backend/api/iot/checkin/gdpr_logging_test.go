@@ -34,7 +34,6 @@ func TestDeviceCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "gdpr-log-checkin")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)

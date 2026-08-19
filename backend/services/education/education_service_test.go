@@ -40,7 +40,6 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 
 func TestListGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -124,7 +123,6 @@ func TestListGroups(t *testing.T) {
 
 func TestListSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +177,6 @@ func TestListSubstitutions(t *testing.T) {
 
 func TestGetGroupTeachers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -252,7 +249,6 @@ func TestGetGroupTeachers(t *testing.T) {
 
 func TestCreateSubstitution_DateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -379,7 +375,6 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 
 func TestUpdateSubstitution_DateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -500,7 +495,6 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 
 func TestGroupOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -535,7 +529,6 @@ func TestGroupOperations(t *testing.T) {
 
 func TestTeacherGroupOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -598,7 +591,6 @@ func TestTeacherGroupOperations(t *testing.T) {
 
 func TestEducationService_UpdateGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -671,7 +663,6 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 func TestEducationService_DeleteGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -741,7 +732,6 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 
 func TestEducationService_GetGroupsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -774,7 +764,6 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 
 func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -834,7 +823,6 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 
 func TestEducationService_DeleteSubstitution(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -873,7 +861,6 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 
 func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -906,7 +893,6 @@ func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 
 func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -974,7 +960,6 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 
 func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1022,7 +1007,6 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 
 func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1092,7 +1076,6 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 func TestEducationService_ListGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1116,7 +1099,6 @@ func TestEducationService_ListGroups(t *testing.T) {
 
 func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1150,7 +1132,6 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 
 func TestEducationService_GetTeacherGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1166,7 +1147,6 @@ func TestEducationService_GetTeacherGroups(t *testing.T) {
 
 func TestEducationService_GetSubstitution(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1208,7 +1188,6 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 
 func TestEducationService_ListSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
 	ctx := testpkg.TenantContext(1)

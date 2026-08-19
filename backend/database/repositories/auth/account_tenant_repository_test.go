@@ -14,7 +14,6 @@ import (
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -59,7 +58,6 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 
 func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -75,7 +73,6 @@ func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 
 func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -120,7 +117,6 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 
 func TestAccountTenantRepository_Deactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -208,7 +204,6 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -254,7 +249,6 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE id = ?`, invitation.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -289,7 +283,6 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -331,7 +324,6 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -377,7 +369,6 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	})
 
 	repo := authRepo.NewAccountTenantRepository(db)

@@ -54,7 +54,6 @@ func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int
 func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(

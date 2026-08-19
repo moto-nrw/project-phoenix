@@ -53,7 +53,6 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 			TableExpr("enrollment.phases").
 			Where("tenant_id = ? AND name LIKE ?", 1, phaseNamePrefix+"%").
 			Exec(bg)
-		_ = db.Close()
 	}
 	return svc, repoFactory, db, cleanup
 }

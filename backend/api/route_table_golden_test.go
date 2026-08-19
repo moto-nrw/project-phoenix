@@ -64,8 +64,7 @@ func newGoldenAPI(t *testing.T) *API {
 	// forces APP_ENV=test, and points viper's test_db_dsn at the
 	// package-isolated clone — api.New's DBConnForServe resolves through the
 	// same viper key, so the whole router builds against the clone.
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	_ = testpkg.SetupTestDB(t)
 
 	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
 

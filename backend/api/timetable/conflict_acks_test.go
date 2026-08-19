@@ -37,7 +37,6 @@ type ackSetup struct {
 func buildAckSetup(t *testing.T) *ackSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-%d@example.com", time.Now().UnixNano()))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID) })

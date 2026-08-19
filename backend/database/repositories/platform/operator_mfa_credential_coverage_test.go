@@ -20,7 +20,6 @@ import (
 
 func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
@@ -47,7 +46,6 @@ func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 
 func TestOperatorMFACredentialRepository_Update_NilRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
 	err := repo.Update(context.Background(), nil)
@@ -56,7 +54,6 @@ func TestOperatorMFACredentialRepository_Update_NilRejected(t *testing.T) {
 
 func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
@@ -77,7 +74,6 @@ func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
 
 func TestOperatorMFACredentialRepository_List_NoFilters_ReturnsAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)

@@ -127,7 +127,6 @@ func TestSendTestNotificationNilService(t *testing.T) {
 
 func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
 	db, _ := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	svc := &captureService{}
 	router := NewResource(svc, nil, nil, db).Router()

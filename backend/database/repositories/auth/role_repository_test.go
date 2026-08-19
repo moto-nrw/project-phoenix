@@ -61,7 +61,6 @@ func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
 
 func TestRoleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -99,7 +98,6 @@ func TestRoleRepository_Create(t *testing.T) {
 
 func TestRoleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -122,7 +120,6 @@ func TestRoleRepository_FindByID(t *testing.T) {
 
 func TestRoleRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -144,7 +141,6 @@ func TestRoleRepository_FindByName(t *testing.T) {
 
 func TestRoleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -165,7 +161,6 @@ func TestRoleRepository_Update(t *testing.T) {
 
 func TestRoleRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -187,7 +182,6 @@ func TestRoleRepository_Delete(t *testing.T) {
 
 func TestRoleRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -204,7 +198,6 @@ func TestRoleRepository_List(t *testing.T) {
 
 func TestRoleRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -283,7 +276,6 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 
 func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -302,7 +294,6 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 
 func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)
@@ -325,7 +316,6 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 
 func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
 	ctx := testpkg.TenantContext(1)

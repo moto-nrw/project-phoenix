@@ -30,7 +30,6 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -56,7 +55,6 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)

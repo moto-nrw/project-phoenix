@@ -16,7 +16,6 @@ import (
 
 func TestSchoolRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewSchoolRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -64,7 +63,6 @@ func TestSchoolRepository_Create(t *testing.T) {
 
 func TestSchoolRepository_QueryMethods(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewSchoolRepository(db)
 	orgRepo := platformRepo.NewOrganizationRepository(db)

@@ -16,7 +16,6 @@ import (
 // TestStudentRepository_CompanionNoteSchemaCompatibility.
 func TestVerifyStudentSchema_FullyMigrated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	require.NoError(t, repousers.VerifyStudentSchema(context.Background(), db))
 }

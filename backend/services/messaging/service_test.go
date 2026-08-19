@@ -107,7 +107,6 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{

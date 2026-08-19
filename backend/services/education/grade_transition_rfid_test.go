@@ -38,7 +38,6 @@ func tagOf(t *testing.T, ctx context.Context, db *bun.DB, personID int64) string
 // hand it back.
 func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -106,7 +105,6 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 // say so in the result warnings.
 func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 

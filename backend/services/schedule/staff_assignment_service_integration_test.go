@@ -18,7 +18,6 @@ import (
 // scoped strictly to the calling staff member.
 func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	const tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)

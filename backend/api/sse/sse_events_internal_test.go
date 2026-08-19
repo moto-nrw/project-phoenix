@@ -85,7 +85,6 @@ func setupEventsTestContext(t *testing.T) *eventsTestContext {
 
 func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 	ctx := setupEventsTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a person without staff record (just a basic account)
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonStaff", "User")
@@ -114,7 +113,6 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 
 func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	ctx := setupEventsTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
@@ -139,7 +137,6 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 
 func TestSSEEvents_AdminClaims(t *testing.T) {
 	tctx := setupEventsTestContext(t)
-	defer func() { _ = tctx.db.Close() }()
 
 	// Create admin without staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, tctx.db, "Admin", "NoStaff")
@@ -168,7 +165,6 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 
 func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	tctx := setupEventsTestContext(t)
-	defer func() { _ = tctx.db.Close() }()
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.eventsHandler)
@@ -198,7 +194,6 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	tctx := setupEventsTestContext(t)
-	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
@@ -232,7 +227,6 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	tctx := setupEventsTestContext(t)
-	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")

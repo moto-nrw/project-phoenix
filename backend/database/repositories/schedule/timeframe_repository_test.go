@@ -17,7 +17,6 @@ import (
 
 func TestTimeframeRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -64,7 +63,6 @@ func TestTimeframeRepository_Create(t *testing.T) {
 
 func TestTimeframeRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -94,7 +92,6 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 
 func TestTimeframeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -124,7 +121,6 @@ func TestTimeframeRepository_Update(t *testing.T) {
 
 func TestTimeframeRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -153,7 +149,6 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 
 func TestTimeframeRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -177,7 +172,6 @@ func TestTimeframeRepository_List(t *testing.T) {
 
 func TestTimeframeRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -223,7 +217,6 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 
 func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)
@@ -262,7 +255,6 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 
 func TestTimeframeRepository_FindByDescription(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
 	ctx := testpkg.TenantContext(1)

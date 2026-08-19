@@ -28,7 +28,6 @@ func cleanupRolePermission(t *testing.T, db *bun.DB, roleID, permissionID int64)
 
 func TestRolePermissionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)
@@ -86,7 +85,6 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 
 func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)
@@ -123,7 +121,6 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 
 func TestRolePermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)
@@ -170,7 +167,6 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 
 func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)
@@ -215,7 +211,6 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 
 func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)
@@ -259,7 +254,6 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 
 func TestRolePermissionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
 	ctx := testpkg.TenantContext(1)

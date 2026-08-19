@@ -52,7 +52,6 @@ var trackingBudgetTenantCounter int64 = 890_000 + time.Now().UnixNano()%100_000
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := atomic.AddInt64(&trackingBudgetTenantCounter, 1)
 	testpkg.EnsureTestTenant(t, db, tenantID)

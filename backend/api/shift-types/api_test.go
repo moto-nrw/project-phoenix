@@ -37,7 +37,6 @@ type shiftTypeTestSetup struct {
 func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
 	db, svcs := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	res := NewResource(svcs.ShiftTypes, svcs.Activities, db, slog.Default())
 

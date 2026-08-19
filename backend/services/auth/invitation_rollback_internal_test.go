@@ -40,7 +40,6 @@ func (r failingStaffRepo) Create(context.Context, *userModels.Staff) error {
 // from a write that simply never happened.
 func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)

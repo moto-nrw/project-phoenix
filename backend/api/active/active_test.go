@@ -61,12 +61,6 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	return &testContext{
 		db:       db,
 		services: svc,

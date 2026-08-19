@@ -34,7 +34,6 @@ func createActiveService(t *testing.T, db *bun.DB) active.Service {
 
 func TestActiveService_GetActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -83,7 +82,6 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 
 func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -139,7 +137,6 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 
 func TestActiveService_CreateActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -184,7 +181,6 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 
 func TestActiveService_UpdateActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -262,7 +258,6 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 
 func TestActiveService_DeleteActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -323,7 +318,6 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 
 func TestActiveService_ListActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -386,7 +380,6 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 
 func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -446,7 +439,6 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 
 func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -488,7 +480,6 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 
 func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -534,7 +525,6 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 
 func TestActiveService_EndActiveGroupSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -573,7 +563,6 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 
 func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -614,7 +603,6 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 
 func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -656,7 +644,6 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 
 func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -705,7 +692,6 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 
 func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -729,7 +715,6 @@ func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
 
 func TestActiveService_ClaimActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -772,7 +757,6 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 
 func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -807,7 +791,6 @@ func uniqueName(prefix string) string {
 
 func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -867,7 +850,6 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 
 func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -915,7 +897,6 @@ func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 
 func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -958,7 +939,6 @@ func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 
 func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1007,7 +987,6 @@ func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 
 func TestActiveService_EndDailySessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1028,7 +1007,6 @@ func TestActiveService_EndDailySessions(t *testing.T) {
 
 func TestActiveService_ForceStartActivitySession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1084,7 +1062,6 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 
 func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1255,7 +1232,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 
 func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

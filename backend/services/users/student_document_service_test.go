@@ -47,7 +47,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	suffix := time.Now().UnixNano()
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Dokumente-Gruppe-%d", suffix))

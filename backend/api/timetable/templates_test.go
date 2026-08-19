@@ -100,7 +100,6 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

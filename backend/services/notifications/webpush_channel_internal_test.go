@@ -440,7 +440,6 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 
@@ -567,7 +566,6 @@ func mockTenantTx(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 	mock.ExpectBegin()

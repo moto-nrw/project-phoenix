@@ -87,7 +87,6 @@ func roleHasDeletePrivilege(t *testing.T, db *bun.DB, relation string) bool {
 
 func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScopedBackfill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	assert.True(t, notificationModeColumnExists(t, db))

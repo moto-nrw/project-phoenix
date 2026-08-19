@@ -35,7 +35,6 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewStaffDocumentService(

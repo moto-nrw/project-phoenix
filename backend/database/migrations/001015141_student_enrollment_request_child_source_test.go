@@ -13,7 +13,6 @@ import (
 
 func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -43,7 +42,6 @@ func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t
 
 func TestStudentEnrollmentRequestChildSourceBackfillsUnambiguousApprovalRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)

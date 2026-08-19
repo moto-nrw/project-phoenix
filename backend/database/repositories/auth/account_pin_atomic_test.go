@@ -30,7 +30,6 @@ import (
 // exactly N attempts and the N return values must be the unique set {1..N}.
 func TestAccountRepository_IncrementPINAttempts_AtomicUnderRace(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-counter")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
@@ -87,7 +86,6 @@ func TestAccountRepository_IncrementPINAttempts_AtomicUnderRace(t *testing.T) {
 // is cleared.
 func TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-reset")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })

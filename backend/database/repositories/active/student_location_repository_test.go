@@ -22,7 +22,6 @@ import (
 // records for multiple students with hermetic fixtures.
 func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewAttendanceRepository(db)
@@ -102,7 +101,6 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 // for students using hermetic fixtures.
 func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewVisitRepository(db)
@@ -183,7 +181,6 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 // using hermetic fixtures.
 func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewGroupRepository(db)

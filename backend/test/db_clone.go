@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -29,6 +30,11 @@ var (
 	// whole process lifetime, so the cross-run generation GC never collects
 	// a clone whose tests are still running. Deliberately never closed.
 	packageClone *testdb.CloneHandle
+
+	// sharedTestDB is the one connection pool per test binary (#2419 PR 2).
+	// Every SetupTestDB call returns this handle; tests never close it — the
+	// pool dies with the process. Deliberately never closed.
+	sharedTestDB *bun.DB
 )
 
 // initPackageTestDB is the process-once part of SetupTestDB: environment,
@@ -89,25 +95,54 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	if err != nil {
 		return fmt.Errorf("connect to package test database: %w", err)
 	}
-	defer func() { _ = db.Close() }()
 
-	return initCloneBootstrap(ctx, db)
+	// Bake search_path into the clone so every pooled connection gets it.
+	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
+	// which fails when the target schema isn't in search_path. A per-session
+	// SET would only reach one pooled connection; ALTER DATABASE reaches all
+	// connections opened after it — the shared pool below is opened lazily,
+	// so its connections all inherit this.
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(
+		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`,
+		clone.Name)); err != nil {
+		_ = db.Close()
+		return fmt.Errorf("set clone search_path: %w", err)
+	}
+
+	if err := initCloneBootstrap(ctx, db); err != nil {
+		_ = db.Close()
+		return err
+	}
+	// The bootstrap pool predates the ALTER DATABASE above, so its existing
+	// connections may lack the search_path. Recycle it for the shared pool.
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("close bootstrap pool: %w", err)
+	}
+
+	sharedTestDB, err = database.DBConn()
+	if err != nil {
+		return fmt.Errorf("open shared package test pool: %w", err)
+	}
+	return nil
 }
 
 // applyViperTestConfig points viper at the package clone. APP_ENV=test
 // deliberately resolves only test_db_dsn; setting db_dsn would be ignored and
 // would silently send integration tests to the shared template database.
 //
-// Pool caps: each SetupTestDB call still opens its own pool (tests
-// `defer db.Close()`); the PR-2 sweep replaces these with one pool per
-// package. 3 conns/test fits comfortably within max_connections even with
-// all packages running in parallel.
+// Pool budget: one pool per test binary, capped at min(GOMAXPROCS, 8) open
+// connections. `go test` runs at most GOMAXPROCS package binaries at once,
+// so the worst case against max_connections is
+// GOMAXPROCS × (pool cap + 1 keeper) — on the 8-vCPU CI runner
+// 8 × 9 = 72 against postgres:17's default max_connections=100, locally
+// well under the compose file's max_connections=200. The cap also matches
+// `-parallel` (default GOMAXPROCS), so parallel tests rarely queue.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
 	viper.Set("test_db_dsn", packageClone.DSN)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
-	viper.Set("db_max_open_conns", 3)
-	viper.Set("db_max_idle_conns", 1)
+	viper.Set("db_max_open_conns", min(runtime.GOMAXPROCS(0), 8))
+	viper.Set("db_max_idle_conns", min(runtime.GOMAXPROCS(0), 8))
 }
 
 // initCloneBootstrap seeds the per-package clone once: sequence offsets, the

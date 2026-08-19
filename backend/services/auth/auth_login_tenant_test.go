@@ -24,7 +24,6 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 	// success path, ensureAccountRolesLoadedForTenant, loadAccountPermissionsForTenant,
 	// and loadAccountMetadata.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -58,7 +57,6 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 	// ErrTenantNotFound. Covers the resolveAccountTenantBySlug error path
 	// where the school lookup fails.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -88,7 +86,6 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 	// account has no account_tenants mapping to it. Covers the
 	// resolveAccountTenantBySlug "account does not have access" path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -124,7 +121,6 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 	// which picks the first active account_tenants mapping. Covers the default
 	// resolution success path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -158,7 +154,6 @@ func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 	// active tenant mappings exist. This confirms that accounts without any tenant
 	// mapping cannot log in.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 

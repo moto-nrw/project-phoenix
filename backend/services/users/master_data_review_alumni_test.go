@@ -26,9 +26,6 @@ import (
 
 func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(
 		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())

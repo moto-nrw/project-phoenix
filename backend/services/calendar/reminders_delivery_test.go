@@ -54,7 +54,6 @@ func (r *revisingCandidateLock) LockReminderCandidate(ctx context.Context, id in
 // dropped, or the reminder is lost for an occurrence that is still due.
 func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
@@ -124,7 +123,6 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 // sent — the recipient list resolved at queue time is too old to trust.
 func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)

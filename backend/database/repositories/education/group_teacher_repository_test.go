@@ -65,7 +65,6 @@ func cleanupTeacherChain(t *testing.T, db *bun.DB, teacherID int64) {
 
 func TestGroupTeacherRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -91,7 +90,6 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 
 func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +123,6 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 
 func TestGroupTeacherRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -154,7 +151,6 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 
 func TestGroupTeacherRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -182,7 +178,6 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 
 func TestGroupTeacherRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -209,7 +204,6 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 
 func TestGroupTeacherRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -231,7 +225,6 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 
 func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -271,7 +264,6 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 
 func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -315,7 +307,6 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 
 func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -355,7 +346,6 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 
 func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)
@@ -369,7 +359,6 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 
 func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := testpkg.TenantContext(1)

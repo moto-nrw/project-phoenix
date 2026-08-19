@@ -32,7 +32,6 @@ func init() {
 // persisted and linked.
 func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Child", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
@@ -74,7 +73,6 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 // TestCreateStudentGuardians_EmptyGuardians_BadRequest rejects an empty batch.
 func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Empty", "Batch", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
@@ -97,7 +95,6 @@ func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 // single-link endpoint).
 func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Forbidden", "Batch", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)

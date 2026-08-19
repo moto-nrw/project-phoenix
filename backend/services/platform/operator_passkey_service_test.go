@@ -757,7 +757,6 @@ func (s *operatorPasskeyMFAServiceStub) RevokeTrustedDevice(context.Context, int
 
 func TestOperatorPasskeyRepositories(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	requireOperatorPasskeyTables(t, db, "platform.operator_passkey_credentials", "platform.operator_passkey_sessions")
 
 	ctx := context.Background()

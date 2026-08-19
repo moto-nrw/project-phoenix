@@ -39,7 +39,6 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 	registerTestSetting("test.multi_tenant", config.FieldText, "default")
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)

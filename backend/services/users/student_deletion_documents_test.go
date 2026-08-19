@@ -26,7 +26,6 @@ import (
 // leaves the scheduler about to delete a living child's documents.
 func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	repos := repositories.NewFactory(db)

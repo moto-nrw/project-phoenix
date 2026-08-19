@@ -19,7 +19,6 @@ import (
 
 func TestWorkSessionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -89,7 +88,6 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 
 func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +123,6 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 
 func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +176,6 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 
 func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -231,7 +227,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -245,7 +241,6 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 
 func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -305,7 +300,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -317,7 +312,6 @@ func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
 
 func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -370,7 +364,6 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 
 func TestWorkSessionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -419,7 +412,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 }
 
 func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -435,7 +428,6 @@ func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
 
 func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -490,7 +482,7 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 }
 
 func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -502,7 +494,6 @@ func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T
 
 func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.TenantContext(1)
@@ -588,7 +579,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 }
 
 func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession

@@ -40,7 +40,6 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 	})
 
 	cleanup := func() {
-		_ = db.Close()
 	}
 
 	return service, db, cleanup
@@ -1275,7 +1274,6 @@ func (r *recordingRosterReconciler) CurrentRosterBaseline(_ context.Context) (in
 // admin never asked to revert (#405 review).
 func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -1336,7 +1334,6 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 // review).
 func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{

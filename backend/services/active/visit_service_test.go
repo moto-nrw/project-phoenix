@@ -22,7 +22,6 @@ import (
 
 func TestActiveService_GetVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -71,7 +70,6 @@ func TestActiveService_GetVisit(t *testing.T) {
 
 func TestActiveService_CreateVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -274,7 +272,6 @@ func TestActiveService_CreateVisit(t *testing.T) {
 
 func TestActiveService_UpdateVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -381,7 +378,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 
 	t.Run("preserves database errors while preloading visit", func(t *testing.T) {
 		// ARRANGE
-		failingDB := testpkg.SetupTestDB(t)
+		failingDB := testpkg.SetupClosableTestDB(t)
 		serviceWithClosedDB := setupActiveService(t, failingDB)
 		require.NoError(t, failingDB.Close())
 		visit := &activeModels.Visit{
@@ -406,7 +403,6 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 
 func TestActiveService_DeleteVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -454,7 +450,6 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 
 func TestActiveService_ListVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -497,7 +492,6 @@ func TestActiveService_ListVisits(t *testing.T) {
 
 func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -543,7 +537,6 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 
 func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -591,7 +584,6 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 
 func TestActiveService_EndVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -649,7 +641,6 @@ func TestActiveService_EndVisit(t *testing.T) {
 
 func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -713,7 +704,6 @@ func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 
 func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -775,7 +765,6 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 
 func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -816,7 +805,6 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 // Covers both the visit path (detailed mode) and the attendance path.
 func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

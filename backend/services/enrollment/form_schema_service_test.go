@@ -41,7 +41,6 @@ func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService
 			TableExpr("auth.accounts").
 			Where("id = ?", account.ID).
 			Exec(context.Background())
-		_ = db.Close()
 	})
 
 	return db, svc, account.ID, tenantID

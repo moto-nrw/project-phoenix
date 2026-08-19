@@ -34,7 +34,6 @@ func createTestClosingDay(t *testing.T, repo scheduleModels.ClosingDayRepository
 
 func TestClosingDayRepository_CRUD(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -98,7 +97,6 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 
 func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -137,7 +135,6 @@ func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
 
 func TestClosingDayRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	testpkg.EnsureTestTenant(t, db, 2)
 

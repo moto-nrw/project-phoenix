@@ -72,7 +72,6 @@ func cleanupVisitTestData(t *testing.T, db *bun.DB, data *visitTestData) {
 
 func TestVisitRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -121,7 +120,6 @@ func TestVisitRepository_Create(t *testing.T) {
 
 func TestVisitRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -153,7 +151,6 @@ func TestVisitRepository_FindByID(t *testing.T) {
 
 func TestVisitRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -184,7 +181,6 @@ func TestVisitRepository_Update(t *testing.T) {
 
 func TestVisitRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -215,7 +211,6 @@ func TestVisitRepository_Delete(t *testing.T) {
 
 func TestVisitRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -241,7 +236,6 @@ func TestVisitRepository_List(t *testing.T) {
 
 func TestVisitRepository_FindActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -281,7 +275,6 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 
 func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -320,7 +313,6 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 
 func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -356,7 +348,6 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 
 func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -403,7 +394,6 @@ func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
 
 func TestVisitRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -445,7 +435,6 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 
 func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -477,7 +466,6 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 
 func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -522,7 +510,6 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 
 func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -558,7 +545,6 @@ func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 
 func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -620,7 +606,6 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 
 func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -676,7 +661,6 @@ func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
 
 func TestVisitRepository_EndVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -709,7 +693,6 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 
 func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -770,7 +753,6 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 
 func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
@@ -884,7 +866,6 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 
 func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
@@ -949,7 +930,6 @@ func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 
 func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1001,7 +981,6 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1052,7 +1031,6 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1142,7 +1120,6 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 
 func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1220,7 +1197,6 @@ func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
 
 func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1285,7 +1261,6 @@ func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
 
 func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
@@ -1392,7 +1367,6 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 
 func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1424,7 +1398,6 @@ func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 
 func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -1618,7 +1591,6 @@ func cleanupTenantPrivacyConsents(t *testing.T, db *bun.DB, tenantIDs ...int64) 
 
 func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := repositories.NewFactory(db).ActiveVisit
 
@@ -1663,7 +1635,6 @@ func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 
 func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := repositories.NewFactory(db).ActiveVisit
 

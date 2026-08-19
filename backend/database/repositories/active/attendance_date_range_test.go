@@ -35,7 +35,6 @@ func createAttendanceForDate(t *testing.T, ctx context.Context, repo active.Atte
 
 func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)

@@ -103,7 +103,6 @@ func exec(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 
 func TestListPosts_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-list")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -119,7 +118,6 @@ func TestListPosts_Success(t *testing.T) {
 
 func TestListPosts_WithSortParam(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-sort")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -132,7 +130,6 @@ func TestListPosts_WithSortParam(t *testing.T) {
 
 func TestListPosts_NoPermission(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-noperm")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -149,7 +146,6 @@ func TestListPosts_NoPermission(t *testing.T) {
 
 func TestGetPost_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-get")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -165,7 +161,6 @@ func TestGetPost_Success(t *testing.T) {
 
 func TestGetPost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -178,7 +173,6 @@ func TestGetPost_NotFound(t *testing.T) {
 
 func TestGetPost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-invalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -195,7 +189,6 @@ func TestGetPost_InvalidID(t *testing.T) {
 
 func TestCreatePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-create")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -222,7 +215,6 @@ func TestCreatePost_Success(t *testing.T) {
 
 func TestCreatePost_EmptyTitle(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-empty")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -236,7 +228,6 @@ func TestCreatePost_EmptyTitle(t *testing.T) {
 
 func TestCreatePost_EmptyDescription(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-nodesc")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -250,7 +241,6 @@ func TestCreatePost_EmptyDescription(t *testing.T) {
 
 func TestCreatePost_TitleTooLong(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-long")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -271,7 +261,6 @@ func TestCreatePost_TitleTooLong(t *testing.T) {
 
 func TestUpdatePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-update")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -288,7 +277,6 @@ func TestUpdatePost_Success(t *testing.T) {
 
 func TestUpdatePost_Forbidden(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	author := testpkg.CreateTestAccount(t, db, "api-upd-author")
 	other := testpkg.CreateTestAccount(t, db, "api-upd-other")
@@ -306,7 +294,6 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 
 func TestUpdatePost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -320,7 +307,6 @@ func TestUpdatePost_NotFound(t *testing.T) {
 
 func TestUpdatePost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-invalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -334,7 +320,6 @@ func TestUpdatePost_InvalidID(t *testing.T) {
 
 func TestUpdatePost_DescriptionTooLong(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-longdesc")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -358,7 +343,6 @@ func TestUpdatePost_DescriptionTooLong(t *testing.T) {
 
 func TestDeletePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -373,7 +357,6 @@ func TestDeletePost_Success(t *testing.T) {
 
 func TestDeletePost_Forbidden(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	author := testpkg.CreateTestAccount(t, db, "api-del-author")
 	other := testpkg.CreateTestAccount(t, db, "api-del-other")
@@ -390,7 +373,6 @@ func TestDeletePost_Forbidden(t *testing.T) {
 
 func TestDeletePost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -403,7 +385,6 @@ func TestDeletePost_NotFound(t *testing.T) {
 
 func TestDeletePost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-invalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -420,7 +401,6 @@ func TestDeletePost_InvalidID(t *testing.T) {
 
 func TestVote_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -437,7 +417,6 @@ func TestVote_Success(t *testing.T) {
 
 func TestVote_InvalidDirection(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-invalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -451,7 +430,6 @@ func TestVote_InvalidDirection(t *testing.T) {
 
 func TestVote_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-badid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -465,7 +443,6 @@ func TestVote_InvalidID(t *testing.T) {
 
 func TestVote_PostNotFound(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -483,7 +460,6 @@ func TestVote_PostNotFound(t *testing.T) {
 
 func TestRemoveVote_Success(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -506,7 +482,6 @@ func TestRemoveVote_Success(t *testing.T) {
 
 func TestRemoveVote_PostNotFound(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -519,7 +494,6 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 
 func TestRemoveVote_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-badid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -536,7 +510,6 @@ func TestRemoveVote_InvalidID(t *testing.T) {
 
 func TestGetPost_NegativeID(t *testing.T) {
 	db, router := setupRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-negid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

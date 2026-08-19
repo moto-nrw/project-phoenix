@@ -22,7 +22,6 @@ import (
 
 func TestPrivacyConsentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -120,7 +119,6 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 
 func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -144,7 +142,6 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 
 func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -177,7 +174,6 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 
 func TestPrivacyConsentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -212,7 +208,6 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 
 func TestPrivacyConsentRepository_Accept(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -244,7 +239,6 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 
 func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -269,7 +263,6 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 
 func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -302,7 +295,6 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 
 func TestPrivacyConsentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := testpkg.TenantContext(1)
@@ -361,7 +353,6 @@ func insertConsentForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64,
 
 func TestPrivacyConsentRepository_ListAcceptedRetentionSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 

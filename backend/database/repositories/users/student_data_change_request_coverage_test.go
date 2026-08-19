@@ -38,7 +38,6 @@ func coverageContainsChangeRequest(rows []*usersModels.StudentDataChangeRequest,
 
 func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -89,7 +88,6 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 
 func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
 

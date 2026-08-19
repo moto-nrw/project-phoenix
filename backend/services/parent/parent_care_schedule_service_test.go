@@ -38,7 +38,6 @@ import (
 func buildCareScheduleService(t *testing.T, notesEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
 }

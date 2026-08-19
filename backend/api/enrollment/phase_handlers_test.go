@@ -167,7 +167,6 @@ func TestListPhasesHandler_ServiceErrorReturns500(t *testing.T) {
 
 func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	now := time.Now().UnixNano()
 	ctx := context.Background()

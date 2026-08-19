@@ -149,7 +149,6 @@ func createTestDeviceContext(device *iot.Device) *iot.Device {
 
 func TestDevicePing_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "ping-test")
@@ -178,7 +177,6 @@ func TestDevicePing_Success(t *testing.T) {
 
 func TestDevicePing_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -197,7 +195,6 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 
 func TestDeviceStatus_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-test")
@@ -224,7 +221,6 @@ func TestDeviceStatus_Success(t *testing.T) {
 
 func TestDeviceStatus_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -243,7 +239,6 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 
 func TestDeviceCheckin_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -262,7 +257,6 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 
 func TestDeviceCheckin_MissingRFID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-missing-rfid")
@@ -287,7 +281,6 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 
 func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-not-found")
@@ -313,7 +306,6 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 
 func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-no-groups")
@@ -361,7 +353,6 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 
 func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-test")
@@ -423,7 +414,6 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	// This test verifies that checkin to a room without an active group fails appropriately
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-new")
@@ -469,7 +459,6 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 	t.Run("authenticates supervisor with active session", func(t *testing.T) {
 		ctx := setupTestContext(t)
-		defer func() { _ = ctx.db.Close() }()
 
 		// Create test device
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid")
@@ -531,7 +520,6 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 
 	t.Run("returns 404 when no active session", func(t *testing.T) {
 		ctx := setupTestContext(t)
-		defer func() { _ = ctx.db.Close() }()
 
 		// Create test device (no active session)
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-no-session")
@@ -566,7 +554,6 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 
 	t.Run("idempotent duplicate supervisor scan", func(t *testing.T) {
 		ctx := setupTestContext(t)
-		defer func() { _ = ctx.db.Close() }()
 
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-dup")
 		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -628,7 +615,6 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 
 	t.Run("response includes room and activity names", func(t *testing.T) {
 		ctx := setupTestContext(t)
-		defer func() { _ = ctx.db.Close() }()
 
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-detail")
 		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -692,7 +678,6 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 // handleStaffScan (workflow.go lines 118-121).
 func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "bare-person")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -731,7 +716,6 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	// This test verifies that attempting to transfer to a room without an active group fails
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
@@ -797,7 +781,6 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 
 func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -826,7 +809,6 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 
 func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -853,7 +835,6 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -861,7 +842,6 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestRouter_CheckinEndpointExists(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -876,7 +856,6 @@ func TestRouter_CheckinEndpointExists(t *testing.T) {
 
 func TestRouter_PingEndpointExists(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -890,7 +869,6 @@ func TestRouter_PingEndpointExists(t *testing.T) {
 
 func TestRouter_StatusEndpointExists(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -909,7 +887,6 @@ func TestRouter_StatusEndpointExists(t *testing.T) {
 func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	// Full checkin requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "success-checkin")
@@ -967,7 +944,6 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	// Room transfer: checkout from room 1, checkin to room 2.
 	// Requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
@@ -1042,7 +1018,6 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 
 func TestDevicePing_SessionActiveStatus(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create device
 	device := testpkg.CreateTestDevice(t, ctx.db, "session-ping")
@@ -1073,7 +1048,6 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 
 func TestDeviceCheckin_InvalidAction(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1102,7 +1076,6 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 
 func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-no-visit")
@@ -1232,7 +1205,6 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // repository's WithTableAlias("group").
 func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-auto")
@@ -1298,7 +1270,6 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 	// Verifies that a successful checkin response includes the active_students count
 	// when the device is linked to an active session.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "active-count")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1364,7 +1335,6 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 	// Check in two students and verify the count increments correctly
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "multi-count")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1445,7 +1415,6 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 
 func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "shared-room-count")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1524,7 +1493,6 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 	// When a student scans out from a room and the same room_id is provided,
 	// the checkin should be skipped (student stays checked out from that room).
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "same-room")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1587,7 +1555,6 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	// Verifies that checkin fails when room is at capacity
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1654,7 +1621,6 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 
 func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-transfer-rollback")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Capacity", "Transfer")
@@ -1701,7 +1667,6 @@ func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T)
 func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 	// Verifies that checkout response includes the room name from the active visit
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-room")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1758,7 +1723,6 @@ func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 	// Student with no active visit and no room_id should get an error
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "no-action")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1797,7 +1761,6 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 	// Verifies that checkin fails when activity MaxParticipants is reached
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "act-cap")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1878,7 +1841,6 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 	// When the device is NOT linked to an active group, getActiveStudentCountForRoom
 	// falls back to counting across all groups in the room
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "fallback-count")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -1941,7 +1903,6 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 	// Verifies that a checkin with room_id updates the session's last activity
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "session-update")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2107,7 +2068,6 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // infrastructure creation (category, activity group, and active group).
 func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-auto")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2172,7 +2132,6 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 // activity group instead of failing or creating duplicates.
 func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-idem")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2245,7 +2204,6 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 // check in to WC room, then check out.
 func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-checkout")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2316,7 +2274,6 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 // without needing a full two-step checkin/checkout flow.
 func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-no-staff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2377,7 +2334,6 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 // with staff that created today's attendance record. We insert it directly here.
 func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-staff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2431,7 +2387,6 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-idem")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2511,7 +2466,6 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 // restart. See commit 54ef0c99 for the regression.
 func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-hijack-regression")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2600,7 +2554,6 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 // Schulhof groups never receive a DeviceID, same invariant as WC.
 func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-device")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2657,7 +2610,6 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	// Checkin for a student with a weekly pickup schedule should return pickup_time in response.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-time-checkin")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2734,7 +2686,6 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 	// Checkin for a student without any pickup schedule should NOT include pickup_time.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "no-pickup-checkin")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2787,7 +2738,6 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-success")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2865,7 +2815,6 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 
 func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-empty")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2906,7 +2855,6 @@ func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 
 func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2939,7 +2887,6 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-error")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -2976,7 +2923,6 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-rfid-failure")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3006,7 +2952,6 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-student-failure")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3046,7 +2991,6 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 
 func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3121,7 +3065,6 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 
 func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3192,7 +3135,6 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 
 func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -3207,7 +3149,6 @@ func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 
 func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-bad-body")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3227,7 +3168,6 @@ func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 
 func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-unknown-rfid")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3248,7 +3188,6 @@ func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 
 func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff-fail")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3287,7 +3226,6 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 
 func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-orphan")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
@@ -3355,7 +3293,6 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	// unique index from migration 1.15.47) is NOT exercised here — see
 	// the package note on duplicateVisitActiveService above.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "dup-409")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)

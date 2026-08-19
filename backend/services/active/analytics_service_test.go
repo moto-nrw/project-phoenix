@@ -19,7 +19,6 @@ import (
 
 func TestGetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

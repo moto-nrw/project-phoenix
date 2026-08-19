@@ -22,7 +22,6 @@ import (
 // one survives (#2189).
 func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-cleanup-%d@example.com", time.Now().UnixNano()))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

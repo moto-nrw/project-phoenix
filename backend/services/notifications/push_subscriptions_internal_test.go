@@ -140,7 +140,6 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var tenantID int64
 	require.NoError(t, db.NewSelect().
@@ -230,7 +229,6 @@ func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
-		_ = db.Close()
 	})
 
 	testpkg.MapAccountToTenant(t, db, account.ID, guardianTenantID)
@@ -277,7 +275,6 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 
@@ -313,7 +310,6 @@ func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 

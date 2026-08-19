@@ -22,7 +22,6 @@ import (
 
 func TestPermissionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -62,7 +61,6 @@ func TestPermissionRepository_Create(t *testing.T) {
 
 func TestPermissionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -85,7 +83,6 @@ func TestPermissionRepository_FindByID(t *testing.T) {
 
 func TestPermissionRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -107,7 +104,6 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 
 func TestPermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -128,7 +124,6 @@ func TestPermissionRepository_Update(t *testing.T) {
 
 func TestPermissionRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -150,7 +145,6 @@ func TestPermissionRepository_Delete(t *testing.T) {
 
 func TestPermissionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -167,7 +161,6 @@ func TestPermissionRepository_List(t *testing.T) {
 
 func TestPermissionRepository_FindByRoleID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -202,7 +195,6 @@ func TestPermissionRepository_FindByRoleID(t *testing.T) {
 
 func TestPermissionRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -254,7 +246,6 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 
 func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -295,7 +286,6 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 
 func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)
@@ -318,7 +308,6 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 
 func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
 	ctx := testpkg.TenantContext(1)

@@ -46,7 +46,6 @@ func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtim
 
 func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -222,7 +221,6 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 // where we accidentally stamp status="present" for every check-in.
 func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	suffix := time.Now().UnixNano()

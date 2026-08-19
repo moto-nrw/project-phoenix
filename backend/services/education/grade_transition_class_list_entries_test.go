@@ -39,7 +39,6 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	})
 
 	cleanup := func() {
-		_ = db.Close()
 	}
 
 	return service, db, cleanup

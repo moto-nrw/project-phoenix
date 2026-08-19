@@ -156,7 +156,6 @@ func cleanupDisplays(t *testing.T, db *bun.DB, tenantID int64) {
 
 func TestDisplayAdminCRUD(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
 	defer cleanupDisplays(t, db, tenantID)
@@ -244,7 +243,6 @@ func TestDisplayAdminCRUD(t *testing.T) {
 
 func TestDisplayDashboardPublic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
 	defer cleanupDisplays(t, db, tenantID)
@@ -361,7 +359,6 @@ func buildInstance(tenantID int64, title string, roomID int64, start time.Time) 
 
 func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := newDisplayTestTenant(t, db)
 	tenantB := newDisplayTestTenant(t, db)
@@ -406,7 +403,6 @@ func gjsonSchoolName(t *testing.T, body []byte) string {
 
 func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	today := timezone.TodayDate()
 	weekday := int(today.Weekday())
@@ -506,7 +502,6 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 // must 404 (dead link), not keep aggregating.
 func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	router := newDisplayRouter(t, db)
 
@@ -561,7 +556,6 @@ func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 // the creation timestamp forever).
 func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
 	defer cleanupDisplays(t, db, tenantID)
@@ -639,7 +633,6 @@ func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
 // and must resume working once the tenant enables it.
 func TestDisplayFeatureGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Deliberately NOT using newDisplayTestTenant here — it enables the
 	// feature by default for the rest of this package's tests. This test

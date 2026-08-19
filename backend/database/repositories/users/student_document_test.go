@@ -39,7 +39,6 @@ func storedName(t *testing.T) string {
 // production.
 func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Doku", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -77,7 +76,6 @@ func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
 
 func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Eigen", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -105,7 +103,6 @@ func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.
 
 func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Lösch", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -147,7 +144,6 @@ func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
 
 func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Waise", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -202,7 +198,6 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 // no cleanup pass could reclaim them.
 func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Ungueltig", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -223,7 +218,6 @@ func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
 // of the unlink against the very row whose bytes are pending.
 func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Nachlauf", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -261,7 +255,6 @@ func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *test
 // on disk.
 func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Abbau", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -307,7 +300,6 @@ func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *tes
 // how the scheduler retires an object it has just unlinked.
 func TestStudentDocumentRepository_QueuedCleanupsAreScopedAndSettleable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Warteschlange", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -366,7 +358,6 @@ func storedNames(cleanups []*userModels.StudentDocumentFileCleanup) []string {
 // back every completion mark it had written.
 func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Viele", "Dokumente", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -398,7 +389,6 @@ func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 // backlog left by an unreachable storage backend.
 func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Rueckstand", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

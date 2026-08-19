@@ -22,7 +22,6 @@ import (
 // belongs to no school. Failing loudly beats an overlap nobody notices (#405).
 func TestLockTenantGradeTransitions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantCtx := tenant.WithTenantID(context.Background(), 1)
 
@@ -58,7 +57,6 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 // which the documented lock order always takes FIRST.
 func TestLockTenantRecurrenceWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantCtx := tenant.WithTenantID(context.Background(), 1)
 

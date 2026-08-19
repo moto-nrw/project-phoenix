@@ -19,7 +19,6 @@ import (
 // beyond MaxConflictAcksPerAccount evict the oldest acknowledgements first.
 func TestTimetableConflictAckRepository_CapPrunesOldest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() }) // registered first → runs after the row cleanup below
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewTimetableConflictAckRepository(db)

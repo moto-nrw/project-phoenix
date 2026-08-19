@@ -23,7 +23,6 @@ import (
 func buildFeedbackService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -328,7 +327,6 @@ func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
 // panicking in a request.
 func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -364,7 +362,6 @@ func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
 // otherwise the picker reshuffles between requests.
 func TestParentFeedbackSchoolsDedupeAndSort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	const (
 		musterstadtTenantID = 8801
@@ -419,7 +416,6 @@ func TestParentFeedbackRejectsEmptyEntry(t *testing.T) {
 // fail-open authorization bug.
 func TestParentFeedbackChildLookupFailurePropagates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	lookupErr := errors.New("children unavailable")
 	repos := repositories.NewFactory(db)
@@ -456,7 +452,6 @@ func TestParentFeedbackChildLookupFailurePropagates(t *testing.T) {
 // transaction, so the helper has to refuse instead.
 func TestParentFeedbackUnreadCountRejectsUnusableSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{

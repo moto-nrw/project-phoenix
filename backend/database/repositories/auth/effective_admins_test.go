@@ -50,7 +50,6 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 // a disclosure.
 func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)

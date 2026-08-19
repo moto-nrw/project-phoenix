@@ -20,7 +20,6 @@ import (
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -102,7 +101,6 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 
 func TestInstanceStudentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -144,7 +142,6 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 
 func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -195,7 +192,6 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 
 func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -221,7 +217,6 @@ func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
 
 func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -247,7 +242,6 @@ func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
 
 func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -262,7 +256,6 @@ func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
 
 func TestInstanceStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -316,7 +309,6 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 
 func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -364,7 +356,6 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 
 func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -494,7 +485,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -545,7 +535,6 @@ func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresen
 
 func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcurrentRosterRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -575,7 +564,6 @@ func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcur
 
 func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -618,7 +606,6 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 
 func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousIntervalAsGuard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -665,7 +652,6 @@ func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousInter
 
 func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -751,7 +737,6 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 // never owed in their history and exports (#1747).
 func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -802,7 +787,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 // relabelled as a non-booking, marker or not.
 func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -852,7 +836,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 // and the exports (#1747 review).
 func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -909,7 +892,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 // would rewrite the history the marker exists to freeze (#1747 review).
 func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -960,7 +942,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1070,7 +1051,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 // stamp (#1747).
 func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScopedExclusions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1140,7 +1120,6 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1238,7 +1217,6 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 
 func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1270,7 +1248,6 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 
 func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1353,7 +1330,6 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 
 func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
@@ -1386,7 +1362,6 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 // their history and exports (#1747 review).
 func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -1456,7 +1431,6 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 
 func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1519,7 +1493,6 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 // survives, and every removed row is archived for the revert to replay.
 func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1738,7 +1711,6 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 // hand-set status back verbatim instead of re-deriving it from day statuses.
 func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1831,7 +1803,6 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 // they ARE consumed, so a later re-apply starts from a clean snapshot.
 func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1917,7 +1888,6 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 // (#405 review).
 func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2028,7 +1998,6 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 // attendance rows. Mirror ApplyPartialAbsence's status <> cancelled guard.
 func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2088,7 +2057,6 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 // provenance.
 func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2146,7 +2114,6 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 // provenance, exactly as ApplyPartialAbsence refuses to claim completed rows.
 func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2212,7 +2179,6 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 // reconcile them by pickup_exception_id.
 func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2277,7 +2243,6 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 // currently active on the same day and hold the student as 'present' count.
 func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -2357,7 +2322,6 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 // students in one query.
 func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)

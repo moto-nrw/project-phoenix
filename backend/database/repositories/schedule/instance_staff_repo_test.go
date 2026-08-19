@@ -41,7 +41,6 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 
 func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -124,7 +123,6 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 
 func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -157,7 +155,6 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 
 func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -181,7 +178,6 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 
 func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -242,7 +238,6 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 func TestInstanceStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -293,7 +288,6 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 
 func TestInstanceStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -341,7 +335,6 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 
 func TestInstanceStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -391,7 +384,6 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 
 func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -428,7 +420,6 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 
 func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
@@ -483,7 +474,6 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 
 func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)

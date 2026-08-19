@@ -81,7 +81,6 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 
 func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -116,7 +115,6 @@ func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 
 func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -161,7 +159,6 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 
 func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -185,7 +182,6 @@ func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
 
 func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -225,7 +221,6 @@ func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 
 func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -250,7 +245,6 @@ func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testi
 
 func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -277,8 +271,7 @@ func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T)
 }
 
 func TestUpdateGuardianContact_RejectsInvalidPhoneBeforeRepository(t *testing.T) {
-	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
+	svc, _ := buildGuardianService(t)
 
 	_, err := svc.UpdateGuardianContact(context.Background(), 1, 1, 1, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -293,7 +286,6 @@ func TestUpdateGuardianContact_RejectsInvalidPhoneBeforeRepository(t *testing.T)
 
 func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -322,7 +314,6 @@ func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
 // the only guard, so it must stay.
 func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -346,7 +337,6 @@ func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T
 
 func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -381,7 +371,6 @@ func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
 
 func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -431,7 +420,6 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 
 func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -480,7 +468,6 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 // writes the flag columns unconditionally (e.g. with a zero-value default).
 func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -519,7 +506,6 @@ func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.
 
 func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -573,7 +559,6 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 
 func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -616,7 +601,6 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
 
 func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -659,7 +643,6 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 
 func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -720,7 +703,6 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 
 func TestGuardianManagement_FeatureDisabled(t *testing.T) {
 	svc, db := buildGuardianServiceFeature(t, false)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -904,7 +886,6 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 // while the name and care arrangement remain visible.
 func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -933,7 +914,6 @@ func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 // a school-managed social worker's contact data.
 func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -951,7 +931,6 @@ func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
 // cannot toggle a social worker's pickup/emergency flags.
 func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -971,7 +950,6 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 // edit/pickup affordances are gone and the lock reason is surfaced (#1667).
 func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -998,7 +976,6 @@ func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 // a non-registered full guardian's (legal/co) contact data.
 func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1016,7 +993,6 @@ func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
 // toggle a non-registered full guardian's pickup/emergency flags.
 func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1035,7 +1011,6 @@ func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
 // account stays editable — only full guardian roles are newly protected.
 func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1060,7 +1035,6 @@ func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 // be expressible and must actually persist.
 func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1100,7 +1074,6 @@ func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
 // of widening the UI.
 func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1144,7 +1117,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *t
 // listing shows can_edit_contact=false and a note write is rejected.
 func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1170,7 +1142,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
 // redacted for social workers).
 func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1190,7 +1161,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
 // identically and produced no audit trail.
 func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1253,7 +1223,6 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 // fails — both writers commit and two rows share LOWER(email).
 func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing.T) {
 	svc, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -1357,7 +1326,6 @@ func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAcc
 // rather than simulating a drifted row (it can no longer exist).
 func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
 	_, db := buildGuardianService(t)
-	defer func() { _ = db.Close() }()
 
 	// Direction 1: an account is linked (account_id set) but has_account drifted
 	// to false. The FK requires a real account, so create one.
@@ -1396,7 +1364,6 @@ func (r emailLookupFailingGuardianRepo) FindByEmail(context.Context, string) (*u
 // commit while a genuine duplicate could exist.
 func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")

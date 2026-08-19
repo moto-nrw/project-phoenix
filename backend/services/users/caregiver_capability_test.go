@@ -27,7 +27,6 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	factory := setupServiceFactory(t, db)
 	return db, factory

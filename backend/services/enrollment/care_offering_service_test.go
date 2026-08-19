@@ -28,7 +28,6 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	// Register pool closure before fixture cleanups. testing.Cleanup runs in
 	// LIFO order, so groups/periods created later are deleted while the pool is
 	// still open instead of leaking into subsequent package tests.
-	t.Cleanup(func() { _ = db.Close() })
 	testpkg.EnsureTestTenant(t, db, 1)
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{

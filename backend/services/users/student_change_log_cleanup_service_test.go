@@ -86,7 +86,6 @@ func changeLogSettings(retentionDays int) *configtest.Mock {
 
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Old", "1a")
@@ -119,7 +118,6 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 
 func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Fresh", "1a")

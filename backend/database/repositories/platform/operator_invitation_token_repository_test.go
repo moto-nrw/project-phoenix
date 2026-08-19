@@ -55,7 +55,6 @@ func setupOperatorInvitationTokenRepositoryTest(
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ensureOperatorInvitationTokenTable(t, db)
 
 	return db, repoplatform.NewOperatorInvitationTokenRepository(db)

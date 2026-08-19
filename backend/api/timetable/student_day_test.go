@@ -48,7 +48,6 @@ type studentDaySetup struct {
 func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

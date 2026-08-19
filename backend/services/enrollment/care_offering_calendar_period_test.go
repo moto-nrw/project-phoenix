@@ -83,7 +83,6 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 		require.NoError(t, err)
 		_, err = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
 		require.NoError(t, err)
-		require.NoError(t, db.Close())
 	})
 
 	return &calendarPeriodValidationFixture{

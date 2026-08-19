@@ -24,7 +24,6 @@ var roomRepositoryTenantCounter int64 = 920_000 + time.Now().UnixNano()%50_000
 
 func TestRoomRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -63,7 +62,6 @@ func TestRoomRepository_Create(t *testing.T) {
 
 func TestRoomRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -95,7 +93,6 @@ func TestRoomRepository_FindByID(t *testing.T) {
 
 func TestRoomRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -148,7 +145,6 @@ func TestRoomRepository_Update(t *testing.T) {
 
 func TestRoomRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +175,6 @@ func TestRoomRepository_Delete(t *testing.T) {
 
 func TestRoomRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -205,7 +200,6 @@ func TestRoomRepository_FindByName(t *testing.T) {
 
 func TestRoomRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -232,7 +226,6 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 
 func TestRoomRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
 	ctx := testpkg.TenantContext(1)
@@ -432,7 +425,6 @@ func TestRoomRepository_List(t *testing.T) {
 
 func TestRoomRepository_ListWithOccupancy_GroupsVisibilityInsideTenantScope(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantA := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
 	tenantB := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
@@ -484,7 +476,6 @@ func TestRoomRepository_ListWithOccupancy_GroupsVisibilityInsideTenantScope(t *t
 
 func TestRoomRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Use concrete repository to access ListWithOptions
 	repo := facilitiesRepo.NewRoomRepository(db)
@@ -519,7 +510,6 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 
 func TestRoomRepository_FindWithCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Use concrete repository to access FindWithCapacity
 	repo := facilitiesRepo.NewRoomRepository(db)
@@ -554,7 +544,6 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 
 func TestRoomRepository_SearchByText(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Use concrete repository to access SearchByText
 	repo := facilitiesRepo.NewRoomRepository(db)

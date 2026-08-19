@@ -62,7 +62,6 @@ func responseIDs(t *testing.T, body []byte) map[int64]bool {
 
 func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	normal := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NormalAct-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SystemAct-%d", time.Now().UnixNano()))
@@ -96,7 +95,6 @@ func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 
 func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	normal := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NormalCat-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("SystemCat-%d", time.Now().UnixNano()))
@@ -128,7 +126,6 @@ func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 
 func TestGetAvailableActivities_ExcludesSystemActivities(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Avail", fmt.Sprintf("Student-%d", time.Now().UnixNano()), "1a")
 

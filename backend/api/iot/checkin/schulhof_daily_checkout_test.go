@@ -31,7 +31,6 @@ import (
 //     who scanned out at the yard, including those heading back inside.
 func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// No configured checkout time → the time gate is open, so this test
 	// exercises the ROOM gate in isolation. Restored afterwards so a value in
@@ -118,7 +117,6 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 // moving between rooms.
 func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
 	require.NoError(t, os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME"))

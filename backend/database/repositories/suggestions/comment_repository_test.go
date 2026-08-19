@@ -55,7 +55,6 @@ func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
 
 func TestCommentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -114,7 +113,6 @@ func TestCommentRepository_Create(t *testing.T) {
 
 func TestCommentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -159,7 +157,6 @@ func TestCommentRepository_FindByID(t *testing.T) {
 
 func TestCommentRepository_FindByPostID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -236,7 +233,6 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 
 func TestCommentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
 	ctx := testpkg.TenantContext(1)

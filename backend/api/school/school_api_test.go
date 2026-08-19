@@ -41,7 +41,6 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 	t.Helper()
 
 	db, factory := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
 	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })

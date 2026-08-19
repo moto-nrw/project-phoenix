@@ -35,7 +35,6 @@ func requireStudentsPickupDaysColumn(t *testing.T, db *bun.DB) {
 // the importer working. Mirrors the bus_days roundtrip coverage.
 func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)

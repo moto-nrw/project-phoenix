@@ -27,7 +27,6 @@ import (
 
 func TestGuardianProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -68,7 +67,6 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 func TestGuardianProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -92,7 +90,6 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 
 func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +122,6 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 func TestGuardianProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -164,7 +160,6 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 func TestGuardianProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -194,7 +189,6 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 
 func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -223,7 +217,6 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -249,7 +242,6 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 
 func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -301,7 +293,6 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -343,7 +334,6 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 
 func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -361,7 +351,6 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 
 func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -429,7 +418,6 @@ func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo users
 // the picker's enumeration defense.
 func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -513,7 +501,6 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 // write path that persists the parent's explicit portals-portal language.
 func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -561,7 +548,6 @@ func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
 // Limit(1)): a linked account resolves to its profile and carries portal_locale.
 func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -593,7 +579,6 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 // (higher id) in a *different* tenant.
 func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := testpkg.TenantContext(1)
@@ -644,7 +629,6 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 

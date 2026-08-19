@@ -12,7 +12,6 @@ import (
 
 func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 

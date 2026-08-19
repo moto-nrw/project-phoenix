@@ -85,7 +85,6 @@ func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 
 func TestFacilitiesService_GetRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -131,7 +130,6 @@ func TestFacilitiesService_GetRoom(t *testing.T) {
 
 func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -224,7 +222,6 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 
 func TestFacilitiesService_CreateRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -323,7 +320,6 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 
 func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -466,7 +462,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -571,7 +566,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 
 func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -629,7 +623,6 @@ func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 
 func TestFacilitiesService_ListRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -714,7 +707,6 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 
 func TestFacilitiesService_FindRoomByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -751,7 +743,6 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 
 func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -795,7 +786,6 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 
 func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -861,7 +851,6 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 
 func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -932,7 +921,6 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 
 func TestFacilitiesService_GetBuildingList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1002,7 +990,6 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 
 func TestFacilitiesService_GetCategoryList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1074,7 +1061,6 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 
 func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)

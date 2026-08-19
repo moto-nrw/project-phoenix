@@ -26,7 +26,6 @@ func cleanupMealPlan(t *testing.T, repo mealplan.MealPlanEntryRepository, ctx co
 
 func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).MealPlanEntry
 	ctx := testpkg.TenantContext(1)
@@ -89,7 +88,6 @@ func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 // after end are not returned.
 func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).MealPlanEntry
 	ctx := testpkg.TenantContext(1)
@@ -115,7 +113,6 @@ func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
 
 func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).MealPlanEntry
 	ctx := testpkg.TenantContext(1)
@@ -129,7 +126,6 @@ func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
 // context scoped to a different tenant.
 func TestMealPlanRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).MealPlanEntry
 	tenant1 := testpkg.TenantContext(1)

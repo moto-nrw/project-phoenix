@@ -232,7 +232,6 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 
 func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	guardianRepo := repositories.NewFactory(db).GuardianProfile
 	email := fmt.Sprintf("spontaneous-start-rollback-%d@test.local", time.Now().UnixNano())

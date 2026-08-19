@@ -32,7 +32,6 @@ func cleanupGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 
 func TestGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -76,7 +75,6 @@ func TestGroupRepository_Create(t *testing.T) {
 
 func TestGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -100,7 +98,6 @@ func TestGroupRepository_FindByID(t *testing.T) {
 
 func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -126,7 +123,6 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 
 func TestGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -149,7 +145,6 @@ func TestGroupRepository_Update(t *testing.T) {
 
 func TestGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -171,7 +166,6 @@ func TestGroupRepository_Delete(t *testing.T) {
 
 func TestGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -188,7 +182,6 @@ func TestGroupRepository_List(t *testing.T) {
 
 func TestGroupRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -208,7 +201,6 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 
 func TestGroupRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -230,7 +222,6 @@ func TestGroupRepository_FindByName(t *testing.T) {
 
 func TestGroupRepository_FindByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -276,7 +267,6 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 
 func TestGroupRepository_FindWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -317,7 +307,6 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 func TestGroupRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -339,7 +328,6 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 
 func TestGroupRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -366,7 +354,6 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 
 func TestGroupRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -445,7 +432,6 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)
@@ -498,7 +484,6 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 
 func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)

@@ -58,7 +58,6 @@ func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 
 func TestAccountPermissionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -91,7 +90,6 @@ func TestAccountPermissionRepository_Create(t *testing.T) {
 
 func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -128,7 +126,6 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 
 func TestAccountPermissionRepository_FindByPermissionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -156,7 +153,6 @@ func TestAccountPermissionRepository_FindByPermissionID(t *testing.T) {
 
 func TestAccountPermissionRepository_FindByAccountAndPermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -191,7 +187,6 @@ func TestAccountPermissionRepository_FindByAccountAndPermission(t *testing.T) {
 
 func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -235,7 +230,6 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 
 func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -279,7 +273,6 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 
 func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -319,7 +312,6 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 
 func TestAccountPermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -363,7 +355,6 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 
 func TestAccountPermissionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)
@@ -429,7 +420,6 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 
 func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.TenantContext(1)

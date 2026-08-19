@@ -77,7 +77,6 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // keeps grouping the children on a day the Stammdaten forbid.
 func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -119,7 +118,6 @@ func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) 
 // after the first write would keep that write.
 func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -168,7 +166,6 @@ func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testi
 // snapshot the conflict check read.
 func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -219,7 +216,6 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 
 func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -278,7 +274,6 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 // paths failed with ErrDepartureCompanionNoteRequired.
 func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -322,7 +317,6 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 // and block every later unrelated edit of that child.
 func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -366,7 +360,6 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 // Monday link must not vouch for it.
 func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -421,7 +414,6 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 // the SAME pair must not count as the far child's Tuesday answer.
 func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -462,7 +454,6 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 // update's first writes — so the refusal has to be available before them.
 func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -498,7 +489,6 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 // the full list is then rejected.
 func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -549,7 +539,6 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 // a child's departure permission nobody was asked about (#1694).
 func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -606,7 +595,6 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 // Tuesday, so the departure plan must not be saveable without one.
 func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -655,7 +643,6 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 // comparison notices that the second one describes a list that no longer exists.
 func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -722,7 +709,6 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 // absent from the map.
 func TestStudentService_ListCompanionsForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)

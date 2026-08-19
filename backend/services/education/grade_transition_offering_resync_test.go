@@ -66,7 +66,6 @@ func (r *orderRecordingResyncer) ResyncOfferingSourcedTemplates(_ context.Contex
 
 func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	log := make([]string, 0, 5)
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -110,7 +109,6 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 
 func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),

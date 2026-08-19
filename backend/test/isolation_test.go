@@ -48,7 +48,6 @@ func ctxForTenant(tenantID int64) context.Context {
 
 func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -96,7 +95,6 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 
 func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -143,7 +141,6 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 
 func TestTenantIsolation_RoomVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -190,7 +187,6 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 
 func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -237,7 +233,6 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 
 func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -284,7 +279,6 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 
 func TestTenantIsolation_TokenVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -336,7 +330,6 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 
 func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -390,7 +383,6 @@ func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
 
 func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -437,7 +429,6 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 
 func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -484,7 +475,6 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 
 func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -539,7 +529,6 @@ func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
 
 func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
@@ -599,7 +588,6 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 //   - Delete: no AssertRowsAffected call → silent no-op (0 rows deleted)
 func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)

@@ -22,7 +22,6 @@ import (
 
 func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)

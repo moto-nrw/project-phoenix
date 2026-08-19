@@ -20,7 +20,6 @@ import (
 // while they are still eligible to receive anything.
 func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
 	ctx := tenant.WithTenantID(context.Background(), 1)

@@ -164,7 +164,6 @@ func cleanupEducationData(t *testing.T, db *bun.DB, groupIDs []int64, teacherIDs
 
 func TestStudentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -324,7 +323,6 @@ func TestStudentRepository_Create(t *testing.T) {
 
 func TestStudentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -348,7 +346,6 @@ func TestStudentRepository_FindByID(t *testing.T) {
 
 func TestStudentRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -371,7 +368,6 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 
 func TestStudentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -415,7 +411,6 @@ func TestStudentRepository_Update(t *testing.T) {
 
 func TestStudentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -459,7 +454,6 @@ func assignStudentToGroupDirect(t *testing.T, db *bun.DB, studentID, groupID int
 
 func TestStudentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -494,7 +488,6 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 
 func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -530,7 +523,6 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 
 func TestStudentRepository_AssignToGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -554,7 +546,6 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 
 func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -589,7 +580,6 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 
 func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -634,7 +624,6 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 
 func TestStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -663,7 +652,6 @@ func TestStudentRepository_List(t *testing.T) {
 
 func TestStudentRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -701,7 +689,6 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 
 func TestStudentRepository_CountWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -731,7 +718,6 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 
 func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -768,7 +754,6 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 
 func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -844,7 +829,6 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -894,7 +878,6 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 // clear and round-trip equivalence.
 func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -950,7 +933,6 @@ func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
 // must succeed — locks bound to the tenant id, not the connection.
 func TestStudentRepository_LockPhotoFeature(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -998,7 +980,6 @@ func TestStudentRepository_LockPhotoFeature(t *testing.T) {
 // happy-path read and the not-found error.
 func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)

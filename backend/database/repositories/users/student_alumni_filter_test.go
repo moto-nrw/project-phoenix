@@ -30,7 +30,6 @@ func assignGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 
 func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -88,7 +87,6 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 // graduated students exactly like the other group reads.
 func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -138,7 +136,6 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 
 func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -167,7 +164,6 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 // already_exists (#405 review).
 func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)

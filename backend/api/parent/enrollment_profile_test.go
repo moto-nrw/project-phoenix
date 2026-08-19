@@ -52,7 +52,6 @@ func serveEnrollmentProfile(t *testing.T, rs *Resource, accountID int) *httptest
 // children (#1663).
 func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -79,7 +78,6 @@ func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *test
 // reaching its own hidden school's profile autofill.
 func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -105,7 +103,6 @@ func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 // same account-independent gate /auth/tenant/resolve applies.
 func TestGetEnrollmentProfile_InactiveSchoolIsUnreachable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
 	school.ID = 1

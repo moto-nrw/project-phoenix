@@ -35,7 +35,6 @@ func TestTemplateResponseIncludesPlanningTrackMetadata(t *testing.T) {
 
 func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")

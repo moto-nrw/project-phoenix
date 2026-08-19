@@ -29,7 +29,6 @@ func staffIDsFor(pairs []education.StaffGroupID, groupID int64) map[int64]struct
 // day, and nobody else.
 func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
 	ctx := testpkg.TenantContext(1)

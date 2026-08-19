@@ -16,7 +16,6 @@ import (
 
 func TestOperatorRefreshTokenRepository_CreateAndFindByTokenForUpdate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -42,7 +41,6 @@ func TestOperatorRefreshTokenRepository_CreateAndFindByTokenForUpdate(t *testing
 
 func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -72,7 +70,6 @@ func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
 
 func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -104,7 +101,6 @@ func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) 
 
 func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -131,7 +127,6 @@ func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
 
 func TestOperatorRefreshTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()

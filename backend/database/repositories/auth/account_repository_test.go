@@ -19,7 +19,6 @@ import (
 
 func TestAccountRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -62,7 +61,6 @@ func TestAccountRepository_Create(t *testing.T) {
 
 func TestAccountRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -85,7 +83,6 @@ func TestAccountRepository_FindByID(t *testing.T) {
 
 func TestAccountRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -107,7 +104,6 @@ func TestAccountRepository_FindByEmail(t *testing.T) {
 
 func TestAccountRepository_FindByUsername(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -140,7 +136,6 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 
 func TestAccountRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -175,7 +170,6 @@ func TestAccountRepository_Update(t *testing.T) {
 
 func TestAccountRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -197,7 +191,6 @@ func TestAccountRepository_Delete(t *testing.T) {
 
 func TestAccountRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -214,7 +207,6 @@ func TestAccountRepository_List(t *testing.T) {
 
 func TestAccountRepository_FindByRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -278,7 +270,6 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 
 func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -310,7 +301,6 @@ func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 
 func TestAccountRepository_UpdatePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -332,7 +322,6 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 
 func TestAccountRepository_UpdateAvatar(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -357,7 +346,6 @@ func TestAccountRepository_UpdateAvatar(t *testing.T) {
 
 func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -388,7 +376,6 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 func TestAccountRepository_ListWithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -533,7 +520,6 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -574,7 +560,6 @@ func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 
 func TestAccountRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -588,7 +573,6 @@ func TestAccountRepository_CreateValidation(t *testing.T) {
 
 func TestAccountRepository_UpdateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -602,7 +586,6 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 
 func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)
@@ -640,7 +623,6 @@ func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 
 func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
 	ctx := testpkg.TenantContext(1)

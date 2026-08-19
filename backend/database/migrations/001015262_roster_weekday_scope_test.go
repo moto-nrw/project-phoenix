@@ -13,7 +13,6 @@ import (
 
 func TestWeekdayRosterPrimarySupervisorIsScopedByCalendarPeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)

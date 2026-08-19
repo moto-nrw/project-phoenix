@@ -33,7 +33,6 @@ import (
 // detected deterministically instead of through goroutine timing.
 func TestOrganizationRepository_LockingContract(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
 	ctx := testpkg.TenantContext(1)

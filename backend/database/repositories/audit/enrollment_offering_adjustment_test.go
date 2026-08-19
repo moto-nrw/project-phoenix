@@ -16,7 +16,6 @@ import (
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	repo := repoFactory.EnrollmentOfferingAdjustment
@@ -81,7 +80,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMissingID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 
@@ -92,7 +90,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMiss
 }
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 	require.NoError(t, db.Close())
 

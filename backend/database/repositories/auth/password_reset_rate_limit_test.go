@@ -39,7 +39,6 @@ func cleanupRateLimitRecords(t *testing.T, db *bun.DB, emails ...string) {
 
 func TestPasswordResetRateLimitRepository_CheckRateLimit_NoRecord(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -59,7 +58,6 @@ func TestPasswordResetRateLimitRepository_CheckRateLimit_NoRecord(t *testing.T) 
 
 func TestPasswordResetRateLimitRepository_CheckRateLimit_ExistingRecord(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -88,7 +86,6 @@ func TestPasswordResetRateLimitRepository_CheckRateLimit_ExistingRecord(t *testi
 
 func TestPasswordResetRateLimitRepository_IncrementAttempts_FirstAttempt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -108,7 +105,6 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_FirstAttempt(t *test
 
 func TestPasswordResetRateLimitRepository_IncrementAttempts_MultipleAttempts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -137,7 +133,6 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_MultipleAttempts(t *
 
 func TestPasswordResetRateLimitRepository_IncrementAttempts_WindowReset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -169,7 +164,6 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_WindowReset(t *testi
 
 func TestPasswordResetRateLimitRepository_CleanupExpired_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -211,7 +205,6 @@ func TestPasswordResetRateLimitRepository_CleanupExpired_Success(t *testing.T) {
 
 func TestPasswordResetRateLimitRepository_CleanupExpired_NoExpiredRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)
@@ -242,7 +235,6 @@ func TestPasswordResetRateLimitRepository_CleanupExpired_NoExpiredRecords(t *tes
 
 func TestPasswordResetRateLimitRepository_RateLimitFlow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
 	ctx := testpkg.TenantContext(1)

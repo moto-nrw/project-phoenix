@@ -53,12 +53,6 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	return &testContext{
 		db:       db,
 		services: svc,
@@ -1954,11 +1948,6 @@ func TestLogout(t *testing.T) {
 // TestListTenants tests the public GET /auth/tenants endpoint
 func TestListTenants(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -2034,12 +2023,6 @@ func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
 
 	return &testContext{
 		db:       db,
@@ -2254,11 +2237,6 @@ func TestLinkToTenant(t *testing.T) {
 // This ensures the frontend cannot resolve a decommissioned tenant via subdomain lookup.
 func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	// Create a dedicated tenant for this test using a high ID to avoid collisions.
 	tenantID := int64(9900)

@@ -39,7 +39,6 @@ func cleanupShiftTypes(t *testing.T, repo scheduleModels.ShiftTypeRepository, ct
 
 func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)
@@ -76,7 +75,6 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 
 func TestShiftTypeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)
@@ -108,7 +106,6 @@ func TestShiftTypeRepository_Update(t *testing.T) {
 
 func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +122,6 @@ func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 
 func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)
@@ -163,7 +159,6 @@ func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 
 func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	tenant1 := testpkg.TenantContext(1)
@@ -195,7 +190,6 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 
 func TestShiftTypeRepository_GuardBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)
@@ -217,7 +211,6 @@ func TestShiftTypeRepository_GuardBranches(t *testing.T) {
 
 func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ShiftType
 	ctx := testpkg.TenantContext(1)

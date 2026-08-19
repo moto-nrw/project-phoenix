@@ -70,7 +70,6 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 
 func TestPostRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -111,7 +110,6 @@ func TestPostRepository_Create(t *testing.T) {
 
 func TestPostRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -139,7 +137,6 @@ func TestPostRepository_FindByID(t *testing.T) {
 
 func TestPostRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -198,7 +195,6 @@ func TestPostRepository_Update(t *testing.T) {
 
 func TestPostRepository_UpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -220,7 +216,6 @@ func TestPostRepository_UpdateStatus(t *testing.T) {
 
 func TestPostRepository_UpdateHidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -242,7 +237,6 @@ func TestPostRepository_UpdateHidden(t *testing.T) {
 
 func TestPostRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -265,7 +259,6 @@ func TestPostRepository_Delete(t *testing.T) {
 
 func TestPostRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -332,7 +325,6 @@ func TestPostRepository_List(t *testing.T) {
 // (tenant_id, account_id) only for live rows, so both shapes are reachable.
 func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 
@@ -410,7 +402,6 @@ func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 
 func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	voteRepo := repoSuggestions.NewVoteRepository(db)
@@ -454,7 +445,6 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 
 func TestPostRepository_RecalculateScore(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
 	ctx := testpkg.TenantContext(1)

@@ -25,7 +25,6 @@ func uniqueKeyValue(prefix string) string {
 func setupRateLimitTest(t *testing.T) (*bun.DB, enrollmentModels.SubmissionRateLimitRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, enrollmentRepo.NewSubmissionRateLimitRepository(db), tenantID

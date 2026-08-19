@@ -60,7 +60,6 @@ func staffNotesRouter(rs *Resource) chi.Router {
 
 func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := staffNotesRouter(newStaffNotesResource(db))
 
 	student := testpkg.CreateTestStudent(t, db, "Reason", "Kind", "1a")

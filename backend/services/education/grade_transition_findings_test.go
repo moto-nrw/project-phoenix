@@ -210,7 +210,6 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 // no longer check out. The apply must be refused until they are checked out.
 func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),

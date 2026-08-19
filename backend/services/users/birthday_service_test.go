@@ -93,9 +93,6 @@ func celebrationNames(overview *usersService.BirthdayOverview) []string {
 // celebrated.
 func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	monday := time.Date(2026, time.August, 3, 9, 0, 0, 0, timezone.Berlin)
 	saturday := monday.AddDate(0, 0, -2)
@@ -138,9 +135,6 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 // An ordinary weekday speaks only for itself.
 func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	wednesday := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	yesterday := wednesday.AddDate(0, 0, -1)
@@ -166,9 +160,6 @@ func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 // A leap-day child must not disappear for three years out of four.
 func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	student := testpkg.CreateTestStudent(t, db, "Jonas", "Schalttagskind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -196,9 +187,6 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 // person opted out.
 func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 
@@ -246,9 +234,6 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 // The school switch is a real switch: off means nothing is queried at all.
 func TestBirthdayOverviewDisabled(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	student := testpkg.CreateTestStudent(t, db, "Nicht", "Sichtbar", "3c")
@@ -269,9 +254,6 @@ func TestBirthdayOverviewDisabled(t *testing.T) {
 // card that looks like "nobody has a birthday today".
 func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	ctx := testpkg.TenantContext(1)
 	now := func() time.Time { return time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin) }
@@ -307,9 +289,6 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 // — the opt-out governs the shared screen, not the list an admin may pull.
 func TestListStaffBirthdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	march := testpkg.CreateTestStaff(t, db, "Clara", "Maerz")
 	augustLate := testpkg.CreateTestStaff(t, db, "Dora", "Spaetaugust")
@@ -374,9 +353,6 @@ func indexOf(values []string, want string) int {
 // must not write, and must not fail either.
 func TestBirthdayOptOutRoundTrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Selbst")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
@@ -407,9 +383,6 @@ func TestBirthdayOptOutRoundTrip(t *testing.T) {
 // is a clean not-found, not a 500 and not a silent success.
 func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	ctx := testpkg.TenantContext(1)
 	service := newBirthdayService(db, birthdaySettings(true, true), nil)
@@ -440,9 +413,6 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 // receives nothing.
 func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	birthday := timezone.NewDate(2018, today.Month(), today.Day())
@@ -513,9 +483,6 @@ func assignStudentGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 // with no values (which would degenerate into "every person of the school").
 func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)

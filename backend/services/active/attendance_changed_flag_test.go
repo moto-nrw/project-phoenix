@@ -16,7 +16,6 @@ import (
 
 func TestCheckInStudent_ChangedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -38,7 +37,6 @@ func TestCheckInStudent_ChangedFlag(t *testing.T) {
 
 func TestCheckOutStudent_ChangedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

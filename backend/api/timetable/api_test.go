@@ -1473,7 +1473,6 @@ func TestDeletePeriod(t *testing.T) {
 
 func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	email := fmt.Sprintf("period-delete-rollback-%d@test.local", time.Now().UnixNano())
@@ -1519,7 +1518,6 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 
 func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {

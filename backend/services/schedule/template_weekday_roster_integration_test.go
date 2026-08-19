@@ -1061,7 +1061,6 @@ func (s *weekdayRosterScenario) teardown(t *testing.T) {
 	for _, fn := range s.cleanup {
 		fn()
 	}
-	_ = s.db.Close()
 }
 
 func (s *weekdayRosterScenario) deleteByTemplate(t *testing.T, table, column string, templateID int64) {

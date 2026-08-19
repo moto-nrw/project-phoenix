@@ -17,7 +17,6 @@ import (
 
 func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
@@ -98,7 +97,6 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 
 func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
@@ -158,7 +156,6 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 
 func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
@@ -210,7 +207,6 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 
 func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()

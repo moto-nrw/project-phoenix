@@ -11,7 +11,6 @@ import (
 
 func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	enabledTenant, _ := testpkg.CreateTestTenant(t, db)

@@ -85,7 +85,6 @@ func TestAttendance_IsCheckedIn(t *testing.T) {
 // has no attendance record for today (not checked in).
 func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -111,7 +110,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 }
 
 func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -129,7 +128,6 @@ func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
 // has checked in today (active attendance record).
 func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -159,7 +157,6 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 // has checked in and then checked out.
 func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -190,7 +187,6 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 // for multiple students with mixed states.
 func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -249,7 +245,6 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 // an empty result without error.
 func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -269,7 +264,6 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 // TestToggleStudentAttendance_CheckIn tests checking in a student who is not checked in.
 func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -298,7 +292,6 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 // unverified staff identity.
 func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -328,7 +321,6 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
 func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -358,7 +350,6 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 // This exercises the `if staffID > 0` guard in performCheckOut.
 func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -393,7 +384,6 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 // TestToggleStudentAttendance_ReCheckIn tests re-checking in a student who was checked out.
 func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -428,7 +418,6 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 // student — the former education-group / room-supervision gate is gone.
 func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -454,7 +443,6 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 // TestCheckTeacherStudentAccess tests the CheckTeacherStudentAccess function
 func TestCheckTeacherStudentAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -540,7 +528,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 
 func TestGetUnclaimedActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -573,7 +560,6 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 
 func TestClaimActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -673,7 +659,6 @@ func TestClaimActiveGroup(t *testing.T) {
 
 func TestCheckRoomSupervisorAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -720,7 +705,6 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 
 func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
@@ -783,7 +767,6 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 
 func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -841,7 +824,6 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 
 func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -865,7 +847,6 @@ func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 // row instead of erroring or flipping to a checkout.
 func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -891,7 +872,6 @@ func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 
 func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -921,7 +901,6 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 
 func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -969,7 +948,6 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 
 func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1005,7 +983,6 @@ func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *tes
 // difference from the legacy Toggle which would error or flip incorrectly.
 func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1029,7 +1006,6 @@ func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 // (check_out_time IS NULL won't match), so we report idempotent success.
 func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1061,7 +1037,6 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 
 func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1102,7 +1077,6 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 // code is closed.
 func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1139,7 +1113,6 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 // performCheckOut and must end the open visit too.
 func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1173,7 +1146,6 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 // wire-contract sentinel error.
 func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1193,7 +1165,6 @@ func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 // "checked_out" transit action.
 func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

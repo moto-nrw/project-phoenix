@@ -18,7 +18,6 @@ import (
 
 func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(1)
@@ -82,7 +81,6 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 
 func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(1)
@@ -132,7 +130,6 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 
 func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
@@ -159,7 +156,6 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -246,7 +242,6 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 
@@ -261,7 +256,6 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 // the stale note from the superseded report.
 func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(1)
@@ -320,7 +314,6 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 // exact failure mode of the historical bug class.
 func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(1)

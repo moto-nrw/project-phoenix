@@ -59,7 +59,6 @@ func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.Respons
 // which this account does not have (#1663).
 func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -89,7 +88,6 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 // the same one the picker (ListEnrollable) filters those phases by.
 func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -120,7 +118,6 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 // restricted phase instead of leaking a hidden phase's form (#1663).
 func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -145,7 +142,6 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 // like any non-eligible caller: no restricted audience at all.
 func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -176,7 +172,6 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 // subdomain plus a phase id still serves its form (#1663).
 func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -204,7 +199,6 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 // reaching its own hidden school's re-enrollment forms.
 func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -231,7 +225,6 @@ func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 // same account-independent gate /auth/tenant/resolve applies.
 func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
 	school.ID = 1

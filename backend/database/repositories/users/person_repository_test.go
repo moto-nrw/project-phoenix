@@ -35,7 +35,6 @@ func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
 
 func TestPersonRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -104,7 +103,6 @@ func TestPersonRepository_Create(t *testing.T) {
 
 func TestPersonRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -136,7 +134,6 @@ func TestPersonRepository_FindByID(t *testing.T) {
 
 func TestPersonRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -168,7 +165,6 @@ func TestPersonRepository_Update(t *testing.T) {
 
 func TestPersonRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -195,7 +191,6 @@ func TestPersonRepository_Delete(t *testing.T) {
 
 func TestPersonRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -236,7 +231,6 @@ func TestPersonRepository_List(t *testing.T) {
 
 func TestPersonRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -280,7 +274,6 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 
 func TestPersonRepository_LinkToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -309,7 +302,6 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 
 func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -336,7 +328,6 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 
 func TestPersonRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -365,7 +356,6 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 
 func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -395,7 +385,6 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 
 func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -428,7 +417,6 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 
 func TestPersonRepository_FindByTagID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -471,7 +459,6 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 
 func TestPersonRepository_FindWithAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -514,7 +501,6 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 
 func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)
@@ -594,7 +580,6 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 
 func TestPersonRepository_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
 	ctx := testpkg.TenantContext(1)

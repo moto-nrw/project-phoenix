@@ -17,7 +17,6 @@ import (
 
 func TestDataDeletionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)
@@ -85,7 +84,6 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 
 func TestDataDeletionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)
@@ -123,7 +121,6 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 
 func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)
@@ -158,7 +155,6 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 
 func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)
@@ -191,7 +187,6 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 
 func TestDataDeletionRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)
@@ -229,7 +224,6 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 
 func TestDataDeletionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := testpkg.TenantContext(1)

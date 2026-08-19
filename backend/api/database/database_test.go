@@ -48,7 +48,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 func TestGetStats_NoAuth(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Use the full router which has JWT middleware
 	router := ctx.resource.Router()
@@ -65,7 +64,6 @@ func TestGetStats_NoAuth(t *testing.T) {
 
 func TestGetStats_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create admin with system:manage permission
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Admin", "Stats")

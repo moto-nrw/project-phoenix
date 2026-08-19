@@ -175,7 +175,6 @@ func newAdminTxDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
 		// Allow the underlying driver to close without an unexpected-close
 		// assertion failure; sqlmock treats Close like any other operation.
 		mock.ExpectClose()
-		_ = db.Close()
 	}
 	return db, mock, cleanup
 }

@@ -43,7 +43,6 @@ func (ctx *testContext) execute(t *testing.T, path string, body map[string]any) 
 
 func TestStaffClock_FullNFCFlow(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Nora", "Kiosk")
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "A1654BEEF")
@@ -121,7 +120,6 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 
 func TestStaffClock_RejectsStudentCard(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Sam", "Schueler", "1a")
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "B1654CAFE")

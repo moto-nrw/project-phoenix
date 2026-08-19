@@ -60,7 +60,6 @@ func (r *cleanupLockSignalRepository) FindByIDForUpdate(ctx context.Context, req
 
 func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
 	repos := repositories.NewFactory(db)
@@ -205,7 +204,6 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 
 func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
 	repos := repositories.NewFactory(db)
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")

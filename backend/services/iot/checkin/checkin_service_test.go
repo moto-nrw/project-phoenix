@@ -74,7 +74,6 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 
 func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -92,7 +91,6 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 
 func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -110,7 +108,6 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 
 func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -125,7 +122,6 @@ func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 
 func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -146,7 +142,6 @@ func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 
 func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -165,7 +160,6 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 
 func TestUpdateSessionActivity_Success(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -180,7 +174,6 @@ func TestUpdateSessionActivity_Success(t *testing.T) {
 
 func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -194,7 +187,6 @@ func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -213,7 +205,6 @@ func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -230,7 +221,6 @@ func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -257,7 +247,6 @@ func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 
 func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -268,7 +257,6 @@ func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 
 func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	ctx := context.Background()
 
@@ -294,7 +282,6 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 
 func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
@@ -306,7 +293,6 @@ func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 
 func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	// Use a non-existent room ID
 	name := tc.svc.RoomNameByIDForTest(context.Background(), nil, 999999)
@@ -315,7 +301,6 @@ func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 
 func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
@@ -327,7 +312,6 @@ func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 
 func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)

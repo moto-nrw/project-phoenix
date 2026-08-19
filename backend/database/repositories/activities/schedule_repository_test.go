@@ -45,7 +45,6 @@ func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timefr
 
 func TestScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -89,7 +88,6 @@ func TestScheduleRepository_Create(t *testing.T) {
 
 func TestScheduleRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -103,7 +101,6 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 
 func TestScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -130,7 +127,6 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 
 func TestScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -155,7 +151,6 @@ func TestScheduleRepository_Update(t *testing.T) {
 
 func TestScheduleRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -169,7 +164,6 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 
 func TestScheduleRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -196,7 +190,6 @@ func TestScheduleRepository_Delete(t *testing.T) {
 func TestScheduleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -217,7 +210,6 @@ func TestScheduleRepository_List(t *testing.T) {
 
 func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -258,7 +250,6 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 
 func TestScheduleRepository_FindByWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -300,7 +291,6 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 
 func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -342,7 +332,6 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startHour, startMin int) *sch
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -400,7 +389,6 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *tes
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -412,7 +400,6 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testi
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := testpkg.TenantContext(1)
@@ -445,7 +432,6 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t 
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_TenantScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 

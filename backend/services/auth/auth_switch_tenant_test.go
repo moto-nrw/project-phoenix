@@ -13,7 +13,6 @@ import (
 
 func TestAuthService_SwitchTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -135,7 +134,6 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 // user can switch tenants cleanly.
 func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -187,7 +185,6 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 // token used to authenticate is invalidated and cannot be reused.
 func TestLogoutInvalidatesRefreshToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)

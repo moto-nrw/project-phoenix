@@ -17,7 +17,6 @@ import (
 
 func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
@@ -62,7 +61,6 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 // leaves every student's rows unchanged.
 func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
@@ -132,7 +130,6 @@ func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
 // Regression for the class-trip bulk partial-commit path under outer withTx.
 func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)

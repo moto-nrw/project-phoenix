@@ -19,12 +19,6 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())
 	return router

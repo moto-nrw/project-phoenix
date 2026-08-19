@@ -22,7 +22,6 @@ import (
 
 func TestCategoryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -44,7 +43,6 @@ func TestCategoryRepository_Create(t *testing.T) {
 
 func TestCategoryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -67,7 +65,6 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 
 func TestCategoryRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -116,7 +113,6 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 
 func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	category := testpkg.CreateTestActivityCategory(t, db, "AssignmentLock")
@@ -149,7 +145,6 @@ func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
 
 func TestCategoryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -200,7 +195,6 @@ func TestCategoryRepository_Update(t *testing.T) {
 
 func TestCategoryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -222,7 +216,6 @@ func TestCategoryRepository_Delete(t *testing.T) {
 
 func TestCategoryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -239,7 +232,6 @@ func TestCategoryRepository_List(t *testing.T) {
 
 func TestCategoryRepository_ListAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -269,7 +261,6 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 
 func TestCategoryRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -283,7 +274,6 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 
 func TestCategoryRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -297,7 +287,6 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 
 func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := testpkg.TenantContext(1)
@@ -314,7 +303,6 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 
 func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
@@ -380,7 +368,6 @@ func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
 
 func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
@@ -416,7 +403,6 @@ func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T)
 
 func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
@@ -445,7 +431,6 @@ func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testin
 
 func TestCategoryRepository_SetShiftTypeForCategories_RequiresTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	// A context without a tenant id must be rejected rather than running an

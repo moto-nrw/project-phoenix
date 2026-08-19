@@ -16,7 +16,6 @@ import (
 // notification may be delivered to a person at all.
 func TestNotificationPreferenceRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).NotificationPreference
 	ctx := testpkg.TenantContext(1)

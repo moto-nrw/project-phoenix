@@ -75,7 +75,6 @@ func cleanupSupervisorTestData(t *testing.T, db *bun.DB, data *supervisorTestDat
 
 func TestGroupSupervisorRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -126,7 +125,6 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 
 func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -159,7 +157,6 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 
 func TestGroupSupervisorRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -190,7 +187,6 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 
 func TestGroupSupervisorRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -222,7 +218,6 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 
 func TestGroupSupervisorRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -297,7 +292,6 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 
 func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -339,7 +333,6 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 
 func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -416,7 +409,6 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 
 func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	groupRepo := repositories.NewFactory(db).ActiveGroup
@@ -482,7 +474,6 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 
 func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -516,7 +507,6 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 
 func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -662,7 +652,6 @@ func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T)
 
 func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -676,7 +665,6 @@ func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
 
 func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -705,7 +693,6 @@ func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
 
 func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -736,7 +723,6 @@ func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
 
 func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -764,7 +750,6 @@ func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
 
 func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -793,7 +778,6 @@ func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
 
 func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -811,7 +795,6 @@ func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 
 func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	factory := repositories.NewFactory(db)
 	repo := factory.GroupSupervisor
@@ -948,7 +931,6 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -1047,7 +1029,6 @@ func createSupervisorRowForTenant(t *testing.T, db *bun.DB, tenantID, staffID, g
 
 func TestGroupSupervisorRepository_FindStaleOpen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 

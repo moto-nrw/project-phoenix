@@ -18,7 +18,6 @@ import (
 
 func TestStaffAbsenceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
 	ctx := testpkg.TenantContext(1)
@@ -160,7 +159,6 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 func TestStaffAbsenceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
 	ctx := testpkg.TenantContext(1)
@@ -212,7 +210,6 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 
 func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
 	ctx := testpkg.TenantContext(1)
@@ -285,7 +282,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 
 func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
 	ctx := testpkg.TenantContext(1)
@@ -350,7 +346,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
 	ctx := testpkg.TenantContext(1)

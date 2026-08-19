@@ -19,7 +19,6 @@ import (
 
 func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repo := usersRepo.NewStaffRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -72,7 +71,6 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 
 func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repo := usersRepo.NewStaffRepository(db)
 	ctx := testpkg.TenantContext(1)
 

@@ -63,7 +63,6 @@ func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64)
 func newSvcWithChild(t *testing.T, child *stubChildRepo) parentService.Service {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo: child,
 		DB:        db,
@@ -74,7 +73,6 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) parentService.Service {
 func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) parentService.Service {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return parentService.NewService(parentService.ServiceConfig{
 		EnrollablePhaseRepo: enroll,
 		DB:                  db,
@@ -201,7 +199,6 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	// pointer dereference there would mean no server. The fallback is
 	// slog.Default(), which is non-nil by definition.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo: &stubChildRepo{},

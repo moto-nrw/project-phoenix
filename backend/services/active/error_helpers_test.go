@@ -88,7 +88,6 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 
 	t.Run("returns true for real 23505 violation on uniq_active_visits_open_per_student", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 
 		ctx := testpkg.TenantContext(1)
 		repo := repositories.NewFactory(db).ActiveVisit

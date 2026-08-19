@@ -52,7 +52,6 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 		}
 		testpkg.CleanupTenantTestData(t, db, tenantID)
 		testpkg.CleanupAccount(t, db, account.ID)
-		_ = db.Close()
 	}
 	return ctx, repo, account.ID, tenantID, cleanup
 }

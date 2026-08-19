@@ -61,7 +61,6 @@ func seedMealPlanWeek(t *testing.T, db *bun.DB, monday timezone.Date) {
 
 func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -78,7 +77,6 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 
 func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -94,7 +92,6 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 
 func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -108,7 +105,6 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 // for a past week by supplying a crafted week_start.
 func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -121,7 +117,6 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 
 func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -134,7 +129,6 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 
 func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
@@ -149,7 +143,6 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 
 func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
@@ -164,7 +157,6 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 // aggregate feature response tracks the tenant setting.
 func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 

@@ -13,7 +13,6 @@ import (
 
 func TestOperatorRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -79,7 +78,6 @@ func TestOperatorRepository_Create(t *testing.T) {
 
 func TestOperatorRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -105,7 +103,6 @@ func TestOperatorRepository_FindByID(t *testing.T) {
 
 func TestOperatorRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -130,7 +127,6 @@ func TestOperatorRepository_FindByEmail(t *testing.T) {
 
 func TestOperatorRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -170,7 +166,6 @@ func TestOperatorRepository_Update(t *testing.T) {
 
 func TestOperatorRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -194,7 +189,6 @@ func TestOperatorRepository_Delete(t *testing.T) {
 
 func TestOperatorRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
 	ctx := testpkg.TenantContext(1)

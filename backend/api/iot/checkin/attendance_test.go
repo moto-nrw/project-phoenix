@@ -60,7 +60,6 @@ func setupAttendanceTestContext(t *testing.T) *attendanceTestContext {
 
 func TestGetAttendanceStatus_NoDevice(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -75,7 +74,6 @@ func TestGetAttendanceStatus_NoDevice(t *testing.T) {
 
 func TestGetAttendanceStatus_MissingRFID(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device")
@@ -96,7 +94,6 @@ func TestGetAttendanceStatus_MissingRFID(t *testing.T) {
 
 func TestGetAttendanceStatus_RFIDNotFound(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-2")
 
@@ -115,7 +112,6 @@ func TestGetAttendanceStatus_RFIDNotFound(t *testing.T) {
 
 func TestGetAttendanceStatus_Success(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device and student with RFID
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-3")
@@ -142,7 +138,6 @@ func TestGetAttendanceStatus_Success(t *testing.T) {
 
 func TestToggleAttendance_NoDevice(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -162,7 +157,6 @@ func TestToggleAttendance_NoDevice(t *testing.T) {
 
 func TestToggleAttendance_InvalidJSON(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-1")
 
@@ -183,7 +177,6 @@ func TestToggleAttendance_InvalidJSON(t *testing.T) {
 
 func TestToggleAttendance_MissingRFID(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-2")
 
@@ -205,7 +198,6 @@ func TestToggleAttendance_MissingRFID(t *testing.T) {
 
 func TestToggleAttendance_Cancel(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-3")
 
@@ -229,7 +221,6 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 
 func TestToggleAttendance_RFIDNotFound(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-4")
 
@@ -252,7 +243,6 @@ func TestToggleAttendance_RFIDNotFound(t *testing.T) {
 
 func TestToggleAttendance_ConfirmDailyCheckoutMissingDestination(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-5")
 
@@ -277,7 +267,6 @@ func TestToggleAttendance_ConfirmDailyCheckoutMissingDestination(t *testing.T) {
 
 func TestToggleAttendance_ConfirmDailyCheckoutInvalidDestination(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-6")
 
@@ -303,7 +292,6 @@ func TestToggleAttendance_ConfirmDailyCheckoutInvalidDestination(t *testing.T) {
 
 func TestToggleAttendance_ConfirmDailyCheckoutEmptyDestination(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-7")
 
@@ -329,7 +317,6 @@ func TestToggleAttendance_ConfirmDailyCheckoutEmptyDestination(t *testing.T) {
 
 func TestToggleAttendance_DailyCheckoutRFIDNotFound(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-8")
 
@@ -355,7 +342,6 @@ func TestToggleAttendance_DailyCheckoutRFIDNotFound(t *testing.T) {
 
 func TestToggleAttendance_NormalToggleRFIDNotAssigned(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-9")
 
@@ -379,7 +365,6 @@ func TestToggleAttendance_NormalToggleRFIDNotAssigned(t *testing.T) {
 
 func TestGetAttendanceStatus_StudentWithGroup(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device and student with RFID and group
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-4")
@@ -433,7 +418,6 @@ func TestGetAttendanceStatus_StudentWithGroup(t *testing.T) {
 
 func TestToggleAttendance_InvalidAction(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-10")
 
@@ -457,7 +441,6 @@ func TestToggleAttendance_InvalidAction(t *testing.T) {
 
 func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-11")
@@ -490,7 +473,6 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 
 func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures - valid student with RFID
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-12")
@@ -521,7 +503,6 @@ func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 
 func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-13")
@@ -554,7 +535,6 @@ func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 
 func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-14")
@@ -585,7 +565,6 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 
 func TestAttendanceRouter_ReturnsValidRouter(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
@@ -601,7 +580,6 @@ func TestAttendanceRouter_ReturnsValidRouter(t *testing.T) {
 // auditable attendance principal.
 func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: Create student with RFID and attendance record (checked_in)
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-checkedin-device")
@@ -670,7 +648,6 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 
 func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-no-supervisor-device")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Zuhause", "NoSupervisor", "5x")
@@ -718,7 +695,6 @@ func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testin
 // destination "zuhause" when the student is already checked out — the skip path.
 func TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: Create student with RFID and attendance record (already checked out)
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-checkedout-device")
@@ -766,7 +742,6 @@ func TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut(t *testing.T) {
 // destination "unterwegs" when the student is checked in — no attendance change.
 func TestToggleAttendance_DailyCheckoutUnterwegsCheckedIn(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: Create student with RFID and attendance record (checked_in)
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-unterwegs-checkedin-device")
@@ -813,7 +788,6 @@ func TestToggleAttendance_DailyCheckoutUnterwegsCheckedIn(t *testing.T) {
 // when the student has no attendance record (not_checked_in status).
 func TestToggleAttendance_DailyCheckoutNotCheckedIn(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: Create student with RFID but NO attendance record
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-notcheckedin-device")
@@ -846,7 +820,6 @@ func TestToggleAttendance_DailyCheckoutNotCheckedIn(t *testing.T) {
 // when an active session exists with supervisor access via IoT device context.
 func TestToggleAttendance_NormalToggleSuccess(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: Create all fixtures needed for a complete toggle
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "normal-toggle-success-device")
@@ -913,7 +886,6 @@ func TestToggleAttendance_NormalToggleSuccess(t *testing.T) {
 // in the persons table but the person has a nil tag (findStudentByRFID nil check).
 func TestToggleAttendance_PersonNotStudent(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "not-student-device")
 
@@ -951,7 +923,6 @@ func TestToggleAttendance_PersonNotStudent(t *testing.T) {
 // the visit stayed open and deadlocked the student (checkin 409 / checkout 404).
 func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: checked-in student with RFID and a still-open room visit
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-visit-device")
@@ -1023,7 +994,6 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 // normal kiosk toggle's checkout branch also ends a still-open room visit.
 func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// ARRANGE: full toggle setup (device-linked session + supervisor) with a
 	// checked-in student who still has an open visit in the session's room.
@@ -1095,7 +1065,6 @@ func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
 // as "person is not a student" so PyrePortal needs no new mapping.
 func TestToggleAttendance_AlumnusRejected(t *testing.T) {
 	ctx := setupAttendanceTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-alumnus-device")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Former", "Alumnus", "4z")

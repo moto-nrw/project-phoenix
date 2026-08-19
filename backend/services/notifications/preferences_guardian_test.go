@@ -25,7 +25,6 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	const secondTenantID int64 = 2
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	repos := repositories.NewFactory(db)

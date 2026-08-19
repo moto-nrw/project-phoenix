@@ -20,7 +20,6 @@ var schoolCounter int64
 
 func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -440,7 +439,6 @@ func pgInt64Array(vals []int64) string {
 
 func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -474,7 +472,6 @@ func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 
 func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -513,7 +510,6 @@ func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 
 func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -822,7 +818,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -958,7 +953,6 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -1127,7 +1121,6 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 
 func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)

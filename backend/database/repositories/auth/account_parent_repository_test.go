@@ -30,7 +30,6 @@ func cleanupParentAccount(tb testing.TB, db *bun.DB, accountID int64) {
 
 func TestAccountParentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -78,7 +77,6 @@ func TestAccountParentRepository_Create(t *testing.T) {
 
 func TestAccountParentRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -119,7 +117,6 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 
 func TestAccountParentRepository_FindByUsername(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -143,7 +140,6 @@ func TestAccountParentRepository_FindByUsername(t *testing.T) {
 
 func TestAccountParentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -184,7 +180,6 @@ func TestAccountParentRepository_Update(t *testing.T) {
 
 func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -216,7 +211,6 @@ func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
 
 func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)
@@ -242,7 +236,6 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 
 func TestAccountParentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountParent
 	ctx := testpkg.TenantContext(1)

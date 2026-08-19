@@ -23,7 +23,6 @@ func uniqueOutboxToken(prefix string) string {
 func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxCleanupRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, platformRepo.NewEmailOutboxRepository(db), tenantID

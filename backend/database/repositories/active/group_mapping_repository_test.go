@@ -105,7 +105,6 @@ func cleanupGroupMappingTestData(t *testing.T, db *bun.DB, data *groupMappingTes
 
 func TestGroupMappingRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -148,7 +147,6 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 
 func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -193,7 +191,6 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 
 func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -232,7 +229,6 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 
 func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -272,7 +268,6 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 
 func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -315,7 +310,6 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 
 func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)
@@ -397,7 +391,6 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 
 func TestGroupMappingRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.TenantContext(1)

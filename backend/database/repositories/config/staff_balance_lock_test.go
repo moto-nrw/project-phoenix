@@ -17,7 +17,6 @@ import (
 
 func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
 	t.Cleanup(func() {

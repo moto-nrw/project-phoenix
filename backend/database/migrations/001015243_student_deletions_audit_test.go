@@ -28,7 +28,6 @@ func studentDeletionAuditColumnExists(t *testing.T, db *bun.DB, column string) b
 
 func TestStudentDeletionsAuditMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	// Exercise the migration from a clean relation and leave the fully migrated

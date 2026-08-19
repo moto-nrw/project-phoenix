@@ -40,7 +40,6 @@ func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*iotModels.P
 
 func TestPWAStandaloneUsageRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPWAStandaloneUsageRepository(db)
 	ctx := tenant.WithTenantID(context.Background(), 1)

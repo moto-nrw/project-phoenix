@@ -48,7 +48,6 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // as important, refuses BEFORE writing anything.
 func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -102,7 +101,6 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 // failing while a linked child happens to be open somewhere else.
 func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)

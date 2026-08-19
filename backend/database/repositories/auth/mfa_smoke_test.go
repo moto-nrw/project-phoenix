@@ -20,7 +20,6 @@ import (
 // adds full coverage.
 func TestMFARepositoriesSmoke(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 

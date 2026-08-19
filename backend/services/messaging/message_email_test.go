@@ -79,7 +79,6 @@ func (o *recordingMessageOutbox) Clear() {
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
@@ -144,7 +143,6 @@ func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
 func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID,
 		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
@@ -169,7 +167,6 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("portal_locale = ?", "en").

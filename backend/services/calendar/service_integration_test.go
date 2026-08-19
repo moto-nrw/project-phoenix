@@ -170,7 +170,6 @@ func findOptionalRecipientByGuardian(detail *calendarSvc.AppointmentDetail, guar
 
 func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Calendar", "Organizer")
@@ -264,7 +263,6 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 
 func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Info", "Organizer")
@@ -296,7 +294,6 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 
 func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Lifecycle", "Organizer")
@@ -379,7 +376,6 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 
 func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -441,7 +437,6 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 
 func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -493,7 +488,6 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 
 func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
@@ -540,7 +534,6 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 
 func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ICS", "Organizer")
@@ -611,7 +604,6 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 
 func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := calendarTestConfig(db)
 	repos := repositories.NewFactory(db)
@@ -721,7 +713,6 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 
 func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := calendarTestConfig(db)
 	repos := repositories.NewFactory(db)
@@ -796,7 +787,6 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
@@ -844,7 +834,6 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 
 func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := calendarTestConfig(db)
 	repos := repositories.NewFactory(db)
@@ -898,7 +887,6 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 
 func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "School", "Organizer")
@@ -943,7 +931,6 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 
 func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SchoolActive", "Organizer")
@@ -987,7 +974,6 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Occurrence", "Organizer")
@@ -1034,7 +1020,6 @@ func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 
 func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Organizer")
@@ -1097,7 +1082,6 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 
 func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndRSVP(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Deleted", "Organizer")
@@ -1157,7 +1141,6 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 
 func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Private", "Organizer")
@@ -1211,7 +1194,6 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 
 func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Target", "Organizer")
@@ -1345,7 +1327,6 @@ func parentOptionIDs(options []calendarSvc.ParentOption) []string {
 
 func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Invalid", "Targets")
@@ -1408,7 +1389,6 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 
 func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Invalid", "Recurrence")
@@ -1445,7 +1425,6 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 
 func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
@@ -1500,7 +1479,6 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Errors", "Organizer")
@@ -1590,7 +1568,6 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 
 func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
@@ -1687,7 +1664,6 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 
 func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Timetable", "Staff")
@@ -1719,7 +1695,6 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 
 func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Shift", "Staff")
@@ -1775,7 +1750,6 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 
 func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1803,7 +1777,6 @@ func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *test
 // must lose feed access immediately — the token alone is not enough.
 func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := calendarTestConfig(db)
 	repos := repositories.NewFactory(db)
@@ -1861,7 +1834,6 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 // the edited series.
 func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SeriesEdit", "Organizer")
@@ -1923,7 +1895,6 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 // external calendars don't render a phantom occurrence on the StartDate.
 func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "FirstDay", "Organizer")
@@ -1973,7 +1944,6 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 // whether the edit re-sends email.
 func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -2045,7 +2015,6 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 // appointment lifecycle notices.
 func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEmailOmitted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -2091,7 +2060,6 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 // matching the in-app calendar and ICS export.
 func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -2135,7 +2103,6 @@ func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *tes
 // CanRespond to false and the response endpoints reject RSVP changes.
 func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "CancelRSVP", "Organizer")
@@ -2197,7 +2164,6 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 // it stays cancelled) must be rejected.
 func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "EditCancel", "Organizer")
@@ -2239,7 +2205,6 @@ func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.
 // dates the series never generates.
 func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OccValid", "Organizer")
@@ -2304,7 +2269,6 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 // window) must be rejected at create time rather than persisting a phantom.
 func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "EmptyRec", "Organizer")
@@ -2340,7 +2304,6 @@ func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
 // cancellation) so subscribers treat the event as a newer revision.
 func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Revision", "Organizer")
@@ -2407,7 +2370,6 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 // empty.
 func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Sparse", "Organizer")
@@ -2450,7 +2412,6 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 // NULL ends_on as open-ended).
 func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := calendarTestConfig(db)
 	repos := repositories.NewFactory(db)
@@ -2519,7 +2480,6 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 // (tenant, appointment, date) unique constraint and returning a 500.
 func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	overrideRepo := repositories.NewFactory(db).CalendarOccurrenceOverride
@@ -2568,7 +2528,6 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 // phantom-exporting appointment.
 func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Impossible", "Organizer")
@@ -2603,7 +2562,6 @@ func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testi
 // cancel/delete/update stale-notification cleanup).
 func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -2645,7 +2603,6 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 
 func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Room", "Staff")

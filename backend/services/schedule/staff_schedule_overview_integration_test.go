@@ -98,7 +98,6 @@ func (h *overviewQueryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) 
 
 func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	foreignTenantID := int64(1812002)
 	date := timezone.TodayDate().AddDays(12000 + int(time.Now().UnixNano()%1000))
 	local := createOverviewTenantFixture(t, db, 1, date, false)
@@ -192,7 +191,6 @@ func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date
 
 func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := int64(1837003)
 	foreignTenantID := int64(1837004)
 
@@ -317,7 +315,6 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := int64(1882001)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -371,7 +368,6 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 
 func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	foreignTenantID := int64(1812003)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	monday := timezone.TodayDate().AddDays(13000 + int(time.Now().UnixNano()%1000))

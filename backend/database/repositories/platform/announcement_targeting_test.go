@@ -41,7 +41,6 @@ func cleanupTargetingTestData(t *testing.T, db *bun.DB, announcementIDs []int64,
 
 func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	annoRepo := platform.NewAnnouncementRepository(db)
@@ -76,7 +75,6 @@ func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 
 func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	annoRepo := platform.NewAnnouncementRepository(db)
@@ -110,7 +108,6 @@ func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 
 func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -154,7 +151,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 
 func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -210,7 +206,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing
 
 func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -264,7 +259,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *test
 
 func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -319,7 +313,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 
 func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -367,7 +360,6 @@ func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 
 func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -453,7 +445,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing
 	// Regression test: an account with BOTH a direct role match AND a custom role
 	// with matching base_role must see the announcement exactly once, not duplicated.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -526,7 +517,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 	// Test: changing a custom role's base_role should change which announcements
 	// the user receives via the base_role expansion path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
@@ -627,7 +617,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 
 func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	orgRepo := platform.NewOrganizationRepository(db)
 
@@ -658,7 +647,6 @@ func TestOrganizationRepository_CountByIDs(t *testing.T) {
 
 func TestSchoolRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	schoolRepo := platform.NewSchoolRepository(db)
 

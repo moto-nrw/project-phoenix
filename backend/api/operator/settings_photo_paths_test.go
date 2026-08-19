@@ -78,7 +78,6 @@ func setupOperatorSettingsTestWithSchoolRepo(t *testing.T) *operatorSettingsTest
 // the avatar UI flickers between "feature on" and "feature off".
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Reset prior override so the test starts clean.
 	t.Cleanup(func() {
@@ -114,7 +113,6 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testi
 // same cache bust contract applies.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Set an override first so reset has something to delete. Without
 	// this, resetting an unset key still succeeds but the OnValueSet
@@ -158,7 +156,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 // the hook on photo-flag flips could ship green.
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	t.Cleanup(func() {
 		_, _ = ctx.db.ExecContext(context.Background(),
@@ -200,7 +197,6 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing
 // effective value transitions to false.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefault(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Override to true first so the reset is a real state change.
 	setReq := newOperatorRequest(t, http.MethodPut,

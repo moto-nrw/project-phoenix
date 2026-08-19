@@ -24,9 +24,6 @@ import (
 // cursor pages without overlap.
 func TestMasterDataReview_ListHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -114,9 +111,6 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 // applies the same per-child write gate as the pending queue.
 func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 

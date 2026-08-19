@@ -47,7 +47,6 @@ type createSetup struct {
 func buildCreateSetup(t *testing.T) *createSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -267,7 +266,6 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 
 func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

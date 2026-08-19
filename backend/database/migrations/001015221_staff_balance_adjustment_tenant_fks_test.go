@@ -13,7 +13,6 @@ import (
 
 func TestStaffBalanceAdjustmentTenantFKsRejectCrossTenantReferences(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)

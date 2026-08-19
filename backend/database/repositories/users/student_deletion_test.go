@@ -15,7 +15,6 @@ import (
 
 func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repo := repositories.NewFactory(db).StudentDeletion
 
 	_, err := repo.Preview(context.Background(), 1)
@@ -36,7 +35,6 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 
 func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Locked", "1a")
@@ -74,7 +72,6 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Target", "1a")

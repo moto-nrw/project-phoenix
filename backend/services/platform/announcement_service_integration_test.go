@@ -173,7 +173,6 @@ func cleanupIntegrationAccountTenant(t *testing.T, db *bun.DB, accountID, tenant
 
 func TestAnnouncementServiceIntegration_CreateAnnouncement(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-create@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -329,7 +328,6 @@ func TestAnnouncementServiceIntegration_CreateAnnouncement(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_GetAnnouncement(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-get@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -364,7 +362,6 @@ func TestAnnouncementServiceIntegration_GetAnnouncement(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_UpdateAnnouncement(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-update@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -495,7 +492,6 @@ func TestAnnouncementServiceIntegration_UpdateAnnouncement(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_DeleteAnnouncement(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-delete@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -530,7 +526,6 @@ func TestAnnouncementServiceIntegration_DeleteAnnouncement(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_PublishUnpublish(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-publish@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -594,7 +589,6 @@ func TestAnnouncementServiceIntegration_PublishUnpublish(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_ListAnnouncements(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-list@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -666,7 +660,6 @@ func TestAnnouncementServiceIntegration_ListAnnouncements(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_UnreadAndCount(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-unread@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -731,7 +724,6 @@ func TestAnnouncementServiceIntegration_UnreadAndCount(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_GetStats(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-stats@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -778,7 +770,6 @@ func TestAnnouncementServiceIntegration_GetStats(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_GetViewDetails(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-viewdetails@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -818,7 +809,6 @@ func TestAnnouncementServiceIntegration_GetViewDetails(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_MarkDismissed(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-dismiss@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)
@@ -850,7 +840,6 @@ func TestAnnouncementServiceIntegration_MarkDismissed(t *testing.T) {
 
 func TestAnnouncementServiceIntegration_AuditLogging(t *testing.T) {
 	svc, db := setupAnnouncementService(t)
-	defer func() { _ = db.Close() }()
 
 	operatorID := createIntegrationOperator(t, db, "svc-audit@test.com")
 	defer cleanupIntegrationOperator(t, db, operatorID)

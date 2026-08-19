@@ -19,7 +19,6 @@ import (
 
 func TestMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := authRepo.NewMFACredentialRepository(db)
@@ -45,7 +44,6 @@ func TestMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 
 func TestMFACredentialRepository_Update_NilRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewMFACredentialRepository(db)
 	err := repo.Update(context.Background(), nil)
@@ -54,7 +52,6 @@ func TestMFACredentialRepository_Update_NilRejected(t *testing.T) {
 
 func TestMFACredentialRepository_List_FilterByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := authRepo.NewMFACredentialRepository(db)
@@ -75,7 +72,6 @@ func TestMFACredentialRepository_List_FilterByAccountID(t *testing.T) {
 
 func TestMFACredentialRepository_List_NoFilters_Succeeds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	repo := authRepo.NewMFACredentialRepository(db)

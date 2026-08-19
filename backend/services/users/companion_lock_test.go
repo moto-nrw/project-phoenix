@@ -50,7 +50,6 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // perfectly legal and succeeds on the next attempt.
 func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -76,7 +75,6 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 // bailing out with ErrCompanionLockBusy.
 func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newCompanionTestService(db)
 
@@ -99,7 +97,6 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 // plain entry point and the bounded one simply take their locks.
 func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)
@@ -130,7 +127,6 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 // looked at the first subject's graph would sail past it and return nil.
 func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := newCompanionTestService(db)

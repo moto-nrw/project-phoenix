@@ -20,7 +20,6 @@ import (
 // GetActiveGroupsByIDs walk.
 func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)
@@ -201,7 +200,6 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 // room -> present students projection that replaces the per-room query loop.
 func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)

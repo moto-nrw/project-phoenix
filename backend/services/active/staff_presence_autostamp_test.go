@@ -37,7 +37,6 @@ func todayWorkSession(t *testing.T, db *bun.DB, staffID int64) *active.WorkSessi
 // kiosk-driven attendance toggle opens the acting staff member's work session.
 func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
@@ -64,7 +63,6 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 // "Betreuer markiert Kind als anwesend" path (issue #1439).
 func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
@@ -87,7 +85,6 @@ func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) 
 // supervision starting today via the web app opens the staff work session.
 func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 

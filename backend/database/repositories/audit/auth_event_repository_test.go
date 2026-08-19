@@ -17,7 +17,6 @@ import (
 
 func TestAuthEventRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -93,7 +92,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 
 func TestAuthEventRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +123,6 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 
 func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -177,7 +174,6 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 
 func TestAuthEventRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -218,7 +214,6 @@ func TestAuthEventRepository_List(t *testing.T) {
 
 func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -247,7 +242,6 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 
 func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)
@@ -277,7 +271,6 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 
 func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.TenantContext(1)

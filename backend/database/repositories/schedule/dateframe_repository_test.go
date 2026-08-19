@@ -17,7 +17,6 @@ import (
 
 func TestDateframeRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -77,7 +76,6 @@ func TestDateframeRepository_Create(t *testing.T) {
 
 func TestDateframeRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -109,7 +107,6 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 
 func TestDateframeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -147,7 +144,6 @@ func TestDateframeRepository_Update(t *testing.T) {
 
 func TestDateframeRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +175,6 @@ func TestDateframeRepository_Delete(t *testing.T) {
 func TestDateframeRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -212,7 +207,6 @@ func TestDateframeRepository_List(t *testing.T) {
 func TestDateframeRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -264,7 +258,6 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 func TestDateframeRepository_FindByDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)
@@ -353,7 +346,6 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 func TestDateframeRepository_FindOverlapping(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
 	ctx := testpkg.TenantContext(1)

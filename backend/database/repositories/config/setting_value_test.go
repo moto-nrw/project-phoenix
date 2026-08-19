@@ -23,7 +23,6 @@ func newSV(key string, value string) *config.SettingValue {
 
 func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -40,7 +39,6 @@ func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
 
 func TestSettingValueRepository_Upsert_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -57,7 +55,6 @@ func TestSettingValueRepository_Upsert_Update(t *testing.T) {
 
 func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -68,7 +65,6 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 
 func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -97,7 +93,6 @@ func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
 
 func TestSettingValueRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -113,7 +108,6 @@ func TestSettingValueRepository_Delete(t *testing.T) {
 
 func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 
 	// Use high tenant IDs to avoid sequence collisions: other tests use
@@ -166,7 +160,6 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 
 func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.TenantContext(1)
 

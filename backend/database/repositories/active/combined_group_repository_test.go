@@ -107,7 +107,6 @@ func cleanupCombinedGroupTestData(t *testing.T, db *bun.DB, data *combinedGroupT
 
 func TestCombinedGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.TenantContext(1)
@@ -153,7 +152,6 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 func TestCombinedGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.TenantContext(1)
@@ -308,7 +306,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 func TestCombinedGroupRepository_FindActive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.TenantContext(1)
@@ -355,7 +352,6 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.TenantContext(1)
@@ -393,7 +389,6 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.TenantContext(1)
@@ -421,7 +416,6 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	mappingRepo := repositories.NewFactory(db).GroupMapping

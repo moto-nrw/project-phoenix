@@ -22,7 +22,6 @@ import (
 
 func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -67,7 +66,6 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -103,7 +101,6 @@ func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -142,7 +139,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -178,7 +174,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T
 
 func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -215,7 +210,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.
 
 func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -274,7 +268,6 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -329,7 +322,6 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -366,7 +358,6 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 
 func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -408,7 +399,6 @@ func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -440,7 +430,6 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -475,7 +464,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -512,7 +500,6 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -548,7 +535,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -597,7 +583,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -660,7 +645,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 
 func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -695,7 +679,6 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -752,7 +735,6 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -789,7 +771,6 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -821,7 +802,6 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -881,7 +861,6 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -926,7 +905,6 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -961,7 +939,6 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1005,7 +982,6 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1058,7 +1034,6 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1097,7 +1072,6 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1149,7 +1123,6 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1186,7 +1159,6 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1224,7 +1196,6 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
 	ctx := testpkg.TenantContext(1)

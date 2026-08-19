@@ -69,7 +69,6 @@ func countEventType(msgs []*usersModels.ParentMessage, eventType string) int {
 //     the request as actionable), without ever creating a new thread.
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -142,7 +141,6 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 // terminal decision drops entirely rather than creating a thread via GetOrCreate.
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -170,7 +168,6 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 // before any thread work, so no thread is created.
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -197,7 +194,6 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 // can no longer read the child is never woken for it.
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

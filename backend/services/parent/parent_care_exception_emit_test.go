@@ -28,7 +28,6 @@ import (
 // deleting it drops a correction pill.
 func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -87,7 +86,6 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 // now fan a message-independent parent_child_updated wake to EVERY guardian.
 func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the

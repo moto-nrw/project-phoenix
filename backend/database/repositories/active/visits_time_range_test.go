@@ -14,7 +14,6 @@ import (
 // active_group_id matches one of the given IDs. Empty slice must short-circuit.
 func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)
@@ -61,7 +60,6 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 
 func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := testpkg.TenantContext(1)

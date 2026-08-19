@@ -153,7 +153,6 @@ type wiredMFAFixture struct {
 func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -331,7 +330,6 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	fix := newWiredMFAFixture(t)
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
@@ -357,7 +355,6 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	fix := newWiredMFAFixture(t)
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })

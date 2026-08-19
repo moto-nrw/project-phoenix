@@ -12,7 +12,6 @@ import (
 
 func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)
@@ -49,7 +48,6 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 
 func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)

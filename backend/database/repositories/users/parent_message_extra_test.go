@@ -22,7 +22,6 @@ import (
 // `limit` messages back in oldest-first chat order.
 func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -66,7 +65,6 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 // chat message, and a non-matching ref (nil, not an error).
 func TestParentMessage_FindEventByRef(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -120,7 +118,6 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 // takes part in the decision.
 func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 

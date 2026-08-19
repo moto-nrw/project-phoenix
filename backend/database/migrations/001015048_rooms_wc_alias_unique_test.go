@@ -112,7 +112,6 @@ func roomNameByID(t *testing.T, db *bun.DB, id int64) string {
 // still rebuilds the index.
 func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9101
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -134,7 +133,6 @@ func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 // "Toilette" first, used it, then somehow ended up with a "WC" duplicate.
 func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9102
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -168,7 +166,6 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 // when active-group counts tie, "WC" wins over "Toilette".
 func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9103
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -191,7 +188,6 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 // can re-invoke a migration after a partial failure on the next run.
 func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9104
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -223,7 +219,6 @@ func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 // between two concurrent CreateRoom calls).
 func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9105
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -248,7 +243,6 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 // cross-tenant: every tenant must be allowed its own alias.
 func TestRoomsWCAliasUniqueUp_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantA, tenantB int64 = 9106, 9107
 	testpkg.EnsureTestTenant(t, db, tenantA)

@@ -25,7 +25,6 @@ func buildDeviceLocationService(t *testing.T, db *bun.DB) activeSvc.Service {
 
 func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildDeviceLocationService(t, db)
 	deviceRepo := repositories.NewFactory(db).Device

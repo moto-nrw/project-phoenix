@@ -49,10 +49,6 @@ type overdueSetup struct {
 func buildOverdue(t *testing.T) *overdueSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	// db.Close() registered FIRST so it runs LAST (LIFO). Deferring in the
-	// test would close the DB before t.Cleanup callbacks fire, leaking test
-	// fixtures into subsequent tests.
-	t.Cleanup(func() { _ = db.Close() })
 	repoFactory := repositories.NewFactory(db)
 
 	spy := testpkg.NewRecordingBroadcaster()

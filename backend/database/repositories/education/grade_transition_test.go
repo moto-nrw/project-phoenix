@@ -16,7 +16,6 @@ import (
 
 func TestGradeTransitionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -66,7 +65,6 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 
 func TestGradeTransitionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -92,7 +90,6 @@ func TestGradeTransitionRepository_FindByID(t *testing.T) {
 
 func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -116,7 +113,6 @@ func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 
 func TestGradeTransitionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -162,7 +158,6 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 
 func TestGradeTransitionRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -198,7 +193,6 @@ func TestGradeTransitionRepository_Delete(t *testing.T) {
 
 func TestGradeTransitionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -220,7 +214,6 @@ func TestGradeTransitionRepository_List(t *testing.T) {
 
 func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -246,7 +239,6 @@ func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 
 func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -270,7 +262,6 @@ func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 
 func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -338,7 +329,6 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 
 func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -405,7 +395,6 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 
 func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -428,7 +417,6 @@ func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 
 func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -454,7 +442,6 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 
 func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -488,7 +475,6 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 
 func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -580,7 +566,6 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 
 func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -668,7 +653,6 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 
 func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -722,7 +706,6 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -736,7 +719,6 @@ func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
 
 func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -750,7 +732,6 @@ func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -764,7 +745,6 @@ func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -777,7 +757,6 @@ func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -791,7 +770,6 @@ func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -808,7 +786,6 @@ func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -852,7 +829,6 @@ func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -892,7 +868,6 @@ func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 
 func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)

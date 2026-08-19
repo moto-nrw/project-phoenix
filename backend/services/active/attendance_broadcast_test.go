@@ -55,8 +55,7 @@ func (f attendanceFixtures) eduTopic() string {
 }
 
 // setupAbsentStudent builds the base fixtures without any attendance row and
-// returns the cleanup to defer (the caller's own `defer db.Close()` must
-// outlive it, so cleanup cannot hide in t.Cleanup).
+// returns the cleanup to defer.
 func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtures, func()) {
 	t.Helper()
 
@@ -172,7 +171,6 @@ func checkoutEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []real
 func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupCheckedInStudent(t, db, "WebVisit", true)
 	defer cleanup()
@@ -219,7 +217,6 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupCheckedInStudent(t, db, "Idempotent", true)
 	defer cleanup()
@@ -242,7 +239,6 @@ func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
 func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupAbsentStudent(t, db, "OrphanedVisit")
 	defer cleanup()
@@ -274,7 +270,6 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupCheckedInStudent(t, db, "Roomless", false)
 	defer cleanup()
@@ -309,7 +304,6 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupCheckedInStudent(t, db, "AfterCommit", true)
 	defer cleanup()
@@ -342,7 +336,6 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 // every "nach Hause" scan wakes every client of the school twice.
 func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	// Own service instance rather than setupServiceWithBroadcaster: the daily
 	// checkout reads the attendance status first, which resolves staff names
 	// through UsersService — the shared helper leaves that dependency nil.
@@ -384,7 +377,6 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 // historical roomless event but must retain its stable source wire value.
 func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	svc, broadcaster := newDailyCheckoutService(t, db)
 
 	f, cleanup := setupCheckedInStudent(t, db, "DailyOpenVisit", true)
@@ -427,7 +419,6 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupAbsentStudent(t, db, "WebCheckin")
 	defer cleanup()
@@ -471,7 +462,6 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupAbsentStudent(t, db, "RepeatCheckin")
 	defer cleanup()
@@ -494,7 +484,6 @@ func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
 func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupAbsentStudent(t, db, "CheckinCommit")
 	defer cleanup()
@@ -528,7 +517,6 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()

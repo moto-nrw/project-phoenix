@@ -41,7 +41,6 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 
 func TestCalendarPeriodRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -160,7 +159,6 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -188,7 +186,6 @@ func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 
 func TestCalendarPeriodRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -236,7 +233,6 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -280,7 +276,6 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -324,7 +319,6 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -384,7 +378,6 @@ func createPeriodForTenant(t *testing.T, repo scheduleModels.CalendarPeriodRepos
 
 func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 
@@ -482,7 +475,6 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	tenantID, ctx := newOverlapTenant(t, db, 560000)
@@ -573,7 +565,6 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 
 func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	tenantID, ctx := newOverlapTenant(t, db, 580000)
@@ -648,7 +639,7 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
 	require.NoError(t, db.Close())
@@ -662,7 +653,6 @@ func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T)
 
 func TestCalendarPeriodRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -687,7 +677,6 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 // 'c' = CASCADE, 'r' = RESTRICT, 'd' = SET DEFAULT.
 func TestCalendarPeriodFKOnDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -722,7 +711,6 @@ func TestCalendarPeriodFKOnDelete(t *testing.T) {
 
 func TestCalendarPeriodRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.TenantContext(1)

@@ -73,7 +73,6 @@ func mockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

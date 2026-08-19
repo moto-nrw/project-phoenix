@@ -16,7 +16,6 @@ import (
 
 func TestOperatorAuditLogRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorAuditLogRepository(db)
 	ctx := testpkg.TenantContext(1)

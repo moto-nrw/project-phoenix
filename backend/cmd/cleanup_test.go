@@ -632,7 +632,6 @@ func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -655,7 +654,6 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -669,7 +667,6 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 
 func TestRunVisitsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -685,7 +682,6 @@ func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceDryRun(ctx)
 	require.NoError(t, err)
@@ -697,7 +693,6 @@ func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceDryRun(ctx)
 	require.NoError(t, err)
@@ -705,7 +700,6 @@ func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 
 func TestRunAttendanceCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceCleanup(ctx)
 	require.NoError(t, err)
@@ -717,7 +711,6 @@ func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsDryRun(ctx)
 	require.NoError(t, err)
@@ -729,7 +722,6 @@ func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsDryRun(ctx)
 	require.NoError(t, err)
@@ -737,7 +729,6 @@ func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 
 func TestRunSupervisorsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsCleanup(ctx)
 	require.NoError(t, err)
@@ -749,7 +740,6 @@ func TestRunSupervisorsCleanup(t *testing.T) {
 
 func TestPrintVerboseRecentDeletions(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	// Should run without error even if no recent deletions exist
 	output := captureStdout(t, func() {
@@ -762,7 +752,6 @@ func TestPrintVerboseRecentDeletions(t *testing.T) {
 
 func TestCountExpiredTokens(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	// Should return count (0 or more) without error
 	count, err := countExpiredTokens(ctx)
@@ -776,7 +765,6 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	log.SetOutput(&logBuf)
@@ -797,7 +785,6 @@ func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	threshold := 5 * time.Minute
 
@@ -819,7 +806,6 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	log.SetOutput(&logBuf)
@@ -839,7 +825,6 @@ func TestRunDailySessionCleanup_Execute(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	output := captureStdout(t, func() {
 		err := runDailySessionCleanup(ctx)

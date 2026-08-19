@@ -151,7 +151,6 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 
 func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -179,7 +178,6 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 
 func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -225,7 +223,6 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 
 func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -264,7 +261,6 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 
 func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -295,7 +291,6 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 
 func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -365,7 +360,6 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.TenantContext(1)
 

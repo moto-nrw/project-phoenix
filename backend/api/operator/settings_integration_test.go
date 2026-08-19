@@ -90,7 +90,6 @@ func newOperatorRequest(t *testing.T, method, target string, body any) *http.Req
 
 func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -130,7 +129,6 @@ func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 
 func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/not-a-number/settings/schema", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -144,7 +142,6 @@ func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{"value": "18:30"}
 	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/operations.session_end_time", body)
@@ -155,7 +152,6 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// feedback.enabled requires config:manage for tenant users and is a
 	// shared setting operators may write. Operators have empty permissions
@@ -170,7 +166,6 @@ func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{"value": "anything"}
 	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/nonexistent.key", body)
@@ -181,7 +176,6 @@ func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// session_end_enabled is a boolean — string value should fail validation.
 	body := map[string]interface{}{"value": "not-a-boolean"}
@@ -193,7 +187,6 @@ func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := httptest.NewRequest(http.MethodPut, "/schools/1/settings/values/operations.session_end_time", bytes.NewReader([]byte("{not-json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -206,7 +199,6 @@ func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{"value": "18:30"}
 	req := newOperatorRequest(t, http.MethodPut, "/schools/abc/settings/values/operations.session_end_time", body)
@@ -221,7 +213,6 @@ func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/operations.session_end_time", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -231,7 +222,6 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 
 func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/nonexistent.key", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -241,7 +231,6 @@ func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
 
 func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodDelete, "/schools/xyz/settings/values/operations.session_end_time", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -255,7 +244,6 @@ func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/operations.session_end_time/reveal", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -271,7 +259,6 @@ func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
 
 func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/nonexistent.key/reveal", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -281,7 +268,6 @@ func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
 
 func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/bogus/settings/values/operations.session_end_time/reveal", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -295,7 +281,6 @@ func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// security.ogs_device_pin is AccessAdminOnly — operators must not change it.
 	body := map[string]interface{}{"value": "1234"}
@@ -307,7 +292,6 @@ func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/security.ogs_device_pin", nil)
 
@@ -317,7 +301,6 @@ func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/security.ogs_device_pin/reveal", nil)
 
@@ -327,7 +310,6 @@ func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -361,7 +343,6 @@ func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Register a hook and assert it fires with the expected args.
 	var called bool
@@ -389,7 +370,6 @@ func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 
 func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Count rows for this key before the failed write. The rollback test
 	// only requires that the count does NOT change; tolerating any pre-
@@ -422,7 +402,6 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 
 func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	seed := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/checkout.schulhof_enabled", map[string]interface{}{
 		"value": true,
@@ -508,7 +487,6 @@ func presenceModePath(tenantID int64, suffix string) string {
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
@@ -536,7 +514,6 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *t
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
@@ -563,7 +540,6 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_PassesWithNoOpenAttendance(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)

@@ -26,12 +26,6 @@ func TestSetupAPITest(t *testing.T) {
 	require.NotNil(t, db)
 	require.NotNil(t, services)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	// Verify services are available
 	assert.NotNil(t, services.Auth)
 	assert.NotNil(t, services.Users)

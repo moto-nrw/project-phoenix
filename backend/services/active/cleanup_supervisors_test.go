@@ -27,7 +27,6 @@ func utcToday() time.Time {
 // when there are no stale supervisor records to clean up.
 func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -48,7 +47,6 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 // records from previous days without end_date are properly closed.
 func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -104,7 +102,6 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 // from today (with no end_date) are NOT closed — they are still active.
 func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -153,7 +150,6 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 // as an error in result.Errors but does not prevent the cleanup from completing.
 func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -210,7 +206,6 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 // supervisor records without modifying data.
 func TestPreviewSupervisorCleanup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := testpkg.TenantContext(1)

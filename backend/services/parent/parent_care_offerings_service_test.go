@@ -195,7 +195,6 @@ func (s offeringChangeSettingsStub) ResolveBoolForTenant(
 func careOfferingsTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 

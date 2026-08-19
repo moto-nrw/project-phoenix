@@ -47,7 +47,6 @@ func cleanupAttendanceTestData(t *testing.T, db *bun.DB, data *attendanceTestDat
 // TestAttendanceRepository_Create tests basic record creation
 func TestAttendanceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -166,7 +165,6 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -189,7 +187,6 @@ func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 // TestAttendanceRepository_FindByStudentAndDate tests querying attendance records by student and date
 func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -461,7 +458,6 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 // TestAttendanceRepository_FindLatestByStudent tests finding the most recent attendance record for a student
 func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -724,7 +720,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 // TestAttendanceRepository_GetStudentCurrentStatus tests getting today's latest attendance record for a student
 func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -993,7 +988,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 // TestAttendanceRepository_Update tests updating attendance records
 func TestAttendanceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1050,7 +1044,6 @@ func TestAttendanceRepository_Update(t *testing.T) {
 // TestAttendanceRepository_FindByID tests finding by ID
 func TestAttendanceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1095,7 +1088,6 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 // TestAttendanceRepository_Delete tests deleting attendance records
 func TestAttendanceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1128,7 +1120,6 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 // TestAttendanceRepository_GetTodayByStudentID tests getting today's attendance
 func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1176,7 +1167,6 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 // TestAttendanceRepository_FindForDate tests finding all attendance for a date
 func TestAttendanceRepository_FindForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1258,7 +1248,6 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 //     where check_out_time IS NULL.
 func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1380,7 +1369,6 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 //     — caller treats as idempotent success.
 func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)
@@ -1463,7 +1451,6 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 // day mid-batch.
 func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.TenantContext(1)

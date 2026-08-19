@@ -47,7 +47,6 @@ func (r *graduatingEnrollmentRepo) FindByGroupID(
 
 func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRosterRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 

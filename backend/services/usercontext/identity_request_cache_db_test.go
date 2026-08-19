@@ -105,7 +105,6 @@ func resolveFullChain(t *testing.T, ctx context.Context, service usercontextSvc.
 // loaded from the database at most once, no matter how many chain methods run.
 func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 	today := timezone.TodayDate()
@@ -149,7 +148,6 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 // database exactly as before #2099.
 func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
@@ -173,7 +171,6 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 // users.teachers on every GetMyGroups/GetCurrentTeacher call.
 func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
@@ -203,7 +200,6 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 // would serve the memoized nil and return an empty name.
 func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
@@ -236,7 +232,6 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 // account would ship the old avatar URL in the response.
 func TestUpdateAvatarEvictsIdentity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 

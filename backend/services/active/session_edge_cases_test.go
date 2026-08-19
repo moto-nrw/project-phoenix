@@ -29,7 +29,6 @@ func buildSessionEdgeCaseService(t *testing.T, db *bun.DB) activeSvc.Service {
 
 func TestSessionStartWithRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -66,7 +65,6 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 
 func TestForceStartOverridesExistingSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -101,7 +99,6 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 
 func TestForceStartWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -148,7 +145,6 @@ func TestForceStartWithSupervisors(t *testing.T) {
 
 func TestUpdateActiveGroupSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -240,7 +236,6 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 
 func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -305,7 +300,6 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 
 func TestCheckActivityConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
 	ctx := testpkg.TenantContext(1)

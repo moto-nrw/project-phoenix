@@ -26,7 +26,6 @@ func createActiveServiceWithCrossTenant(t *testing.T, db *bun.DB) active.Service
 
 func TestCrossTenantStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Ensure two tenants exist
 	tenantA := int64(42)
@@ -125,7 +124,6 @@ func TestCrossTenantStudents(t *testing.T) {
 // the SQL query works correctly.
 func TestCrossTenantRepository_Direct(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantHost := int64(50)
 	tenantVisitor := int64(51)

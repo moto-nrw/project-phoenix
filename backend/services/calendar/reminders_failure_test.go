@@ -83,7 +83,6 @@ func (failingRecipientLookup) FindByAppointmentID(context.Context, int64) ([]*ca
 // the occurrence would simply never be reminded about.
 func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -158,7 +157,6 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 // unscoped across every school, so it refuses instead.
 func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})
 	now := timezone.Now()

@@ -104,7 +104,6 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 
 func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupInternalAuthService(t, db)
@@ -340,7 +339,6 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.
 
 func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupInternalAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -440,7 +438,6 @@ func TestResolveAccountTenantBySlug_InactiveSchool_ReturnsTenantNotFound(t *test
 // for a valid tenant populates the organization ID and returns no error.
 func TestLoadAccountMetadataForTenant_WithValidTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 77701
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -470,7 +467,6 @@ func TestLoadAccountMetadataForTenant_WithValidTenant(t *testing.T) {
 // school is treated as not found, the refresh flow must reject it with ErrTenantNotFound.
 func TestLoadAccountMetadataForTenant_WithDeletedTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 77702
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -505,7 +501,6 @@ func TestLoadAccountMetadataForTenant_WithDeletedTenant(t *testing.T) {
 // pointing to a school that was never created (or hard-deleted) returns ErrTenantNotFound.
 func TestLoadAccountMetadataForTenant_WithNonExistentTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-noschool")
 	t.Cleanup(func() {
@@ -528,7 +523,6 @@ func TestLoadAccountMetadataForTenant_WithNonExistentTenant(t *testing.T) {
 // orgID=0 without attempting a school lookup.
 func TestLoadAccountMetadataForTenant_WithZeroTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-zero")
 	t.Cleanup(func() {
@@ -804,7 +798,6 @@ func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
 // session the caller still holds keeps working.
 func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)

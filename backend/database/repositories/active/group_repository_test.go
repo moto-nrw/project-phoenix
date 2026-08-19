@@ -56,7 +56,6 @@ func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 
 func TestActiveGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -113,7 +112,6 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -158,7 +156,6 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 
 func TestActiveGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -196,7 +193,6 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 
 func TestActiveGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -230,7 +226,6 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 
 func TestActiveGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -265,7 +260,6 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 
 func TestActiveGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -295,7 +289,6 @@ func TestActiveGroupRepository_List(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -339,7 +332,6 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -388,7 +380,6 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -444,7 +435,6 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -483,7 +473,6 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -528,7 +517,6 @@ func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 
 func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -575,7 +563,6 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 
 func TestActiveGroupRepository_EndSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -608,7 +595,6 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 
 func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -673,7 +659,6 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -719,7 +704,6 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 
 func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -768,7 +752,6 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 
 func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -829,7 +812,6 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 
 func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -915,7 +897,6 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 
 func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -986,7 +967,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 
 func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -1040,7 +1020,6 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 
 func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -1112,7 +1091,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 
 func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := testpkg.TenantContext(1)
@@ -1213,7 +1191,7 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 }
 
 func TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).ActiveGroup
 	require.NoError(t, db.Close())
 

@@ -70,7 +70,6 @@ func clearPersonTag(db *bun.DB, tagID string) {
 
 func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -120,7 +119,6 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 
 func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -228,7 +226,6 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 
 func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -267,7 +264,6 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 
 func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -333,7 +329,6 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 
 func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -373,7 +368,6 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 
 func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -414,7 +408,6 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 
 func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -457,7 +450,6 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 // in the ledger and misleads every later revert.
 func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)

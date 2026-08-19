@@ -69,7 +69,6 @@ func cleanupWCArtifactsInternal(t *testing.T, db *bun.DB) {
 
 func TestWCService_findWCActivity_NotFoundSentinel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -85,7 +84,6 @@ func TestWCService_findWCActivity_NotFoundSentinel(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_PropagatesActivityLookupErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -104,7 +102,6 @@ func TestWCService_EnsureInfrastructure_PropagatesActivityLookupErrors(t *testin
 
 func TestWCService_ensureWCRoom_PropagatesLookupErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -123,7 +120,6 @@ func TestWCService_ensureWCRoom_PropagatesLookupErrors(t *testing.T) {
 
 func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -142,7 +138,6 @@ func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
 
 func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -196,7 +191,6 @@ func TestWCService_getLogger_NilSafe(t *testing.T) {
 
 func TestWCService_ensureWCCategory_ReusesExisting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)
@@ -219,7 +213,6 @@ func TestWCService_ensureWCCategory_ReusesExisting(t *testing.T) {
 
 func TestWCService_ensureWCRoom_CreatesNewRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupWCArtifactsInternal(t, db)
 	defer cleanupWCArtifactsInternal(t, db)

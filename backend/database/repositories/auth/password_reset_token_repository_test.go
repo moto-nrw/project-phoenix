@@ -18,7 +18,6 @@ import (
 
 func TestPasswordResetTokenRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -50,7 +49,6 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 
 func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -83,7 +81,6 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 
 func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -116,7 +113,6 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 
 func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -161,7 +157,6 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 
 func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -213,7 +208,6 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 
 func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -243,7 +237,6 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 
 func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -286,7 +279,6 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 
 func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)
@@ -338,7 +330,6 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 
 func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := testpkg.TenantContext(1)

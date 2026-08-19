@@ -23,7 +23,6 @@ import (
 // all is the same problem in a louder form.
 func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	// A Monday well in the past: the weekly plan below books its child on the
@@ -93,7 +92,6 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 // non-booking — both irreversible. Such a row is left exactly as it is.
 func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	date := timezone.NewDate(2025, time.March, 3)
@@ -155,7 +153,6 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 // touch it — it cannot be rolled back.
 func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	date := timezone.NewDate(2025, time.March, 3)

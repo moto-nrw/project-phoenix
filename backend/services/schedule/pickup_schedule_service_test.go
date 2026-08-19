@@ -46,7 +46,6 @@ func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 
 func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -82,7 +81,6 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 
 func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -118,7 +116,6 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 
 func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -180,7 +177,6 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 
 func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -251,7 +247,6 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 
 func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -281,7 +276,6 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 
 func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -317,7 +311,6 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 
 func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -390,7 +383,6 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
@@ -448,7 +440,6 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 
 func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -479,7 +470,6 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 
 func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -525,7 +515,6 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 
 func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -558,7 +547,6 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 
 func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "PickupPatch", "1a")
@@ -600,7 +588,6 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 
 func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "PickupClear", "1a")
@@ -637,7 +624,6 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 
 func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "UpsertOwns", "1a")
@@ -683,7 +669,6 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 
 func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnership(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "PartialOwns", "1a")
@@ -728,7 +713,6 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -787,7 +771,6 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 
 func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -858,7 +841,6 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 
 func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -895,7 +877,6 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 
 func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1073,7 +1054,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1231,7 +1211,6 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1286,7 +1265,6 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1315,7 +1293,6 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 
 func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1352,7 +1329,6 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 
 func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1395,7 +1371,6 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 
 func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1441,7 +1416,6 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 
 func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1471,7 +1445,6 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 
 func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1504,7 +1477,6 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1551,7 +1523,6 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAllowed", "Student", "BP-A")
@@ -1576,7 +1547,6 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSe
 // ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
 func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUnauthorized(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.TenantContext(1)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrA", "Student", "BP-E1")

@@ -55,7 +55,6 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date timezone.Date
 
 func TestActivityInstanceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -162,7 +161,6 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNotAbortTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -198,7 +196,6 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -251,7 +248,6 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 
 func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -298,7 +294,6 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 
 func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -333,7 +328,6 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 
 func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryState(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -373,7 +367,6 @@ func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryS
 
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -422,7 +415,6 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 
 func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -468,7 +460,6 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 
 func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -497,7 +488,6 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 
 func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -535,7 +525,6 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 // two instances must not be able to claim the same active.group.
 func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -571,7 +560,6 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 // migration silently downgrading the invariant.
 func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -594,7 +582,6 @@ func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
 
 func TestActivityInstanceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -625,7 +612,6 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 // Catalog code: 'n' = SET NULL, 'c' = CASCADE, 'r' = RESTRICT, 'a' = NO ACTION.
 func TestActivityInstanceFKOnDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -673,7 +659,6 @@ func TestActivityInstanceFKOnDelete(t *testing.T) {
 // are deleted and re-materialized.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_PreservesDeviations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -752,7 +737,6 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 // block next to the materialized successor.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDeleteIgnoresDeviations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -793,7 +777,6 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 
 func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -848,7 +831,6 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 // untouched — otherwise the classified daily lists stay empty until a re-plan.
 func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
@@ -931,7 +913,6 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 
 func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)

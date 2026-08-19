@@ -34,7 +34,6 @@ type gapsSetup struct {
 func buildGapsSetup(t *testing.T) *gapsSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

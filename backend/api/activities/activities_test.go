@@ -121,7 +121,6 @@ func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 
 func TestListActivities_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test activity
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestList-%d", time.Now().UnixNano()))
@@ -142,7 +141,6 @@ func TestListActivities_Success(t *testing.T) {
 
 func TestListActivities_WithCategoryFilter(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestFilter-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -157,7 +155,6 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 
 func TestGetActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestGet-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -177,7 +174,6 @@ func TestGetActivity_Success(t *testing.T) {
 
 func TestGetActivity_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil)
 
@@ -188,7 +184,6 @@ func TestGetActivity_NotFound(t *testing.T) {
 
 func TestGetActivity_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil)
 
@@ -199,7 +194,6 @@ func TestGetActivity_InvalidID(t *testing.T) {
 
 func TestCreateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Create", "Staff")
@@ -234,7 +228,6 @@ func TestCreateActivity_Success(t *testing.T) {
 
 func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("BadReq-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -254,7 +247,6 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"name":             "NoCategoryActivity",
@@ -271,7 +263,6 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unlimited", "Activity")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
@@ -311,7 +302,6 @@ func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 
 func TestUpdateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
 	// We use admin permissions to bypass the ownership check.
@@ -336,7 +326,6 @@ func TestUpdateActivity_Success(t *testing.T) {
 
 func TestUpdateActivity_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "UpdateNF", "Staff")
@@ -361,7 +350,6 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 
 func TestDeleteActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
 	// We use admin permissions to bypass the ownership check.
@@ -382,7 +370,6 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 	// even if the activity doesn't exist. This prevents information disclosure about
 	// which activity IDs exist.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Use admin claims
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/99999", nil)
@@ -395,7 +382,6 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 
 func TestDeleteActivity_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil)
 
@@ -410,7 +396,6 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 
 func TestListCategories_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("TestCat-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -429,7 +414,6 @@ func TestListCategories_Success(t *testing.T) {
 
 func TestGetTimespans_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil)
 
@@ -448,7 +432,6 @@ func TestGetTimespans_Success(t *testing.T) {
 
 func TestGetActivitySchedules_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("ScheduleTest-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -463,7 +446,6 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 
 func TestCreateActivitySchedule_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("CreateSched-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -482,7 +464,6 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 
 func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("InvalidSched-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -501,7 +482,6 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 
 func TestGetAvailableTimeSlots_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil)
 
@@ -512,7 +492,6 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 
 func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil)
 
@@ -527,7 +506,6 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 
 func TestGetActivitySupervisors_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SupervisorTest-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -542,7 +520,6 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 
 func TestAssignSupervisor_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AssignSup-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -565,7 +542,6 @@ func TestAssignSupervisor_Success(t *testing.T) {
 
 func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NoStaff-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -584,7 +560,6 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 
 func TestGetAvailableSupervisors_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
@@ -606,7 +581,6 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 
 func TestGetActivityStudents_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollTest-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -621,7 +595,6 @@ func TestGetActivityStudents_Success(t *testing.T) {
 
 func TestEnrollStudent_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollS-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -639,7 +612,6 @@ func TestEnrollStudent_Success(t *testing.T) {
 
 func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DupEnroll-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -662,7 +634,6 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 
 func TestGetStudentEnrollments_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "GetEnroll", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
@@ -676,7 +647,6 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 
 func TestGetAvailableActivities_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
@@ -690,7 +660,6 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 
 func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
@@ -710,7 +679,6 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 
 func TestUnenrollStudent_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("Unenroll-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -734,7 +702,6 @@ func TestUnenrollStudent_Success(t *testing.T) {
 
 func TestUnenrollStudent_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UnenrollNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -752,7 +719,6 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 
 func TestBatchEnrollment_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchTest-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -775,7 +741,6 @@ func TestBatchEnrollment_Success(t *testing.T) {
 
 func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchBad-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -796,7 +761,6 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 
 func TestQuickCreateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Quick", "Staff")
@@ -830,7 +794,6 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 
 func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickBad-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -849,7 +812,6 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"name":             "NoCategory",
@@ -869,7 +831,6 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 func TestGetActivitySchedule_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSched-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -895,7 +856,6 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 
 func TestGetActivitySchedule_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSchedNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -911,7 +871,6 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 
 func TestUpdateActivitySchedule_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSched-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -940,7 +899,6 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 
 func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSchedNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -960,7 +918,6 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 
 func TestDeleteActivitySchedule_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSched-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -987,7 +944,6 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 
 func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSchedNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -1007,7 +963,6 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 
 func TestUpdateSupervisorRole_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRole-%d", time.Now().UnixNano()))
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("SupRole-%d", time.Now().UnixNano()), "Test")
@@ -1035,7 +990,6 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 
 func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRoleNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -1055,7 +1009,6 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 
 func TestRemoveSupervisor_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()))
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()), "Test")
@@ -1081,7 +1034,6 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 
 func TestRemoveSupervisor_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupNF-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
@@ -1097,7 +1049,6 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 
 func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupReplace-%d", time.Now().UnixNano()))
 	outgoingStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Outgoing-%d", time.Now().UnixNano()), "Caregiver")
@@ -1139,7 +1090,6 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 
 func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupExistingPrimary-%d", time.Now().UnixNano()))
 	primaryStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Primary-%d", time.Now().UnixNano()), "Lead")
@@ -1193,7 +1143,6 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 
 func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupOnly-%d", time.Now().UnixNano()))
 	onlyStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Only-%d", time.Now().UnixNano()), "Caregiver")

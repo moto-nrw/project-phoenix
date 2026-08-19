@@ -18,7 +18,6 @@ import (
 
 func TestGuardianInvitationRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -56,7 +55,6 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 
 func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -90,7 +88,6 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 
 func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +122,6 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 
 func TestGuardianInvitationRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -176,7 +172,6 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 
 func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -209,7 +204,6 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 
 func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -238,7 +232,6 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 
 func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -275,7 +268,6 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 
 func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)
@@ -339,7 +331,6 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 
 func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
 	ctx := testpkg.TenantContext(1)

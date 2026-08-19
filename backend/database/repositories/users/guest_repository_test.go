@@ -21,7 +21,6 @@ import (
 
 func TestGuestRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -131,7 +130,6 @@ func TestGuestRepository_Create(t *testing.T) {
 
 func TestGuestRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -155,7 +153,6 @@ func TestGuestRepository_FindByID(t *testing.T) {
 
 func TestGuestRepository_FindByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +176,6 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 
 func TestGuestRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -210,7 +206,6 @@ func TestGuestRepository_Update(t *testing.T) {
 
 func TestGuestRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -235,7 +230,6 @@ func TestGuestRepository_Delete(t *testing.T) {
 
 func TestGuestRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)
@@ -266,7 +260,6 @@ func TestGuestRepository_FindActive(t *testing.T) {
 
 func TestGuestRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := testpkg.TenantContext(1)

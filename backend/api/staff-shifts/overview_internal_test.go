@@ -170,7 +170,6 @@ func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T
 func TestOverviewRoute_RequiresScheduleShiftAndUserPermissions(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, _ := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	from := timezone.NewDate(2070, time.November, 3)
 	to := from.AddDays(4)
 	resource := &Resource{

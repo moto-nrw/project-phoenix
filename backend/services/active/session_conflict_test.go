@@ -121,11 +121,6 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 // 3. Clean up after the test
 func TestActivitySessionConflictDetection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -274,11 +269,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 // Demonstrates hermetic test pattern with fixture creation and cleanup
 func TestSessionLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -364,11 +354,6 @@ func TestErrorTypes(t *testing.T) {
 // Uses fixtures to test concurrent access with real database records
 func TestConcurrentSessionAttempts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -448,11 +433,6 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 // TestForceStartActivitySessionWithSupervisors tests the force start with multiple supervisors
 func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -697,11 +677,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 // TestStartActivitySessionWithSupervisors tests starting sessions with multiple supervisors
 func TestStartActivitySessionWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

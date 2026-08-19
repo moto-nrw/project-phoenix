@@ -92,7 +92,6 @@ type calendarListE2EResponse struct {
 
 func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, router := setupCalendarE2ERouter(t, db)
 
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
@@ -153,7 +152,6 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 // (create → edit → .ics export → cancel → delete) through the real router.
 func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, router := setupCalendarE2ERouter(t, db)
 
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
@@ -233,7 +231,6 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 // edit or delete someone else's appointment through the HTTP layer.
 func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, router := setupCalendarE2ERouter(t, db)
 
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")

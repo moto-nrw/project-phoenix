@@ -52,7 +52,6 @@ func newSettingValue(key, value string, updatedBy *int64) *configModels.SettingV
 // TestNewRepository tests repository creation
 func TestNewRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	require.NotNil(t, repo)
@@ -64,7 +63,6 @@ func TestNewRepository(t *testing.T) {
 // TestRepository_Create tests the Create method
 func TestRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -87,7 +85,6 @@ func TestRepository_Create(t *testing.T) {
 // TestRepository_Create_NilEntity tests Create with nil entity
 func TestRepository_Create_NilEntity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -101,7 +98,6 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 // TestRepository_FindByID tests the FindByID method
 func TestRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -127,7 +123,6 @@ func TestRepository_FindByID(t *testing.T) {
 // TestRepository_FindByID_NotFound tests FindByID with non-existent ID
 func TestRepository_FindByID_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -139,7 +134,6 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 // TestRepository_Update tests the Update method
 func TestRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -172,7 +166,6 @@ func TestRepository_Update(t *testing.T) {
 // TestRepository_Update_NilEntity tests Update with nil entity
 func TestRepository_Update_NilEntity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -186,7 +179,6 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 // TestRepository_Delete tests the Delete method
 func TestRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -216,7 +208,6 @@ func TestRepository_Delete(t *testing.T) {
 // with other tests touching config.setting_values.
 func TestRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	acct := testpkg.CreateTestAccount(t, db, "base_repo_list")
 	updatedBy := acct.ID
@@ -250,7 +241,6 @@ func TestRepository_List(t *testing.T) {
 // TestRepository_List_NoFilters tests List with empty filters
 func TestRepository_List_NoFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)
@@ -324,7 +314,6 @@ func cleanupTenantSettingValues(t *testing.T, db *bun.DB, tenantID int64) {
 
 func TestRepository_CountWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -368,7 +357,6 @@ func TestRepository_CountWithOptions(t *testing.T) {
 
 func TestRepository_OldestBefore(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -411,7 +399,6 @@ func TestRepository_OldestBefore(t *testing.T) {
 
 func TestRepository_DeleteOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -452,7 +439,6 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 
 func TestRepository_UpdateColumns(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.TenantContext(1)

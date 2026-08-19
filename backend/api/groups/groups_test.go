@@ -70,12 +70,6 @@ func setupTestContext(t *testing.T) *testContext {
 		db,
 	)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	return &testContext{
 		db:       db,
 		services: svc,

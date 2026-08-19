@@ -27,7 +27,6 @@ import (
 func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,
@@ -44,7 +43,6 @@ func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,

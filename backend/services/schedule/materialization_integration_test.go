@@ -221,7 +221,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 		testpkg.CleanupScheduleFixtures(t, db, timeframe.ID)
 		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
-	s.cleanup = func() { _ = db.Close() }
+	s.cleanup = func() {}
 	return s
 }
 
@@ -417,7 +417,6 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 
 func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
@@ -454,7 +453,6 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())

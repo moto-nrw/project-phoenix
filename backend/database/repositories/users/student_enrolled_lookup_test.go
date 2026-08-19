@@ -26,7 +26,6 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday timezo
 
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -76,7 +75,6 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 // a new_students phase and duplicated.
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 

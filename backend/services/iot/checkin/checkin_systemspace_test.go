@@ -69,7 +69,6 @@ func cleanupSchulhofTestArtifacts(t *testing.T, tc *svcTestContext) {
 
 func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -85,7 +84,6 @@ func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
 
 func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -105,7 +103,6 @@ func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
 
 func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -121,7 +118,6 @@ func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
 
 func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -141,14 +137,12 @@ func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
 
 func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
 	// Create staff for the created_by FK constraint
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -165,13 +159,11 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 
 func TestWcActivityGroup_FindsExisting(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -195,7 +187,6 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 
 func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -211,7 +202,6 @@ func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
 
 func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -231,7 +221,6 @@ func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
 
 func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -247,7 +236,6 @@ func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
 
 func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -267,13 +255,11 @@ func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
 
 func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -290,13 +276,11 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 
 func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -320,7 +304,6 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 
 func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -338,7 +321,6 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 
 func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -360,7 +342,6 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 
 func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
@@ -385,7 +366,6 @@ func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
 
 func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
@@ -488,7 +468,6 @@ func createWCRoomAliasRoom(t *testing.T, db *bun.DB, name string) *facilities.Ro
 
 func TestEnsureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCRoomAliasTestArtifacts(t, tc.db)
 	defer cleanupWCRoomAliasTestArtifacts(t, tc.db)
@@ -509,7 +488,6 @@ func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 	// services/facilities.FindToiletRoom which re-filters via IsWCRoomName, so a
 	// lowercase "wc" must not be silently adopted here either.
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
 	cleanupWCRoomAliasTestArtifacts(t, tc.db)
 	defer cleanupWCRoomAliasTestArtifacts(t, tc.db)

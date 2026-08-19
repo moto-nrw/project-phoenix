@@ -99,7 +99,6 @@ func insertRawToken(t *testing.T, db *bun.DB, operatorID int64, newEmail string,
 
 func TestIntegration_EmailChange_RateLimitCounting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -124,7 +123,6 @@ func TestIntegration_EmailChange_RateLimitCounting(t *testing.T) {
 
 func TestIntegration_EmailChange_RateLimitIgnoresOldTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -157,7 +155,6 @@ func TestIntegration_EmailChange_RateLimitIgnoresOldTokens(t *testing.T) {
 
 func TestIntegration_EmailChange_ConsumeToken_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -196,7 +193,6 @@ func TestIntegration_EmailChange_ConsumeToken_Success(t *testing.T) {
 
 func TestIntegration_EmailChange_ConsumeToken_Expired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -224,7 +220,6 @@ func TestIntegration_EmailChange_ConsumeToken_Expired(t *testing.T) {
 
 func TestIntegration_EmailChange_ConsumeToken_InvalidToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -240,7 +235,6 @@ func TestIntegration_EmailChange_ConsumeToken_InvalidToken(t *testing.T) {
 
 func TestIntegration_EmailChange_UniqueIndex_OneActivePerOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -276,7 +270,6 @@ func TestIntegration_EmailChange_UniqueIndex_OneActivePerOperator(t *testing.T) 
 
 func TestIntegration_EmailChange_UniqueIndex_AllowsAfterInvalidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -320,7 +313,6 @@ func TestIntegration_EmailChange_UniqueIndex_AllowsAfterInvalidation(t *testing.
 
 func TestIntegration_EmailChange_Cleanup_InvalidateExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -359,7 +351,6 @@ func TestIntegration_EmailChange_Cleanup_InvalidateExpired(t *testing.T) {
 
 func TestIntegration_EmailChange_Cleanup_DeleteStaleTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -393,7 +384,6 @@ func TestIntegration_EmailChange_Cleanup_DeleteStaleTokens(t *testing.T) {
 
 func TestIntegration_EmailChange_Cleanup_PreservesRecentTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -433,7 +423,6 @@ func TestIntegration_EmailChange_Cleanup_PreservesRecentTokens(t *testing.T) {
 
 func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -494,7 +483,6 @@ func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_WrongPassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -511,7 +499,6 @@ func TestIntegration_EmailChange_Initiate_WrongPassword(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_SameEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -528,7 +515,6 @@ func TestIntegration_EmailChange_Initiate_SameEmail(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_EmailAlreadyInUse(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -558,7 +544,6 @@ func TestIntegration_EmailChange_Initiate_EmailAlreadyInUse(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_RateLimit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -583,7 +568,6 @@ func TestIntegration_EmailChange_Initiate_RateLimit(t *testing.T) {
 
 func TestIntegration_EmailChange_Confirm_InvalidToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -597,7 +581,6 @@ func TestIntegration_EmailChange_Confirm_InvalidToken(t *testing.T) {
 
 func TestIntegration_EmailChange_Confirm_EmailTakenBetweenInitiateAndConfirm(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -640,7 +623,6 @@ func TestIntegration_EmailChange_Confirm_EmailTakenBetweenInitiateAndConfirm(t *
 
 func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -693,7 +675,6 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 
 func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -754,7 +735,6 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_InactiveOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -775,7 +755,6 @@ func TestIntegration_EmailChange_Initiate_InactiveOperator(t *testing.T) {
 
 func TestIntegration_EmailChange_Confirm_InactiveOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -816,7 +795,6 @@ func TestIntegration_EmailChange_Confirm_InactiveOperator(t *testing.T) {
 
 func TestIntegration_EmailChange_Initiate_InvalidEmailFormat(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()

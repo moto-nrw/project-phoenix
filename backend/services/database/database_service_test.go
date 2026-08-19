@@ -19,7 +19,6 @@ func setupDatabaseService(t *testing.T) (*repositories.Factory, databaseSvc.Data
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 

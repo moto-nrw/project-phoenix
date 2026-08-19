@@ -53,7 +53,6 @@ func publishedAnnouncement(
 // read state flows through the feed + unread count.
 func TestParentAnnouncementAudience(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -150,7 +149,6 @@ func TestParentAnnouncementAudience(t *testing.T) {
 // yields no recipients.
 func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -222,7 +220,6 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 // read/ack state left over from a previous publication (the correction path).
 func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -284,7 +281,6 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 // from the live feed/stats audience.
 func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -325,7 +321,6 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 // alias and fail). Targets + reads cascade in the DB.
 func TestParentAnnouncementDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -355,7 +350,6 @@ func TestParentAnnouncementDelete(t *testing.T) {
 // window between the service's authorize phase and the write.
 func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -398,7 +392,6 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 // relationship, is what grants parent-portal access.
 func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -448,7 +441,6 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 // visible class that then reaches no guardian.
 func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -472,7 +464,6 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 // enters it once the enrollment becomes current.
 func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -526,7 +517,6 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 
 func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -618,7 +608,6 @@ func announcementIDs(items []*usersModels.AnnouncementFeedItem) []int64 {
 // four surfaces (feed/unread, count, recipients, e-mail, stats) must agree.
 func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 

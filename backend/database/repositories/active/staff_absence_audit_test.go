@@ -13,7 +13,6 @@ import (
 
 func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")

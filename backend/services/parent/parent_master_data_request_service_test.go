@@ -23,7 +23,6 @@ import (
 func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -256,7 +255,6 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 // resolve the exact row for any field, not just the first.
 func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := parentmessaging.NewEmitter(

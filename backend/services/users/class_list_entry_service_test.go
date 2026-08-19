@@ -25,7 +25,6 @@ func setupClassListEntryService(t *testing.T, db *bun.DB) (usersService.ClassLis
 
 func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -122,7 +121,6 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 
 func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -205,7 +203,6 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 
 func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -233,7 +230,6 @@ func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
 
 func TestClassListEntryService_UpdateGuards(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -313,7 +309,6 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 
 func TestClassListEntryService_MissingTargets(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -353,7 +348,6 @@ func TestClassListEntryService_MissingTargets(t *testing.T) {
 // context fails the first repository call of every service path.
 func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
 
@@ -394,7 +388,6 @@ func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 
 func TestClassListEntryService_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
 

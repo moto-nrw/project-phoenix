@@ -29,7 +29,6 @@ func (s wtmIntSettings) ResolveString(context.Context, string) (string, error) {
 // month immediately flows into the next month's carry).
 func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

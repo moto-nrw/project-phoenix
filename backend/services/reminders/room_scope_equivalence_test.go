@@ -33,7 +33,6 @@ import (
 // exactly why this test talks to a real database.
 func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := testpkg.TenantContext(1)

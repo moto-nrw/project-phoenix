@@ -24,7 +24,6 @@ import (
 
 func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	ctx := setupFeedbackTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-race")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "RaceGraduate", "4a")
@@ -82,7 +81,6 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 // like it had stopped working when in fact nothing was ever asked.
 func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 	ctx := setupFeedbackTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")

@@ -704,7 +704,6 @@ func TestOperatorAuthService_ChangePassword_Success(t *testing.T) {
 	// ChangePassword now uses tenant.WithAdminTx to atomically update the
 	// password and invalidate email-change tokens, so it requires a real DB.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -829,7 +828,6 @@ func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
 	// the simpler invariant: calling ChangePassword on a nonexistent
 	// operator returns an error.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -990,7 +988,6 @@ func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T
 func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1024,7 +1021,6 @@ func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *tes
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrace(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1054,7 +1050,6 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrac
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMultipleHandoffs(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1086,7 +1081,6 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMult
 func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1124,7 +1118,6 @@ func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testi
 func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1148,7 +1141,6 @@ func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *tes
 func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1173,7 +1165,6 @@ func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testi
 func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1213,7 +1204,6 @@ func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
 func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1258,7 +1248,6 @@ func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
 func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1298,7 +1287,6 @@ func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	rotatedAt := time.Now()
 	replacement := "replacement-handle"

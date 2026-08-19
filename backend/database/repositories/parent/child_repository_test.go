@@ -108,7 +108,6 @@ func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) er
 
 func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	_, err := repo.ListByAccount(context.Background(), 0)
@@ -121,7 +120,6 @@ func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
 
 func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -163,7 +161,6 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 	// A parent who lost access to a school (account_tenants.status !=
 	// 'active') MUST NOT continue to see its children.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -200,7 +197,6 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 
 func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -233,7 +229,6 @@ func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) 
 func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 	// Soft-deleted persons (deleted_at IS NOT NULL) must be excluded.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -273,7 +268,6 @@ func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
 	// must come back in a single call (cross-tenant join via
 	// account_tenants).
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var tenantA int64 = 91501
 	var tenantB int64 = 91502
@@ -322,7 +316,6 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 	// Result ordering is school_name ASC, first_name ASC, last_name
 	// ASC. Verify with two children at the same school.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -363,7 +356,6 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 
 func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	var list []*parentModels.ChildSummary
@@ -393,7 +385,6 @@ func findChild(t *testing.T, db *bun.DB, accountID, studentID int64) *parentMode
 
 func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	_, err := repo.FindForAccount(context.Background(), 0, 5)
@@ -404,7 +395,6 @@ func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
 
 func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -428,7 +418,6 @@ func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
 
 func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -455,7 +444,6 @@ func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
 
 func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -487,7 +475,6 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 // write (#405 review).
 func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 

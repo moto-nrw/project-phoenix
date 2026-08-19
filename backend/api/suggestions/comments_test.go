@@ -123,7 +123,6 @@ var commentPerms = []string{
 
 func TestListComments_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-list")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -149,7 +148,6 @@ func TestListComments_Success(t *testing.T) {
 
 func TestListComments_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-invalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -162,7 +160,6 @@ func TestListComments_InvalidPostID(t *testing.T) {
 
 func TestListComments_NoPermission(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-noperm")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -179,7 +176,6 @@ func TestListComments_NoPermission(t *testing.T) {
 
 func TestCreateComment_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-create")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -198,7 +194,6 @@ func TestCreateComment_Success(t *testing.T) {
 
 func TestCreateComment_EmptyContent(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-empty")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -215,7 +210,6 @@ func TestCreateComment_EmptyContent(t *testing.T) {
 
 func TestCreateComment_ContentTooLong(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-long")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -232,7 +226,6 @@ func TestCreateComment_ContentTooLong(t *testing.T) {
 
 func TestCreateComment_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-invalidpost")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -248,7 +241,6 @@ func TestCreateComment_InvalidPostID(t *testing.T) {
 
 func TestCreateComment_PostNotFound(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-postnotfound")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -268,7 +260,6 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 
 func TestDeleteComment_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -286,7 +277,6 @@ func TestDeleteComment_Success(t *testing.T) {
 
 func TestDeleteComment_Forbidden(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	author := testpkg.CreateTestAccount(t, db, "api-comment-author")
 	other := testpkg.CreateTestAccount(t, db, "api-comment-other")
@@ -307,7 +297,6 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 
 func TestDeleteComment_InvalidID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delinvalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -320,7 +309,6 @@ func TestDeleteComment_InvalidID(t *testing.T) {
 
 func TestDeleteComment_NotFound(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-del404")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -337,7 +325,6 @@ func TestDeleteComment_NotFound(t *testing.T) {
 
 func TestMarkCommentsRead_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-markread")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -356,7 +343,6 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 
 func TestMarkCommentsRead_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-readinvalid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -403,7 +389,6 @@ func TestCreateCommentRequest_Bind_ContentTooLong(t *testing.T) {
 
 func TestCreateComment_InvalidJSON(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-badjson")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

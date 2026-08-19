@@ -24,7 +24,6 @@ import (
 func setupRequestRepoTest(t *testing.T) (*bun.DB, enrollmentModels.RequestRepository, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := tenantIDForTestName(t.Name())
 	testpkg.EnsureTestTenant(t, db, tenantID)
 

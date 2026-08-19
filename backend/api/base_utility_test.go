@@ -216,7 +216,6 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	api := &API{
@@ -254,7 +253,6 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	api := &API{
@@ -570,7 +568,6 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 // when checkout.wc_enabled is set to true.
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -599,7 +596,6 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 // Schulhof infrastructure creation when checkout.schulhof_enabled is set to true.
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -626,7 +622,6 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 // a checkout setting to false does not trigger infrastructure creation.
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -675,7 +670,6 @@ func adminClaimsForCallback() jwt.AppClaims {
 // is the path the post-commit closure uses.
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -784,7 +778,6 @@ func drainEvents(ch chan realtime.Event) {
 // Source labels which key changed, on both enable and disable PUT paths.
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{

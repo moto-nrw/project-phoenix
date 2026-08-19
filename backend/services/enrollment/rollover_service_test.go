@@ -44,7 +44,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	// t.Cleanup hooks (for example calendar periods); closing inside the
 	// returned cleanup made those hooks run against a closed pool and leak rows
 	// into subsequent tests in the package-isolated database.
-	t.Cleanup(func() { _ = db.Close() })
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	repoFactory := repositories.NewFactory(db)

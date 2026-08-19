@@ -67,7 +67,6 @@ func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 
 func TestStaffRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -132,7 +131,6 @@ func TestStaffRepository_Create(t *testing.T) {
 
 func TestStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -156,7 +154,6 @@ func TestStaffRepository_FindByID(t *testing.T) {
 
 func TestStaffRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -179,7 +176,6 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 
 func TestStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -207,7 +203,6 @@ func TestStaffRepository_Update(t *testing.T) {
 
 func TestStaffRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -237,7 +232,6 @@ func TestStaffRepository_Delete(t *testing.T) {
 
 func TestStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -270,7 +264,6 @@ func TestStaffRepository_List(t *testing.T) {
 
 func TestStaffRepository_FindWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -294,7 +287,6 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 
 func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -333,7 +325,6 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 
 func TestStaffRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -371,7 +362,6 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 
 func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)

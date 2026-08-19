@@ -32,7 +32,6 @@ func markCategorySystem(t *testing.T, db *bun.DB, categoryID int64) {
 
 func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -47,7 +46,6 @@ func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 
 func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -62,7 +60,6 @@ func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
 
 func TestServiceUpdateCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -154,7 +151,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 
 func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -212,7 +208,6 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 
 func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -239,7 +234,6 @@ func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testin
 
 func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -255,7 +249,6 @@ func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 
 func TestServiceCategoryUsageCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -275,7 +268,6 @@ func TestServiceCategoryUsageCounts(t *testing.T) {
 
 func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 

@@ -25,7 +25,6 @@ import (
 
 func TestCreateVisit_WithDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -68,7 +67,6 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 
 func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -102,7 +100,6 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 
 func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -140,7 +137,6 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 
 func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -185,7 +181,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 
 func TestCreateVisit_ReEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -245,7 +240,6 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 // next_checkin), a sick student's flag is cleared when they check in.
 func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -296,7 +290,6 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 // student gets the flag cleared on check-in (same behavior path as sick).
 func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -359,7 +352,6 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 // end_of_day, so check-in must NOT clear the flag.
 func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -405,7 +397,6 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 
 func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)
@@ -482,7 +473,6 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 // status reads keep treating the child as sick after they showed up.
 func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)

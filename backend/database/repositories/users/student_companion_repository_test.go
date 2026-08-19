@@ -65,7 +65,6 @@ func companionIDsOf(t *testing.T, studentID int64, edges []*users.StudentCompani
 // If a future change ever stores a directed row per child, this fails.
 func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -101,7 +100,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) 
 // read back for both children.
 func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -133,7 +131,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testin
 // children's cards.
 func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -165,7 +162,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) 
 // would wipe every other Laufgemeinschaft in the school — this catches that.
 func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -211,7 +207,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 // and only for the requested weekday.
 func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -273,7 +268,6 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 // neighbours only would let the page render one group as two.
 func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -319,7 +313,6 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 // trip.
 func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)
@@ -368,7 +361,6 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 // result below must therefore stay identical while the work stays linear.
 func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentCompanion
 	ctx := testpkg.TenantContext(1)

@@ -49,7 +49,6 @@ func createBoardPost(tb testing.TB, db *bun.DB, tenantID, accountID int64, autho
 // guardian writes to the product team must never be readable by the school.
 func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
@@ -119,7 +118,6 @@ func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
 // policy's WITH CHECK instead of silently landing on the school's board.
 func TestParentPostRejectedInStaffTransaction(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
@@ -149,7 +147,6 @@ func TestParentPostRejectedInStaffTransaction(t *testing.T) {
 // mismatch has to fail loudly rather than degrade silently.
 func TestNestedActorMismatchRejected(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)

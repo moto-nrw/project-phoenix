@@ -62,7 +62,6 @@ func (s *parentSubmitRequestStub) Submit(_ context.Context, req enrollmentServic
 
 func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	var tenantID int64 = 1
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
@@ -119,7 +118,6 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 // GuardianSubmitEligible (false here), which gates linked_parents phases.
 func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -168,7 +166,6 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 // phases accept the submission.
 func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -324,7 +321,6 @@ func serveParentSubmit(t *testing.T, rs *Resource, accountID int) *httptest.Resp
 // subdomain, not just the form load (#1663).
 func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -348,7 +344,6 @@ func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *te
 // half of the gate, matching /auth/tenant/resolve.
 func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
 	school.ID = 1
@@ -373,7 +368,6 @@ func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 // An existing family at a hidden school keeps submitting its re-enrollments.
 func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1

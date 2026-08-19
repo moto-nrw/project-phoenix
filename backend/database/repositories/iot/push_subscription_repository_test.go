@@ -159,7 +159,6 @@ func hasSubscriptionEndpoint(subs []*iotModels.PushSubscription, endpoint string
 
 func TestPushSubscriptionRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
 	ctx := tenant.WithTenantID(context.Background(), 1)
@@ -563,7 +562,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
 	ctx := tenant.WithTenantID(context.Background(), 1)

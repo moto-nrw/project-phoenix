@@ -15,7 +15,6 @@ import (
 
 func TestAnnouncementRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -83,7 +82,6 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 
 func TestAnnouncementRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -111,7 +109,6 @@ func TestAnnouncementRepository_FindByID(t *testing.T) {
 
 func TestAnnouncementRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -153,7 +150,6 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 
 func TestAnnouncementRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -174,7 +170,6 @@ func TestAnnouncementRepository_Delete(t *testing.T) {
 
 func TestAnnouncementRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -230,7 +225,6 @@ func TestAnnouncementRepository_List(t *testing.T) {
 
 func TestAnnouncementRepository_Publish(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -256,7 +250,6 @@ func TestAnnouncementRepository_Publish(t *testing.T) {
 
 func TestAnnouncementRepository_Unpublish(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
 	ctx := testpkg.TenantContext(1)

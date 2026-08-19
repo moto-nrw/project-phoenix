@@ -19,7 +19,6 @@ import (
 // partial write.
 func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -48,7 +47,6 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 // happy path: fields, supervisor set, and schedule replacement all land.
 func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()

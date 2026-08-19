@@ -21,7 +21,6 @@ func cleanupClassTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
 
 func TestClassTeacherRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
 	ctx := testpkg.TenantContext(1)
@@ -60,7 +59,6 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
 	ctx := testpkg.TenantContext(1)
@@ -84,7 +82,6 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 
 func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
 	ctx := testpkg.TenantContext(1)

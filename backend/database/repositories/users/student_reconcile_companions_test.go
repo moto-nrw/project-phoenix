@@ -54,7 +54,6 @@ func clearStoredCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // Monday edge survives.
 func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -99,7 +98,6 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 // free-text note that answers "mit wem".
 func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -135,7 +133,6 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 // pair stays linked.
 func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -179,7 +176,6 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 // plans, where nobody claims "Anderes Kind" anymore.
 func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -224,7 +220,6 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 // at the batch verdict instead of at the individual write.
 func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)
@@ -262,7 +257,6 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 // child with a self-contradicting plan.
 func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	factory := repositories.NewFactory(db)

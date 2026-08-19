@@ -49,7 +49,6 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 		cleanupAllSuggestionData(t, db)
 		testpkg.CleanupTableRecords(t, db, "users.persons", person.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		_ = db.Close()
 	})
 
 	return db, svc, &testAccount{AccountID: account.ID, PersonID: person.ID}

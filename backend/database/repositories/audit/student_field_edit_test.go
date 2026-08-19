@@ -14,7 +14,6 @@ import (
 
 func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Audit", "History", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -70,7 +69,6 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 
 func TestStudentFieldEditRepository_CreateBatchValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentFieldEdit
 	ctx := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))

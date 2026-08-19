@@ -44,7 +44,6 @@ func cleanupClassAssignments(t *testing.T, db *bun.DB, staffID int64) {
 
 func TestSetStaffSchoolClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassTeacherService(t, db)
 	ctx := testpkg.TenantContext(1)

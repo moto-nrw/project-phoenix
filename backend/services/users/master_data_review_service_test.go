@@ -64,9 +64,6 @@ func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, 
 // cannot decide it — while the admin path sees and decides the same request.
 func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -96,9 +93,6 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 
 func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -126,9 +120,6 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 
 func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -156,9 +147,6 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 
 func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
 	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
@@ -184,9 +172,6 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 
 func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -220,9 +205,6 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 
 func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -278,9 +260,6 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 
 func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil)
 
@@ -306,9 +285,6 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 
 func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -334,9 +310,6 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 
 func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
 	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
@@ -371,9 +344,6 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 
 func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -399,9 +369,6 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 
 func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -430,9 +397,6 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 
 func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default(), broadcaster)
@@ -454,9 +418,6 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -478,9 +439,6 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 
 func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -505,9 +463,6 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 
 func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
@@ -574,7 +529,6 @@ func findRequestStatusPill(t *testing.T, db *bun.DB, repos *repositories.Factory
 // pill, stamped staff/master_data, into the submitting guardian's thread.
 func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -605,7 +559,6 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 // and the rejected status, never the applied one.
 func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -644,9 +597,6 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 // silent, or routine parent requests cost unrelated staff their unsaved edits.
 func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default(), bc)

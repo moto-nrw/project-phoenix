@@ -19,7 +19,6 @@ var activeSvcBypassAuth = activeSvc.StudentMoveAuthorization{BypassResourceCheck
 
 func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -57,7 +56,6 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 
 func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(987654)
@@ -70,7 +68,6 @@ func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
 
 func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -99,7 +96,6 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 
 func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(987654)
@@ -112,7 +108,6 @@ func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
 
 func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -187,7 +182,6 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -231,7 +225,6 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -252,7 +245,6 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t 
 
 func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -275,7 +267,6 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 
 func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -299,7 +290,6 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -342,7 +332,6 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSou
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceAndTarget(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -387,7 +376,6 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitIntoSupervisedTarget(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -419,7 +407,6 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 
 func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -452,7 +439,6 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -492,7 +478,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -543,7 +528,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 
 func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -607,7 +591,6 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 
 func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -624,7 +607,6 @@ func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *tes
 
 func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -642,7 +624,6 @@ func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 
 func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -675,7 +656,6 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 
 func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -723,7 +703,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -746,7 +725,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -788,7 +766,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

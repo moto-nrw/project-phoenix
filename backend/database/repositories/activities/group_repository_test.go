@@ -17,7 +17,6 @@ import (
 
 func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	ctx := scope.Context()
@@ -76,7 +75,6 @@ func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *tes
 
 func TestActivityGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -131,7 +129,6 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 
 func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -164,7 +161,6 @@ func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
 
 func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
@@ -200,7 +196,6 @@ func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
 
 func TestActivityGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -224,7 +219,6 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 
 func TestActivityGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -275,7 +269,6 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 
 func TestActivityGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -299,7 +292,6 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 
 func TestActivityGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -333,7 +325,6 @@ func TestActivityGroupRepository_List(t *testing.T) {
 
 func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -369,7 +360,6 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 
 func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -402,7 +392,6 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 
 func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -453,7 +442,6 @@ func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
 
 func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -515,7 +503,6 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 
 func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -556,7 +543,6 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -611,7 +597,6 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 
 func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -625,7 +610,6 @@ func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
 
 func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -639,7 +623,6 @@ func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
 
 func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)
@@ -652,7 +635,6 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 
 func TestActivityGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := testpkg.TenantContext(1)

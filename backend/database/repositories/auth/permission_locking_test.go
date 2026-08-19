@@ -31,7 +31,6 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 	// Registered as a cleanup, not deferred: defers run BEFORE t.Cleanup, so a
 	// deferred close would shut the pool down under every fixture teardown
 	// below and leave their rows in the shared test database.
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := authRepo.NewPermissionRepository(db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

@@ -38,7 +38,6 @@ func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProv
 
 func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -73,7 +72,6 @@ func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
 
 func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -97,7 +95,6 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 
 func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -124,7 +121,6 @@ func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 
 func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -146,7 +142,6 @@ func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 
 func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -165,7 +160,6 @@ func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -196,7 +190,6 @@ func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -236,7 +229,6 @@ func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -276,7 +268,6 @@ func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -290,7 +281,6 @@ func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -312,7 +302,6 @@ func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -339,7 +328,6 @@ func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T
 
 func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -365,7 +353,6 @@ func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -391,7 +378,6 @@ func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 
 func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -430,7 +416,6 @@ func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 // disappear from the UI; the school itself stays restorable via Papierkorb."
 func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -498,7 +483,6 @@ func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 // flow an org can only be deleted after all its schools are in the Papierkorb.
 func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -540,7 +524,6 @@ func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 // behavior of ListSchoolDevices for soft-deleted schools.
 func TestIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()

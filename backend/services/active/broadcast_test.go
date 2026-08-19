@@ -30,7 +30,6 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -62,7 +61,6 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-checkin")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast Room")
@@ -127,7 +125,6 @@ func dashboardCountsTenantCalls(broadcaster *testpkg.RecordingBroadcaster) []tes
 func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-checkout")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast Checkout Room")
@@ -166,7 +163,6 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 
 func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -229,7 +225,6 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	room := testpkg.CreateTestRoom(t, db, "Broadcast End Room")
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Ender")
@@ -268,7 +263,6 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	room := testpkg.CreateTestRoom(t, db, "Broadcast Batch Room")
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "BatchEnder")
@@ -330,7 +324,6 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -439,8 +432,7 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 // checkOutFixturedStudent opens an attendance row for the student and closes it
 // through the real checkout path, so the roomless broadcast under test is the
 // one production emits. Returns nothing — the assertions read the broadcaster.
-// Returns the cleanup to defer: the caller's own `defer db.Close()` must
-// outlive it, so it cannot hide in t.Cleanup.
+// Returns the cleanup to defer.
 func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) func() {
 	t.Helper()
 
@@ -462,7 +454,6 @@ func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, stude
 func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -478,7 +469,6 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-RoomlessCheckout")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
@@ -513,7 +503,6 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-gdpr")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast GDPR Room")

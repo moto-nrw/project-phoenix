@@ -23,7 +23,6 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 
 func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
-	defer func() { _ = db.Close() }()
 
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
 	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
@@ -47,7 +46,6 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 
 func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
-	defer func() { _ = db.Close() }()
 
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
 	_, err := db.NewUpdate().

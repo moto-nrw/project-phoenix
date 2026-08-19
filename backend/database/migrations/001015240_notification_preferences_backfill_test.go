@@ -23,7 +23,6 @@ import (
 // this whole epic is built to avoid.
 func TestNotificationPreferencesBackfill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	parentAccount := testpkg.CreateTestAccount(t, db, "backfill-parent@example.com")
@@ -204,7 +203,6 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 // no-op, so nothing takes it back.
 func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)
@@ -256,7 +254,6 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 // wrong (data minimisation).
 func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)

@@ -139,7 +139,6 @@ type envelope struct {
 
 func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -165,7 +164,6 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 
 func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := newWriteRouter(t, db)
 
 	rr := doRequest(t, router, http.MethodGet, "/me/children/1/sick-note", "", nil)
@@ -174,7 +172,6 @@ func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 
 func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -195,7 +192,6 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 
 func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -209,7 +205,6 @@ func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 
 func TestSickNoteEndpoint_RejectsBadStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := newWriteRouter(t, db)
 	token := parentToken(t, 12345)
 
@@ -243,7 +238,6 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newDisabledWriteRouter(t, db)
@@ -257,7 +251,6 @@ func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 
 func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -272,7 +265,6 @@ func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 
 func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -290,7 +282,6 @@ func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 // returns an excused status day (not a Krankmeldung).
 func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -321,7 +312,6 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 // excused-requests list endpoint the parent UI refetches after a submit.
 func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
@@ -360,7 +350,6 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 // excused submission with a blank note is rejected.
 func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -376,7 +365,6 @@ func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 // a client that omits "status" still files a Krankmeldung.
 func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -402,7 +390,6 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 // on the response, so an object here would crash it.
 func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
@@ -431,7 +418,6 @@ func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 // the API boundary, never silently coerced.
 func TestSickNoteEndpoint_RejectsInvalidStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)

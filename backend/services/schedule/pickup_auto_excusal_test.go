@@ -46,7 +46,6 @@ func wallClockAt(h, m int) *time.Time {
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(

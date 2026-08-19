@@ -55,7 +55,6 @@ func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
 // back, and a unified replacement fully overwrites the legacy maps.
 func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -436,7 +435,6 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 // fallback.
 func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
@@ -517,7 +515,6 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 // committed change; a caller that genuinely edited the plan must still win.
 func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)

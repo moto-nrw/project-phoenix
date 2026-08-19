@@ -39,7 +39,6 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 	setupViperForTest()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	checkoutPermissions := []string{permissions.VisitsUpdate}
 

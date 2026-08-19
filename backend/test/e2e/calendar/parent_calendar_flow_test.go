@@ -73,7 +73,6 @@ type feedE2EResponse struct {
 // the real routers with a parent-scope JWT.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	router := setupParentE2ERouter(t, db)
 
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")

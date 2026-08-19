@@ -38,7 +38,6 @@ func cleanupShifts(t *testing.T, repo scheduleModels.StaffShiftRepository, ctx c
 
 func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -67,7 +66,6 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 
 func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -98,7 +96,6 @@ func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 
 func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -131,7 +128,6 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 
 func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -174,7 +170,6 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 
 func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -214,7 +209,6 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	ctx := testpkg.TenantContext(1)
@@ -234,7 +228,6 @@ func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 
 func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	tenant1 := testpkg.TenantContext(1)
@@ -263,7 +256,6 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 
 func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
 	tenant1 := testpkg.TenantContext(1)

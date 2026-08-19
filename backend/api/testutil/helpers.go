@@ -12,7 +12,6 @@
 //
 //	func TestHandler(t *testing.T) {
 //	    db, services := testutil.SetupAPITest(t)
-//	    defer db.Close()
 //
 //	    resource := NewResource(services.Auth, services.Invitation)
 //	    router := chi.NewRouter()
@@ -63,8 +62,8 @@ const (
 )
 
 // SetupAPITest initializes test database and service factory for API tests.
-// Returns the database connection and service factory.
-// The caller must close the database connection when done.
+// Returns the shared package database pool and a service factory. Tests must
+// not close the pool — it is shared by every test in the binary.
 func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
 

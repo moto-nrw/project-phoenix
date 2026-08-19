@@ -44,7 +44,6 @@ func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled b
 func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -102,7 +101,6 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 
 func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -138,7 +136,6 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 
 func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo: repos.ParentChild,

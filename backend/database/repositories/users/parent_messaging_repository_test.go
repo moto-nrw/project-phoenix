@@ -49,7 +49,6 @@ func newMessage(threadID, studentID, accountID int64, kind, body string) *usersM
 // the staff inbox and the parent thread list.
 func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	// The staff reader is a DISTINCT account from the guardian — in production the
@@ -155,7 +154,6 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 // last_read_message_id) cursor must keep it unread.
 func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -214,7 +212,6 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 // later row with the same timestamp and a higher id unread for every colleague.
 func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
@@ -252,7 +249,6 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 
 func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -288,7 +284,6 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 
 func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -346,7 +341,6 @@ func newRequestCreatedPill(threadID, studentID, actorAccountID int64, at time.Ti
 // the invariant the exclusion is baked into counterpartUnread to preserve.
 func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -400,7 +394,6 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 // existing thread so the "send" path is get-or-create.
 func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -440,7 +433,6 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 // account-holding guardians for the staff recipient picker.
 func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -460,7 +452,6 @@ func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
 // the recipient can never see.
 func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -510,7 +501,6 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 // still wake the revoked account.
 func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembership(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -541,7 +531,6 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembershi
 // last. TouchLastMessage no-ops on a stale (older-or-equal) instant.
 func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -591,7 +580,6 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 // and a lower-id message that commits afterwards must NOT steal it back.
 func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -635,7 +623,6 @@ func derefStr(s *string) string {
 // nonzero badge no portal can open or clear (#405 review).
 func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 

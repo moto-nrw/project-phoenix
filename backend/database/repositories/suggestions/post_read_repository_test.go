@@ -14,7 +14,6 @@ import (
 
 func TestPostReadRepository_MarkViewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostReadRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -84,7 +83,6 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 
 func TestPostReadRepository_IsViewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostReadRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -131,7 +129,6 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 
 func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostReadRepository(db)
 	ctx := testpkg.TenantContext(1)

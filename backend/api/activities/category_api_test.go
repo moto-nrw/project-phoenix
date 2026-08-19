@@ -56,7 +56,6 @@ func categoryDataFromResponse(t *testing.T, body []byte) map[string]any {
 
 func TestCreateCategory_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	name := fmt.Sprintf("Essen-%d", time.Now().UnixNano())
 	body := map[string]string{"name": name, "description": "Mittagessen", "color": "#FF9500"}
@@ -75,7 +74,6 @@ func TestCreateCategory_Success(t *testing.T) {
 
 func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]string{"name": fmt.Sprintf("Verboten-%d", time.Now().UnixNano())}
 
@@ -87,7 +85,6 @@ func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
 
 func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": "   "})
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
@@ -97,7 +94,6 @@ func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 
 func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{
 		"name":  fmt.Sprintf("InvalidColor-%d", time.Now().UnixNano()),
@@ -110,7 +106,6 @@ func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
 
 func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	existing := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiDuplicate")
 	defer cleanupCategory(t, ctx.db, existing.ID)
@@ -123,7 +118,6 @@ func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 
 func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": " wc "})
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
@@ -133,7 +127,6 @@ func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
 
 func TestUpdateCategory_Success(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiRename")
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -152,7 +145,6 @@ func TestUpdateCategory_Success(t *testing.T) {
 
 func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiInvalidColor")
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -168,7 +160,6 @@ func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 
 func TestArchiveAndRestoreCategory(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchive")
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -198,7 +189,6 @@ func TestArchiveAndRestoreCategory(t *testing.T) {
 
 func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchiveDenied")
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -211,7 +201,6 @@ func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 
 func TestListCategories_ReportsUsageCount(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UsageApi-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)

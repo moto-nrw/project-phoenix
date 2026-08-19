@@ -44,7 +44,6 @@ func assertTokenCountByPortal(t *testing.T, db *bun.DB, accountID int64, portalS
 
 func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -73,7 +72,6 @@ func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
 
 func TestLogoutLeavesStaffPushOnOtherDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -152,7 +150,6 @@ func insertPush(t *testing.T, db *bun.DB, accountID, tenantID int64, portal, end
 
 func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -179,7 +176,6 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 
 func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -221,7 +217,6 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 
 func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
 	email, username := uniqueTestCredentials("switch-cap")
@@ -250,7 +245,6 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 
 func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -271,7 +265,6 @@ func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
 
 func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -322,7 +315,6 @@ func countPush(t *testing.T, db *bun.DB, accountID int64, portal, endpoint strin
 
 func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -353,7 +345,6 @@ func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 
 func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -385,7 +376,6 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 
 func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -419,7 +409,6 @@ func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
 
 func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -447,7 +436,6 @@ func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
 
 func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -478,7 +466,6 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 
 func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -529,7 +516,6 @@ func uniqueTestName(prefix string) string {
 
 func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -568,7 +554,6 @@ func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 
 func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -599,7 +584,6 @@ func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 
 func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -626,7 +610,6 @@ func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
 
 func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -661,7 +644,6 @@ func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 
 func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -688,7 +670,6 @@ func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
 
 func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -721,7 +702,6 @@ func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
 
 func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -755,7 +735,6 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 
 func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -791,7 +770,6 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 
 func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -820,7 +798,6 @@ func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 
 func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -858,7 +835,6 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 
 func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -893,7 +869,6 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 
 func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -921,7 +896,6 @@ func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
 
 func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -953,7 +927,6 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 
 func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -992,7 +965,6 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 
 func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -1031,7 +1003,6 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 
 func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)

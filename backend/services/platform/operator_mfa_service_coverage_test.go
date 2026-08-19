@@ -32,7 +32,6 @@ import (
 func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB, *testpkg.CapturingMailer) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())

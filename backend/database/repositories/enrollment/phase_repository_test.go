@@ -25,7 +25,6 @@ func uniquePhaseName(prefix string) string {
 func setupPhaseRepoTest(t *testing.T) (*bun.DB, enrollmentModels.PhaseRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, enrollmentRepo.NewPhaseRepository(db), tenantID

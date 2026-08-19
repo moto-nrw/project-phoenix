@@ -235,7 +235,6 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, services := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())

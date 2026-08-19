@@ -16,7 +16,6 @@ import (
 
 func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.TenantContext(1)
@@ -44,7 +43,6 @@ func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 
 func TestUnregisteredTagScanRepository_FindByIDReturnsNilWhenMissing(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 
@@ -55,7 +53,7 @@ func TestUnregisteredTagScanRepository_FindByIDReturnsNilWhenMissing(t *testing.
 }
 
 func TestUnregisteredTagScanRepository_WrapsDatabaseErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	require.NoError(t, db.Close())
 	ctx := testpkg.TenantContext(1)
@@ -83,7 +81,6 @@ func TestUnregisteredTagScanRepository_WrapsDatabaseErrors(t *testing.T) {
 
 func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.TenantContext(1)
@@ -125,7 +122,6 @@ func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testin
 
 func TestUnregisteredTagScanRepository_ListForOperatorReturnsEmptySlice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	schoolID := int64(999998)
@@ -141,7 +137,6 @@ func TestUnregisteredTagScanRepository_ListForOperatorReturnsEmptySlice(t *testi
 
 func TestUnregisteredTagScanRepository_Resolve(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.TenantContext(1)
@@ -166,7 +161,6 @@ func TestUnregisteredTagScanRepository_Resolve(t *testing.T) {
 
 func TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.TenantContext(1)
@@ -185,7 +179,6 @@ func TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved(t *testin
 
 func TestUnregisteredTagScanRepository_DeleteOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.TenantContext(1)

@@ -317,7 +317,6 @@ func TestResolveDayPlanningActualAttendanceOverridesStatusDays(t *testing.T) {
 
 func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	resource := newStatusDayTestResource(db)
 	student := testpkg.CreateTestStudent(t, db, "StatusHandler", "Student", "SH1")
@@ -353,7 +352,6 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 
 func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	resource := newStatusDayTestResource(db)
 	notifier := &recordingAbsenceNotifier{}
@@ -475,7 +473,6 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 
 func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	resource := newStatusDayTestResource(db)
 	student := testpkg.CreateTestStudent(t, db, "StatusInvalid", "Student", "SI1")
@@ -549,7 +546,6 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 
 func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	resource := newStatusDayTestResource(db)
 	resource.StudentStatusDayService = nil
@@ -583,7 +579,6 @@ func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 
 func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "StatusErrors", "Student", "SE1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

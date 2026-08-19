@@ -101,7 +101,6 @@ func createEnrollmentRequestChildForStudentEnrollmentTest(t *testing.T, db *bun.
 
 func TestStudentEnrollmentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -209,7 +208,6 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 
 func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -223,7 +221,6 @@ func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 
 func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -251,7 +248,6 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 
 func TestStudentEnrollmentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -328,7 +324,6 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 
 func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -342,7 +337,6 @@ func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 
 func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -370,7 +364,6 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 func TestStudentEnrollmentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -410,7 +403,6 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -453,7 +445,6 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -542,7 +533,6 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 
 func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -591,7 +581,6 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 
 func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -639,7 +628,6 @@ func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 
 func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -708,7 +696,6 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 
 func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)
@@ -762,7 +749,6 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 
 func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	repo := repoFactory.StudentEnrollment
@@ -828,7 +814,6 @@ func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 
 func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := testpkg.TenantContext(1)

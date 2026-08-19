@@ -34,7 +34,6 @@ type plannedConflictsSetup struct {
 func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Conf-Room-%d", suffix))

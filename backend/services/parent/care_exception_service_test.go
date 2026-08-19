@@ -88,7 +88,6 @@ func (s careTestService) SubmitCareException(ctx context.Context, accountID, stu
 func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	pickup := repos.StudentPickupException
 	if w.pickup != nil {
@@ -124,7 +123,6 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.Stude
 func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -783,7 +781,6 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 
 func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()

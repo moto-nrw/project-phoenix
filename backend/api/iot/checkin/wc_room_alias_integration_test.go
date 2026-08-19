@@ -62,7 +62,6 @@ func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *fa
 
 func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
@@ -120,7 +119,6 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 
 func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)

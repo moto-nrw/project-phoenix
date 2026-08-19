@@ -61,7 +61,6 @@ type listSetup struct {
 func buildListSetup(t *testing.T) *listSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

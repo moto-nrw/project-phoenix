@@ -54,7 +54,6 @@ func (s *stubEnrollmentRequestRepo) BackfillGuardianAccountID(_ context.Context,
 func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) parentService.Service {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return parentService.NewService(parentService.ServiceConfig{
 		EnrollmentRequestRepo: repo,
 		DB:                    db,
@@ -109,7 +108,6 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 
 func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		EnrollmentRequestRepo: nil,
 		DB:                    db,
@@ -258,7 +256,6 @@ func (s *stubGuardianProfileRepo) LoadProfileWithChildren(context.Context, int64
 func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo) parentService.Service {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return parentService.NewService(parentService.ServiceConfig{
 		GuardianProfileRepo: repo,
 		DB:                  db,
@@ -361,7 +358,6 @@ func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
 
 func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		GuardianProfileRepo: nil,
 		DB:                  db,
@@ -409,7 +405,6 @@ func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
 
 func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		GuardianProfileRepo: nil,
 		DB:                  db,

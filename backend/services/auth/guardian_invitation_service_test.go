@@ -74,7 +74,6 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 	service := authService.NewGuardianInvitationService(cfg)
 
 	cleanup := func() {
-		_ = db.Close()
 	}
 
 	return &guardianTestEnv{
@@ -602,7 +601,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		Logger:               slog.Default(),
 	})
 
-	cleanup := func() { _ = db.Close() }
+	cleanup := func() {}
 
 	return &guardianTestEnv{
 		db:      db,

@@ -62,7 +62,6 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	db := testpkg.SetupTestDB(t)
 	// Register DB close FIRST so it runs LAST (LIFO) — after every other
 	// t.Cleanup has released its row references.
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())

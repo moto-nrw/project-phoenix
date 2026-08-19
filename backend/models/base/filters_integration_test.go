@@ -24,7 +24,6 @@ const accountTableAlias = `auth.accounts AS "account"`
 
 func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -50,7 +49,6 @@ func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 
 func TestFilter_ApplyToQuery_ILike(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -74,7 +72,6 @@ func TestFilter_ApplyToQuery_ILike(t *testing.T) {
 
 func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -98,7 +95,6 @@ func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
 
 func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -122,7 +118,6 @@ func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
 
 func TestFilter_ApplyToQuery_In(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -142,7 +137,6 @@ func TestFilter_ApplyToQuery_In(t *testing.T) {
 
 func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -168,7 +162,6 @@ func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
 
 func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -195,7 +188,6 @@ func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
 
 func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -219,7 +211,6 @@ func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
 
 func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -246,7 +237,6 @@ func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
 
 func TestPagination_ApplyToQuery(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -294,7 +284,6 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 
 func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -320,7 +309,6 @@ func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
 
 func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -345,7 +333,6 @@ func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
 
 func TestSorting_ApplyToQuery_Descending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -370,7 +357,6 @@ func TestSorting_ApplyToQuery_Descending(t *testing.T) {
 
 func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -395,7 +381,6 @@ func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 
 func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -419,7 +404,6 @@ func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 
 func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -443,7 +427,6 @@ func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
 
 func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -469,7 +452,6 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 
 func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	type logicalRow struct {
 		Active bool   `bun:"active"`
@@ -494,7 +476,6 @@ func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 
 func TestFilter_ApplyToQuery_Like(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -517,7 +498,6 @@ func TestFilter_ApplyToQuery_Like(t *testing.T) {
 
 func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -540,7 +520,6 @@ func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
 
 func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 
@@ -567,7 +546,6 @@ func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 
 func TestTxHandler_NewTxHandler(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	handler := base.NewTxHandler(db)
 	require.NotNil(t, handler)
@@ -575,7 +553,6 @@ func TestTxHandler_NewTxHandler(t *testing.T) {
 
 func TestTxHandler_RunInTx_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	handler := base.NewTxHandler(db)
@@ -598,7 +575,6 @@ func TestTxHandler_RunInTx_Success(t *testing.T) {
 
 func TestTxHandler_RunInTx_Rollback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	handler := base.NewTxHandler(db)
@@ -614,7 +590,6 @@ func TestTxHandler_RunInTx_Rollback(t *testing.T) {
 
 func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	handler := base.NewTxHandler(db)
@@ -629,7 +604,6 @@ func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 
 func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	tx, err := db.BeginTx(ctx, nil)
@@ -671,7 +645,6 @@ func TestIsRetryableTxError(t *testing.T) {
 
 func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	handler := base.NewTxHandler(db)
@@ -687,7 +660,6 @@ func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
 
 func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	handler := base.NewTxHandler(db)
@@ -709,7 +681,6 @@ func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 // answers with every row, so both paths are exercised here (#2218 review).
 func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 

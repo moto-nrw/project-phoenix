@@ -19,7 +19,6 @@ import (
 
 func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
@@ -200,7 +199,6 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
@@ -337,7 +335,6 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
@@ -407,7 +404,6 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
@@ -512,7 +508,6 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
@@ -663,7 +658,7 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 }
 
 func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSessionEdit

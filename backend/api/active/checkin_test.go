@@ -248,7 +248,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	setupViperForTest()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Permissions needed for checkin endpoint
 	checkinPermissions := []string{permissions.VisitsUpdate}

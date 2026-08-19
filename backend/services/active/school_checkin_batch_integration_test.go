@@ -34,7 +34,6 @@ func setGroupID(t *testing.T, db *bun.DB, studentID, groupID int64) {
 
 func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -103,7 +102,6 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 
 func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -144,7 +142,6 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 
 func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)

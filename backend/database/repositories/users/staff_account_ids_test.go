@@ -13,7 +13,6 @@ import (
 // mapping used to address people by account instead of by staff row.
 func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)
@@ -115,7 +114,6 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 // answers to that question would drift.
 func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := testpkg.TenantContext(1)

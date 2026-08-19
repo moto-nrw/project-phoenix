@@ -20,7 +20,6 @@ import (
 
 func TestProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -93,7 +92,6 @@ func TestProfileRepository_Create(t *testing.T) {
 
 func TestProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -117,7 +115,6 @@ func TestProfileRepository_FindByID(t *testing.T) {
 
 func TestProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -141,7 +138,6 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 
 func TestProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -172,7 +168,6 @@ func TestProfileRepository_Update(t *testing.T) {
 
 func TestProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -197,7 +192,6 @@ func TestProfileRepository_Delete(t *testing.T) {
 
 func TestProfileRepository_UpdateAvatar(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)
@@ -223,7 +217,6 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 
 func TestProfileRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
 	ctx := testpkg.TenantContext(1)

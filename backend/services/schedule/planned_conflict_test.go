@@ -42,7 +42,6 @@ type plannedConflictSetup struct {
 func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 	suffix := time.Now().UnixNano()

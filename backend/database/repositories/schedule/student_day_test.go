@@ -19,7 +19,6 @@ import (
 // (instance, attendance) pair in the range, tenant-scoped, sorted.
 func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -123,7 +122,6 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 // PATCH reset writes and must never be mistaken for a non-booking.
 func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -237,7 +235,6 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 // packages out of the tenant-wide EXISTS.
 func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -316,7 +313,6 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 // out of the tenant-wide EXISTS.
 func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)

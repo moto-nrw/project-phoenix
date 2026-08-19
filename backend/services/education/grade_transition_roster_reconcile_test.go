@@ -31,7 +31,6 @@ import (
 // touched.
 func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
@@ -143,7 +142,6 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 // replays exactly those.
 func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -233,7 +231,6 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 // staffing counts. Rows that already recorded an event stay as history.
 func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -318,7 +315,6 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 // permanently, with nothing left to repair it.
 func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumnus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -435,7 +431,6 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 // not the exemption — where the occurrence sits relative to now is.
 func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -518,7 +513,6 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 // rosters with no archive row to repair it.
 func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 
@@ -609,7 +603,6 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 // carrying a calendar_period_id — are enrollment-derived.
 func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newRosterReconcilingTransitionService(t, db)
 

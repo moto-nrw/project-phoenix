@@ -22,7 +22,6 @@ import (
 func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.PayrollStatusGetter, *repositories.Factory, context.Context) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	settings := &configtest.Mock{
@@ -82,7 +81,6 @@ func TestPayrollStatus_CompletenessCounting(t *testing.T) {
 func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
 	svc, repos, ctx := payrollStatusFixture(t, map[string]string{})
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	before, err := svc.GetPayrollStatus(ctx)
 	require.NoError(t, err)

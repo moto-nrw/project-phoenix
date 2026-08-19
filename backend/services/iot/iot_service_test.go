@@ -32,7 +32,6 @@ func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
 
 func TestIoTService_CreateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -142,7 +141,6 @@ func TestIoTService_CreateDevice(t *testing.T) {
 
 func TestIoTService_GetDeviceByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -197,7 +195,6 @@ func TestIoTService_GetDeviceByID(t *testing.T) {
 
 func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -242,7 +239,6 @@ func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 
 func TestIoTService_UpdateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -350,7 +346,6 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 
 func TestIoTService_DeleteDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -403,7 +398,6 @@ func TestIoTService_DeleteDevice(t *testing.T) {
 
 func TestIoTService_ListDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -463,7 +457,6 @@ func TestIoTService_ListDevices(t *testing.T) {
 
 func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -520,7 +513,6 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 
 func TestIoTService_PingDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -573,7 +565,6 @@ func TestIoTService_PingDevice(t *testing.T) {
 
 func TestIoTService_GetDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -619,7 +610,6 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 
 func TestIoTService_GetDevicesByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -656,7 +646,6 @@ func TestIoTService_GetDevicesByStatus(t *testing.T) {
 
 func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -730,7 +719,6 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 
 func TestIoTService_GetActiveDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -758,7 +746,6 @@ func TestIoTService_GetActiveDevices(t *testing.T) {
 
 func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -796,7 +783,6 @@ func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 
 func TestIoTService_GetOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -858,7 +844,6 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 
 func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -888,7 +873,6 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 
 func TestIoTService_DetectNewDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -906,7 +890,6 @@ func TestIoTService_DetectNewDevices(t *testing.T) {
 
 func TestIoTService_ScanNetwork(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -928,7 +911,6 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 
 func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -978,7 +960,6 @@ func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
 
 func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -1023,7 +1004,6 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 
 func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
 	ctx := testpkg.TenantContext(1)

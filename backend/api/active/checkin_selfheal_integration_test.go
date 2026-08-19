@@ -26,7 +26,6 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 	setupViperForTest()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	checkinPermissions := []string{permissions.VisitsUpdate}
 

@@ -199,7 +199,6 @@ type patchSetup struct {
 func buildPatchSetup(t *testing.T) *patchSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()

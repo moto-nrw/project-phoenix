@@ -43,7 +43,6 @@ func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {
 
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)

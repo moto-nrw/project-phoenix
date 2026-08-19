@@ -21,7 +21,6 @@ import (
 
 func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 	ctx := testpkg.TenantContext(1)

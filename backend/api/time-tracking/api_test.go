@@ -502,7 +502,6 @@ func TestGetStaffIDFromClaims_StaffNotFound(t *testing.T) {
 
 func TestCheckIn_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, staffID int64, status, source, _ string) (*activeModels.WorkSession, error) {
@@ -561,7 +560,6 @@ func TestCheckIn_InvalidClaims(t *testing.T) {
 
 func TestCheckIn_ServiceConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -589,7 +587,6 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 // error or moved the type — service-level tests alone don't catch that.
 func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -635,7 +632,6 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 
 func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -674,7 +670,6 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 
 func TestCheckOut_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, staffID int64, _ string) (*activeModels.WorkSession, error) {
@@ -696,7 +691,6 @@ func TestCheckOut_Success(t *testing.T) {
 
 func TestCheckOut_NoActiveSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -907,7 +901,6 @@ func TestGetHistory_ServiceError(t *testing.T) {
 
 func TestUpdateSession_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, staffID int64, sessionID int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -959,7 +952,6 @@ func TestUpdateSession_InvalidBody(t *testing.T) {
 
 func TestUpdateSession_Forbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -987,7 +979,6 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 // and leak the raw message — this test guards the classifier wiring.
 func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -1012,7 +1003,6 @@ func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
 
 func TestStartBreak_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, staffID int64, _ *int) (*activeModels.WorkSessionBreak, error) {
@@ -1032,7 +1022,6 @@ func TestStartBreak_Success(t *testing.T) {
 
 func TestStartBreak_WithPlannedDuration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
@@ -1057,7 +1046,6 @@ func TestStartBreak_WithPlannedDuration(t *testing.T) {
 
 func TestStartBreak_AlreadyActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, _ int64, _ *int) (*activeModels.WorkSessionBreak, error) {
@@ -1078,7 +1066,6 @@ func TestStartBreak_AlreadyActive(t *testing.T) {
 
 func TestEndBreak_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		endBreakFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
@@ -1098,7 +1085,6 @@ func TestEndBreak_Success(t *testing.T) {
 
 func TestEndBreak_NoActiveBreak(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		endBreakFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1379,7 +1365,6 @@ func TestListAbsences_ServiceError(t *testing.T) {
 
 func TestCreateAbsence_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		createAbsenceFn: func(_ context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1415,7 +1400,6 @@ func TestCreateAbsence_InvalidBody(t *testing.T) {
 
 func TestCreateAbsence_Conflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		createAbsenceFn: func(_ context.Context, _ int64, _ activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1438,7 +1422,6 @@ func TestCreateAbsence_Conflict(t *testing.T) {
 
 func TestUpdateAbsence_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, staffID int64, actorAccountID *int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1478,7 +1461,6 @@ func TestUpdateAbsence_InvalidID(t *testing.T) {
 
 func TestUpdateAbsence_Forbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1502,7 +1484,6 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 
 func TestDeleteAbsence_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, staffID int64, absenceID int64) error {
@@ -1536,7 +1517,6 @@ func TestDeleteAbsence_InvalidID(t *testing.T) {
 
 func TestDeleteAbsence_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
@@ -1556,7 +1536,6 @@ func TestDeleteAbsence_NotFound(t *testing.T) {
 
 func TestDeleteAbsence_Forbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
@@ -1576,7 +1555,6 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 
 func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	scope := testpkg.NewTenantScope(t, db)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", scope.TenantID).Exec(context.Background())
@@ -1840,7 +1818,6 @@ func TestParseDateRange_BothMissing(t *testing.T) {
 // drives the reason dialog from the details payload; both are wire contracts.
 func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -1881,7 +1858,6 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 
 func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -1917,7 +1893,6 @@ func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 
 func TestCheckIn_ForwardsReason(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var gotReason string
 	wsSvc := &mockWorkSessionService{
@@ -1941,7 +1916,6 @@ func TestCheckIn_ForwardsReason(t *testing.T) {
 
 func TestCheckOut_ForwardsReason(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var gotReason string
 	wsSvc := &mockWorkSessionService{
@@ -1965,7 +1939,6 @@ func TestCheckOut_ForwardsReason(t *testing.T) {
 
 func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	called := false
 	wsSvc := &mockWorkSessionService{
@@ -1991,7 +1964,6 @@ func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 
 func TestResubmitAbsence_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
@@ -2017,7 +1989,6 @@ func TestResubmitAbsence_Success(t *testing.T) {
 
 func TestResubmitAbsence_NotOwn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
@@ -2039,7 +2010,6 @@ func TestResubmitAbsence_NotOwn(t *testing.T) {
 
 func TestResubmitAbsence_WrongStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {

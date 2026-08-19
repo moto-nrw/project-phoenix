@@ -44,7 +44,6 @@ func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
 // only for rows where the flag is currently true.
 func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
 
@@ -213,7 +212,6 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 // the column plumbing for the new excused flag.
 func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
 
@@ -288,7 +286,6 @@ func reloadStudentFlags(t *testing.T, db *bun.DB, studentID int64) (sick, excuse
 // row visibility.
 func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	now := time.Now()
 	if now.Second() >= 58 {
@@ -351,7 +348,6 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 // unit-level test could not reach (because it ran with a nil db).
 func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	now := time.Now()
 	if now.Second() >= 58 {
@@ -411,7 +407,6 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 // "job clears flags at the wrong time of day."
 func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "NoFire", "n1")
 	defer testpkg.CleanupActivityFixtures(t, db, sickStudent.ID)

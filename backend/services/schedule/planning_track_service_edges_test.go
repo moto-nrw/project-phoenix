@@ -37,7 +37,6 @@ func TestPlanningTrackServiceReorderReturnsRepositoryError(t *testing.T) {
 		t.Fatalf("create database mock: %v", err)
 	}
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	t.Cleanup(func() { _ = db.Close() })
 	wantErr := errors.New("reorder failed")
 	repo := newPlanningTrackRepoStub()
 	repo.updateSortOrdersErr = wantErr

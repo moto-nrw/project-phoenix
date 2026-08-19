@@ -79,7 +79,6 @@ const schoolPortalFixturePassword = "Test1234%" //nolint:gosec // test credentia
 func newSchoolPortalFixture(t *testing.T) (service *Service, account *authModels.Account, tenantID int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service = setupInternalAuthService(t, db)
 	tenantID = testpkg.UniqueTestTenantID(t)
@@ -293,7 +292,6 @@ func TestLoadSchoolMetadataForTenant_LivenessLookupError_Propagates(t *testing.T
 func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *authModels.Account, tenantID int64) {
 	t.Helper()
 	db = testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service = setupInternalAuthService(t, db)
 

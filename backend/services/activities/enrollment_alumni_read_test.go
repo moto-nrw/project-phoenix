@@ -20,7 +20,6 @@ import (
 
 func TestActivityService_GetStudentEnrollments_HidesGraduatedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupActivityService(t, db)

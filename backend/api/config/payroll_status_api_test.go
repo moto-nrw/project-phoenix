@@ -15,7 +15,6 @@ import (
 
 func TestPayrollStatusAPI_ManageOnly(t *testing.T) {
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/payroll-status", nil,
@@ -37,7 +36,6 @@ func TestPayrollStatusAPI_ManageOnly(t *testing.T) {
 
 func TestPayrollStatusAPI_ReadAndUpdateTiersAreRejected(t *testing.T) {
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 	router := ctx.resource.SettingsRouter()
 
 	claims := testutil.TeacherTestClaims(2)

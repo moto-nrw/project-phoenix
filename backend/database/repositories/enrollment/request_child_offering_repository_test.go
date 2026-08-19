@@ -26,7 +26,6 @@ func setupChildOfferingTest(t *testing.T) (
 ) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	var tenantID int64 = 1
 	testpkg.EnsureTestTenant(t, db, tenantID)
 

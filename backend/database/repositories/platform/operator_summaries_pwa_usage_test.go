@@ -55,7 +55,6 @@ func usageRowFor(rows []platformModels.SchoolPWAUsageRow, tenantID int64, portal
 // the window AND still in the matching bucket.
 func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := context.Background()
 	now := time.Now().UnixNano()

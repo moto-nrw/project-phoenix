@@ -27,7 +27,6 @@ import (
 // offers, including a point lookup by a foreign primary key.
 func TestClassListEntryTenantIsolation(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := UniqueTestTenantID(t)
 	tenantB := UniqueTestTenantID(t)
@@ -78,7 +77,6 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 // the policy's WITH CHECK instead of silently landing in the foreign school.
 func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := UniqueTestTenantID(t)
 	tenantB := UniqueTestTenantID(t)

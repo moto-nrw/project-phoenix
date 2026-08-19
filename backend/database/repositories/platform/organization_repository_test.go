@@ -15,7 +15,6 @@ import (
 
 func TestOrganizationRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -53,7 +52,6 @@ func TestOrganizationRepository_Create(t *testing.T) {
 
 func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
 	ctx := testpkg.TenantContext(1)

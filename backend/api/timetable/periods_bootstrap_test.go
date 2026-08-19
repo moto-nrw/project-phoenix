@@ -27,7 +27,6 @@ import (
 func newPeriodsTestServer(t *testing.T) chi.Router {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := int64(910000) + time.Now().UnixNano()%50000
 	testpkg.EnsureTestTenant(t, db, tenantID)

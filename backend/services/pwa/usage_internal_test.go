@@ -90,7 +90,6 @@ func TestUsageServiceReportStaff(t *testing.T) {
 
 func TestUsageServiceReportParent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	t.Run("fans out one row per active guardian mapping", func(t *testing.T) {
 		repo := &recordingUsageRepository{}

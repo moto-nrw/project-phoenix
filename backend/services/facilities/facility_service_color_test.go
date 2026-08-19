@@ -27,7 +27,6 @@ func uniqueRoomName(prefix string) string {
 // caller bypasses the picker and posts the hex directly.
 func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -64,7 +63,6 @@ func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
 // path: a color that is neither reserved nor in use gets persisted as-is.
 func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -92,7 +90,6 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 // the frontend toast can surface the German message instead of a 500.
 func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -131,7 +128,6 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 // and dodge the check.
 func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -244,7 +240,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 // blue fallback in the badge renderer covers them.
 func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)

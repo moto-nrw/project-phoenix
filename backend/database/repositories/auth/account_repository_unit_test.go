@@ -17,12 +17,10 @@ import (
 func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
@@ -36,12 +34,10 @@ func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
@@ -60,12 +56,10 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 
@@ -78,12 +72,10 @@ func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
 func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 
@@ -105,12 +97,10 @@ func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
 func TestAccountRepository_FindAvatarsByAccountIDs_ReturnsDatabaseError(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectQuery(`SELECT "id", "avatar" FROM auth\.accounts`).

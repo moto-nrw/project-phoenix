@@ -156,7 +156,6 @@ func createOpenSchulhofGroup(t *testing.T, db *bun.DB, service facilitiesSvc.Sch
 
 func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -184,7 +183,6 @@ func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 
 func TestSchulhofService_EnsureInfrastructureRejectsLegacyActivityInNonCanonicalRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := createFacilityTestTenant(t, db)
 	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
@@ -232,7 +230,6 @@ func TestSchulhofService_EnsureInfrastructureRejectsLegacyActivityInNonCanonical
 
 func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupSchulhofArtifacts(t, db)
 	defer cleanupSchulhofArtifacts(t, db)
@@ -272,7 +269,6 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 
 func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupSchulhofArtifacts(t, db)
 	defer cleanupSchulhofArtifacts(t, db)
@@ -303,7 +299,6 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 
 func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupSchulhofArtifacts(t, db)
 	defer cleanupSchulhofArtifacts(t, db)
@@ -360,7 +355,6 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 
 func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Clean up any Schulhof artifacts left by parallel test packages
 	cleanupSchulhofArtifacts(t, db)
@@ -423,7 +417,6 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	// active groups from earlier tests can cause findTodayActiveGroup to
 	// return a group that has no visits, yielding StudentCount=0.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Clean up any Schulhof artifacts left by parallel test packages (e.g. api/iot/checkin)
 	// to ensure findSchulhofActivity returns the activity group created by THIS test.
@@ -484,7 +477,6 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 
 func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -510,7 +502,6 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 
 func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -538,7 +529,6 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 // supervisions are excluded from the status response.
 func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -599,7 +589,6 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 // correctly shows IsUserSupervising=false for a staff member who is NOT the supervisor.
 func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -651,7 +640,6 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 // only the activity group is missing.
 func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -701,7 +689,6 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 // student count is 0 when all visits have exit times.
 func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)

@@ -18,7 +18,6 @@ import (
 
 func TestEntryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -83,7 +82,6 @@ func TestEntryRepository_Create(t *testing.T) {
 
 func TestEntryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -118,7 +116,6 @@ func TestEntryRepository_FindByID(t *testing.T) {
 
 func TestEntryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -150,7 +147,6 @@ func TestEntryRepository_Update(t *testing.T) {
 
 func TestEntryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -185,7 +181,6 @@ func TestEntryRepository_Delete(t *testing.T) {
 
 func TestEntryRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -235,7 +230,6 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 
 func TestEntryRepository_FindByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -282,7 +276,6 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 
 func TestEntryRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -322,7 +315,6 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 
 func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -373,7 +365,6 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 
 func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -418,7 +409,6 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 
 func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -495,7 +485,6 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 
 func TestEntryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -664,7 +653,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)
@@ -702,7 +690,6 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 
 func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := testpkg.TenantContext(1)

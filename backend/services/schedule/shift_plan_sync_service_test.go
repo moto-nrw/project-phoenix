@@ -59,7 +59,6 @@ type scheduleStaffRef struct{ ID int64 }
 func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())

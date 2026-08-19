@@ -18,7 +18,7 @@ func TestLockStaffShiftWritesRequiresTenant(t *testing.T) {
 }
 
 func TestLockStaffShiftWritesWrapsAcquireError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
@@ -29,7 +29,6 @@ func TestLockStaffShiftWritesWrapsAcquireError(t *testing.T) {
 
 func TestLockStaffShiftWritesTakesAdvisoryLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	err := tenant.WithTenantTx(context.Background(), db, 1, func(ctx context.Context, _ bun.Tx) error {
 		return LockStaffShiftWrites(ctx, db, 7)

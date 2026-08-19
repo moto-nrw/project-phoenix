@@ -15,7 +15,6 @@ import (
 
 func TestCommentReadRepository_Upsert(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -78,7 +77,6 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 
 func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -114,7 +112,6 @@ func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 
 func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -190,7 +187,6 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 
 func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
 	ctx := testpkg.TenantContext(1)

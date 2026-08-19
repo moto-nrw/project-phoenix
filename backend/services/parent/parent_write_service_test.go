@@ -81,7 +81,6 @@ func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -108,7 +107,6 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -378,7 +376,6 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 
 func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

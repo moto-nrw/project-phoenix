@@ -78,7 +78,6 @@ func setupVisitAccessServices(t *testing.T, db *bun.DB) (education.Service, user
 
 func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -91,7 +90,6 @@ func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
 
 func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -104,7 +102,6 @@ func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
 
 func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -135,7 +132,6 @@ func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
 
 func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -167,7 +163,6 @@ func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
 
 func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -208,7 +203,6 @@ func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
 
 func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -253,7 +247,6 @@ func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testin
 
 func TestCanViewVisit_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 

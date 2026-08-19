@@ -20,7 +20,6 @@ import (
 // (issue #1021): operator-led school access and /auth/link-to-tenant.
 func TestValidateAssignableSchoolRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	roleRepo := repoFactory.Role

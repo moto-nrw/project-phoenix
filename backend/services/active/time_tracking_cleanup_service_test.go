@@ -22,7 +22,6 @@ import (
 
 func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Old")
@@ -73,7 +72,6 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 
 func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Abs")
@@ -103,7 +101,6 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 
 func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Preview")
@@ -130,7 +127,6 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 
 func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "PreviewFresh")
@@ -156,7 +152,6 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 
 func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoOp")
@@ -188,7 +183,6 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	// Service must refuse to delete when no audit repo is configured,
 	// otherwise we'd lose the compliance trail silently.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoAudit")
@@ -204,7 +198,6 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 
 func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "BusinessDate")

@@ -32,7 +32,6 @@ type seriesTestEnv struct {
 func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))

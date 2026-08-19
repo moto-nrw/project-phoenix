@@ -14,20 +14,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// SetupTestDB creates a test database connection using the standard configuration.
-// The first call in a test binary initializes the whole test-database
-// lifecycle (server up, template current, package clone created and
-// bootstrapped — see db_clone.go and internal/testdb); every call opens a
-// small per-test pool against the package clone.
+// SetupTestDB returns the package-wide test database pool. The first call in
+// a test binary initializes the whole test-database lifecycle (server up,
+// template current, package clone created and bootstrapped — see db_clone.go
+// and internal/testdb) and opens one shared pool against the package clone;
+// every later call returns that same pool.
 //
-// The per-test path performs no t.Setenv or viper writes, so tests using it
-// may call t.Parallel().
+// Tests MUST NOT close the returned handle — it is shared by every test in
+// the binary and dies with the process. The per-test path performs no
+// t.Setenv or viper writes, so tests using it may call t.Parallel().
 //
 // This is the preferred way to get a database connection in tests:
 //
 //	func TestSomething(t *testing.T) {
 //	    db := testpkg.SetupTestDB(t)
-//	    defer db.Close()
 //	    // ... test code
 //	}
 func SetupTestDB(t *testing.T) *bun.DB {
@@ -58,15 +58,20 @@ func SetupTestDB(t *testing.T) *bun.DB {
 		applyViperTestConfig()
 	}
 
+	return sharedTestDB
+}
+
+// SetupClosableTestDB returns a PRIVATE pool against the package clone for
+// tests that deliberately close their database to provoke errors. Closing
+// the shared SetupTestDB pool would kill every later test in the binary;
+// closing this one affects nobody else. The caller owns the close.
+func SetupClosableTestDB(t *testing.T) *bun.DB {
+	t.Helper()
+
+	SetupTestDB(t) // ensure the lifecycle ran and viper points at the clone
+
 	db, err := database.DBConn()
-	require.NoError(t, err, "Failed to connect to test database")
-
-	// Set search_path to include all project schemas.
-	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
-	// which fails when the target schema isn't in search_path.
-	_, _ = db.ExecContext(context.Background(),
-		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
-
+	require.NoError(t, err, "Failed to open private test database pool")
 	return db
 }
 

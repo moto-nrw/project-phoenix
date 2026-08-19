@@ -75,7 +75,6 @@ func cleanupFeedbackFixtures(t *testing.T, db *bun.DB, entryIDs []int64) {
 
 func TestFeedbackService_CreateEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -147,7 +146,6 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 
 func TestFeedbackService_GetEntryByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -189,7 +187,6 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 
 func TestFeedbackService_DeleteEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -232,7 +229,6 @@ func TestFeedbackService_DeleteEntry(t *testing.T) {
 
 func TestFeedbackService_ListEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -275,7 +271,6 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 
 func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -308,7 +303,6 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 
 func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -341,7 +335,6 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 
 func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -394,7 +387,6 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 
 func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -421,7 +413,6 @@ func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 
 func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -482,7 +473,6 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 
 func TestFeedbackService_CreateEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -547,7 +537,6 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 
 func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFeedbackService(t, db)
 	ctx := testpkg.TenantContext(1)

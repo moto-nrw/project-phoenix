@@ -269,7 +269,6 @@ type mensaFixture struct {
 func buildMensaFixture(t *testing.T) *mensaFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -389,7 +388,6 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 // override in the merge this test fails: the visit forces Present=true.
 func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -470,7 +468,6 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 // 13:30–14:00 — wholly after the planned end, as for a late start.
 func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -608,7 +605,6 @@ func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 // evidence: no evidence from a cancelled slot may leak into the list.
 func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -981,7 +977,6 @@ func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 
 func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1036,7 +1031,6 @@ func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 
 func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1096,7 +1090,6 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 
 func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	svc := newTestServiceWithSettings(db, stubSlotListSettings{
@@ -1125,7 +1118,6 @@ func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
 
 func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	svc := newTestServiceWithSettingsReader(db, failingSlotListSettings{})
 
@@ -1184,7 +1176,6 @@ func TestBuildList_GroupByClass(t *testing.T) {
 // (#1565 review pass 2 P1).
 func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1272,7 +1263,6 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 // stay in the unexplained "Fehlt" counter.
 func TestBuildList_ExcusedAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1366,7 +1356,6 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 // review).
 func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1455,7 +1444,6 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 // "Fehlt" and inflates the missing counter.
 func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1528,7 +1516,6 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 // sign-off, so the day status is the only absence evidence (#1565 review).
 func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1587,7 +1574,6 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 // pass 1).
 func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -1681,7 +1667,6 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
-			t.Cleanup(func() { _ = db.Close() })
 			ctx := testpkg.TenantContext(1)
 			suffix := time.Now().UnixNano()
 
@@ -1747,7 +1732,6 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 // availability (#1565 review).
 func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
@@ -1803,7 +1787,6 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 // lists stay available for the same past date.
 func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	svc := newTestService(db)
 
@@ -1845,7 +1828,6 @@ func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 // (#1565 review).
 func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
@@ -1915,7 +1897,6 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 // weekly bucket), matching what the preview/export show (#1565 review).
 func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
@@ -1976,7 +1957,6 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 // (#1565 review).
 func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2050,7 +2030,6 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 // planned and, in the Abgleich, as "Fehlt".
 func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2146,7 +2125,6 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 // for a signed-off (cancelled) child who attends anyway.
 func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2248,7 +2226,6 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 // the row's present status, not blanket-drop every cancellation.
 func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2360,7 +2337,6 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 // status still counts as the Abgemeldet row it prints as.
 func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2479,7 +2455,6 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 // child the plan never expected (#1565 review).
 func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2586,7 +2561,6 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 // "Abgemeldet", proving the guard is surgical (#1565 review pass 10).
 func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -2700,7 +2674,6 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 // preview/export render (#1565 review).
 func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 
@@ -2793,7 +2766,6 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 // A slot whose start has already passed still reconciles normally.
 func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -2907,7 +2879,6 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 // discarding the row until the slot's start (#1565 review pass 1 P2).
 func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
@@ -2996,7 +2967,6 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 // presence ("Ungeplant anwesend"), never planned-and-present ("Anwesend").
 func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := testpkg.TenantContext(1)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())

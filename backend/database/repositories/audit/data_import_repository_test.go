@@ -17,7 +17,6 @@ import (
 
 func TestDataImportRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
 	ctx := testpkg.TenantContext(1)
@@ -101,7 +100,6 @@ func TestDataImportRepository_Create(t *testing.T) {
 
 func TestDataImportRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
 	ctx := testpkg.TenantContext(1)
@@ -142,7 +140,6 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 
 func TestDataImportRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
 	ctx := testpkg.TenantContext(1)

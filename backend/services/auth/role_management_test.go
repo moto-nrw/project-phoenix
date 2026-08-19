@@ -10,7 +10,6 @@ import (
 
 func TestGetAccountEmailsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)

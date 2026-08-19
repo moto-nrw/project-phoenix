@@ -23,7 +23,6 @@ const extraJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
@@ -208,7 +207,6 @@ func (r countFailingChallengeRepo) CountRecentByAccountID(context.Context, int64
 // cap is there to bound.
 func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	realChallengeRepo := repos.MFAEmailChallenge

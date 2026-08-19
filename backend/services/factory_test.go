@@ -24,7 +24,6 @@ const testFactoryJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-rea
 
 func TestNewFactory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	require.NotNil(t, repos)
@@ -77,7 +76,6 @@ func TestNewFactory(t *testing.T) {
 
 func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	viper.Reset()
@@ -94,7 +92,6 @@ func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 
 func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -112,7 +109,6 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 
 func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -130,7 +126,6 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 
 func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -148,7 +143,6 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 
 func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -166,7 +160,6 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 
 func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -184,7 +177,6 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 
 func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -202,7 +194,6 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 
 func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -220,7 +211,6 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 
 func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -237,7 +227,6 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 
 func TestNewFactory_ParentsURL_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -253,7 +242,6 @@ func TestNewFactory_ParentsURL_Required(t *testing.T) {
 
 func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -272,7 +260,6 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 
 func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -292,7 +279,6 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 
 func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -310,7 +296,6 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 
 func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 

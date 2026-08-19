@@ -27,7 +27,6 @@ func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
 // TestGetDeviceCurrentSession_HasSession verifies GetDeviceCurrentSession returns active session
 func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -60,7 +59,6 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 // TestGetDeviceCurrentSession_NoSession verifies error when device has no active session
 func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -80,7 +78,6 @@ func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 // TestProcessSessionTimeout_WithActiveSession verifies timeout processing for active session
 func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -113,7 +110,6 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 // TestProcessSessionTimeout_NoSession verifies error when processing timeout for non-existent session
 func TestProcessSessionTimeout_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -133,7 +129,6 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 // TestProcessSessionTimeout_WithVisits verifies session timeout with active visits
 func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -171,7 +166,6 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 // TestProcessSessionTimeout_AlreadyEnded verifies error when session already ended
 func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -202,7 +196,6 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 // TestEndDailySessions_WithActiveSessions verifies daily cleanup ends all active sessions
 func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -239,7 +232,6 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 // TestEndDailySessions_NoActiveSessions verifies clean result when no active sessions
 func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -262,7 +254,6 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 // TestEndDailySessions_WithOrphanedSupervisors verifies orphaned supervisor cleanup
 func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -315,7 +306,6 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 // TestCleanupAbandonedSessions_OfflineDevice verifies cleanup when device is offline
 func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -361,7 +351,6 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 // TestCleanupAbandonedSessions_OnlineDevice verifies session NOT cleaned when device online
 func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -408,7 +397,6 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 // TestCleanupAbandonedSessions_NoAbandoned verifies no cleanup when no abandoned sessions
 func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -427,7 +415,6 @@ func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 // they are first ended (as part of ending all current supervisors) then reactivated
 func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -470,7 +457,6 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 // Scenario: Multiple active visits must all be ended when daily cleanup runs
 func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -511,7 +497,6 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 // Scenario: Session timeout should checkout all active visits
 func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
@@ -549,7 +534,6 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 // Scenario: Ending a session by ID should properly close the session
 func TestEndActivitySession_BySessionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)

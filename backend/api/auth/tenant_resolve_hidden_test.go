@@ -21,7 +21,6 @@ import (
 
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	const tenantID int64 = 9911
 	testpkg.EnsureTestTenant(t, db, tenantID)

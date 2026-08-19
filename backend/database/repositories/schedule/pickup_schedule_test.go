@@ -22,7 +22,6 @@ import (
 
 func TestStudentPickupScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -67,7 +66,6 @@ func TestStudentPickupScheduleRepository_Create(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -103,7 +101,6 @@ func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -142,7 +139,6 @@ func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -178,7 +174,6 @@ func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T)
 
 func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -215,7 +210,6 @@ func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T
 
 func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -274,7 +268,6 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -329,7 +322,6 @@ func TestStudentPickupScheduleRepository_Update(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -366,7 +358,6 @@ func TestStudentPickupScheduleRepository_List(t *testing.T) {
 
 func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -408,7 +399,6 @@ func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -440,7 +430,6 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -475,7 +464,6 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -512,7 +500,6 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 
 func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -549,7 +536,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -599,7 +585,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -662,7 +647,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 
 func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -697,7 +681,6 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -754,7 +737,6 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -791,7 +773,6 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -823,7 +804,6 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -883,7 +863,6 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 
 func TestStudentPickupNoteRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -928,7 +907,6 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 
 func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -963,7 +941,6 @@ func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 
 func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1007,7 +984,6 @@ func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 
 func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1060,7 +1036,6 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 
 func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1099,7 +1074,6 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 
 func TestStudentPickupNoteRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1151,7 +1125,6 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 
 func TestStudentPickupNoteRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1188,7 +1161,6 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 
 func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)
@@ -1226,7 +1198,6 @@ func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 
 func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
 	ctx := testpkg.TenantContext(1)

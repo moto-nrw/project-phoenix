@@ -736,7 +736,6 @@ func (r *passkeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int,
 
 func TestPasskeyRepositories(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	requirePasskeyTables(t, db, "auth.passkey_credentials", "auth.passkey_sessions")
 	scope := testpkg.NewTenantScope(t, db)
 

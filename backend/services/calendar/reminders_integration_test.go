@@ -78,7 +78,6 @@ func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time
 // real recipient resolution. Only the outbox is a recorder.
 func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -153,7 +152,6 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 
 func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
@@ -200,7 +198,6 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
@@ -260,7 +257,6 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 
 func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: errors.New("temporary notification failure")}
@@ -323,7 +319,6 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 // gating the scan on the outbox would silence the push half along with it.
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoOutbox")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -374,7 +369,6 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 // scan has to be free to send once a device exists.
 func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSubscribers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
@@ -424,7 +418,6 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 
 func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	cfg := calendarTestConfig(db)
@@ -462,7 +455,6 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 // cancellation notice, and a reminder for it would contradict it.
 func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -507,7 +499,6 @@ func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing
 // organizer opted into, not a new one.
 func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -549,7 +540,6 @@ func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T)
 // the first.
 func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -616,7 +606,6 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 // this appointment, so nobody in that school gets a reminder that tick.
 func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
@@ -679,7 +668,6 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 
 func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)

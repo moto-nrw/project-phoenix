@@ -32,7 +32,6 @@ import (
 // set {1..N}.
 func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-counter")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
@@ -91,7 +90,6 @@ func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 // and the lock cleared.
 func TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-reset")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
