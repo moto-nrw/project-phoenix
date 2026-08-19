@@ -93,8 +93,8 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 
 func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string) ([]string, error) {
 	rows, err := maint.QueryContext(ctx,
-		`SELECT datname FROM pg_database WHERE datname LIKE $1 ORDER BY datname`,
-		prefix+"%")
+		`SELECT datname FROM pg_database WHERE LEFT(datname, char_length($1)) = $1 ORDER BY datname`,
+		prefix)
 	if err != nil {
 		return nil, fmt.Errorf("list databases with prefix %q: %w", prefix, err)
 	}

@@ -332,7 +332,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE a.id = ? AND a.tenant_id = ?
-				AND a.active AND a.published_at = ?
+				AND a.active AND a.published_at = ? AND a.published_at <= clock_timestamp()
 				AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())
 				AND a.response_type <> 'none'
 				AND (a.response_deadline IS NULL OR a.response_deadline > clock_timestamp())

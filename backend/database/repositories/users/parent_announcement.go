@@ -756,6 +756,7 @@ const liveVersionGuardCTE = `WITH guard AS (
 		WHERE a.id = ? AND a.tenant_id = ?
 			AND a.active
 			AND a.published_at = ?
+			AND a.published_at <= clock_timestamp()
 			AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())
 	)`
 

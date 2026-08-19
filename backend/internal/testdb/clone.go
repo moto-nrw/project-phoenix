@@ -117,11 +117,21 @@ func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			h.mu.Lock()
-			if h.keeperConn == nil || h.keeperConn.PingContext(ctx) != nil {
-				if h.keeperConn != nil {
-					_ = h.keeperConn.Close()
+			// Open and verify the replacement before releasing the old keeper.
+			// That guarantees pg_stat_activity contains a liveness session for
+			// the clone throughout a normal reconnect.
+			replacement, err := h.keeperDB.Conn(ctx)
+			if err == nil {
+				err = replacement.PingContext(ctx)
+			}
+			if err == nil {
+				previous := h.keeperConn
+				h.keeperConn = replacement
+				if previous != nil {
+					_ = previous.Close()
 				}
-				h.keeperConn, _ = h.keeperDB.Conn(ctx)
+			} else if replacement != nil {
+				_ = replacement.Close()
 			}
 			h.mu.Unlock()
 			cancel()
@@ -166,7 +176,7 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 
 	handle := &CloneHandle{Name: name, DSN: cfg.DatabaseDSN(name)}
 	handle.keeperDB = openSQL(handle.DSN)
-	handle.keeperDB.SetMaxOpenConns(1)
+	handle.keeperDB.SetMaxOpenConns(2)
 	handle.keeperDB.SetConnMaxLifetime(0)
 	handle.keeperDB.SetConnMaxIdleTime(0)
 	keeperConn, err := handle.keeperDB.Conn(ctx)
@@ -194,9 +204,9 @@ func gcLocked(ctx context.Context, maint sqlExecutor, sparePrefix, templateName 
 	rows, err := maint.QueryContext(ctx, `
 		SELECT d.datname
 		FROM pg_database d
-		WHERE d.datname LIKE $1
+		WHERE LEFT(d.datname, char_length($1)) = $1
 		  AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)`,
-		ClonePrefix+"%")
+		ClonePrefix)
 	if err != nil {
 		return nil, fmt.Errorf("list orphaned test database clones: %w", err)
 	}
