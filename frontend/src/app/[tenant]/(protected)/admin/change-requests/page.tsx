@@ -1,11 +1,20 @@
 "use client";
 
+import { useState } from "react";
+
 import { useSession } from "next-auth/react";
 
 import { CareRequestReviewList } from "~/components/students/care-request-review-list";
 import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
 import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
+import {
+  CareRequestHistoryList,
+  ExcusedRequestHistoryList,
+  MasterDataHistoryList,
+  OfferingRequestHistoryList,
+} from "~/components/students/request-history-list";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import {
@@ -27,6 +36,11 @@ export default function AdminChangeRequestsPage() {
   // that permission gets a 403 on the three Stammdaten-side queues, so they are
   // not rendered at all instead of showing three error cards (#2232).
   const showStudentDataQueues = canReviewStudentDataRequests(session);
+  // "open" shows the four pending queues, "history" the decided requests of
+  // the same four sections. Decided requests used to vanish without a trace,
+  // which read as "no requests arrive anymore" whenever a colleague had
+  // already worked the queue.
+  const [view, setView] = useState<"open" | "history">("open");
   if (!isReady) {
     return (
       <div className="-mt-1.5 w-full">
@@ -50,9 +64,22 @@ export default function AdminChangeRequestsPage() {
           (md:hidden), genau wie auf der Schwesterseite Konto-Anfragen. Ein
           eigenes h1 hätte den Titel zweimal untereinander gezeigt. */}
       <PageHeaderWithSearch title="Änderungsanfragen" />
-      <p className="mb-6 max-w-3xl text-sm text-gray-600">
-        Von Eltern eingereichte Änderungen, die eine Freigabe benötigen.
+      <p className="mb-4 max-w-3xl text-sm text-gray-600">
+        {view === "open"
+          ? "Von Eltern eingereichte Änderungen, die eine Freigabe benötigen."
+          : "Bereits entschiedene Anfragen mit Datum, Person und Begründung."}
       </p>
+      <div className="mb-6">
+        <SegmentedControl
+          items={[
+            { value: "open", label: "Offen" },
+            { value: "history", label: "Historie" },
+          ]}
+          value={view}
+          onChange={setView}
+          ariaLabel="Ansicht wählen"
+        />
+      </div>
 
       {showStudentDataQueues && (
         <>
@@ -64,7 +91,11 @@ export default function AdminChangeRequestsPage() {
               Anfragen zu Name, Geburtsdatum und erlaubten Abholarten des
               Kindes. Freigeben übernimmt die Änderung direkt in die Stammdaten.
             </p>
-            <MasterDataReviewList />
+            {view === "open" ? (
+              <MasterDataReviewList />
+            ) : (
+              <MasterDataHistoryList />
+            )}
           </section>
 
           <section className="mb-8">
@@ -76,7 +107,11 @@ export default function AdminChangeRequestsPage() {
               Freigeben übernimmt die Änderungen direkt in den Wochenplan des
               Kindes.
             </p>
-            <CareRequestReviewList />
+            {view === "open" ? (
+              <CareRequestReviewList />
+            ) : (
+              <CareRequestHistoryList />
+            )}
           </section>
 
           <section className="mb-8">
@@ -88,7 +123,11 @@ export default function AdminChangeRequestsPage() {
               das Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag,
               Neues beginnt dann. Vergangene Zeiträume bleiben unverändert.
             </p>
-            <OfferingRequestReviewList />
+            {view === "open" ? (
+              <OfferingRequestReviewList />
+            ) : (
+              <OfferingRequestHistoryList />
+            )}
           </section>
         </>
       )}
@@ -102,7 +141,11 @@ export default function AdminChangeRequestsPage() {
           benötigen. Das Kind bleibt bis zur Freigabe eingeplant. Freigeben
           meldet das Kind für die gemeldeten Tage ab.
         </p>
-        <ExcusedRequestReviewList />
+        {view === "open" ? (
+          <ExcusedRequestReviewList />
+        ) : (
+          <ExcusedRequestHistoryList />
+        )}
       </section>
     </div>
   );
