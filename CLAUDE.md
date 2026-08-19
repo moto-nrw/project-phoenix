@@ -184,6 +184,8 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 | View logs | `docker compose logs -f server` |
 | Quality check (frontend) | `cd frontend && pnpm run check` |
 | Run backend tests | `cd backend && go test ./...` |
+| Fast unit-only backend run (skips all DB tests) | `cd backend && go test -short ./...` |
+| Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
 | Generate docs | `docker compose run server go run . gendoc --routes` |
 
 **Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
