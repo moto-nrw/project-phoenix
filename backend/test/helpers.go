@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"github.com/subosito/gotenv"
 	"github.com/uptrace/bun"
 )
 
@@ -46,32 +44,14 @@ func FindProjectRoot() (string, error) {
 	}
 }
 
-// LoadTestEnv loads the .env file from the project root.
-// This is the standard way to configure test database connections.
-//
-// Usage in test files:
-//
-//	func setupTestDB(t *testing.T) *bun.DB {
-//	    testpkg.LoadTestEnv(t)
-//	    // ... rest of setup
-//	}
-func LoadTestEnv(t *testing.T) {
-	t.Helper()
-
-	projectRoot, err := FindProjectRoot()
-	if err != nil {
-		t.Logf("Warning: Could not find project root: %v", err)
-		return
-	}
-
-	envPath := filepath.Join(projectRoot, ".env")
-	if err := gotenv.Load(envPath); err != nil {
-		t.Logf("Warning: Could not load %s: %v", envPath, err)
-	}
-}
-
 // SetupTestDB creates a test database connection using the standard configuration.
-// It automatically loads .env from project root and configures the database DSN.
+// The first call in a test binary initializes the whole test-database
+// lifecycle (server up, template current, package clone created and
+// bootstrapped — see db_clone.go and internal/testdb); every call opens a
+// small per-test pool against the package clone.
+//
+// The per-test path performs no t.Setenv or viper writes, so tests using it
+// may call t.Parallel().
 //
 // This is the preferred way to get a database connection in tests:
 //
@@ -93,46 +73,20 @@ func SetupTestDB(t *testing.T) *bun.DB {
 		t.Skip("skipping DB integration test in -short mode")
 	}
 
-	// Force test environment so database config always resolves to the test DB,
-	// regardless of how `go test` was invoked (with or without APP_ENV=test).
-	// t.Setenv automatically restores the original value when the test finishes.
-	t.Setenv("APP_ENV", "test")
-
-	// Load .env from project root (contains TEST_DB_DSN)
-	LoadTestEnv(t)
-
-	// Initialize viper to read environment variables
-	viper.AutomaticEnv()
-
-	// Require explicit TEST_DB_DSN - fail fast with clear instructions if missing.
-	// This follows the HashiCorp pattern: test database config should be explicit,
-	// not guessed from runtime config like GetDatabaseDSN().
-	dsn := os.Getenv("TEST_DB_DSN")
-	if dsn == "" {
-		t.Fatal(`Test database not configured.
-
-To run integration tests:
-  1. Start test database: docker compose --profile test up -d postgres-test
-  2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
-
-For CI, set TEST_DB_DSN as an environment variable.`)
+	packageTestDBOnce.Do(func() {
+		packageTestDBErr = initPackageTestDB()
+	})
+	if packageTestDBErr != nil {
+		t.Fatalf("setup package test database: %v", packageTestDBErr)
 	}
 
-	dsn = packageIsolatedTestDSN(t, dsn)
-
-	// APP_ENV=test deliberately resolves only TEST_DB_DSN. Point that key at
-	// the package-isolated clone; setting db_dsn here would be ignored and
-	// would silently send integration tests to the shared template database.
-	viper.Set("test_db_dsn", dsn)
-	viper.Set("db_debug", false) // Set to true for SQL debugging
-	// Cap per-test pool size. Each call to SetupTestDB opens a fresh
-	// pool; the prod default is 25 connections, which exhausts
-	// Postgres's max_connections (~100) once gotestsum runs the test
-	// packages in parallel. 3 conns/test fits comfortably and is more
-	// than enough for the test fixture chain (1-2 statements at a
-	// time).
-	viper.Set("db_max_open_conns", 3)
-	viper.Set("db_max_idle_conns", 1)
+	// Self-heal after tests that call viper.Reset() (factory config tests):
+	// without this, every later test in the package would lose test_db_dsn.
+	// Read-then-repair keeps the parallel path write-free while the config
+	// is intact (viper is not thread-safe; resetters run sequentially today).
+	if viper.GetString("test_db_dsn") != packageClone.DSN {
+		applyViperTestConfig()
+	}
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
@@ -142,85 +96,6 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// which fails when the target schema isn't in search_path.
 	_, _ = db.ExecContext(context.Background(),
 		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
-
-	// Spread PK sequences into disjoint per-table ranges so fixture IDs from
-	// different tables never collide numerically (see sequence_offsets.go).
-	applySequenceOffsets(t, db)
-
-	// Ensure the default tenant (school ID 1) exists in platform.schools.
-	// All fixtures use tenant_id=1, which requires a FK target row.
-	EnsureTestTenant(t, db, 1)
-
-	// Ensure default fallback room exists (ID 1).
-	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback to room 1
-	// when no room is specified and no planned room exists.
-	_, _ = db.ExecContext(context.Background(), `
-		INSERT INTO facilities.rooms (id, tenant_id, name, building)
-		VALUES (1, 1, 'Default Room', 'Default')
-		ON CONFLICT (id) DO NOTHING`)
-
-	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
-	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints on
-	// schedule/activity tables. Same convention as rooms.id=1 and schools.id=1.
-	// Fail fast: if the fixture insert breaks (schema drift, missing schools FK),
-	// downstream tests would otherwise fail with cryptic "missing staff" errors.
-	//
-	// Wrap both inserts in a transaction so they're atomic from the perspective
-	// of parallel test packages. Otherwise a concurrent CleanupActivityFixtures
-	// could delete the persons row between the two inserts, leaving the staff
-	// FK to fail. Use unconstrained ON CONFLICT DO NOTHING (rather than
-	// ON CONFLICT (id)) because users.persons also carries
-	// idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres reports that
-	// index first under load, so a column-targeted ON CONFLICT leaks the error.
-	// After the upserts, reconcile any wrong-tenant row so the system fixture
-	// always ends up at (tenant_id=1, id=1).
-	ctx := context.Background()
-	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Serialize concurrent fixture setup across parallel test packages.
-		// pg_advisory_xact_lock is released automatically on commit/rollback,
-		// so other packages wait at this line instead of racing the inserts
-		// below. Constant must stay identical wherever this lock is taken.
-		if _, e := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(914735691)`); e != nil {
-			return fmt.Errorf("acquire system fixture advisory lock: %w", e)
-		}
-		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
-			VALUES (1, 1, 'System', 'Test')
-			ON CONFLICT DO NOTHING`); e != nil {
-			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
-		}
-		if _, e := tx.ExecContext(ctx, `
-			UPDATE users.persons SET tenant_id = 1, first_name = 'System', last_name = 'Test'
-			WHERE id = 1 AND tenant_id <> 1`); e != nil {
-			return fmt.Errorf("reconcile system person tenant_id (id=1): %w", e)
-		}
-		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.staff (id, tenant_id, person_id)
-			VALUES (1, 1, 1)
-			ON CONFLICT DO NOTHING`); e != nil {
-			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
-		}
-		if _, e := tx.ExecContext(ctx, `
-			UPDATE users.staff SET tenant_id = 1, person_id = 1
-			WHERE id = 1 AND (tenant_id <> 1 OR person_id <> 1)`); e != nil {
-			return fmt.Errorf("reconcile system staff tenant_id (id=1): %w", e)
-		}
-		return nil
-	}), "SetupTestDB: failed to ensure system person/staff fixtures (id=1)")
-
-	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
-	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
-	// races when parallel test packages call SetupTestDB concurrently.
-	_, _ = db.ExecContext(context.Background(), `
-		DO $$ DECLARE max_id bigint;
-		BEGIN
-			SELECT COALESCE(MAX(id), 0) INTO max_id FROM facilities.rooms;
-			WHILE nextval('facilities.rooms_id_seq') < max_id LOOP END LOOP;
-			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.persons;
-			WHILE nextval('users.persons_id_seq') < max_id LOOP END LOOP;
-			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.staff;
-			WHILE nextval('users.staff_id_seq') < max_id LOOP END LOOP;
-		END $$`)
 
 	return db
 }

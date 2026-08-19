@@ -8,6 +8,13 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+# Backend-Läufe stempeln ihre DB-Clones mit einer Run-ID; der Sweep am Ende
+# droppt sie wieder und sammelt Clones toter Läufe ein (ADR 0004).
+PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
+export PHX_TEST_RUN_ID
+backend_sweep() { (cd backend && go run ./internal/testdb/cmd/sweep) || true; }
+trap backend_sweep EXIT
+
 BASE=${1:-origin/development}
 # Merge-Base statt Drei-Punkt-Diff, damit auch uncommittete Änderungen zählen.
 MB=$(git merge-base HEAD "$BASE")
