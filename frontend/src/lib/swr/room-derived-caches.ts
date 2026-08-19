@@ -39,9 +39,8 @@
  * collisions are harder.
  *
  * Keep this list in sync with the actual SWR keys used in pages. Currently:
- *   - `active-supervision-dashboard-${refreshKey}` — active-supervisions BFF
- *   - `supervision-visits-${roomId}` — active-supervisions per-room visit
- *     refresh
+ *   - `active-supervision-dashboard-${refreshKey}` — active-supervisions
+ *     aggregate (carries the selected session's visits since #2096)
  *   - `ogs-students-${groupId}` — OGS-Groups aggregated live view (#2056;
  *     `ogs-students-auto` on a cold start before a group is selected)
  *   - `search-students-g${groupFilter}-${term}-…` — Students Search list
@@ -50,7 +49,6 @@
  */
 export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "active-supervision-dashboard-",
-  "supervision-visits-",
   "ogs-students-",
   "search-students-",
 ] as const;

@@ -2,8 +2,11 @@ package platform
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
 )
@@ -301,6 +304,86 @@ func (r *OperatorSummariesRepository) PersonsByOrganization(ctx context.Context,
 	}
 	if result == nil {
 		result = []platform.OperatorPersonInfo{}
+	}
+	return result, nil
+}
+
+// pwaUsageQuery buckets every active account-tenant mapping into the two
+// report portals and LEFT JOINs the standalone-usage rows inside the window.
+// The guardian predicate is spelled exactly like the push-subscription
+// audience filters (LOWER(role.name) = 'guardian' on auth.account_roles for
+// that tenant) so numerator and denominator can never drift apart: a usage
+// row only counts while its account still matches the same bucket. A
+// dual-role account (staff AND guardian at one school) appears in both
+// buckets, mirroring push audience semantics.
+const pwaUsageQuery = `
+WITH mappings AS (
+	SELECT "at".tenant_id,
+		"at".account_id,
+		EXISTS (
+			SELECT 1
+			FROM auth.account_roles AS "gar"
+			INNER JOIN auth.roles AS "gr" ON "gr".id = "gar".role_id
+			WHERE "gar".account_id = "at".account_id
+				AND "gar".tenant_id = "at".tenant_id
+				AND LOWER("gr".name) = ?
+		) AS is_guardian,
+		EXISTS (
+			SELECT 1
+			FROM auth.account_roles AS "sar"
+			INNER JOIN auth.roles AS "sr" ON "sr".id = "sar".role_id
+			WHERE "sar".account_id = "at".account_id
+				AND "sar".tenant_id = "at".tenant_id
+				AND LOWER("sr".name) <> ?
+		) AS is_staff
+	FROM auth.account_tenants AS "at"
+	INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id
+	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
+	WHERE "at".status = 'active'
+		AND "a".active = TRUE
+		AND "s".deleted_at IS NULL
+		%s
+),
+buckets AS (
+	SELECT tenant_id, account_id, 'staff' AS portal FROM mappings WHERE is_staff
+	UNION ALL
+	SELECT tenant_id, account_id, 'parent' AS portal FROM mappings WHERE is_guardian
+)
+SELECT
+	"b".tenant_id,
+	"b".portal,
+	COUNT(DISTINCT "b".account_id) AS eligible_users,
+	COUNT(DISTINCT "b".account_id) FILTER (WHERE "u".account_id IS NOT NULL) AS standalone_users
+FROM buckets AS "b"
+LEFT JOIN iot.pwa_standalone_usage AS "u"
+	ON "u".tenant_id = "b".tenant_id
+	AND "u".account_id = "b".account_id
+	AND "u".portal = "b".portal
+	AND "u".last_seen_at >= ?
+GROUP BY "b".tenant_id, "b".portal
+`
+
+// PWAUsage returns per-school, per-portal PWA standalone-usage counts within
+// the given window. tenantID > 0 limits the result to one school; 0 returns
+// every school (metrics export). Cross-tenant read for the operator
+// dashboard — callers must run inside an admin transaction.
+func (r *OperatorSummariesRepository) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]platform.SchoolPWAUsageRow, error) {
+	cutoff := time.Now().Add(-window)
+	tenantFilter := ""
+	args := []any{authModels.BaseRoleGuardian, authModels.BaseRoleGuardian}
+	if tenantID > 0 {
+		tenantFilter = `AND "at".tenant_id = ?`
+		args = append(args, tenantID)
+	}
+	args = append(args, cutoff)
+
+	var result []platform.SchoolPWAUsageRow
+	q := fmt.Sprintf(pwaUsageQuery, tenantFilter)
+	if err := base.GetDB(ctx, r.db).NewRaw(q, args...).Scan(ctx, &result); err != nil {
+		return nil, err
+	}
+	if result == nil {
+		result = []platform.SchoolPWAUsageRow{}
 	}
 	return result, nil
 }

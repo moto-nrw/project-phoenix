@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import {
+  listCareScheduleChangeRequestHistory,
   listCareScheduleChangeRequests,
   decideCareScheduleChangeRequest,
   CareRequestApiError,
@@ -225,5 +226,22 @@ describe("decideCareScheduleChangeRequest", () => {
     expect((err as CareRequestApiError).message).toBe(
       "Entscheidung konnte nicht gespeichert werden",
     );
+  });
+
+  it("lädt die Historie mit URL-kodiertem Cursor", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { items: [], next_cursor: "abc" },
+      });
+    });
+
+    const out = await listCareScheduleChangeRequestHistory("cur+1");
+
+    expect(seenURL).toBe(
+      "/api/students/care-schedule-change-requests/history?cursor=cur%2B1",
+    );
+    expect(out.next_cursor).toBe("abc");
   });
 });

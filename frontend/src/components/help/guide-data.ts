@@ -619,7 +619,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Abmeldungen von Eltern",
-          body: "Wenn das Elternportal aktiv ist, können Eltern ihr Kind selbst abmelden – wahlweise als `Krank` oder als `Entschuldigt` (z. B. wegen eines Termins), auch für Tage in der Zukunft. Bei einer entschuldigten Abmeldung ist eine kurze Begründung Pflicht. Eine Krankmeldung erscheint sofort wie eine des Teams (das Kind wird als krank angezeigt). Eine entschuldigte Abmeldung wird standardmäßig ebenfalls sofort eingetragen; Sie können in den `Einstellungen` im Bereich `Elternportal` aber festlegen, dass entschuldigte Abmeldungen erst vom Team bestätigt werden müssen. Bis zur Bestätigung gilt das Kind als erwartet, und die Anfrage erscheint unter `Eltern` > `Änderungsanfragen`.",
+          body: "Wenn das Elternportal aktiv ist, können Eltern ihr Kind selbst abmelden – wahlweise als `Krank` oder als `Entschuldigt` (z. B. wegen eines Termins), auch für Tage in der Zukunft. Bei einer entschuldigten Abmeldung ist eine kurze Begründung Pflicht. Eine Krankmeldung erscheint sofort wie eine des Teams (das Kind wird als krank angezeigt). Eine entschuldigte Abmeldung wird standardmäßig ebenfalls sofort eingetragen; Sie können in den `Einstellungen` im Bereich `Elternportal` aber festlegen, dass entschuldigte Abmeldungen erst vom Team bestätigt werden müssen. Bis zur Bestätigung gilt das Kind als erwartet, und die Anfrage erscheint in der Seitenleiste unter `Anfragen` im Reiter `Eltern`.",
           tone: "blue",
         },
         screenshot:
@@ -671,7 +671,7 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "stammdaten-aenderungen-pruefen",
-        title: "Änderungsanfragen der Eltern prüfen",
+        title: "Anfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
           "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
@@ -679,12 +679,13 @@ export const appChapters: readonly GuideChapter[] = [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
           "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Der Hinweis dort nennt die OGS als Stelle, die die Zeiten pflegt; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
-          "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Eltern` > `Änderungsanfragen`, getrennt nach `Stammdaten`, `Betreuungszeiten`, `Betreuungsangebote und AGs` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
+          "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Anfragen` im Reiter `Eltern`, getrennt nach `Stammdaten`, `Betreuungszeiten`, `Betreuungsangebote und AGs` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
           "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart); bei Betreuungsangeboten das gewünschte Startdatum und welche Angebote dazukommen oder wegfallen; bei entschuldigten Abmeldungen die betroffenen Tage und die Begründung der Eltern.",
           "Angebote, die eine Mitbuchungs-Regel ergänzt, tragen die Markierung `Automatisch mitgebucht` und nennen das Angebot, das die Mitbuchung auslöst. So erkennen Sie, was die Eltern selbst gewählt haben. Über den Haken `Automatisch mitbuchen` können Sie ein solches Angebot für genau diese Anfrage abwählen; die Regel bleibt für alle anderen Anfragen eingeschaltet.",
           "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten, Betreuungsangeboten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
           "Anfragen zu Betreuungsangeboten gelten ab dem gewünschten Datum: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot inzwischen voll, meldet die App das beim Freigeben und die Anfrage bleibt offen.",
           "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
+          "Über den Schalter `Historie` oben auf der Seite sehen Sie alle bereits entschiedenen Anfragen: wer wann freigegeben oder abgelehnt hat, mit welcher Begründung – und auch automatisch übernommene Stammdaten-Änderungen. Über `Weitere Einträge laden` blättern Sie weiter zurück.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -693,7 +694,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Admin-Seite „Änderungsanfragen“ mit den Bereichen Stammdaten, Betreuungszeiten und Betreuungsangebote, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
+          "Seite „Anfragen“, Reiter „Eltern“, mit den Bereichen Stammdaten, Betreuungszeiten und Betreuungsangebote, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
       },
       {
         id: "meine-gruppen",
@@ -986,7 +987,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
-          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist.",
+          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
         ],
         callout: {
@@ -1348,6 +1349,27 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/datenverwaltung.webp",
       },
       {
+        id: "klassenlisteneintraege",
+        title: "Klassenlisteneinträge: Kinder ohne OGS-Betreuung",
+        summary:
+          "Kinder, die nicht im Ganztag sind, fehlen sonst auf Klassenlisten. Ein Klassenlisteneintrag besteht nur aus Name und Klasse und vervollständigt den Klassenverband — ohne Betreuung, Anwesenheit oder Kontaktdaten.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` -> `+ Kinder` wählen und oben im Fenster auf `Nur Klassenliste` umschalten. Vorname, Nachname und Klasse eintragen — die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
+          "Den Überblick gibt die Klassenlisten-Seite: auf der Kinder-Seite oben rechts im Menü mit den drei Punkten `Klassenliste` wählen. Sie zeigt den vollständigen Klassenverband — regulär angelegte Kinder (`In moto angelegt`) und Klassenlisteneinträge (`Keine Betreuung`) — und über den Klassenfilter ist sofort sichtbar, wer in einer Klasse noch fehlt.",
+          "Für ganze Klassen dort den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
+          "Die Einträge erscheinen auf den Klassenlisten-Exporten und in der `Klassenansicht` der Lehrkräfte, deutlich gekennzeichnet als `Keine Betreuung`. In Kindersuche, Anwesenheit, Betreuungsplanung und Elternportal tauchen sie nicht auf.",
+          "Über `Bearbeiten` lässt sich ein Eintrag in eine andere Klasse verschieben, über `Löschen` entfernen.",
+          "Wird das Kind später regulär angelegt (z. B. über eine Anmeldung oder den Import), zeigt die Liste `Mögliche Dublette`. Mit `Zuordnen` bestätigen Sie, dass es dasselbe Kind ist — der Eintrag wird entfernt, das Kind steht nur noch über seinen regulären Datensatz auf der Liste. Das passiert nie automatisch, damit gleichnamige Kinder nicht verwechselt werden.",
+        ],
+        callout: {
+          title: "Kein zweiter Kinder-Datensatz",
+          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinder` an.",
+          tone: "blue",
+        },
+        screenshot:
+          "Verwaltung der Klassenlisteneinträge mit Tabelle nach Klassen, Kennzeichnung Keine Betreuung und Hinweis auf mögliche Dubletten.",
+      },
+      {
         id: "kind-dauerhaft-loeschen",
         title: "Kind dauerhaft löschen",
         summary:
@@ -1446,7 +1468,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Mit `Status`, `Berücksichtigte Angebote`, `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
-          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Gehzeit des Kindes (aus dem Gehplan, einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`), jeweils zusammen mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Kontaktdaten der Erziehungsberechtigten.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Gehzeit des Kindes (aus dem Gehplan, einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`), jeweils zusammen mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Kontaktdaten der Erziehungsberechtigten. Auch Klassenlisteneinträge (Kinder ohne OGS-Datensatz, siehe `Datenverwaltung`) stehen mit dem Zusatz `Keine Betreuung` in ihrer Klasse.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",
@@ -1556,6 +1578,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schränkst du eine Regel nachträglich ein, meldet der Bereich `Bedingungen für die Verfügbarkeit`, wie viele bestehende Buchungen die neue Bedingung nicht erfüllen. Das ist nur ein Hinweis: Bestehende Buchungen bleiben bestehen, die Regel gilt nur für neue Auswahlen.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
           "Bei der Mitbuchung die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen. Diese Klassenstufen steuern nur die automatische Mitbuchung; sie sind von den Bedingungen für die Verfügbarkeit getrennt.",
+          "Über der Angebotsliste stehen die `Mitbuchungs-Regeln` der Phase. Jeder Satz zeigt: Das erste Angebot wird gebucht, wenn Eltern das zweite wählen. Klassenstufen stehen bei Bedarf dabei.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
@@ -1621,13 +1644,13 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Der zentrale Posteingang für die Kommunikation mit den Eltern, wie ein Chat. Mit jeder Bezugsperson läuft pro Kind genau eine fortlaufende Unterhaltung (ohne Betreff); so wird die E-Mail-Kommunikation überflüssig.",
         steps: [
-          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Nachrichten` öffnen. Ein rotes Abzeichen am Bereich `Eltern` zeigt die Zahl der ungelesenen Eltern-Nachrichten (und offenen Anfragen); aufgeklappt steht es direkt am Punkt `Nachrichten`.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Nachrichten` öffnen. Ein rotes Abzeichen am Bereich `Eltern` zeigt die Zahl der ungelesenen Eltern-Nachrichten; aufgeklappt steht es direkt am Punkt `Nachrichten`.",
           "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` lässt sich die Liste eingrenzen.",
           "Eine Zeile öffnet das Chat-Fenster mit dem kompletten Verlauf. Über `Zum Kinderprofil` gelangst du von dort zur Kinderdetailansicht.",
           "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
           "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
           "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
-          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information ohne Schaltflächen; Anfragen bearbeitest du als Admin unter `Änderungsanfragen` (siehe nächster Abschnitt).",
+          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information ohne Schaltflächen; Anfragen bearbeitest du als Admin in der Seitenleiste unter `Anfragen` (siehe nächster Abschnitt).",
         ],
         callout: {
           title: "Voraussetzung",
@@ -1643,22 +1666,22 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern bearbeiten",
         icon: ClipboardCheck,
         summary:
-          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
+          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral in der Seitenleiste unter `Anfragen` entschieden.",
         steps: [
           "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten`, `Betreuungszeiten` und `Betreuungsangebote`, jeweils mit dem Vergleich `aktuell -> gewünscht`. Der Bereich `Betreuungszeiten` bekommt keine neuen Anfragen mehr; noch offene Altfälle lassen sich dort weiterhin entscheiden.",
+          "In der Seitenleiste `Anfragen` öffnen; der Reiter `Eltern` ist voreingestellt. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten`, `Betreuungszeiten` und `Betreuungsangebote`, jeweils mit dem Vergleich `aktuell -> gewünscht`. Der Bereich `Betreuungszeiten` bekommt keine neuen Anfragen mehr; noch offene Altfälle lassen sich dort weiterhin entscheiden.",
           "Mit `Freigeben` wird die Änderung übernommen: Bei Betreuungszeiten wird der Wochenplan des Kindes direkt aktualisiert.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
           "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "Die Seite `Änderungsanfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
+          body: "Der Bereich `Anfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
           tone: "orange",
         },
         screenshot:
-          "Admin-Seite Änderungsanfragen, Bereich Betreuungszeiten: Wochenplan-Vergleich aktuell zu gewünscht mit den Schaltflächen Freigeben und Ablehnen.",
+          "Seite Anfragen, Reiter Eltern, Bereich Betreuungszeiten: Wochenplan-Vergleich aktuell zu gewünscht mit den Schaltflächen Freigeben und Ablehnen.",
         image: "/help/screens/offene-anfragen.webp",
       },
       {

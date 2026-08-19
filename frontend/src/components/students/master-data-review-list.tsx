@@ -45,7 +45,8 @@ const FIELD_LABELS: Record<string, string> = {
   allowed_departure_modes: "Dauerhafte Gehzeiten",
 };
 
-function fieldLabel(field: string): string {
+// Exported for the Historie view, which renders the same field labels.
+export function fieldLabel(field: string): string {
   // Known field keys have German labels; fall back to the raw key.
   return FIELD_LABELS[field] ?? field;
 }
@@ -68,7 +69,13 @@ function departureModeLabel(mode: unknown): string {
   return DEPARTURE_MODE_LABELS[mode as DepartureMode] ?? String(mode);
 }
 
-function formatValue(field: string, value: unknown, empty: string): string {
+// Exported as formatMasterDataValue for the Historie view (same rendering
+// rules for old/new values as the pending queue).
+export function formatValue(
+  field: string,
+  value: unknown,
+  empty: string,
+): string {
   if (value === null || value === undefined || value === "") return empty;
   if (typeof value === "string") {
     if (field === "preferred_contact_method")

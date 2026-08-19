@@ -61,7 +61,7 @@ export function formatGradeLevelList(values: readonly number[]): string {
   return `${runs.slice(0, -1).join(", ")} und ${runs.at(-1)}`;
 }
 
-function gradeNoun(values: readonly number[]): string {
+export function gradeNoun(values: readonly number[]): string {
   return new Set(values).size === 1 ? "Klasse" : "Klassen";
 }
 
@@ -81,13 +81,13 @@ function normalizedGradeLevelMax(gradeLevelMax?: number): number {
 /**
  * The grades a rule actually admits, in ascending order.
  *
- * Module-internal on purpose: every user-facing string in this file is
- * derived from this set rather than from the rule's condition list. Describing conditions one by one and joining them
+ * Every user-facing string is derived from this set rather than from the
+ * rule's condition list. Describing conditions one by one and joining them
  * with "und"/"oder" does NOT describe what the rule evaluates to: an `all`
  * rule of "Klasse 1" AND "Klasse 2" matches no grade at all, yet reads as if
  * it allowed two of them (#2186 review).
  */
-function careOfferingRuleGradeLevels(
+export function careOfferingRuleGradeLevels(
   rule: CareOfferingAvailabilityRule | null | undefined,
   gradeLevelMax?: number,
 ): number[] {

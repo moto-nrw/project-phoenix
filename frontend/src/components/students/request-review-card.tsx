@@ -5,6 +5,28 @@ import { ChevronDown } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { formatDate } from "~/lib/date-helpers";
+
+const HISTORY_STATUS_META: Record<
+  string,
+  { label: string; tone: StatusBadgeTone }
+> = {
+  approved: { label: "Freigegeben", tone: "green" },
+  rejected: { label: "Abgelehnt", tone: "red" },
+  withdrawn: { label: "Zurückgezogen", tone: "gray" },
+  auto_applied: { label: "Automatisch übernommen", tone: "gray" },
+};
+
+type RequestReviewCardHistory = {
+  readonly status: string;
+  readonly decidedAt: string;
+  readonly decidedByName?: string;
+  readonly reason?: string;
+};
 
 /**
  * One pending parent change request in the staff Änderungsanfragen queue, in the
@@ -19,6 +41,7 @@ export function RequestReviewCard({
   childName,
   summary,
   children,
+  history,
   reason,
   onReasonChange,
   reasonPlaceholder,
@@ -28,17 +51,46 @@ export function RequestReviewCard({
   onReject,
 }: Readonly<{
   childName: string;
-  summary: string;
-  children: ReactNode;
-  reason: string;
-  onReasonChange: (value: string) => void;
-  reasonPlaceholder: string;
+  summary?: string;
+  children?: ReactNode;
+  history?: RequestReviewCardHistory;
+  reason?: string;
+  onReasonChange?: (value: string) => void;
+  reasonPlaceholder?: string;
   reasonError?: string;
-  busy: boolean;
-  onApprove: () => void;
-  onReject: () => void;
+  busy?: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
 }>) {
   const [open, setOpen] = useState(false);
+  if (history) {
+    const meta = HISTORY_STATUS_META[history.status] ?? {
+      label: history.status,
+      tone: "gray" as const,
+    };
+    return (
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium text-gray-900">{childName}</span>
+          {summary && (
+            <span className="text-sm text-gray-600">· {summary}</span>
+          )}
+          <StatusBadge label={meta.label} tone={meta.tone} />
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Entschieden am {formatDate(history.decidedAt)}
+          {history.decidedByName ? ` von ${history.decidedByName}` : ""}
+        </p>
+        {history.reason && (
+          <p className="mt-1 text-sm text-gray-600 italic">
+            „{history.reason}“
+          </p>
+        )}
+        {children && <div className="mt-2">{children}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <button
@@ -64,10 +116,10 @@ export function RequestReviewCard({
           <div className="mt-4 space-y-2">
             <Input
               aria-label="Begründung"
-              value={reason}
+              value={reason ?? ""}
               placeholder={reasonPlaceholder}
               disabled={busy}
-              onChange={(e) => onReasonChange(e.target.value)}
+              onChange={(e) => onReasonChange?.(e.target.value)}
             />
             {reasonError && (
               <p className="text-moto-red-strong text-xs">{reasonError}</p>

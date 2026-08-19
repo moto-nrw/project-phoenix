@@ -104,6 +104,10 @@ func (f *companionErrCareRequestService) GetPendingForStudent(context.Context, i
 	return nil, nil, nil
 }
 
+func (f *companionErrCareRequestService) ListHistory(context.Context, time.Time, int64, int) ([]*scheduleService.CareRequestHistoryItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
+}
+
 func (f *companionErrCareRequestService) ListPending(context.Context) ([]*scheduleService.CareRequestReviewItem, error) {
 	return nil, nil
 }

@@ -15,6 +15,15 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     globals: true,
+    // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
+    // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
+    // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
+    pool: "threads",
+    // Lokal auf 8 Worker gedeckelt, damit der Rechner während eines vollen
+    // Laufs benutzbar bleibt (Default wäre ~15 auf 16 Cores). Kostet ~4s
+    // Wandzeit, spart weitere ~13% CPU. CI bleibt ungedeckelt (läuft dort
+    // ohnehin nur --changed).
+    maxWorkers: process.env.CI ? undefined : 8,
     setupFiles: ["./src/test/setup.ts"],
     exclude: ["**/node_modules/**", "**/e2e/**"], // Exclude Playwright tests
     coverage: {

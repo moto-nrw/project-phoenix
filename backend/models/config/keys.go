@@ -47,6 +47,10 @@ const (
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
 	// PrivacyConsent model into this per-tenant setting.
 	KeyPrivacyConsentRetentionDays = "gdpr.privacy_consent_retention_days"
+	// Retention window (days) for PWA standalone-usage rows
+	// (iot.pwa_standalone_usage, issue #2189). The metric only needs a
+	// 30-day activity window, so stale rows carry no value and are swept.
+	KeyGDPRPWAUsageRetentionDays = "gdpr.pwa_usage_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

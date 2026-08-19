@@ -57,10 +57,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services/pwa"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
+	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -131,9 +133,10 @@ type Factory struct {
 	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	OpeningBalanceImport     importService.OpeningBalanceImportFactory                   // Opening balance import (#2132), request-scoped
+	Import                   *importService.ImportService[importModels.StudentImportRow]        // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
+	ClassListImport          *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
+	OpeningBalanceImport     importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
@@ -141,6 +144,7 @@ type Factory struct {
 	Reminders                reminders.Computer
 	Notifications            notifications.Notifier
 	PushSubscriptions        notifications.PushSubscriptionService
+	PWAUsage                 pwa.UsageService
 	NotificationPreferences  notifications.PreferenceService
 	AbsenceNotifier          notifications.AbsenceNotifier
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
@@ -159,6 +163,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
+	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
@@ -171,6 +176,7 @@ type Factory struct {
 	AbsenceOverview         *active.StudentStatusDayOverviewService
 	StudentHistory          active.StudentHistoryService
 	OGSGroupLive            ogsgrouplive.Getter
+	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
 	OperatorSuggestions     platform.OperatorSuggestionsService
@@ -347,15 +353,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize grade transition service
 	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
-		TransitionRepo:   repos.GradeTransition,
-		StudentRepo:      repos.Student,
-		PersonRepo:       repos.Person,
-		VisitRepo:        repos.ActiveVisit,
-		AttendanceRepo:   repos.Attendance,
-		ClassTeacherRepo: repos.ClassTeacher,
-		StaffRepo:        repos.Staff,
-		RosterReconciler: rosterReconciler,
-		DB:               db,
+		TransitionRepo:      repos.GradeTransition,
+		StudentRepo:         repos.Student,
+		PersonRepo:          repos.Person,
+		VisitRepo:           repos.ActiveVisit,
+		AttendanceRepo:      repos.Attendance,
+		ClassTeacherRepo:    repos.ClassTeacher,
+		StaffRepo:           repos.Staff,
+		ClassListEntryRepo:  repos.ClassListEntry,
+		ClassListEntryAudit: repos.ClassListEntryChange,
+		RosterReconciler:    rosterReconciler,
+		DB:                  db,
 	})
 
 	// Initialize settings service (new schema-driven settings system)
@@ -1398,6 +1406,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffImportService := importService.NewImportService(staffImportConfig)
 	staffImportService.SetAuditRepository(repos.DataImport)
 
+	// Class-list entry import (#2382): creates through the entry service so
+	// the duplicate guards and the audit trail apply to imported rows too.
+	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
+		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
+		EntryRepo:    repos.ClassListEntry,
+		StudentRepo:  repos.Student,
+	})
+	classListImportService := importService.NewImportService(classListImportConfig)
+	classListImportService.SetAuditRepository(repos.DataImport)
+
 	// Opening balance import (#2132): the config is request-scoped (Stichtag,
 	// Begründung, and acting staff member come from the upload form), so the
 	// factory closes over the request-independent deps and builds a fresh
@@ -1754,6 +1772,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 		StudentStatusDayRepo:     repos.StudentStatusDay,
+		ClassListEntryRepo:       repos.ClassListEntry,
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
@@ -2128,6 +2147,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "push_subscriptions"),
 	)
 
+	pwaUsageService := pwa.NewUsageService(
+		db,
+		repos.PWAStandaloneUsage,
+		repos.OperatorSummaries,
+		repos.AccountTenant,
+		settingsService,
+		logger.With("service", "pwa_usage"),
+	)
+
 	absenceNotifier := notifications.NewAbsenceNotifier(
 		notificationsService,
 		staffNotificationRecipients,
@@ -2183,6 +2211,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ExcusedRequests: excusedRequestService,
 		StatusDays:      studentStatusDayService,
 		Logger:          logger.With("service", "ogs-group-live"),
+	})
+
+	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
+		Active:      activeService,
+		UserContext: userContextService,
+		Education:   educationService,
+		Schulhof:    schulhofService,
+		Operations:  timetableOperationsService,
+		Settings:    settingsService,
+		Pickups:     pickupScheduleService,
+		Arrivals:    arrivalScheduleService,
 	})
 
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
@@ -2291,6 +2330,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Database:                 databaseService,
 		Import:                   studentImportService,        // Student import service
 		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
+		ClassListImport:          classListImportService,      // Class-list entry import (#2382)
 		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
@@ -2299,6 +2339,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Reminders:                remindersService,
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
+		PWAUsage:                 pwaUsageService,
 		NotificationPreferences:  notificationPreferencesService,
 		AbsenceNotifier:          absenceNotifier,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
@@ -2323,6 +2364,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:                 platform.NewSchoolService(repos.School),
 		WorkTimeModels:          workTimeModelService,
 		Students:                studentService,
+		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:         studentDeletionService,
 		StudentAudit:            studentAuditService,
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
@@ -2333,6 +2375,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AbsenceOverview:         studentStatusDayOverviewService,
 		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		OGSGroupLive:            ogsGroupLiveService,
+		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
 		OperatorSuggestions:     operatorSuggestionsService,

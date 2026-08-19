@@ -89,6 +89,37 @@ func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx co
 	return rows, nil
 }
 
+// ListDecidedForTenant returns the tenant's decided care-schedule requests
+// (approved, rejected, withdrawn) newest-decision-first via keyset pagination
+// on (updated_at, id). Every Decide stamps updated_at and decided rows are
+// terminal, so it is the decision instant (withdrawn rows carry no
+// reviewed_at). A zero beforeUpdatedAt returns the first page.
+func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*schedule.CareScheduleChangeRequest, error) {
+	var rows []*schedule.CareScheduleChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".status IN (?)`, bun.List([]string{
+			schedule.CareRequestStatusApproved,
+			schedule.CareRequestStatusRejected,
+			schedule.CareRequestStatusWithdrawn,
+		}))
+	if !beforeUpdatedAt.IsZero() {
+		query = query.Where(`("care_schedule_change_request".updated_at, "care_schedule_change_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
+	}
+
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	query = query.
+		OrderExpr(`"care_schedule_change_request".updated_at DESC`).
+		OrderExpr(`"care_schedule_change_request".id DESC`).
+		Limit(limit)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: err}
+	}
+	return rows, nil
+}
+
 func (r *CareScheduleChangeRequestRepository) ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*schedule.CareScheduleChangeRequest, error) {
 	var rows []*schedule.CareScheduleChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().

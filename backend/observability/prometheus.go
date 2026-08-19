@@ -22,6 +22,28 @@ type SSEStatsProvider interface {
 	SnapshotStats() SSEStats
 }
 
+// PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
+// counts (#2189).
+type PWAUsageStat struct {
+	TenantID        int64
+	Portal          string
+	StandaloneUsers int
+	EligibleUsers   int
+}
+
+// PWAUsageStatsProvider supplies the standalone-usage counts on scrape.
+// Implementations are expected to cache internally — MetricsHandler calls
+// this on every scrape.
+type PWAUsageStatsProvider interface {
+	SnapshotUsageStats() ([]PWAUsageStat, error)
+}
+
+// PWAUsageStatsProviderFunc adapts a function to PWAUsageStatsProvider.
+type PWAUsageStatsProviderFunc func() ([]PWAUsageStat, error)
+
+// SnapshotUsageStats implements PWAUsageStatsProvider.
+func (f PWAUsageStatsProviderFunc) SnapshotUsageStats() ([]PWAUsageStat, error) { return f() }
+
 var (
 	appHTTPRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -102,6 +124,20 @@ var (
 		},
 		[]string{"tenant_id"},
 	)
+	pwaStandaloneUsers = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_pwa_standalone_users",
+			Help: "Accounts that used the app in PWA standalone mode within the last 30 days, by tenant and portal.",
+		},
+		[]string{"tenant_id", "portal"},
+	)
+	pwaEligibleUsers = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_pwa_eligible_users",
+			Help: "Accounts with an active mapping matching the portal's role predicate, by tenant and portal.",
+		},
+		[]string{"tenant_id", "portal"},
+	)
 
 	dbStatsMu        sync.RWMutex
 	dbStatsProvider  DBStatsProvider
@@ -109,6 +145,11 @@ var (
 	sseStatsProvider SSEStatsProvider
 	sseGaugeMu       sync.Mutex
 	sseGaugeTenants  = make(map[string]struct{})
+
+	pwaStatsMu       sync.RWMutex
+	pwaStatsProvider PWAUsageStatsProvider
+	pwaGaugeMu       sync.Mutex
+	pwaGaugeLabels   = make(map[[2]string]struct{})
 
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
@@ -133,6 +174,8 @@ func init() {
 		sseDropped,
 		sseConnections,
 		sseClients,
+		pwaStandaloneUsers,
+		pwaEligibleUsers,
 		dbStatsCollector{},
 	)
 }
@@ -141,6 +184,7 @@ func MetricsHandler() http.Handler {
 	handler := promhttp.Handler()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		refreshSSEGauges()
+		refreshPWAGauges()
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -175,6 +219,14 @@ func RegisterSSEStatsProvider(provider SSEStatsProvider) {
 	sseStatsMu.Lock()
 	defer sseStatsMu.Unlock()
 	sseStatsProvider = provider
+}
+
+// RegisterPWAUsageStatsProvider wires the PWA standalone-usage source
+// (#2189). The provider runs on every scrape and must cache internally.
+func RegisterPWAUsageStatsProvider(provider PWAUsageStatsProvider) {
+	pwaStatsMu.Lock()
+	defer pwaStatsMu.Unlock()
+	pwaStatsProvider = provider
 }
 
 func IncActiveHTTPRequests() {
@@ -327,6 +379,38 @@ func refreshSSEGauges() {
 	if sseGaugeTenants == nil {
 		sseGaugeTenants = make(map[string]struct{})
 	}
+}
+
+// refreshPWAGauges pulls the standalone-usage counts on scrape, zeroing
+// label pairs that disappeared. A provider error keeps the previous values
+// — a failed refresh must not turn into a fake zero.
+func refreshPWAGauges() {
+	pwaStatsMu.RLock()
+	provider := pwaStatsProvider
+	pwaStatsMu.RUnlock()
+	if provider == nil {
+		return
+	}
+	stats, err := provider.SnapshotUsageStats()
+	if err != nil {
+		return
+	}
+	current := make(map[[2]string]struct{}, len(stats))
+	pwaGaugeMu.Lock()
+	defer pwaGaugeMu.Unlock()
+	for _, stat := range stats {
+		labels := [2]string{strconv.FormatInt(stat.TenantID, 10), stat.Portal}
+		current[labels] = struct{}{}
+		pwaStandaloneUsers.WithLabelValues(labels[0], labels[1]).Set(float64(stat.StandaloneUsers))
+		pwaEligibleUsers.WithLabelValues(labels[0], labels[1]).Set(float64(stat.EligibleUsers))
+	}
+	for labels := range pwaGaugeLabels {
+		if _, ok := current[labels]; !ok {
+			pwaStandaloneUsers.WithLabelValues(labels[0], labels[1]).Set(0)
+			pwaEligibleUsers.WithLabelValues(labels[0], labels[1]).Set(0)
+		}
+	}
+	pwaGaugeLabels = current
 }
 
 var _ DBStatsProvider = (*sql.DB)(nil)

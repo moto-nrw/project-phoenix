@@ -46,6 +46,10 @@ type PersonRepository interface {
 	// FindByAccountID retrieves a person by their account ID
 	FindByAccountID(ctx context.Context, accountID int64) (*Person, error)
 
+	// FindByAccountIDs retrieves persons for the given account IDs in one
+	// query, keyed by account ID.
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*Person, error)
+
 	// ListWithOptions retrieves persons with type-safe query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Person, error)
 
@@ -242,6 +246,18 @@ type StudentRepository interface {
 	// overlapping batches serialize instead of deadlocking. Unknown or
 	// foreign ids are absent from the returned map.
 	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
+}
+
+// ClassListEntryRepository defines operations for the class-list-only entries
+// (#2382). School classes are free-text strings; every class comparison uses
+// LOWER(BTRIM(...)) — see models/users.ClassListEntry.
+type ClassListEntryRepository interface {
+	base.CRUDRepository[*ClassListEntry]
+	// FindBySchoolClass returns the entries of one class, name-sorted.
+	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*ClassListEntry, error)
+	// FindByNameAndClass returns entries matching first name, last name and
+	// class case-insensitively (duplicate guard for create and import).
+	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*ClassListEntry, error)
 }
 
 // StaffRepository defines operations for managing staff members

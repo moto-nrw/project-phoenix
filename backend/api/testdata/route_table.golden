@@ -10,6 +10,7 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/calendar/appointments/{appointmentId}
+DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
@@ -123,6 +124,7 @@ GET /api/active/groups/{id}/visits/display
 GET /api/active/mappings/combined/{combinedId}
 GET /api/active/mappings/group/{groupId}
 GET /api/active/schulhof/status
+GET /api/active/supervision-dashboard
 GET /api/active/supervisors/
 GET /api/active/supervisors/all
 GET /api/active/supervisors/group/{groupId}
@@ -161,6 +163,7 @@ GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-day/
 GET /api/class-day/classes
+GET /api/class-list-entries/
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
@@ -221,6 +224,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/class-list-entries/template
 GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
@@ -338,12 +342,16 @@ GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
 GET /api/students/care-schedule-change-requests
+GET /api/students/care-schedule-change-requests/history
 GET /api/students/change-requests/pending-count
 GET /api/students/day-log
 GET /api/students/day-log/export
 GET /api/students/excused-absence-requests
+GET /api/students/excused-absence-requests/history
 GET /api/students/master-data-change-requests
+GET /api/students/master-data-change-requests/history
 GET /api/students/offering-change-requests
+GET /api/students/offering-change-requests/history
 GET /api/students/ogs-group-live
 GET /api/students/school-classes
 GET /api/students/status-days
@@ -473,6 +481,7 @@ GET /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
 GET /operator/schools/{id}/persons
+GET /operator/schools/{id}/pwa-usage
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats
@@ -567,6 +576,8 @@ POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
 POST /api/calendar/recipients/{recipientId}/response
+POST /api/class-list-entries/
+POST /api/class-list-entries/{id}/assign
 POST /api/display/
 POST /api/display/{id}/regenerate
 POST /api/emergency/snapshot/export
@@ -607,6 +618,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/class-list-entries/import
+POST /api/import/class-list-entries/preview
 POST /api/import/opening-balances/import
 POST /api/import/opening-balances/preview
 POST /api/import/students/import
@@ -643,6 +656,7 @@ POST /api/parent-announcements/{announcementId}/remind
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
+POST /api/pwa/usage
 POST /api/rooms/
 POST /api/rooms/export
 POST /api/schedules/check-conflict
@@ -834,6 +848,7 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /parent/me/pwa-usage
 POST /school/auth/login
 POST /school/auth/mfa/enroll/confirm
 POST /school/auth/mfa/enroll/start
@@ -852,6 +867,7 @@ PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
 PUT /api/birthdays/opt-out
 PUT /api/calendar/appointments/{appointmentId}
+PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/

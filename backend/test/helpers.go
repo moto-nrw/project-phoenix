@@ -83,6 +83,16 @@ func LoadTestEnv(t *testing.T) {
 func SetupTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
+	// -short überspringt alle DB-Integrationstests: `go test -short ./...` ist
+	// der schnelle Inner-Loop (Unit-/AST-/Ratchet-Tests, keine Postgres-Last).
+	// -short darf NIE in CI laufen — es würde coverage.out aushöhlen und das
+	// Sonar-Gate (80% on new code) bedeutungslos machen, während junit Skips
+	// als grün meldet. Es überspringt auch TestRouteTableGolden und test/e2e —
+	// ein Filter für die lokale Entwicklungsschleife, kein Pre-Merge-Check.
+	if testing.Short() {
+		t.Skip("skipping DB integration test in -short mode")
+	}
+
 	// Force test environment so database config always resolves to the test DB,
 	// regardless of how `go test` was invoked (with or without APP_ENV=test).
 	// t.Setenv automatically restores the original value when the test finishes.

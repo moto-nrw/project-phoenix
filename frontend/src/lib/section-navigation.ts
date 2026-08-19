@@ -81,12 +81,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "changeRequests"
-  | "announcements"
-  | "mealPlan";
+  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -103,11 +98,8 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     label: "Konto-Anfragen",
     feature: "approvals",
   },
-  {
-    href: "/admin/change-requests",
-    label: "Änderungsanfragen",
-    feature: "changeRequests",
-  },
+  // Die Elternanfragen sind in das Top-Level-Modul "Anfragen" umgezogen
+  // (#2429); /admin/change-requests leitet dorthin um.
   {
     // One entry, two jobs: the page itself splits Mitteilungen from Umfragen
     // (#1371). Both are the same broadcast workflow, so a second nav item would
@@ -143,6 +135,9 @@ export const STAFF_FLAT_PAGES = {
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
+  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
+  // an einem Ort, mit Reitern nach Herkunft.
+  anfragen: { href: "/anfragen", label: "Anfragen" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -24,6 +25,14 @@ type mockSummariesRepo struct {
 	personsBySch func(context.Context, int64) ([]platformModels.OperatorPersonInfo, error)
 	personsByOrg func(context.Context, int64) ([]platformModels.OperatorPersonInfo, error)
 	devicesFn    func(context.Context, platformModels.OperatorDeviceFilter) ([]platformModels.OperatorDeviceRow, error)
+	pwaUsageFn   func(context.Context, int64, time.Duration) ([]platformModels.SchoolPWAUsageRow, error)
+}
+
+func (m *mockSummariesRepo) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]platformModels.SchoolPWAUsageRow, error) {
+	if m.pwaUsageFn != nil {
+		return m.pwaUsageFn(ctx, tenantID, window)
+	}
+	return nil, nil
 }
 
 func (m *mockSummariesRepo) Stats(ctx context.Context) (*platformModels.ProvisioningStats, error) {

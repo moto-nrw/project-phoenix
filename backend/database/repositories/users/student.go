@@ -1775,7 +1775,11 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 	return urls, nil
 }
 
-// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+// FindByNameAndClass retrieves students by first name, last name, and school
+// class (for import duplicate detection). Matching is case-insensitive and
+// trims BOTH sides: a stored name with surrounding whitespace must not slip
+// past the class-list duplicate guards (mirror of
+// ClassListEntryRepository.FindByNameAndClass).
 //
 // Alumni are excluded, matching the soft-delete default in List: graduation
 // keeps the student row around, and a graduate must not block the import of a
@@ -1788,9 +1792,9 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
-		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
-		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, firstName).
+		Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, lastName).
+		Where(`LOWER(BTRIM("student".school_class)) = LOWER(BTRIM(?))`, schoolClass).
 		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")

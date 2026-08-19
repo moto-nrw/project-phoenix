@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 type fakeOfferingChangeRequestService struct {
@@ -41,6 +43,10 @@ func (f *fakeOfferingChangeRequestService) Create(context.Context, enrollmentSer
 
 func (f *fakeOfferingChangeRequestService) Withdraw(context.Context, int64, int64, int64) error {
 	return nil
+}
+
+func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, time.Time, int64, int) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
 }
 
 func (f *fakeOfferingChangeRequestService) ListPending(context.Context) ([]*enrollmentService.OfferingChangeView, error) {

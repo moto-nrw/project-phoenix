@@ -579,6 +579,10 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	if err := r.loadRoomsForGroups(ctx, groups); err != nil {
 		return nil, err
 	}
+	_, activityGroupIDs := collectRelationIDs(groups)
+	if err := r.loadAndAssignActivityGroups(ctx, groups, activityGroupIDs); err != nil {
+		return nil, err
+	}
 
 	return groupsToMap(groups), nil
 }

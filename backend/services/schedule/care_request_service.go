@@ -146,6 +146,19 @@ type CareRequestReviewItem struct {
 	Reason    *string
 }
 
+// CareRequestHistoryItem is one decided request enriched with the child's
+// name, the reviewer's display name, and the payload-derived "requested"
+// summary. Unlike the pending queue there is NO live "current → requested"
+// diff: current data has moved on since the decision, so re-computing it would
+// show a comparison that never existed. The payload alone is stable.
+type CareRequestHistoryItem struct {
+	Request      *scheduleModels.CareScheduleChangeRequest
+	FirstName    string
+	LastName     string
+	ReviewerName string // "" when the row carries no reviewer (withdrawn)
+	Requested    []RequestDiffEntry
+}
+
 // CareRequestDecideInput carries a staff decision on one pending request.
 type CareRequestDecideInput struct {
 	RequestID int64
@@ -177,6 +190,11 @@ type CareScheduleRequestService interface {
 	// newest-first, enriched with child names and live diffs — the staff
 	// review queue on the Änderungsanfragen page.
 	ListPending(ctx context.Context) ([]*CareRequestReviewItem, error)
+	// ListHistory returns decided care-schedule requests
+	// newest-decision-first, keyset paginated on (updated_at, id). A zero
+	// beforeUpdatedAt returns the first page; next is nil when no older rows
+	// exist beyond this page.
+	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*CareRequestHistoryItem, next *usersService.HistoryCursor, err error)
 	CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
 	ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error)
 	ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error)
@@ -434,6 +452,144 @@ func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRe
 		return rows[i].CreatedAt.After(rows[j].CreatedAt)
 	})
 	return s.buildPendingItems(ctx, rows)
+}
+
+func (s *careScheduleRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*CareRequestHistoryItem, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("schedule: list decided care requests: %w", err)
+	}
+	// The cursor points at the last DB row (not the last visible item): the
+	// per-child scope filters after the DB limit, so a cursor built from the
+	// filtered page would skip rows.
+	var next *usersService.HistoryCursor
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+	}
+	if len(rows) == 0 {
+		return []*CareRequestHistoryItem{}, nil, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	reviewerIDs := make([]int64, 0, len(rows))
+	seenReviewers := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.StudentID]; !ok {
+			seen[r.StudentID] = struct{}{}
+			studentIDs = append(studentIDs, r.StudentID)
+		}
+		if r.ReviewedBy != nil && *r.ReviewedBy > 0 {
+			if _, ok := seenReviewers[*r.ReviewedBy]; !ok {
+				seenReviewers[*r.ReviewedBy] = struct{}{}
+				reviewerIDs = append(reviewerIDs, *r.ReviewedBy)
+			}
+		}
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("schedule: load students for care request history: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, st := range students {
+		personIDs = append(personIDs, st.PersonID)
+	}
+	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("schedule: load persons for care request history: %w", err)
+	}
+	reviewers, err := s.personRepo.FindByAccountIDs(ctx, reviewerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("schedule: load reviewers for care request history: %w", err)
+	}
+
+	// Same per-child scope as ListPending: write gate + alumnus skip, so the
+	// history shows exactly the children the caller may act on.
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+
+	items := make([]*CareRequestHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		st := students[r.StudentID]
+		if !writable(st) || st.IsAlumnus() {
+			continue
+		}
+		item := &CareRequestHistoryItem{
+			Request:      r,
+			ReviewerName: usersService.ReviewerDisplayName(reviewers, r.ReviewedBy),
+			Requested:    careRequestedSummaryFrom(r.Payload),
+		}
+		if p, ok := persons[st.PersonID]; ok {
+			item.FirstName = p.FirstName
+			item.LastName = p.LastName
+		}
+		items = append(items, item)
+	}
+	return items, next, nil
+}
+
+// careRequestedSummaryFrom renders the REQUESTED side of a decided
+// weekly-schedule or pickup-change payload, with no live reads: the "current" side has moved on
+// since the decision, so unlike careScheduleDiffFrom the Old fields stay empty.
+// An undecodable payload yields an empty summary (the row still lists).
+func careRequestedSummaryFrom(payload map[string]any) []RequestDiffEntry {
+	if date, pickup, _, err := parsePickupChangePayload(payload); err == nil {
+		return []RequestDiffEntry{{
+			Label:    date.String() + " · Abholzeit",
+			New:      pickup.Format("15:04"),
+			CareKind: DiffCareKindPickup,
+		}}
+	}
+	p, err := decodeCarePayload[careSchedulePayload](payload)
+	if err != nil {
+		return nil
+	}
+	weekdays := append([]careWeekdayPayload(nil), p.Weekdays...)
+	sort.Slice(weekdays, func(i, j int) bool { return weekdays[i].Weekday < weekdays[j].Weekday })
+
+	var entries []RequestDiffEntry
+	for _, wd := range weekdays {
+		if wd.Weekday < 1 || wd.Weekday > 5 {
+			continue
+		}
+		name := scheduleModels.WeekdayNames[wd.Weekday]
+		if wd.Scheduled != nil {
+			entries = append(entries, RequestDiffEntry{
+				Label:    name + " · Betreuungstag",
+				New:      careDayGermanLabel(*wd.Scheduled),
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindScheduled,
+			})
+		}
+		if wd.Mode != "" {
+			entries = append(entries, RequestDiffEntry{
+				Label:    name + " · Abholart",
+				New:      usersModels.DepartureMode(wd.Mode).GermanLabel(),
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindDepartureMode,
+				NewMode:  wd.Mode,
+			})
+		}
+		if wd.Arrival != "" {
+			entries = append(entries, RequestDiffEntry{
+				Label:    name + " · Bringzeit",
+				New:      wd.Arrival,
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindArrival,
+			})
+		}
+		if wd.Pickup != "" {
+			entries = append(entries, RequestDiffEntry{
+				Label:    name + " · Abholzeit",
+				New:      wd.Pickup,
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindPickup,
+			})
+		}
+	}
+	return entries
 }
 
 func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {

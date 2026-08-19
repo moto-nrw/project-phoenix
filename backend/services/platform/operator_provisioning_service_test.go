@@ -476,6 +476,9 @@ func (m *mockPersonRepo) FindByTagID(context.Context, string) (*userModels.Perso
 func (m *mockPersonRepo) FindByAccountID(context.Context, int64) (*userModels.Person, error) {
 	return nil, nil
 }
+func (m *mockPersonRepo) FindByAccountIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
+	return nil, nil
+}
 func (m *mockPersonRepo) Update(context.Context, *userModels.Person) error { return nil }
 func (m *mockPersonRepo) Delete(context.Context, interface{}) error        { return nil }
 func (m *mockPersonRepo) List(context.Context, map[string]interface{}) ([]*userModels.Person, error) {

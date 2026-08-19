@@ -31,6 +31,7 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	pwaService "github.com/moto-nrw/project-phoenix/services/pwa"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -44,6 +45,7 @@ type Resource struct {
 	SchoolService         platformSvc.SchoolService
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
+	PWAUsageService       pwaService.UsageService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
 }
@@ -56,6 +58,11 @@ func (rs *Resource) SetPreferenceService(service notificationsService.Preference
 // SetPushService injects the Web Push subscription service (#2003).
 func (rs *Resource) SetPushService(service notificationsService.PushSubscriptionService) {
 	rs.PushService = service
+}
+
+// SetPWAUsageService injects the PWA standalone-usage service (#2189).
+func (rs *Resource) SetPWAUsageService(service pwaService.UsageService) {
+	rs.PWAUsageService = service
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for public parent auth
@@ -125,6 +132,10 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/subscriptions", rs.subscribePush)
 			r.Delete("/subscriptions", rs.unsubscribePush)
 		})
+
+		// PWA standalone-usage report (#2189): fans out to every
+		// active tenant mapping, account id from claims only.
+		r.Post("/me/pwa-usage", rs.reportPWAUsage)
 
 		// Which notifications this guardian agreed to. Applied to every
 		// school the family belongs to, the same fan-out the push

@@ -17,6 +17,12 @@ func (rs *ProvisioningResource) GetProvisioningStats(w http.ResponseWriter, r *h
 	common.Respond(w, r, http.StatusOK, stats, "Provisioning stats retrieved successfully")
 }
 
+// GetSchoolPWAUsage returns one school's PWA standalone-usage counts
+// (staff/parent, 30-day window). GET /api/operator/schools/{id}/pwa-usage.
+func (rs *ProvisioningResource) GetSchoolPWAUsage(w http.ResponseWriter, r *http.Request) {
+	idList(w, r, "id", "invalid school ID", rs.service.GetSchoolPWAUsage, ProvisioningErrorRenderer, "School PWA usage retrieved successfully")
+}
+
 // ListOrganizationSummaries returns all organizations with per-row counts for
 // the Träger overview table. GET /api/operator/organizations/summaries.
 func (rs *ProvisioningResource) ListOrganizationSummaries(w http.ResponseWriter, r *http.Request) {

@@ -27,6 +27,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -40,6 +41,7 @@ import (
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
+	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -123,6 +125,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
+	ClassListEntries *classlistentriesAPI.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -136,6 +139,7 @@ type API struct {
 	Announcements    *announcementAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
+	PWA              *pwaAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -178,6 +182,22 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	}
 	observability.RegisterDBStatsProvider(db.DB)
 	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
+	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
+		rows, err := serviceFactory.PWAUsage.SnapshotUsage()
+		if err != nil {
+			return nil, err
+		}
+		stats := make([]observability.PWAUsageStat, 0, len(rows))
+		for _, row := range rows {
+			stats = append(stats, observability.PWAUsageStat{
+				TenantID:        row.TenantID,
+				Portal:          row.Portal,
+				StandaloneUsers: row.StandaloneUsers,
+				EligibleUsers:   row.EligibleUsers,
+			})
+		}
+		return stats, nil
+	}))
 
 	// Create API instance
 	httpMetrics := observability.NewHTTPMetrics()
@@ -218,9 +238,12 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 		router.Use(httpMetrics.Middleware)
 	}
 	// Redact the parent calendar-feed token (the sole credential for the public
-	// /public/calendar/{token} feed) from the per-request "path" attribute so it
-	// never lands in access logs.
-	requestLogger := slog.New(customMiddleware.NewFeedTokenRedactor(logger.Handler()))
+	// /public/calendar/{token} feed) from the per-request "path" attribute, and
+	// strip query-string values (staff-UI searches carry student names and
+	// e-mail addresses as query parameters, issue #2105) so neither lands in
+	// access logs.
+	requestLogger := slog.New(customMiddleware.NewQueryValueRedactor(
+		customMiddleware.NewFeedTokenRedactor(logger.Handler())))
 	router.Use(slogchi.NewWithConfig(requestLogger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -486,6 +509,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
 		StudentService:          api.Services.Students,
+		ClassListEntryService:   api.Services.ClassListEntries,
 		StudentDeletionService:  api.Services.StudentDeletion,
 		StudentAuditService:     api.Services.StudentAudit,
 		EducationService:        api.Services.Education,
@@ -530,7 +554,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
@@ -564,6 +588,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		StaffPINAuthenticator: api.Services.StaffPINAuth,
@@ -590,6 +615,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
+	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -621,6 +647,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
+	api.PWA = pwaAPI.NewResource(api.Services.PWAUsage, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -655,6 +682,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)
 	api.Parent.SetPushService(api.Services.PushSubscriptions)
+	api.Parent.SetPWAUsageService(api.Services.PWAUsage)
 	api.Parent.SetPreferenceService(api.Services.NotificationPreferences)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
@@ -877,6 +905,9 @@ func (a *API) registerTenantRoutes() {
 		// Mount the Lehrkraft class-day view (#1772)
 		r.Mount("/class-day", a.ClassDay.Router())
 
+		// Mount class-list-only entries (#2382)
+		r.Mount("/class-list-entries", a.ClassListEntries.Router())
+
 		// Mount substitutions resources
 		r.Mount("/substitutions", a.Substitutions.Router())
 
@@ -903,6 +934,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount notification abstraction resources (issue #1624)
 		r.Mount("/notifications", a.Notifications.Router())
+
+		// Mount PWA standalone-usage reporting (issue #2189)
+		r.Mount("/pwa", a.PWA.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

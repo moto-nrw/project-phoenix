@@ -61,10 +61,14 @@ type ResourceConfig struct {
 	// "kommt heute" on every weekday, including the ones they are not booked
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
-	CareDayService          scheduleService.CareDayService
-	SchoolService           platformSvc.SchoolService
-	SettingsService         configService.SettingsService
-	StudentService          userService.StudentService
+	CareDayService  scheduleService.CareDayService
+	SchoolService   platformSvc.SchoolService
+	SettingsService configService.SettingsService
+	StudentService  userService.StudentService
+	// ClassListEntryService supplies the class-list-only entries (#2382) the
+	// "Klassenliste" export merges into the Klassenverband. Optional: nil
+	// exports without entries (bare test Resources).
+	ClassListEntryService   userService.ClassListEntryService
 	StudentDeletionService  userService.StudentDeletionService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
@@ -171,6 +175,7 @@ func (rs *Resource) Router() chi.Router {
 		// their own group's requests. Static paths take precedence over the /{id}
 		// param route in chi.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/master-data-change-requests/history", rs.listMasterDataChangeRequestHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
 		// Parent care-schedule change-request review queue (#1803). Decisions
@@ -178,12 +183,14 @@ func (rs *Resource) Router() chi.Router {
 		// gate + per-child write scope of the master-data queue — both are decided
 		// on the same Änderungsanfragen page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/history", rs.listCareScheduleChangeRequestHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 
 		// Post-enrollment offering change requests (#1665). Approving one moves
 		// the child between activity groups on a chosen date, so it shares the
 		// users:update gate of the queues it sits next to on the same page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests/history", rs.listOfferingChangeRequestHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
@@ -192,6 +199,7 @@ func (rs *Resource) Router() chi.Router {
 		// absence actions: users:update OR users:absence at the route, with the
 		// per-child absence gate deciding inside the service (#2232).
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/excused-absence-requests/history", rs.listExcusedAbsenceRequestHistory)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
 
 		// Combined pending count across both review queues, driving the

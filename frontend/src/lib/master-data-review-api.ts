@@ -92,3 +92,44 @@ export async function decideMasterDataChangeRequest(
   }
   return unwrap((await response.json()) as Envelope<StaffMasterDataChange>);
 }
+
+/** One page of the decided-request history. */
+export interface HistoryPage<T> {
+  readonly items: readonly T[];
+  /** Absent on the last page. */
+  readonly next_cursor?: string;
+}
+
+/**
+ * One decided Stammdaten change request in the staff history. Mirrors
+ * api/students.MasterDataChangeRequestHistoryResponse.
+ */
+export interface StaffMasterDataHistoryEntry extends StaffMasterDataChange {
+  readonly decided_at: string;
+  /** Absent for auto-applied rows (no reviewer). */
+  readonly decided_by_name?: string;
+  readonly review_reason?: string;
+}
+
+/** Lists the tenant's decided parent change requests, newest decision first. */
+export async function listMasterDataChangeRequestHistory(
+  cursor?: string,
+): Promise<HistoryPage<StaffMasterDataHistoryEntry>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await fetch(
+    `/api/students/master-data-change-requests/history${query}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Historie konnte nicht geladen werden");
+  }
+  return unwrap(
+    (await response.json()) as Envelope<
+      HistoryPage<StaffMasterDataHistoryEntry>
+    >,
+  );
+}

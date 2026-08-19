@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   decideMasterDataChangeRequest,
+  listMasterDataChangeRequestHistory,
   listMasterDataChangeRequests,
 } from "./master-data-review-api";
 
@@ -140,5 +141,22 @@ describe("master-data review API", () => {
     await expect(listMasterDataChangeRequests()).rejects.toThrow(
       /Änderungsanfragen konnten nicht geladen werden/,
     );
+  });
+
+  it("lädt die Historie mit URL-kodiertem Cursor", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { items: [], next_cursor: "abc" },
+      });
+    });
+
+    const out = await listMasterDataChangeRequestHistory("cur+1");
+
+    expect(seenURL).toBe(
+      "/api/students/master-data-change-requests/history?cursor=cur%2B1",
+    );
+    expect(out.next_cursor).toBe("abc");
   });
 });

@@ -25,7 +25,11 @@ export type AnalyticsEvent =
   | "group_created"
   | "group_updated"
   | "user_invited"
-  | "data_exported";
+  | "data_exported"
+  | "pwa_install_prompt_shown"
+  | "pwa_install_prompt_accepted"
+  | "pwa_install_prompt_dismissed"
+  | "pwa_installed";
 
 function captureEvent(event: AnalyticsEvent, props?: Properties): void {
   if (!env.NEXT_PUBLIC_POSTHOG_KEY) {

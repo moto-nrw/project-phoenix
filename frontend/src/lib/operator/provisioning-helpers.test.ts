@@ -10,6 +10,7 @@ import {
   mapOperatorDevice,
   mapOperatorPerson,
   mapUnregisteredTagScan,
+  mapSchoolPWAUsage,
   summaryToOrganization,
   summaryToSchool,
 } from "./provisioning-helpers";
@@ -845,5 +846,21 @@ describe("mapUnregisteredTagScan", () => {
     expect(result.resolutionNote).toBeNull();
     expect(result.deviceIdentifier).toBeNull();
     expect(result.deviceName).toBeNull();
+  });
+});
+
+describe("mapSchoolPWAUsage", () => {
+  it("maps snake_case portal buckets to camelCase", () => {
+    const result = mapSchoolPWAUsage({
+      window_days: 30,
+      staff: { standalone_users: 3, eligible_users: 12 },
+      parent: { standalone_users: 47, eligible_users: 210 },
+    });
+
+    expect(result).toEqual({
+      windowDays: 30,
+      staff: { standaloneUsers: 3, eligibleUsers: 12 },
+      parent: { standaloneUsers: 47, eligibleUsers: 210 },
+    });
   });
 });

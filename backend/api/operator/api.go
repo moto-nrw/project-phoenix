@@ -314,6 +314,7 @@ func (rs *Resource) mountSchoolRoutes(r chi.Router) {
 		})
 		r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
+		r.Get("/{id}/pwa-usage", rs.provisioningResource.GetSchoolPWAUsage)
 		if rs.settingsResource != nil {
 			r.Route("/{id}/settings", func(r chi.Router) {
 				r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)

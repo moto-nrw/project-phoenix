@@ -20,6 +20,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -367,6 +368,15 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
+    // canOpenRequestsPage: requiresPermission kann das
+    // users:absence+users:read-Paar nicht ausdrücken.
+    href: "/anfragen",
+    label: "Anfragen",
+    iconKey: "tray",
+    concept: "requests",
+  },
+  {
     href: "/calendar",
     label: "Mein Kalender",
     iconKey: "calendar",
@@ -494,7 +504,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     routingMode,
   );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
@@ -675,6 +685,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
     // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
     if (item.href === "/klassen") return hasRole(session, "lehrkraft");
+    // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
+    // change-request-access.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
@@ -806,10 +819,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
                   // path-routing mode a bare "/eltern" href is captured as the
                   // tenant slug, so prefix it the same way the /eltern page
-                  // prefixes its card links. Other entries stay bare — /help is
-                  // host-agnostic and must not carry the slug.
+                  // prefixes its card links. Anfragen is also tenant-scoped.
+                  // Other entries stay bare — /help is host-agnostic and must
+                  // not carry the slug.
                   const href =
-                    item.href === "/eltern" || isPlanningPageHref(item.href)
+                    item.href === "/eltern" ||
+                    item.href === "/anfragen" ||
+                    isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;
 

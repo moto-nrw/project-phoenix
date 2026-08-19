@@ -54,6 +54,29 @@ die Gehzeiten aller Kinder, die das Angebot am jeweiligen Wochentag gebucht
 haben. Es geschieht nach ausdrücklicher Bestätigung; danach steht die Gehzeit
 am Kind selbst und trägt ihre Herkunft aus dem Angebot.
 
+## Anfrage
+
+Eine **Anfrage** ist jeder eingereichte Wunsch, über den die OGS entscheiden
+muss, bevor er wirksam wird. Es gibt drei Herkünfte: Elternanfragen (betreffen
+ein betreutes Kind), Anmeldungsänderungen (betreffen eine laufende Anmeldung)
+und Abwesenheitsanträge (betreffen ein Teammitglied). Sofort wirksame
+Mitteilungen, etwa eine Krankmeldung, sind keine Anfragen.
+
+## Abwesenheitsantrag
+
+Ein **Abwesenheitsantrag** ist die Anfrage eines Teammitglieds, an bestimmten
+Tagen abwesend zu sein — etwa Urlaub, Krankheit oder Fortbildung. Er betrifft
+keine Kinder und wird von einer dafür berechtigten Person genehmigt, abgelehnt
+oder mit einer Rückfrage beantwortet.
+
+## Anmeldungsänderung
+
+Eine **Anmeldungsänderung** ist eine Anfrage zu einer noch laufenden Anmeldung,
+bevor das Kind in die Betreuung übernommen ist. Sie kann von Eltern oder von
+der OGS ausgehen und ist die einzige Anfrageart mit Rückfrage-Dialog zwischen
+OGS und Eltern. Nach der Übernahme des Kindes sind Änderungswünsche
+Elternanfragen, keine Anmeldungsänderungen.
+
 ## Elternänderung
 
 Eine **Elternänderung** ist eine von einer sorgeberechtigten Person gewünschte
@@ -75,8 +98,10 @@ und kann von der OGS als gelesen markiert werden.
 ## Freigabeansicht
 
 Die **Freigabeansicht** ist die gemeinsame Arbeitsliste der OGS für alle
-Elternanfragen. Sie macht Änderungsart, betroffenes Kind und gewünschte Änderung
-in einfacher Sprache erkennbar und fasst offene Vorgänge pro Kind zusammen.
+Anfragen, gleich welcher Herkunft. Sie macht Herkunft, Änderungsart, betroffene
+Person und gewünschte Änderung in einfacher Sprache erkennbar, zeigt offene wie
+entschiedene Anfragen und ist der einzige Ort, an dem Anfragen bearbeitet
+werden.
 
 ## Abgelaufene Elternanfrage
 
