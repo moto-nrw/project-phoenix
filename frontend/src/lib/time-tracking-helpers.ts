@@ -80,6 +80,10 @@ export interface BackendStaffAbsence {
   id: number;
   staff_id: number;
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
+  absence_type_id?: number | null;
+  /** The school's own wording; empty for the standard types. */
+  absence_type_label?: string;
   date_start: string;
   date_end: string;
   half_day: boolean;
@@ -107,6 +111,17 @@ export interface StaffAbsence {
   id: string;
   staffId: string;
   absenceType: AbsenceType;
+  /**
+   * School-defined Abwesenheitsart (#2403); null for the standard types.
+   * Optional so a row shape built before this field existed still type-checks.
+   */
+  absenceTypeId?: string | null;
+  /**
+   * The school's own wording, or "" for a standard type — in which case the
+   * caller falls back to its own label for `absenceType`. Resolve both through
+   * {@link absenceDisplayLabel} rather than reading the fields separately.
+   */
+  absenceTypeLabel?: string;
   dateStart: string;
   dateEnd: string;
   halfDay: boolean;
@@ -134,6 +149,22 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   comp_time: "Freizeitausgleich",
 };
 
+/**
+ * absenceDisplayLabel is what a person should read for an absence: the school's
+ * own Abwesenheitsart when the row carries one (#2403), otherwise the standard
+ * German label. Every renderer of an absence type goes through here, so a
+ * school's wording cannot appear in one view and "Sonstige" in the next.
+ */
+export function absenceDisplayLabel(absence: {
+  readonly absenceType: string;
+  readonly absenceTypeLabel?: string;
+}): string {
+  if (absence.absenceTypeLabel) return absence.absenceTypeLabel;
+  return (
+    absenceTypeLabels[absence.absenceType as AbsenceType] ?? absence.absenceType
+  );
+}
+
 export function mapStaffAbsenceResponse(
   data: BackendStaffAbsence,
 ): StaffAbsence {
@@ -141,6 +172,8 @@ export function mapStaffAbsenceResponse(
     id: data.id.toString(),
     staffId: data.staff_id.toString(),
     absenceType: data.absence_type as AbsenceType,
+    absenceTypeId: data.absence_type_id?.toString() ?? null,
+    absenceTypeLabel: data.absence_type_label ?? "",
     dateStart: data.date_start.split("T")[0] ?? data.date_start,
     dateEnd: data.date_end.split("T")[0] ?? data.date_end,
     halfDay: data.half_day,

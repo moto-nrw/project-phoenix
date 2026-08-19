@@ -25,6 +25,8 @@ export interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
+  /** The school's own Abwesenheitsart wording for today's absence (#2403). */
+  absence_type_label?: string;
 }
 
 interface ActiveSupervisionResponse {
@@ -77,6 +79,8 @@ export interface Staff {
   // Time-tracking
   workStatus?: string;
   absenceType?: string;
+  /** The school's own Abwesenheitsart wording, "" for a standard type (#2403). */
+  absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
 }
@@ -318,6 +322,7 @@ function mapStaffMember(
     wasPresentToday: staff.was_present_today,
     workStatus: staff.work_status,
     absenceType: staff.absence_type,
+    absenceTypeLabel: staff.absence_type_label,
   };
 }
 
@@ -447,6 +452,7 @@ class StaffService {
       wasPresentToday: staff.was_present_today,
       workStatus: staff.work_status,
       absenceType: staff.absence_type,
+      absenceTypeLabel: staff.absence_type_label,
     };
   }
 
@@ -773,6 +779,10 @@ export interface StaffAbsenceRow {
   id: number;
   staff_id: number;
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
+  absence_type_id?: number | null;
+  /** The school's own wording; empty for the standard types. */
+  absence_type_label?: string;
   date_start: string;
   date_end: string;
   half_day: boolean;

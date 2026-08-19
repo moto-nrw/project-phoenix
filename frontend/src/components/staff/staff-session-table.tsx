@@ -697,7 +697,13 @@ function SessionEditHistory({
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
-  | { kind: "absence"; absenceType: string; halfDay: boolean }
+  | {
+      kind: "absence";
+      absenceType: string;
+      /** The school's own Abwesenheitsart wording, "" for a standard type. */
+      absenceTypeLabel: string;
+      halfDay: boolean;
+    }
   | { kind: "holiday"; name: string }
   | { kind: "closing"; reason: string }
   | { kind: "missing" };
@@ -768,6 +774,7 @@ function computeRowStatus(
     return {
       kind: "absence",
       absenceType: absence.absence_type,
+      absenceTypeLabel: absence.absence_type_label ?? "",
       halfDay: isHalfAbsenceBoundary(absence, dateKey, startDate, endDate),
     };
   }
@@ -806,7 +813,8 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   }
   if (status.kind === "absence") {
     const absenceLabel =
-      ABSENCE_TYPE_LABEL[status.absenceType] ?? ABSENCE_TYPE_LABEL.other!;
+      status.absenceTypeLabel ||
+      (ABSENCE_TYPE_LABEL[status.absenceType] ?? ABSENCE_TYPE_LABEL.other!);
     const label = status.halfDay
       ? `${absenceLabel} · Halber Tag`
       : absenceLabel;

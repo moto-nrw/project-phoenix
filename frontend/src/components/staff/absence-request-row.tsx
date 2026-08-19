@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   ABSENCE_TYPE_HEX,
-  ABSENCE_TYPE_LABEL,
+  absenceRowLabel,
   absenceStatusMeta,
   dayCountFor,
   formatAbsenceDate,
@@ -49,7 +49,7 @@ export function AbsenceRequestRow({
                 <p className="text-sm font-bold text-gray-900">{staffName}</p>
               )}
               <StatusDotBadge
-                label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+                label={absenceRowLabel(row)}
                 color={
                   ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
                 }

@@ -22,6 +22,20 @@ export const ABSENCE_TYPE_HEX: Record<string, string> = {
   comp_time: LOCATION_COLORS.TRANSIT,
 };
 
+// The label to show for one absence row. A school-defined Abwesenheitsart
+// (#2403) wins over the standard label — its whole purpose is that the school
+// reads its own wording ("Regenerationstag"), not the "Sonstige" the type
+// resolves to. Every view that renders an absence type goes through here so
+// the wording cannot differ between the Abwesenheiten-Tab, the Monatskarte and
+// an export.
+export function absenceRowLabel(row: {
+  readonly absence_type: string;
+  readonly absence_type_label?: string;
+}): string {
+  if (row.absence_type_label) return row.absence_type_label;
+  return ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type;
+}
+
 // Noun form for action labels ("Krankmeldung löschen", not "Krank löschen");
 // unknown types fall back to the generic noun.
 export function absenceTypeNoun(absenceType: string): string {

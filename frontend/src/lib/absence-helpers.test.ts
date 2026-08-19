@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   ABSENCES_REFRESH_EVENT,
+  absenceRowLabel,
   absenceTypeNoun,
   absenceStatusMeta,
   countWorkdaysInclusive,
@@ -193,5 +194,27 @@ describe("dispatchAbsencesRefresh", () => {
 
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
+  });
+});
+
+describe("absenceRowLabel", () => {
+  it("uses the standard German label for a standard type", () => {
+    expect(absenceRowLabel({ absence_type: "sick" })).toBe("Krank");
+    expect(absenceRowLabel({ absence_type: "comp_time" })).toBe(
+      "Freizeitausgleich",
+    );
+  });
+
+  it("prefers the school's own Abwesenheitsart wording", () => {
+    expect(
+      absenceRowLabel({
+        absence_type: "other",
+        absence_type_label: "Regenerationstag",
+      }),
+    ).toBe("Regenerationstag");
+  });
+
+  it("falls back to the raw type for a value it does not know", () => {
+    expect(absenceRowLabel({ absence_type: "sabbatical" })).toBe("sabbatical");
   });
 });

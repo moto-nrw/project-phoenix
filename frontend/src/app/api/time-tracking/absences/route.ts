@@ -8,6 +8,8 @@ export const GET = proxyGet("/api/time-tracking/absences");
 
 interface CreateAbsenceBody {
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403). */
+  absence_type_id?: number | null;
   date_start: string;
   date_end: string;
   half_day?: boolean;

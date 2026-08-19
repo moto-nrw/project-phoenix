@@ -29,6 +29,7 @@ import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import {
   ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
+  absenceRowLabel,
   absenceStatusMeta,
   absenceTypeNoun as absenceTypeLabel,
   dayCountFor as sharedDayCountFor,
@@ -756,7 +757,7 @@ function AbsenceRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <StatusDotBadge
-            label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            label={absenceRowLabel(row)}
             color={
               ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
             }
