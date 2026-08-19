@@ -39,9 +39,9 @@ describe("CreatableSelect", () => {
     });
 
     expect(
-      screen.getByRole("button", { name: /Regenerationstag/ }),
+      screen.getByRole("option", { name: /Regenerationstag/ }),
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Krank" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Krank" })).toBeNull();
   });
 
   it("offers to add a name that does not exist yet and selects it", async () => {
@@ -178,7 +178,7 @@ describe("CreatableSelect", () => {
     );
     open();
 
-    expect(screen.getByRole("button", { name: /Sonderurlaub/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Sonderurlaub/ })).toBeTruthy();
   });
 
   it("hides a retired option from someone who cannot restore it", () => {
@@ -191,6 +191,6 @@ describe("CreatableSelect", () => {
     );
     open();
 
-    expect(screen.queryByRole("button", { name: /Sonderurlaub/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Sonderurlaub/ })).toBeNull();
   });
 });

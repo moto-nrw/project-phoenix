@@ -267,7 +267,11 @@ export function CreatableSelect({
             </p>
           ) : null}
 
-          <div className="max-h-64 scrollbar-thin overflow-y-auto">
+          <div
+            role="listbox"
+            aria-label={ariaLabel ?? "Auswahl"}
+            className="max-h-64 scrollbar-thin overflow-y-auto"
+          >
             {filtered.length === 0 && !canCreate ? (
               <p className="px-2 py-3 text-sm text-gray-500">Kein Treffer.</p>
             ) : null}
@@ -321,6 +325,8 @@ export function CreatableSelect({
                 >
                   <button
                     type="button"
+                    role="option"
+                    aria-selected={option.value === value}
                     onClick={() => {
                       onChange(option.value);
                       close();
