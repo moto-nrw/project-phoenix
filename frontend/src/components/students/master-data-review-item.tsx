@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -140,7 +141,8 @@ export function MasterDataReviewItem({
   return (
     <RequestReviewCard
       childName={`${row.first_name} ${row.last_name}`}
-      summary={fieldLabel(row.field_key)}
+      summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
+      submittedAt={row.created_at}
       reason={reason}
       onReasonChange={setReason}
       reasonPlaceholder="Begründung (optional)"
@@ -149,8 +151,8 @@ export function MasterDataReviewItem({
       onReject={() => void decide(false)}
     >
       {error && (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-2 rounded-xl border p-3 text-sm">
-          {error}
+        <div className="mb-2">
+          <Alert type="error" message={error} />
         </div>
       )}
       <ReviewDiffPanel>

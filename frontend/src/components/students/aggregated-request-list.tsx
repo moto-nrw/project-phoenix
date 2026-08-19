@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -90,13 +91,32 @@ export function AggregatedRequestList({
     [view, filters],
   );
 
+  // Bei sehr selektiven Filtern kann eine Server-Seite leer sein, aber einen
+  // Cursor tragen (Scan-Budget des Aggregators). Bis zu drei Folgeseiten
+  // automatisch nachziehen, damit niemand blind auf „Weitere Einträge laden"
+  // drücken muss; danach übernimmt der sichtbare Nachlade-Knopf.
+  const fetchFilledPage = useCallback(
+    async (cursor?: string) => {
+      let page = await fetchPage(cursor);
+      for (
+        let follows = 0;
+        page.items.length === 0 && page.next_cursor && follows < 3;
+        follows++
+      ) {
+        page = await fetchPage(page.next_cursor);
+      }
+      return page;
+    },
+    [fetchPage],
+  );
+
   // Erste Seite laden — auch bei jeder Such-/Filteränderung (fetchPage wechselt
   // die Identität), dann ersetzt die Antwort die Liste komplett.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchPage()
+    fetchFilledPage()
       .then((page) => {
         if (cancelled) return;
         setItems([...page.items]);
@@ -114,7 +134,7 @@ export function AggregatedRequestList({
     return () => {
       cancelled = true;
     };
-  }, [fetchPage]);
+  }, [fetchFilledPage]);
 
   // Refetch ohne Spinner, wenn eine Entscheidung anderswo fällt: Entscheidungen
   // in diesem Fenster senden change-requests-refresh, Entscheidungen anderswo
@@ -123,14 +143,14 @@ export function AggregatedRequestList({
   // Umschalten frisch.
   const reloadInPlace = useCallback(async () => {
     try {
-      const page = await fetchPage();
+      const page = await fetchFilledPage();
       setItems([...page.items]);
       setNextCursor(page.next_cursor);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("aggregated_request_list_reload_failed", { error: message });
     }
-  }, [fetchPage]);
+  }, [fetchFilledPage]);
 
   useEffect(() => {
     if (view !== "open") return;
@@ -161,7 +181,7 @@ export function AggregatedRequestList({
     setLoadingMore(true);
     setError(null);
     try {
-      const page = await fetchPage(nextCursor);
+      const page = await fetchFilledPage(nextCursor);
       setItems((prev) => [...prev, ...page.items]);
       setNextCursor(page.next_cursor);
     } catch (err) {
@@ -173,7 +193,7 @@ export function AggregatedRequestList({
     } finally {
       setLoadingMore(false);
     }
-  }, [fetchPage, nextCursor]);
+  }, [fetchFilledPage, nextCursor]);
 
   // Nach einer Entscheidung: Zeile entfernen, Hinweis zeigen und das
   // Badge/die Geschwister-Ansichten über change-requests-refresh anstoßen.
@@ -203,16 +223,8 @@ export function AggregatedRequestList({
 
   return (
     <div className="space-y-3">
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-xl border p-3 text-sm">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-          {notice}
-        </div>
-      )}
+      {error && <Alert type="error" message={error} />}
+      {notice && <Alert type="success" message={notice} />}
       {items.length === 0 && !error ? (
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}

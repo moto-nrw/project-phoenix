@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -180,7 +181,8 @@ export function OfferingRequestReviewItem({
   return (
     <RequestReviewCard
       childName={row.student_name}
-      summary={`ab ${formatDate(row.effective_from)}`}
+      summary={`Betreuungsangebote und AGs · ab ${formatDate(row.effective_from)}`}
+      submittedAt={row.created_at}
       reason={reason}
       onReasonChange={(value) => {
         setReason(value);
@@ -197,8 +199,8 @@ export function OfferingRequestReviewItem({
       onReject={() => void decide(false)}
     >
       {error && (
-        <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
-          {error}
+        <div className="mb-2">
+          <Alert type="error" message={error} />
         </div>
       )}
       <ReviewDiffPanel>

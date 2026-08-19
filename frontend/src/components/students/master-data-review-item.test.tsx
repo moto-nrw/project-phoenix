@@ -67,7 +67,7 @@ describe("MasterDataReviewItem", () => {
 
     expect(screen.getAllByText("Lara Beispiel")).toHaveLength(2);
     expandAll();
-    expect(screen.getByText("Vorname")).toBeInTheDocument();
+    expect(screen.getByText("Stammdaten · Vorname")).toBeInTheDocument();
     expect(screen.getByText("Montag: Wird abgeholt")).toBeInTheDocument();
     expect(
       screen.getByText("Montag: Fährt Bus / Geht zu Fuß"),
@@ -207,7 +207,7 @@ describe("MasterDataReviewItem", () => {
 
     expandAll();
     // Unknown field keys fall back to the raw key in the summary.
-    expect(screen.getAllByText("unknown_field").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/unknown_field/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>

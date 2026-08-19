@@ -83,7 +83,8 @@ type AggregatedChangeRequestPage struct {
 // aggregatedCursor maps request types to their keyset position — the last DB
 // row of that type the client has consumed. Types absent from the map start
 // from the top. Opaque on the wire (base64url JSON), like the per-type
-// history cursor.
+// history cursor. On the open view the position instant is the row's
+// created_at; the payload field name (u) just follows the shared wire shape.
 type aggregatedCursor map[string]historyCursorPayload
 
 func encodeAggregatedCursor(cursor aggregatedCursor) string {

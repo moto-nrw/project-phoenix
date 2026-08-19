@@ -56,7 +56,7 @@ describe("ExcusedRequestReviewItem", () => {
 
     // Summary appears in the collapsed header and again in the expanded panel.
     expect(
-      screen.getAllByText("01.07.2026 – 03.07.2026").length,
+      screen.getAllByText(/01\.07\.2026 – 03\.07\.2026/).length,
     ).toBeGreaterThan(0);
     expand();
     expect(screen.getByText("Notiz der Eltern:")).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("ExcusedRequestReviewItem", () => {
     );
 
     expect(
-      screen.getAllByText("01.07.2026, 03.07.2026").length,
+      screen.getAllByText(/01\.07\.2026, 03\.07\.2026/).length,
     ).toBeGreaterThan(0);
   });
 

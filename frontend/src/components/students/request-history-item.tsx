@@ -25,7 +25,8 @@ function MasterDataHistoryCard({
   return (
     <RequestReviewCard
       childName={`${row.first_name} ${row.last_name}`}
-      summary={fieldLabel(row.field_key)}
+      summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
+      submittedAt={row.created_at}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -51,6 +52,7 @@ function CareHistoryCard({
       summary={
         row.request_kind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten"
       }
+      submittedAt={row.created_at}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -84,6 +86,7 @@ function OfferingHistoryCard({
     <RequestReviewCard
       childName={row.student_name}
       summary="Betreuungsangebote und AGs"
+      submittedAt={row.created_at}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -126,6 +129,7 @@ function ExcusedHistoryCard({
     <RequestReviewCard
       childName={`${row.first_name} ${row.last_name}`}
       summary="Entschuldigte Abmeldung"
+      submittedAt={row.created_at}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
