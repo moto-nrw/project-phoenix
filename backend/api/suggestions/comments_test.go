@@ -44,8 +44,8 @@ func createCommentTestPost(t *testing.T, db *bun.DB, accountID int64, title, des
 		Status:      suggestions.StatusOpen,
 		Score:       0,
 	}
-	post.SetTenantID(1)
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	post.SetTenantID(testpkg.Tenant(t))
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 	_, err := db.NewInsert().
 		Model(post).
@@ -61,7 +61,7 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 	if len(commentIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.comments").
@@ -74,7 +74,7 @@ func cleanupCommentPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 	if len(postIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.votes").

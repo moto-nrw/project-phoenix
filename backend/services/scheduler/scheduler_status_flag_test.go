@@ -63,8 +63,8 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// Call the scheduler helper inside a tenant tx so the UPDATE lands.
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	ctx := testpkg.Ctx(t)
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		affected, clearErr := s.clearStatusFlag(txCtx, "sick", "sick_since")
 		require.NoError(t, clearErr)
 		// We don't assert exact row count — other tests may leave sick rows
@@ -226,8 +226,8 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	ctx := testpkg.Ctx(t)
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		affected, clearErr := s.clearStatusFlag(txCtx, "excused", "excused_since")
 		require.NoError(t, clearErr)
 		assert.GreaterOrEqual(t, affected, int64(1))

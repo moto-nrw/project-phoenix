@@ -88,7 +88,7 @@ func TestFacilitiesService_GetRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns room for valid ID", func(t *testing.T) {
 		// ARRANGE
@@ -133,7 +133,7 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns room with occupancy status - unoccupied", func(t *testing.T) {
 		// ARRANGE
@@ -217,7 +217,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, name := range []string{constants.SchulhofRoomName, "schulhof", "SCHULHOF"} {
 		t.Run("rejects reserved Schulhof room name "+name, func(t *testing.T) {
@@ -313,7 +313,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -452,7 +452,7 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -554,7 +554,7 @@ func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("locks then maps materializability conflict", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-CareOffering")
@@ -611,7 +611,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all rooms with nil options", func(t *testing.T) {
 		// ARRANGE
@@ -692,7 +692,7 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds room by exact name", func(t *testing.T) {
 		// ARRANGE
@@ -728,7 +728,7 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rooms by category", func(t *testing.T) {
 		// ARRANGE
@@ -771,7 +771,7 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns rooms with sufficient capacity", func(t *testing.T) {
 		// ARRANGE
@@ -835,7 +835,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns rooms with occupancy status", func(t *testing.T) {
 		// ARRANGE
@@ -903,7 +903,7 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of unique buildings", func(t *testing.T) {
 		// ARRANGE - Create rooms in different buildings
@@ -971,7 +971,7 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of unique categories", func(t *testing.T) {
 		// ARRANGE
@@ -1041,7 +1041,7 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent room", func(t *testing.T) {
 		// ARRANGE

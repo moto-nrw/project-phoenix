@@ -152,7 +152,7 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	before, err := repo.Stats(ctx)
 	require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -224,7 +224,7 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -262,7 +262,7 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -292,7 +292,7 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -361,7 +361,7 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 

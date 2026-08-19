@@ -18,7 +18,7 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).NotificationPreference
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pref-%d@example.com", suffix))

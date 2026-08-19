@@ -54,10 +54,10 @@ func setupTestContext(t *testing.T) *testContext {
 }
 
 // createAdminClaims creates admin JWT claims for testing
-func createAdminClaims(accountID int) jwt.AppClaims {
+func createAdminClaims(tb testing.TB, accountID int) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          accountID,
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(tb),
 		Sub:         "admin@example.com",
 		Username:    "admin",
 		FirstName:   "Admin",
@@ -72,7 +72,7 @@ func createAdminClaims(accountID int) jwt.AppClaims {
 // transition permissions) so requests pass the production auth chain in Router().
 func mintAdminToken(t *testing.T, accountID int64) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, createAdminClaims(int(accountID)))
+	return testutil.MintTestJWT(t, createAdminClaims(t, int(accountID)))
 }
 
 // mintNoPermissionToken signs a real JWT for the same authenticated account but
@@ -80,7 +80,7 @@ func mintAdminToken(t *testing.T, accountID int64) string {
 // middleware's 403 path.
 func mintNoPermissionToken(t *testing.T, accountID int64) string {
 	t.Helper()
-	claims := createAdminClaims(int(accountID))
+	claims := createAdminClaims(t, int(accountID))
 	claims.Permissions = nil
 	claims.Roles = []string{"user"}
 	claims.IsAdmin = false
@@ -986,7 +986,7 @@ func TestGradeTransitionResource_GetHistory_OmitsRFIDTag(t *testing.T) {
 	require.Equal(t, http.StatusOK, applyRR.Code)
 
 	// Guard against a vacuous pass: the ledger row must actually carry the tag.
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 	var ledgerTag *string
 	require.NoError(t, tc.db.NewSelect().

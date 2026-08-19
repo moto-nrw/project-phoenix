@@ -27,7 +27,7 @@ import (
 func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	usersService.WireStudentDocumentCleanup(service, repos.StudentDocument)

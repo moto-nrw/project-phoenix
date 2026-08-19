@@ -36,7 +36,7 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-classteacher@test.local")
@@ -60,7 +60,7 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 	graduateTeacher := testpkg.CreateTestStaff(t, db, "Remap", "GraduateTeacher")
 	defer testpkg.CleanupStaffFixtures(t, db, chainTeacher.ID, graduateTeacher.ID)
 	defer func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id IN (?)", bun.List([]int64{chainTeacher.ID, graduateTeacher.ID})).
 			Exec(tenantCtx)
@@ -101,7 +101,7 @@ func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t 
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-exactmatch@test.local")
@@ -120,7 +120,7 @@ func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t 
 	teacher := testpkg.CreateTestStaff(t, db, "Exact", "CaseTeacher")
 	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
 	defer func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
 	}()
@@ -144,7 +144,7 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-offboard@test.local")
@@ -160,7 +160,7 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 	teacher := testpkg.CreateTestStaff(t, db, "Offboard", "Teacher")
 	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
 	defer func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
 	}()
@@ -198,7 +198,7 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-adminremoval@test.local")
@@ -215,7 +215,7 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 	teacher := testpkg.CreateTestStaff(t, db, "AdminRemoval", "Teacher")
 	defer testpkg.CleanupStaffFixtures(t, db, teacher.ID)
 	defer func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
 	}()
@@ -271,7 +271,7 @@ func setupChainTeacherTransition(t *testing.T, db *bun.DB) (teacherID, transitio
 
 	cleanup = func() {
 		testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
 		testpkg.CleanupStaffFixtures(t, db, teacher.ID)
@@ -308,7 +308,7 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	teacherID, transitionID, accountID, _, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
@@ -338,7 +338,7 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	teacherID, transitionID, accountID, class1, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
@@ -365,7 +365,7 @@ func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testi
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-ledger@test.local")
@@ -385,7 +385,7 @@ func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testi
 	bystander := testpkg.CreateTestStaff(t, db, "Ledger", "Bystander")
 	defer testpkg.CleanupStaffFixtures(t, db, mergeTeacher.ID, bystander.ID)
 	defer func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").
 			Where("staff_id IN (?)", bun.List([]int64{mergeTeacher.ID, bystander.ID})).
 			Exec(tenantCtx)

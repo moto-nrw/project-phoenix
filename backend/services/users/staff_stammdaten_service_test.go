@@ -49,7 +49,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 		DB:                     db,
 	})
 
-	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.TenantContext(1)}
+	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
 func (s *stammdatenScenario) auditRows(t *testing.T, staffID int64) []*auditModels.StaffMasterDataChange {

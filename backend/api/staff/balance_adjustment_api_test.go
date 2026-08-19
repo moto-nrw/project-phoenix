@@ -149,7 +149,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// Accrue four hours before exercising payout and reset behavior. The source
 	// issue permits paying out plus-hours; an empty account is not a valid
 	// payout fixture.
-	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	tenantID := testpkg.Tenant(t)
 	// Adjustments are effective at the start of their date, so fund the
 	// payout with work completed on the preceding day.
 	accrualDate := resetDate.AddDays(-1)

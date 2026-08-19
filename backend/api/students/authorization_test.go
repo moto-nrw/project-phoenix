@@ -138,7 +138,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Update student with additional fields using raw SQL - use ? placeholders
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET guardian_email = ?, guardian_phone = ?, extra_info = ? WHERE id = ?",
 			"guardian@example.com", "+49123456789", "Important notes", student.ID)
@@ -161,7 +161,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET address_street = ? WHERE id = ?",
 			"Vollzugriffweg 1", student.ID)
@@ -191,7 +191,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		guest := testpkg.CreateTestAccount(t, tc.db, "students-redacted-guest@example.com")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET address_street = ? WHERE id = ?",
 			"Geheimstrasse 9", student.ID)

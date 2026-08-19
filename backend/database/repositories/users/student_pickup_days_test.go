@@ -22,7 +22,7 @@ func requireStudentsPickupDaysColumn(t *testing.T, db *bun.DB) {
 			  AND table_name = 'students'
 			  AND column_name = 'pickup_days'
 		)
-	`).Scan(testpkg.TenantContext(1), &exists)
+	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
 	if !exists {
 		t.Skip("users.students.pickup_days column is not present in this test database")
@@ -37,7 +37,7 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("persists and hydrates an explicit weekday map", func(t *testing.T) {
 		requireStudentsPickupDaysColumn(t, db)

@@ -61,7 +61,7 @@ func classListEntryClassesOf(t *testing.T, db *bun.DB, ctx context.Context, firs
 
 func cleanupClassListEntriesByName(t *testing.T, db *bun.DB, names [][2]string) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	for _, name := range names {
 		_, _ = db.NewDelete().TableExpr("users.class_list_entries").
 			Where("first_name = ? AND last_name = ?", name[0], name[1]).
@@ -79,7 +79,7 @@ func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle@test.local")
@@ -145,7 +145,7 @@ func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testin
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-del@test.local")
@@ -173,7 +173,7 @@ func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testin
 	// The admin takes the child off the list after the apply.
 	_, err = db.NewDelete().TableExpr("users.class_list_entries").
 		Where("first_name = ? AND last_name = ?", "CleMia", "Entfernt").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
@@ -191,7 +191,7 @@ func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-coll@test.local")
@@ -244,7 +244,7 @@ func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-case@test.local")
@@ -288,7 +288,7 @@ func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-edit@test.local")
@@ -319,7 +319,7 @@ func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T
 	_, err = db.NewUpdate().TableExpr("users.class_list_entries").
 		Set("school_class = ?", class2Upper).
 		Where("first_name = ? AND last_name = ?", "CleNina", "Bearbeitet").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
@@ -335,7 +335,7 @@ func TestGradeTransitionService_ClassListEntries_NoEntriesNoLedger(t *testing.T)
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-empty@test.local")

@@ -220,6 +220,6 @@ func setColumn(t *testing.T, ctx *testContext, table, column string, value any, 
 		TableExpr(table).
 		Set(column+" = ?", value).
 		Where("id = ?", id).
-		Exec(testutil.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err, "failed to set %s.%s", table, column)
 }

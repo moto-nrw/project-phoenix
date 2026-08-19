@@ -36,7 +36,7 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "BatchVisit", "Target", "6d")
 	lateStudent := testpkg.CreateTestStudent(t, db, "BatchVisit", "Rollover", "6d")
@@ -102,9 +102,12 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 
 func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "BatchClear", "Target", "6e")
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "BatchClear Edu")
@@ -144,7 +147,7 @@ func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "BatchAction", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)

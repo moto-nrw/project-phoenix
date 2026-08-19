@@ -22,7 +22,7 @@ func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -119,7 +119,7 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -244,7 +244,7 @@ func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -293,7 +293,7 @@ func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -352,7 +352,7 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -398,7 +398,7 @@ func TestWorkSessionBreakRepository_List(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)

@@ -43,7 +43,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 		now := time.Now()
 		mapping := &authModels.AccountTenant{
 			AccountID:   accountID,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
@@ -51,7 +51,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 		require.NoError(t, err)
 
 		adminRole := &authModels.AccountRole{AccountID: accountID, RoleID: adminRoleID}
-		adminRole.SetTenantID(1)
+		adminRole.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(adminRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -71,7 +71,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 		now := time.Now()
 		mapping := &authModels.AccountTenant{
 			AccountID:   accountID,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
@@ -94,13 +94,13 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	// change any other test that relies on the registry default.
 	_, derr := db.ExecContext(ctx, `
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (1, 'notifications.dispatch_enabled', 'true'::jsonb)
-		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb`)
+		VALUES (?, 'notifications.dispatch_enabled', 'true'::jsonb)
+		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb`, testpkg.Tenant(t))
 	require.NoError(t, derr)
 	t.Cleanup(func() {
 		_, cerr := db.ExecContext(context.Background(), `
 			DELETE FROM config.setting_values
-			WHERE tenant_id = 1 AND setting_key = 'notifications.dispatch_enabled'`)
+			WHERE tenant_id = ? AND setting_key = 'notifications.dispatch_enabled'`, testpkg.Tenant(t))
 		require.NoError(t, cerr)
 	})
 
@@ -113,7 +113,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			P256dh:    "test-p256dh",
 			Auth:      "test-auth",
 		}
-		sub.SetTenantID(1)
+		sub.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -129,7 +129,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	// Somebody who already said no. A backfill must never overwrite a decision.
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO users.notification_preferences (tenant_id, account_id, notification_type, enabled)
-		VALUES (1, ?, 'pickup_upcoming', FALSE)`, optedOutAccount.ID)
+		VALUES (?, ?, 'pickup_upcoming', FALSE)`, testpkg.Tenant(t), optedOutAccount.ID)
 	require.NoError(t, err)
 
 	accountIDs := []int64{parentAccount.ID, adminAccount.ID, staffAccount.ID, silentAccount.ID, optedOutAccount.ID}

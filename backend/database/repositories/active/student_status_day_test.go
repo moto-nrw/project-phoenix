@@ -20,7 +20,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
@@ -83,7 +83,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
@@ -137,7 +137,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 	date := timezone.TodayDate().AddDays(6)
 	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
-		TenantModel: modelBase.TenantModel{TenantID: 1},
+		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   student.ID,
 		Date:        date,
 		Status:      active.StudentStatusDaySick,
@@ -149,7 +149,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 
-	rows, err = repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, date, date)
+	rows, err = repo.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 }
@@ -245,7 +245,7 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 
-	err := repo.UpsertReported(testpkg.TenantContext(1), nil)
+	err := repo.UpsertReported(testpkg.Ctx(t), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
@@ -258,7 +258,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
@@ -316,7 +316,7 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 

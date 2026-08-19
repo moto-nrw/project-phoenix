@@ -38,7 +38,7 @@ func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *
 
 func cleanupClassAssignments(t *testing.T, db *bun.DB, staffID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("staff_id = ?", staffID).Exec(ctx)
 }
 
@@ -46,7 +46,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassTeacherService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "class-teacher-actor@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
@@ -143,7 +143,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		defer cleanupClassAssignments(t, db, staff.ID)
 		defer func() {
-			tenantCtx := testpkg.TenantContext(1)
+			tenantCtx := testpkg.Ctx(t)
 			_, _ = db.NewDelete().TableExpr("audit.staff_master_data_changes").
 				Where("staff_id = ?", staff.ID).Exec(tenantCtx)
 		}()

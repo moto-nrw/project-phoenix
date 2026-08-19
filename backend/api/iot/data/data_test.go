@@ -312,7 +312,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 	}
-	activeGroup.SetTenantID(1)
+	activeGroup.SetTenantID(testpkg.Tenant(t))
 	err := tc.db.NewInsert().
 		Model(activeGroup).
 		ModelTableExpr(`active.groups AS "active_group"`).

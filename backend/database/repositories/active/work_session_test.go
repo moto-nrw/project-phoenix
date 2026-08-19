@@ -21,7 +21,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -90,7 +90,7 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -125,7 +125,7 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -178,7 +178,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -231,7 +231,7 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	today := timezone.TodayDate()
 
 	_, err := repo.GetHistoryByStaffID(ctx, 7, today, today)
@@ -243,7 +243,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -305,7 +305,7 @@ func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.GetOpenSessions(testpkg.TenantContext(1), timezone.TodayDate())
+	_, err := repo.GetOpenSessions(testpkg.Ctx(t), timezone.TodayDate())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get open sessions")
 }
@@ -314,7 +314,7 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
@@ -366,7 +366,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -417,7 +417,7 @@ func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.List(testpkg.TenantContext(1), nil)
+	_, err := repo.List(testpkg.Ctx(t), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list")
 }
@@ -430,7 +430,7 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -487,7 +487,7 @@ func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	err := repo.UpdateBreakMinutes(testpkg.TenantContext(1), 1, 30)
+	err := repo.UpdateBreakMinutes(testpkg.Ctx(t), 1, 30)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "update columns")
 }
@@ -496,7 +496,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -584,7 +584,7 @@ func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.CloseSession(testpkg.TenantContext(1), 1, time.Now(), false)
+	_, err := repo.CloseSession(testpkg.Ctx(t), 1, time.Now(), false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close session")
 }

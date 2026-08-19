@@ -17,7 +17,7 @@ func TestVoteRepository_Upsert(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-upsert")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -73,7 +73,7 @@ func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -102,7 +102,7 @@ func TestVoteRepository_FindByPostAndVoter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-find")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

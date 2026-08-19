@@ -21,7 +21,7 @@ import (
 // never created by staff.
 func markCategorySystem(t *testing.T, db *bun.DB, categoryID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
 		Table("activities.categories").
 		Set("is_system = TRUE").
@@ -34,7 +34,7 @@ func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestActivityCategory(t, db, "DuplicateGuard")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, existing.ID, 0)
@@ -48,7 +48,7 @@ func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, name := range []string{" wc ", "sChUlHoF"} {
 		t.Run(name, func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestServiceUpdateCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("renames a school-owned category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Renameable")
@@ -153,7 +153,7 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// An activity group referencing the category is exactly the "verwendete
 	// Kategorie" case: archiving must not break it.
@@ -210,7 +210,7 @@ func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	original := testpkg.CreateTestActivityCategory(t, db, "NameReuse")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, original.ID, 0)
@@ -236,7 +236,7 @@ func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, db, "SystemArchiveGuard")
 	markCategorySystem(t, db, category.ID)
@@ -251,7 +251,7 @@ func TestServiceCategoryUsageCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "UsageCounted")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, group.ID, group.CategoryID, 0)
@@ -281,7 +281,7 @@ func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
 
 	// Acting as tenant 1, the other school's category must be invisible for
 	// every write path — not merely unauthorized, but not found.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := service.UpdateCategory(ctx, foreign.ID, activities.CategoryInput{Name: "Gekapert"})
 	require.Error(t, err)

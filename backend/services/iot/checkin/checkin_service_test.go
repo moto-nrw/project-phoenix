@@ -36,9 +36,9 @@ func setupCheckinServiceTest(t *testing.T) *svcTestContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	// Belt-and-suspenders: ensure the FK target row for tenant_id=1 exists on
+	// Belt-and-suspenders: ensure the FK target row for this test's tenant exists on
 	// the exact connection pool used by the services.
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	return &svcTestContext{svc: svc.Checkin, db: db}
 }
@@ -57,12 +57,12 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 
 	_, err := db.NewInsert().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err, "Failed to create test active group with device")
 
 	return group
@@ -76,7 +76,7 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "device-group-match")
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupMatchRoom")
@@ -93,7 +93,7 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "device-group-nomatch")
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupNoMatchRoom")
@@ -334,7 +334,7 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activeStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Active", "1a")
 	alumStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Alumnus", "4a")
@@ -367,7 +367,7 @@ func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 func TestProcessStudentCheckin_RoomRejectsGraduatedRace(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "grad-race-group")
 	room := testpkg.CreateTestRoom(t, tc.db, "GradRaceRoom")

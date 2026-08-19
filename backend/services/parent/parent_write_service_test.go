@@ -619,7 +619,7 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
-	tctx := testpkg.TenantContext(1)
+	tctx := testpkg.Ctx(t)
 
 	base := timezone.TodayDate().AddDays(7)
 	mon := base
@@ -743,7 +743,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
-	tctx := testpkg.TenantContext(1)
+	tctx := testpkg.Ctx(t)
 
 	staffExcusedDay := timezone.TodayDate().AddDays(2)
 	parentExcusedDay := timezone.TodayDate().AddDays(4)

@@ -99,7 +99,7 @@ func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditM
 
 func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstName, lastName string) int64 {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	reqID, childID := submitOneChild(t, env, email, firstName, lastName)
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID:  reqID,
@@ -121,7 +121,7 @@ func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstNa
 func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// The submitted request pins the phase's active schema, so the export
 	// loop will attempt to load it — and the failing repo makes that error.
@@ -139,7 +139,7 @@ func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testin
 func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-happy@example.com", "Lina", "Export")
 
@@ -172,7 +172,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-blocked@example.com", "Mara", "Blocked")
 
@@ -193,7 +193,7 @@ func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) 
 func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Two submissions: both children start "submitted". Approve one so the
 	// phase holds a mixed set.
@@ -239,7 +239,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-export@example.com", "Sina", "Export")
 	audit := &stubAccessLogRepo{}
@@ -267,7 +267,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	audit := &stubAccessLogRepo{}
 
 	data, err := newExportDecisionService(env, audit).
@@ -289,7 +289,7 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 	audit := &stubAccessLogRepo{}
 
 	data, err := newExportDecisionService(env, audit).
-		ExportStudent(testpkg.TenantContext(1), foreign.ID, 4242, "admin", "pdf")
+		ExportStudent(testpkg.Ctx(t), foreign.ID, 4242, "admin", "pdf")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDecisionStudentNotFound))
 	assert.Nil(t, data)
@@ -299,7 +299,7 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 func TestDecisionService_ExportStudent_PhaseLoadFailureBlocksDisclosure(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-phasefail@example.com", "Paula", "PhaseFail")
 	audit := &stubAccessLogRepo{}

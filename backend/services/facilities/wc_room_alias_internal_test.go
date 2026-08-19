@@ -61,12 +61,12 @@ func cleanupWCRoomAliasArtifactsInternal(t *testing.T, db *bun.DB) {
 func createWCRoomAliasRoomInternal(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(room).
@@ -86,7 +86,7 @@ func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 	service := setupWCServiceInternal(t, db)
 	aliasRoom := createWCRoomAliasRoomInternal(t, db, constants.WCRoomAliasName)
 
-	room, err := service.ensureWCRoom(testpkg.TenantContext(1))
+	room, err := service.ensureWCRoom(testpkg.Ctx(t))
 
 	require.NoError(t, err)
 	require.NotNil(t, room)
@@ -124,7 +124,7 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 	service := setupWCServiceInternal(t, db)
 	lowercaseWC := createWCRoomAliasRoomInternal(t, db, "wc")
 
-	room, err := service.ensureWCRoom(testpkg.TenantContext(1))
+	room, err := service.ensureWCRoom(testpkg.Ctx(t))
 
 	require.Error(t, err, "ensureWCRoom must not silently reuse lowercase wc and must surface the duplicate-name collision when auto-creating canonical WC")
 	assert.Nil(t, room)
@@ -136,7 +136,7 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 		Table("facilities.rooms").
 		Column("name").
 		Where("id = ?", lowercaseWC.ID).
-		Scan(testpkg.TenantContext(1), &nameAfter)
+		Scan(testpkg.Ctx(t), &nameAfter)
 	require.NoError(t, err)
 	assert.Equal(t, "wc", nameAfter)
 }
@@ -155,7 +155,7 @@ func TestFindToiletRoom_SkipsLowercaseWCRoom(t *testing.T) {
 	_ = createWCRoomAliasRoomInternal(t, db, "wc")
 	_ = createWCRoomAliasRoomInternal(t, db, "toilette")
 
-	room, err := service.facilityService.FindToiletRoom(testpkg.TenantContext(1), 0)
+	room, err := service.facilityService.FindToiletRoom(testpkg.Ctx(t), 0)
 
 	require.Error(t, err)
 	assert.Nil(t, room)

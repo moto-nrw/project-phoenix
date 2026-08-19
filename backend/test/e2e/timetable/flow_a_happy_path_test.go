@@ -62,7 +62,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	fromS := target.String()
 	toS := fromS
 	matReq := map[string]any{"from_date": fromS, "to_date": toS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 
 	var matResp struct {
@@ -89,7 +89,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	require.Equal(t, 2, countInstanceStaff(t, s, instance.ID))
 
 	// --- Step 3: start the instance ----------------------------------------
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instance.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instance.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "start body=%s", rr.Body.String())
 
 	var startResp struct {
@@ -126,7 +126,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 		"third student never checked in, should still be expected pre-complete")
 
 	// --- Step 6: complete the instance ------------------------------------
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/complete", instance.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/complete", instance.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "complete body=%s", rr.Body.String())
 
 	var completeResp struct {
@@ -154,7 +154,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	// --- Step 8: student day report for each student ----------------------
 	for _, studentID := range []int64{student1.ID, student2.ID, student3.ID} {
 		path := fmt.Sprintf("/student/%d/day?date=%s", studentID, fromS)
-		rr = s.do("GET", path, nil, primaryAdminClaims())
+		rr = s.do("GET", path, nil, s.primaryAdminClaims())
 		require.Equal(t, http.StatusOK, rr.Code,
 			"/student/%d/day body=%s", studentID, rr.Body.String())
 
@@ -185,7 +185,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	}
 
 	// --- Step 9: tenant isolation -----------------------------------------
-	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", student1.ID, fromS), nil, secondaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", student1.ID, fromS), nil, s.secondaryAdminClaims())
 	assert.Equal(t, http.StatusNotFound, rr.Code,
 		"secondary tenant must not see primary's student (got %d: %s)", rr.Code, rr.Body.String())
 }
@@ -199,7 +199,7 @@ func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".activity_group_id = ?`, templateID).
 		Where(`"activity_instance".date = ?`, date).
-		Where(`"activity_instance".tenant_id = ?`, primaryTenantID).
+		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
 		Scan(s.tenantCtx())
 	require.NoError(t, err, "fetch instance for template %d on %s", templateID, date)
 	return &inst
@@ -213,7 +213,7 @@ func fetchInstanceStudents(t *testing.T, s *scenario, instanceID int64) []schedu
 		Model(&rows).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
-		Where(`"instance_student".tenant_id = ?`, primaryTenantID).
+		Where(`"instance_student".tenant_id = ?`, s.primaryTenant).
 		Scan(s.tenantCtx())
 	require.NoError(t, err, "fetch instance_students for %d", instanceID)
 	return rows
@@ -226,7 +226,7 @@ func countInstanceStaff(t *testing.T, s *scenario, instanceID int64) int {
 		Model((*scheduleModel.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
-		Where(`"instance_staff".tenant_id = ?`, primaryTenantID).
+		Where(`"instance_staff".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err, "count instance_staff for %d", instanceID)
 	return n

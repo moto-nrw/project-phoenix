@@ -87,7 +87,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student (but NO attendance record)
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
@@ -113,7 +113,7 @@ func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "AttendanceRead", "Failure", "2a")
 	require.NoError(t, db.Close())
@@ -130,7 +130,7 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
@@ -159,7 +159,7 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
@@ -189,7 +189,7 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create three students with different attendance states
 	studentNotCheckedIn := testpkg.CreateTestStudent(t, db, "NotIn", "Student1", "3a")
@@ -247,7 +247,7 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Get statuses with empty input
 	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
@@ -266,7 +266,7 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student (not checked in)
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckIn", "4a")
@@ -294,7 +294,7 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "DeviceOnly", "CheckIn", "4d")
 	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-without-staff")
@@ -323,7 +323,7 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student and check them in first
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckOut", "4b")
@@ -352,7 +352,7 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student and check them in
 	student := testpkg.CreateTestStudent(t, db, "ZeroStaff", "Checkout", "4z")
@@ -386,7 +386,7 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student who was checked in and then checked out
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "ReCheckIn", "4c")
@@ -418,9 +418,12 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 // student — the former education-group / room-supervision gate is gone.
 func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("web toggle succeeds for staff without group relationship", func(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
@@ -445,7 +448,7 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
@@ -530,7 +533,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns unclaimed groups without error", func(t *testing.T) {
 		// ARRANGE: Create an active group without supervisors
@@ -562,7 +565,7 @@ func TestClaimActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -661,7 +664,7 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("staff supervising student's room can toggle attendance", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -734,7 +737,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance (check-in)
@@ -753,7 +756,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, testDevice.ID, student.ID)
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance
@@ -769,7 +772,7 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns staff names for check-in and check-out", func(t *testing.T) {
 		// ARRANGE: Create fixtures with staff that has a person record
@@ -826,7 +829,7 @@ func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "CheckIn", "5a")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff")
@@ -849,7 +852,7 @@ func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "AlreadyIn", "5b")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff2")
@@ -874,7 +877,7 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "CheckOut", "5c")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff3")
@@ -903,7 +906,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "device-checkout-activity")
 	room := testpkg.CreateTestRoom(t, db, "Device Checkout Room")
@@ -950,7 +953,7 @@ func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	device := testpkg.CreateTestDevice(t, db, "device-checkout-no-supervisor")
 	student := testpkg.CreateTestStudent(t, db, "Device", "NoSupervisor", "5i")
@@ -985,7 +988,7 @@ func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "Idempotent", "5d")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff4")
@@ -1008,7 +1011,7 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "DoubleOut", "5e")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff5")
@@ -1039,7 +1042,7 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Invariant", "CheckOut", "6a")
 	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff1")
@@ -1079,7 +1082,7 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Invariant", "Orphan", "6b")
 	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff2")
@@ -1115,7 +1118,7 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Invariant", "Toggle", "6c")
 	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff3")
@@ -1148,7 +1151,7 @@ func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "NoRecord", "7a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -1167,7 +1170,7 @@ func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "Unterwegs", "7b")
 	staff := testpkg.CreateTestStaff(t, db, "DailyCheckout", "Supervisor")

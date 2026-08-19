@@ -60,7 +60,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed string) (int64, func()) {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	link := &userModels.StudentGuardian{
 		StudentID:         studentID,
@@ -68,7 +68,7 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 		RelationshipType:  "relative",
 		EmergencyPriority: 2,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 	cleanup := func() {
 		bg := context.Background()
@@ -393,8 +393,8 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 		RelationshipType:  "relative",
 		EmergencyPriority: 2,
 	}
-	otherLink.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(testpkg.TenantContext(1), otherLink))
+	otherLink.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(testpkg.Ctx(t), otherLink))
 
 	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -751,7 +751,7 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -762,14 +762,14 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 		EmergencyPriority: 3,
 		Permissions:       permissions,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
 
 	now := time.Now()
 	mapping := &authModels.AccountTenant{
 		AccountID:   account.ID,
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
@@ -827,7 +827,7 @@ func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (ca
 func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
 	t.Helper()
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	phones, err := repo.FindByGuardianID(testpkg.TenantContext(1), profileID)
+	phones, err := repo.FindByGuardianID(testpkg.Ctx(t), profileID)
 	require.NoError(t, err)
 	require.NotEmpty(t, phones)
 	primaryCount := 0
@@ -847,7 +847,7 @@ func ptr(s string) *string { return &s }
 func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role string) (int64, func()) {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	profile.AddressStreet = ptr("Amtsstr. 5")
 	require.NoError(t, repos.GuardianProfile.Update(ctx, profile))
@@ -859,7 +859,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 		IsPrimary:         true,
 		Priority:          1,
 	}
-	phone.SetTenantID(1)
+	phone.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianPhoneNumber.Create(ctx, phone))
 
 	link := &userModels.StudentGuardian{
@@ -869,7 +869,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 		GuardianRole:      role,
 		EmergencyPriority: 2,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
 	cleanup := func() {
@@ -1306,7 +1306,7 @@ func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAcc
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	if err == nil {
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(ctx)

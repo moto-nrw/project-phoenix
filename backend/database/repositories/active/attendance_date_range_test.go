@@ -27,7 +27,7 @@ func createAttendanceForDate(t *testing.T, ctx context.Context, repo active.Atte
 		CheckedInBy:  staffID,
 		DeviceID:     deviceID,
 	}
-	a.SetTenantID(1)
+	a.SetTenantID(testpkg.Tenant(t))
 	err := repo.Create(ctx, a)
 	require.NoError(t, err)
 	return a
@@ -37,7 +37,7 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 

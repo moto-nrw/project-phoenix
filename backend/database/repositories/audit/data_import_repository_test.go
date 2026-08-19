@@ -19,7 +19,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test account for the imported_by FK
 	account := testpkg.CreateTestAccount(t, db, "import_test@example.com")
@@ -102,7 +102,7 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_import@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -142,7 +142,7 @@ func TestDataImportRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list_import@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

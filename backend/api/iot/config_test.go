@@ -18,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockDeviceTenantID is an arbitrary tenant id for the fully mocked
+// getDeviceConfig tests. They never touch the database, so they must not
+// request a real per-test tenant: doing so would load the project .env
+// mid-test and undo the os.Unsetenv these tests rely on.
+const mockDeviceTenantID int64 = 987654
+
 // newConfigMock builds a configtest.Mock reproducing the behavior of the
 // former hand-rolled configMockSettings stub for testing getDeviceConfig:
 // string values take precedence over bool values in Resolve, and missing
@@ -75,7 +81,7 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -122,7 +128,7 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -152,7 +158,7 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -190,7 +196,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -222,7 +228,7 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -249,7 +255,7 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -283,7 +289,7 @@ func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: nil}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 

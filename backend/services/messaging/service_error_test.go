@@ -125,18 +125,18 @@ func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentM
 }
 
 // errCtx is an admin context (the read scope is satisfied without a userContext).
-func errCtx() context.Context { return adminCtx(1) }
+func errCtx(tb testing.TB) context.Context { return adminCtx(tb, 1) }
 
 func TestListInbox_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{inboxErr: errBoom})
-	_, err := svc.ListInbox(errCtx(), false)
+	_, err := svc.ListInbox(errCtx(t), false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list inbox")
 }
 
 func TestUnreadMessageCount_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{unreadErr: errBoom})
-	_, err := svc.UnreadMessageCount(errCtx())
+	_, err := svc.UnreadMessageCount(errCtx(t))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unread count")
 }
@@ -145,7 +145,7 @@ func TestGetThread_FindThreadErrorIsServerFaultNotNotFound(t *testing.T) {
 	// A transient FindByID failure must be a server error, NOT ErrThreadNotFound
 	// (which would wrongly tell the client the thread does not exist).
 	svc := errSvc(&fakeThreadRepo{findErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := svc.GetThread(errCtx(), 5)
+	_, err := svc.GetThread(errCtx(t), 5)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, messaging.ErrThreadNotFound)
 }
@@ -154,21 +154,21 @@ func TestGetThread_ListMessagesErrorPropagates(t *testing.T) {
 	tr := &fakeThreadRepo{thread: &usersModels.ParentMessageThread{StudentID: 7}}
 	tr.thread.ID = 5
 	svc := errSvc(tr, &fakeMessageRepo{listErr: errBoom}, &fakeReadRepo{})
-	_, err := svc.GetThread(errCtx(), 5)
+	_, err := svc.GetThread(errCtx(t), 5)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list messages")
 }
 
 func TestListStudentThreads_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{studentErr: errBoom})
-	_, err := svc.ListStudentThreads(errCtx(), 7)
+	_, err := svc.ListStudentThreads(errCtx(t), 7)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list student threads")
 }
 
 func TestListGuardians_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := svc.ListGuardians(errCtx(), 7)
+	_, err := svc.ListGuardians(errCtx(t), 7)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list guardians")
 }
@@ -177,7 +177,7 @@ func TestStartThread_GuardianLookupErrorPropagates(t *testing.T) {
 	// authorizeThreadParticipants → ListGuardiansForStudent fails → server error,
 	// not ErrInvalidGuardian (which would wrongly imply the recipient is invalid).
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := svc.StartThread(errCtx(), 7, 2, "Hallo")
+	_, err := svc.StartThread(errCtx(t), 7, 2, "Hallo")
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, messaging.ErrInvalidGuardian)
 }
@@ -188,7 +188,7 @@ func TestStartThread_GetOrCreateErrorPropagates(t *testing.T) {
 		getOrCreateErr: errBoom,
 	}
 	svc := errSvc(tr, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := svc.StartThread(errCtx(), 7, 2, "Hallo")
+	_, err := svc.StartThread(errCtx(t), 7, 2, "Hallo")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get-or-create thread")
 }
@@ -207,7 +207,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
-	_, err := svc.PostMessage(errCtx(), 5, "Hallo", 0)
+	_, err := svc.PostMessage(errCtx(t), 5, "Hallo", 0)
 	require.Error(t, err)
 	assert.Equal(t, 0, parentEventCount(bc, realtime.EventParentMessage), "a failed append must not broadcast")
 }

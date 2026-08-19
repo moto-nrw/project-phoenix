@@ -68,7 +68,7 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 		ReportedAt: fixedNow,
 		Source:     activeModel.StudentStatusSourcePlanned,
 	}
-	statusDay.SetTenantID(1)
+	statusDay.SetTenantID(testpkg.Tenant(t))
 	_, err = tc.db.NewInsert().Model(statusDay).
 		ModelTableExpr("active.student_status_days").
 		Returning("id").

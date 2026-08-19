@@ -28,14 +28,14 @@ func TestClassDayAPI(t *testing.T) {
 	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
 	t.Cleanup(func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.Router()
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
 
 	// Wrong permission → 403 before any data access.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -78,7 +78,7 @@ func TestClassDayAPINoAssignments(t *testing.T) {
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
 
 	// Without any assignment the classes list is empty and the day view is
 	// refused — there is nothing the caller may see.

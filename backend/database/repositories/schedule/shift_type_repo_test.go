@@ -41,7 +41,7 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Lower-case, missing-hash color must be normalized by Validate().
 	zebra := newShiftType("Zebra-"+testUnique(), "83cd2d")
@@ -51,7 +51,7 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 	defer cleanupShiftTypes(t, repo, ctx, zebra.ID, alpha.ID)
 
 	require.NotZero(t, zebra.ID)
-	assert.Equal(t, int64(1), zebra.TenantID, "tenant_id must be stamped from context")
+	assert.Equal(t, testpkg.Tenant(t), zebra.TenantID, "tenant_id must be stamped from context")
 	assert.Equal(t, "#83CD2D", zebra.Color, "color must be normalized to upper-case hex with hash")
 	assert.Equal(t, "#5080D8", alpha.Color)
 
@@ -77,7 +77,7 @@ func TestShiftTypeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	st := newShiftType("Update-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(ctx, st))
@@ -108,7 +108,7 @@ func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := "Dup-" + testUnique()
 	first := newShiftType(name, "#83CD2D")
@@ -124,7 +124,7 @@ func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := "Absent-" + testUnique()
 
@@ -161,7 +161,7 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	tenant1 := testpkg.TenantContext(1)
+	tenant1 := testpkg.Ctx(t)
 
 	const otherTenantID = int64(910011)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
@@ -192,7 +192,7 @@ func TestShiftTypeRepository_GuardBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// nil entity is rejected before any DB access.
 	require.Error(t, repo.Create(ctx, nil), "Create(nil) must error")
@@ -213,7 +213,7 @@ func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	st := newShiftType("ListOpts-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(ctx, st))

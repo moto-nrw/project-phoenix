@@ -218,7 +218,7 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	email, username := uniqueTestCredentials("switch-cap")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)

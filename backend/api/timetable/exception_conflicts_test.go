@@ -41,7 +41,7 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Ec-Room-%d", suffix))
 	creator := testpkg.CreateTestStaff(t, db, "ExcCreator", fmt.Sprintf("Staff-%d", suffix))
@@ -142,7 +142,7 @@ func createTestActivityException(
 		ExceptionDate:   date,
 		ExceptionType:   excType,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	if startHHMM != "" {
 		st := parseHHMM(t, startHHMM)
 		row.StartTime = &st
@@ -185,7 +185,7 @@ func createTestActivitySchedule(
 		Weekday:         weekday,
 		TimeframeID:     timeframeID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -214,7 +214,7 @@ func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string)
 		IsActive:    true,
 		Description: fmt.Sprintf("tf-%s-%s-%d", startHHMM, endHHMM, time.Now().UnixNano()),
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -526,7 +526,7 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 		ExceptionType:   schedule.ActivityExceptionModified,
 		RoomID:          &roomID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := s.db.NewInsert().

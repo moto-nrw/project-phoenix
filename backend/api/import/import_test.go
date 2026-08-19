@@ -407,7 +407,7 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 		Where(`"person".last_name = ?`, "Phase1Regression").
 		Scan(context.Background())
 	require.NoError(t, err, "imported student should exist in the database")
-	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err, "imported student should be readable through the repository")
 	for _, day := range users.BusDayOrder {
 		assert.True(t, hydrated.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
@@ -440,7 +440,7 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 		Where(`"person".first_name = ?`, "Departure").
 		Where(`"person".last_name = ?`, "GehweiseImport").
 		Scan(context.Background()))
-	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(users.PickupDayMonday))
 	assert.Equal(t, users.DeparturePickup, hydrated.DepartureDays.ModeFor(users.PickupDayWednesday))
@@ -475,7 +475,7 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 		Where(`"person".first_name = ?`, "Legacy").
 		Where(`"person".last_name = ?`, "GehweiseFallback").
 		Scan(context.Background()))
-	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	for _, day := range users.PickupDayOrder {
 		assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(day),
@@ -728,8 +728,8 @@ func TestDownloadStaffTemplate_XLSX(t *testing.T) {
 func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 	tc := setupTestContext(t)
 
-	// Role visible to tenant 1 (AdminTestClaims defaults to tenant 1).
-	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportRolle", 1)
+	// Role visible to the caller: claims are rebased onto this test's tenant.
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportRolle", testpkg.Tenant(t))
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "Admin")
 
 	unique := time.Now().UnixNano()
@@ -744,7 +744,7 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 		fmt.Sprintf("Falsche,Rolle,%s,GibtEsNicht,", invalidEmail)
 
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+		testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID))),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
@@ -785,7 +785,7 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 		fmt.Sprintf("Bea,Betreuerin,%s,Betreuer,", email)
 
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+		testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID))),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
@@ -815,7 +815,7 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 	tc := setupTestContext(t)
 
-	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", 1)
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", testpkg.Tenant(t))
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffPreview", "Admin")
 
 	router := chi.NewRouter()
@@ -828,7 +828,7 @@ func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 		fmt.Sprintf(",Ohne,preview.noname.%d@example.com,%s,", unique, role.Name)
 
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "staff.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+		testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID))),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "preview should succeed: %s", rr.Body.String())
@@ -849,7 +849,7 @@ func TestStaffImport_UploadValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffUpload", "Admin")
-	claims := testutil.WithClaims(testutil.AdminTestClaims(int(account.ID)))
+	claims := testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID)))
 
 	t.Run("missing file is rejected", func(t *testing.T) {
 		router := chi.NewRouter()

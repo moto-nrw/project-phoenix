@@ -23,8 +23,6 @@ import (
 )
 
 func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
-	setupViperForTest()
-
 	db := testpkg.SetupTestDB(t)
 
 	checkinPermissions := []string{permissions.VisitsUpdate}

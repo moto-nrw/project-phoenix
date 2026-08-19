@@ -55,7 +55,7 @@ func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, o
 	storedURL = common.StudentPhotoStoredURLPrefix + filepath.Base(tmp.Name())
 	onDisk = tmp.Name()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_path = ?,
@@ -76,7 +76,7 @@ func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, o
 // the test cannot assert on enabled-only fields.
 func enablePhotoFeatureForTenant(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t,
 		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
@@ -91,7 +91,7 @@ func enablePhotoFeatureForTenant(t *testing.T, tc *testContext) {
 // back through the API layer.
 func readPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
@@ -110,7 +110,7 @@ func readPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 // the audit timestamp atomically.
 func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var stamped bool
 	err := tc.db.NewRaw(
 		`SELECT photo_consent_given_at IS NOT NULL FROM users.students WHERE id = ?`,
@@ -208,7 +208,7 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	// raw SELECT because applyPhotoConsent is a pure helper — only
 	// stampPhotoConsent (called from the handler) writes the actor
 	// column from the JWT claims.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var byActor int64
 	err := tc.db.NewRaw(
 		`SELECT COALESCE(photo_consent_given_by, 0) FROM users.students WHERE id = ?`,
@@ -234,7 +234,7 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 
 	// Stamp consent directly so we can verify it survives an unrelated
 	// edit.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_consent_given_at = now(),
@@ -282,7 +282,7 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 		"deleteStudent must unlink the photo file after commit; stat err=%v", err)
 
 	// Student row must be gone.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var count int
 	err = tc.db.NewRaw(
 		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,
@@ -307,7 +307,7 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var count int
 	err := tc.db.NewRaw(
 		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,

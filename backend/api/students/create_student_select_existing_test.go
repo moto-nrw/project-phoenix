@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // seedExistingGuardian inserts a guardian profile in tenant 1 and returns it,
@@ -27,7 +28,7 @@ func seedExistingGuardian(t *testing.T, tc *testContext, firstName, lastName, em
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	g.SetTenantID(1)
+	g.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(g).Exec(ctx)
 	require.NoError(t, err)
 

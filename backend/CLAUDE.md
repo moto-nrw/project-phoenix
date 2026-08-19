@@ -8,8 +8,9 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 
 ```bash
 # Testing — self-initializing lifecycle (ADR 0004): SetupTestDB starts the
-# postgres-test container if needed, rebuilds the phoenix_test template when
-# migrations changed, and gives each package binary a run-stamped clone.
+# postgres-test container if needed, builds the template for this branch's
+# migrations hash (phoenix_test_<hash>, so parallel worktrees never share
+# one), and gives each package binary a run-stamped clone.
 ../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
 go test ./...                       # All tests (works standalone; clones are GC'd by the next run)
 PHX_TEST_LEFTOVERS=1 ../scripts/test-backend.sh   # Opt-in: report rows tests left behind (diagnosis, not a gate)
@@ -176,8 +177,8 @@ func TestExample(t *testing.T) {
 
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
 - **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns cleanup. Per-package counts are ratcheted shrink-only (`cleanupCallBaseline`); the leftover-tolerant packages are already at zero.
-- **New tests create their own tenant** via `testpkg.NewTenantScope(t, db)` instead of `TenantContext(1)` — the bootstrap tenant is being phased out (ratchet: `tenantContext1Baseline`, which counts `TenantContext(1)`, `WithTenantID(ctx, 1)` and `TenantID: 1` alike).
-- **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The files where both already meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, give the test its own tenant.
+- **Every test owns its tenant (#2419)**: a package opts in once, from `TestMain`, with `testpkg.PerTestTenants()`. From then on each top-level test gets its own tenant, every `CreateTest*` fixture it creates lands there, and JWT claims minted through `api/testutil` follow it — so no fixture call and no claims helper needs a tenant argument. Inside a test, `testpkg.Ctx(t)` is the context (the replacement for `TenantContext(1)`) and `testpkg.Tenant(t)` the ID. Subtests share their parent's tenant. One edge to know: the rebase happens when claims are *used* (`MintTestJWT`, `WithClaims`), so reading `claims.TenantID` straight off the struct still yields the bootstrap value — inside a test, take the tenant from `testpkg.Tenant(t)`, never from the claims you just built. Two gates hold the line: `db_packages_opt_into_per_test_tenants` fails any package that opens the test database without opting in, and `bootstrap_tenant_ratchet` counts every remaining spelling (`TenantContext(1)`, `WithTenantID(ctx, 1)`, `TenantID: 1`, `SetTenantID(1)`, `…ForTenant(…, 1, …)`, and literal `tenant_id` filters in raw SQL) per package, shrink-only.
+- **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
 - Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`

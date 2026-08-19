@@ -23,7 +23,7 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates class assignment", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTCreate", "Staff")
@@ -61,7 +61,7 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTFind", "Staff")
 	other := testpkg.CreateTestStaff(t, db, "CTFind", "Other")
@@ -84,7 +84,7 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTDelete", "Offboarded")
 	other := testpkg.CreateTestStaff(t, db, "CTDelete", "Stays")

@@ -255,7 +255,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 					SelectedWeekdays: []int{activitiesModel.WeekdayTuesday},
 				},
 			} {
-				enrollment.SetTenantID(1)
+				enrollment.SetTenantID(testpkg.Tenant(t))
 				if err := repoFactory.StudentEnrollment.Create(ctx, enrollment); err != nil {
 					return err
 				}

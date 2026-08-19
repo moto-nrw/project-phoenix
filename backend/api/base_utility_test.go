@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -688,7 +690,7 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, 1, nil)
+	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
 	router := a.Settings.SettingsRouter()
@@ -793,7 +795,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, 1, nil)
+	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
 	router := a.Settings.SettingsRouter()

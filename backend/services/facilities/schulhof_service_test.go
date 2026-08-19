@@ -233,7 +233,7 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
@@ -264,7 +264,7 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
@@ -292,7 +292,7 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "User")
 
@@ -339,7 +339,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
@@ -398,7 +398,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -449,7 +449,7 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
@@ -470,7 +470,7 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
@@ -495,7 +495,7 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Active", "Supervisor")
 	staff2 := testpkg.CreateTestStaff(t, db, "Ended", "Supervisor")
@@ -550,7 +550,7 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Actual", "Supervisor")
 	staff2 := testpkg.CreateTestStaff(t, db, "Other", "Staff")
@@ -597,7 +597,7 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
@@ -642,7 +642,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")

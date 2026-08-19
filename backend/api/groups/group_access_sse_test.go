@@ -81,6 +81,7 @@ func TestTransferGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	body := map[string]interface{}{"target_user_id": targetStaff.Person.ID}
 	claims := testutil.TeacherTestClaims(int(accountID))
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", groupID), body, claims)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -101,6 +102,7 @@ func TestCancelTransfer_BroadcastsGroupAccessChanged(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, transfer.ID)
 
 	claims := testutil.TeacherTestClaims(int(accountID))
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/%d", groupID, transfer.ID), nil, claims)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -131,6 +133,7 @@ func TestUpdateGroupTeachers_BroadcastsGroupAccessChanged(t *testing.T) {
 		"teacher_ids": []int64{teacher.ID},
 	}
 	claims := testutil.DefaultTestClaims()
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	req := newReq(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body, claims, "groups:update")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -170,7 +173,7 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
 
-	ctx := testpkg.TenantContext(int64(testutil.DefaultTestClaims().TenantID))
+	ctx := testpkg.Ctx(t)
 	originalGroup, err := tc.services.Education.GetGroup(ctx, groupID)
 	require.NoError(t, err)
 	originalTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
@@ -217,6 +220,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	groupName := fmt.Sprintf("SSECreateRollback-%d", candidate.ID)
 	claims := testutil.DefaultTestClaims()
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	body := map[string]interface{}{
 		"name":        groupName,
 		"teacher_ids": []int64{candidate.ID, missingID},
@@ -229,7 +233,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	queryOptions := base.NewQueryOptions()
 	queryOptions.Filter.Equal("name", groupName)
 	groupCount, err := tc.services.Education.CountGroups(
-		testpkg.TenantContext(int64(claims.TenantID)),
+		testpkg.Ctx(t),
 		queryOptions,
 	)
 	require.NoError(t, err)
@@ -253,6 +257,7 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, nil, substituteStaff.ID, today, today)
 
 	claims := testutil.DefaultTestClaims()
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d", groupID), nil, claims, "groups:delete")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -277,6 +282,7 @@ func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	claims := testutil.DefaultTestClaims()
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil, claims, "groups:delete")
 
 	rr := testutil.ExecuteRequest(router, req)

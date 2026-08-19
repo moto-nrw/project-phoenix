@@ -19,7 +19,7 @@ import (
 func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "History")
 

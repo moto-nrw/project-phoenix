@@ -55,7 +55,7 @@ func clearStoredCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
@@ -99,7 +99,7 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
@@ -134,7 +134,7 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
@@ -177,7 +177,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
@@ -221,7 +221,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
@@ -258,7 +258,7 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")

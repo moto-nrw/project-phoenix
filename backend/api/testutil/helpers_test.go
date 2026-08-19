@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +79,7 @@ func TestWithClaims(t *testing.T) {
 		IsAdmin:  true,
 	}
 
-	opt := testutil.WithClaims(claims)
+	opt := testutil.WithClaims(t, claims)
 	opt(req)
 
 	// Verify claims are in context
@@ -147,7 +149,7 @@ func TestNewRequest(t *testing.T) {
 func TestNewRequest_WithOptions(t *testing.T) {
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
-		testutil.WithClaims(jwt.AppClaims{ID: 1, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: 1}),
 	)
 
 	assert.Equal(t, "GET", req.Method)
@@ -181,7 +183,7 @@ func TestNewAuthenticatedRequest_NilBody(t *testing.T) {
 func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/api/test", nil,
 		testutil.WithPermissions("admin:*"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 	)
 
 	perms := req.Context().Value(jwt.CtxPermissions)
@@ -241,7 +243,7 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
-		testutil.WithClaims(jwt.AppClaims{ID: 42, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 1}),
 	)
 
 	assert.Equal(t, "POST", req.Method)
@@ -402,4 +404,24 @@ func TestAdminTestClaims(t *testing.T) {
 	assert.Contains(t, claims.Roles, "admin")
 	assert.Contains(t, claims.Permissions, "admin:*")
 	assert.True(t, claims.IsAdmin)
+}
+
+// TestClaimsFollowTheTestIntoItsOwnTenant pins the mechanism that lets ~950
+// claims-helper call sites stay untouched by the per-test-tenant migration
+// (#2419): claims carrying the bootstrap tenant are rebased onto the tenant
+// the test owns, while claims naming a tenant explicitly are left alone.
+func TestClaimsFollowTheTestIntoItsOwnTenant(t *testing.T) {
+	own := testpkg.Tenant(t)
+
+	// DefaultTestClaims carries the bootstrap tenant, so this also pins that
+	// the shipped helpers keep working untouched.
+	req := httptest.NewRequest("GET", "/test", nil)
+	testutil.WithClaims(t, testutil.DefaultTestClaims())(req)
+	assert.Equal(t, own, req.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+		"bootstrap-tenant claims must follow the test")
+
+	other := httptest.NewRequest("GET", "/test", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 4711})(other)
+	assert.Equal(t, int64(4711), other.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+		"an explicitly named tenant must survive untouched")
 }

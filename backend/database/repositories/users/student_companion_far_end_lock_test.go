@@ -49,7 +49,7 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	// The companion is created FIRST so its id is the lower one — the direction
@@ -102,7 +102,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")

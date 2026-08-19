@@ -19,7 +19,7 @@ import (
 // scoped to the test row's ID.
 func setLifecycle(t *testing.T, db *bun.DB, studentID int64, status users.StudentStatus, enrolledFrom, enrolledUntil *timezone.Date) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	q := db.NewUpdate().
 		TableExpr("users.students").
 		Set("status = ?", string(status)).
@@ -42,7 +42,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -89,7 +89,7 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -124,7 +124,7 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
@@ -149,7 +149,7 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
 	defer cleanupStudentRecords(t, db, student.ID)
 	setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)

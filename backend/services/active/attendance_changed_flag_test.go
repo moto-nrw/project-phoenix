@@ -18,7 +18,7 @@ func TestCheckInStudent_ChangedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Changed", "CheckIn", "5d")
 	staff := testpkg.CreateTestStaff(t, db, "Changed", "Staff")
@@ -39,7 +39,7 @@ func TestCheckOutStudent_ChangedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Changed", "CheckOut", "5e")
 	staff := testpkg.CreateTestStaff(t, db, "Changed", "Staff2")

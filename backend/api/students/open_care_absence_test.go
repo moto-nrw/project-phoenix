@@ -315,7 +315,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID, submitter.ID)
 
 	const note = "Kommt später, Termin beim Kinderarzt"
-	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,

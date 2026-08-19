@@ -59,7 +59,7 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx() // tenant 1
+	ctx := tenantCtx(t) // tenant 1
 	tenantIDs := []int64{chain.TenantID}
 
 	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -155,7 +155,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("portal_locale = ?", "en").
@@ -226,7 +226,7 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -289,7 +289,7 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -331,7 +331,7 @@ func TestParentAnnouncementDelete(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Zu löschen", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -360,7 +360,7 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Versioniert", []*usersModels.ParentAnnouncementTarget{
@@ -402,7 +402,7 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
 	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -451,7 +451,7 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	// Uppercase + padded target text against a lowercase "1a" student class.
 	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -474,7 +474,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Regression")
 
@@ -527,7 +527,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Wochentag")
 	today := timezone.TodayDate()
 	todayWeekday := int(today.Weekday())
@@ -619,7 +619,7 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 
 	bg := context.Background()
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
 	// A phase to anchor the enrollment request FK.

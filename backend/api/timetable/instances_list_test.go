@@ -62,7 +62,7 @@ func buildListSetup(t *testing.T) *listSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("List-Room-%d", suffix))
 
@@ -201,7 +201,7 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{sourceID},
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(s.db)
 	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
 
@@ -654,7 +654,7 @@ func TestListInstances_IsLive(t *testing.T) {
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -804,7 +804,7 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 		IsTemplate:      true,
 		Notes:           &seriesNote,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(group).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -822,7 +822,7 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("notes = ?", dayNote).
 		Where(`"activity_instance".id = ?`, inst.ID).
-		Where(`"activity_instance".tenant_id = ?`, 1).
+		Where(`"activity_instance".tenant_id = ?`, testpkg.Tenant(t)).
 		Exec(s.ctx)
 	require.NoError(t, err)
 

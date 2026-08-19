@@ -82,7 +82,7 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 	adminRole := testpkg.GetOrCreateTestRole(t, tc.db, "admin")
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "link-reuse-test",
 		Roles:    []string{"user"},

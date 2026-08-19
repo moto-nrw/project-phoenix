@@ -224,6 +224,10 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-current-1")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Current Session Activity")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "CurrentSession", "Supervisor")
+	// The room is named explicitly: with neither a manual nor a planned room,
+	// determineRoomIDWithStrategy falls back to the hardcoded room id 1, which
+	// belongs to another tenant and trips fk_active_groups_room_tenant.
+	room := testpkg.CreateTestRoom(t, ctx.db, "Current Session Room")
 
 	// Start a real session with supervisors
 	router := testutil.NewTenantRouter(ctx.db)
@@ -231,6 +235,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 
 	startBody := map[string]interface{}{
 		"activity_id":    activity.ID,
+		"room_id":        room.ID,
 		"supervisor_ids": []int64{staff.ID},
 	}
 

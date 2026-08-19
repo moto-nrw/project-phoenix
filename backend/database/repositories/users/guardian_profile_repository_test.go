@@ -29,7 +29,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("guardian-%d@test.local", time.Now().UnixNano())
@@ -69,7 +69,7 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "findbyid")
@@ -92,7 +92,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "byemail")
@@ -124,7 +124,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update")
@@ -162,7 +162,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "delete")
@@ -191,7 +191,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "listopt")
@@ -219,7 +219,7 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardians without accounts", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "noaccount")
@@ -244,7 +244,7 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitable guardians", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "invitable")
@@ -295,7 +295,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
 		// Create a real auth account to satisfy the FK constraint on
@@ -336,7 +336,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
 		_, err := repo.FindByAccountID(ctx, int64(999999))
@@ -353,7 +353,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "profilechildren")
 	account := testpkg.CreateTestAccount(t, db, "profilechildren")
@@ -375,7 +375,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 			authorize.GuardianPermissionPortalAccess: true,
 		},
 	}
-	visibleRel.SetTenantID(1)
+	visibleRel.SetTenantID(testpkg.Tenant(t))
 	hiddenRel := &users.StudentGuardian{
 		StudentID:         hidden.ID,
 		GuardianProfileID: profile.ID,
@@ -383,7 +383,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 		GuardianRole:      authorize.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
-	hiddenRel.SetTenantID(1)
+	hiddenRel.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(ctx, visibleRel))
 	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(ctx, hiddenRel))
 
@@ -420,7 +420,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("matches a first-name substring case-insensitively and excludes non-matches", func(t *testing.T) {
 		token := fmt.Sprintf("Zzsearch%d", time.Now().UnixNano())
@@ -503,7 +503,7 @@ func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("persists locale and is reflected by FindByAccountID", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "portallocale")
@@ -550,7 +550,7 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "findbyaccount")
 	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
@@ -581,7 +581,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "localeordering")
 	defer testpkg.CleanupAccount(t, db, account.ID)
@@ -638,7 +638,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 
 		// The full-delete flow takes this lock inside a tenant tx; exercise the
 		// real contract rather than a bare autocommit call.
-		err := tenant.WithTenantTx(testpkg.TenantContext(1), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		err := tenant.WithTenantTx(testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			return repo.LockByIDForUpdate(txCtx, guardian.ID)
 		})
 		require.NoError(t, err)
@@ -647,7 +647,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 	t.Run("returns ErrGuardianProfileNotFound for a missing guardian", func(t *testing.T) {
 		// A non-existent id must surface as the typed not-found error, not a raw
 		// sql.ErrNoRows — the delete handler maps it to a clean 404/409.
-		err := tenant.WithTenantTx(testpkg.TenantContext(1), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		err := tenant.WithTenantTx(testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			return repo.LockByIDForUpdate(txCtx, 999999999)
 		})
 		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)

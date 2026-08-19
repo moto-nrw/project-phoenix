@@ -1501,7 +1501,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), 1)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
 		})
 	})
 	router.Use(tenant.TenantTxMiddleware(db))
@@ -1511,7 +1511,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), "doppelte aktive Kinder- oder Personalzuordnungen")
-	_, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
+	_, err := repo.FindByID(testpkg.Ctx(t), profile.ID)
 	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
 		"calendar period delete conflicts must roll back writes despite returning 409")
 }

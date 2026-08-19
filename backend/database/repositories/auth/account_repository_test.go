@@ -21,7 +21,7 @@ func TestAccountRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("testcreate_%d@example.com", time.Now().UnixNano())
@@ -63,7 +63,7 @@ func TestAccountRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyid")
@@ -85,7 +85,7 @@ func TestAccountRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyemail")
@@ -106,7 +106,7 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by username", func(t *testing.T) {
 		// Create account with username
@@ -138,7 +138,7 @@ func TestAccountRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update")
@@ -172,7 +172,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete")
@@ -193,7 +193,7 @@ func TestAccountRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all accounts", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list")
@@ -209,7 +209,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role name", func(t *testing.T) {
 		// Create account and role
@@ -220,8 +220,8 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// Find by role
@@ -246,8 +246,8 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// Search with the actual role name in uppercase to verify case insensitivity
@@ -272,7 +272,7 @@ func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "lastlogin")
@@ -303,7 +303,7 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates password hash", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "password")
@@ -324,7 +324,7 @@ func TestAccountRepository_UpdateAvatar(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates global avatar path", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "avatar")
@@ -348,7 +348,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts with their roles and permissions", func(t *testing.T) {
 		// Create account with role
@@ -359,8 +359,8 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// Find accounts with roles and permissions
@@ -378,7 +378,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "emailfilter")
@@ -481,8 +481,8 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
@@ -522,7 +522,7 @@ func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns emails for valid IDs", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "emails1")
@@ -562,7 +562,7 @@ func TestAccountRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -575,7 +575,7 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -588,7 +588,7 @@ func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "feedtoken")
 	defer cleanupAccountRecords(t, db, account.ID)
@@ -625,7 +625,7 @@ func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "ensurefeedtoken")
 	defer cleanupAccountRecords(t, db, account.ID)

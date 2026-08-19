@@ -19,7 +19,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 
 	repoFactory := repositories.NewFactory(db)
 	repo := repoFactory.EnrollmentOfferingAdjustment
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Audit", "Adjustment", "1a")
 	account := testpkg.CreateTestAccount(t, db, "adjustment-admin@example.test")
@@ -83,7 +83,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMiss
 
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 
-	rows, err := repo.ListByRequestChildID(testpkg.TenantContext(1), 0)
+	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 0)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "request_child_id is required")
@@ -94,7 +94,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 	require.NoError(t, db.Close())
 
-	rows, err := repo.ListByRequestChildID(testpkg.TenantContext(1), 999)
+	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 999)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "list enrollment offering adjustments")
@@ -102,7 +102,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(
 
 func createAuditAdjustmentPhase(t *testing.T, repoFactory *repositories.Factory) *enrollmentModels.Phase {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	phase := &enrollmentModels.Phase{
 		Name:                      fmt.Sprintf("audit-adjustment-%d", time.Now().UnixNano()),
 		Kind:                      enrollmentModels.PhaseKindSchoolYear,
@@ -118,7 +118,7 @@ func createAuditAdjustmentPhase(t *testing.T, repoFactory *repositories.Factory)
 
 func createAuditAdjustmentRequest(t *testing.T, repoFactory *repositories.Factory, phaseID int64) *enrollmentModels.Request {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	req := &enrollmentModels.Request{
 		PhaseID:           phaseID,
 		GuardianFirstName: "Anna",
@@ -135,7 +135,7 @@ func createAuditAdjustmentRequest(t *testing.T, repoFactory *repositories.Factor
 
 func createAuditAdjustmentChild(t *testing.T, repoFactory *repositories.Factory, requestID int64) *enrollmentModels.RequestChild {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	child := &enrollmentModels.RequestChild{
 		RequestID:      requestID,
 		FirstName:      "Lina",

@@ -46,8 +46,8 @@ func setupAbsenceAdminTest(t *testing.T) (tc *testContext, token string, subject
 		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		CreatedBy: subject.ID,
 	}
-	shift.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(tc.db).StaffShift.Create(testpkg.TenantContext(1), shift))
+	shift.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(tc.db).StaffShift.Create(testpkg.Ctx(t), shift))
 
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, tc.db, "schedule.staff_shifts", shift.ID)
@@ -87,7 +87,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	// Absence persisted with subject/creator separation.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(tc.db)
 	absences, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	absences, err := repositories.NewFactory(tc.db).StaffAbsence.GetByStaffAndDateRange(
 		ctx,
 		subjectID,

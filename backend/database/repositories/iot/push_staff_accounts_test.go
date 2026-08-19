@@ -22,7 +22,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 	addressed := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-addressed-%d@example.com", suffix))
@@ -31,16 +31,16 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, addressed.ID, bystander.ID)
 	defer cleanupPushSubscriptions(t, db, addressed.ID, bystander.ID)
 
-	createAccountTenantMapping(t, db, addressed.ID, 1)
-	createAccountTenantMapping(t, db, bystander.ID, 1)
-	assignSystemRole(t, db, addressed.ID, 1, authModels.BaseRoleUser)
-	assignSystemRole(t, db, bystander.ID, 1, authModels.BaseRoleUser)
+	createAccountTenantMapping(t, db, addressed.ID, testpkg.Tenant(t))
+	createAccountTenantMapping(t, db, bystander.ID, testpkg.Tenant(t))
+	assignSystemRole(t, db, addressed.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
+	assignSystemRole(t, db, bystander.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 
 	addressedEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/addressed-%d", suffix)
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
 
-	require.NoError(t, repo.Upsert(ctx, newSubscription(addressed.ID, iotModels.PushPortalStaff, addressedEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(bystander.ID, iotModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalStaff, addressedEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, iotModels.PushPortalStaff, bystanderEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
 		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
@@ -101,7 +101,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
 			Set("status = ?", authModels.AccountTenantStatusInactive).
-			Where("account_id = ? AND tenant_id = ?", addressed.ID, 1).
+			Where("account_id = ? AND tenant_id = ?", addressed.ID, testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -109,7 +109,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 			_, resetErr := db.NewUpdate().
 				TableExpr("auth.account_tenants").
 				Set("status = ?", authModels.AccountTenantStatusActive).
-				Where("account_id = ? AND tenant_id = ?", addressed.ID, 1).
+				Where("account_id = ? AND tenant_id = ?", addressed.ID, testpkg.Tenant(t)).
 				Exec(ctx)
 			require.NoError(t, resetErr)
 		}()

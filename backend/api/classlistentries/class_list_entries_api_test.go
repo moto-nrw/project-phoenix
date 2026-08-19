@@ -30,7 +30,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
 	router := resource.Router()
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 	className := fmt.Sprintf("cle%d", time.Now().UnixNano()%100000)
 
 	// Missing permission → 403 before any data access.
@@ -103,12 +103,12 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
 	entry := testpkg.CreateTestClassListEntry(t, db, "Nico", "NurListe", className)
 	t.Cleanup(func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
 	classDayRouter := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil).Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
 
 	req := httptest.NewRequest(http.MethodGet, "/?date=2026-08-05", nil)
 	rec := testutil.ExecuteWithAuthPermissions(t, classDayRouter, req, claims, []string{"class_day:read"})
@@ -133,7 +133,7 @@ func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
 
 	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
 	router := resource.Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 
 	body := `{"first_name":"  ","last_name":"Aalders","school_class":"1a"}`
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))

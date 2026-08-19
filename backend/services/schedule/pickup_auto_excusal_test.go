@@ -117,7 +117,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 
 	return &autoExcusalHarness{
 		db:         db,
-		ctx:        testpkg.TenantContext(1),
+		ctx:        testpkg.Ctx(t),
 		svc:        svc,
 		partial:    partial,
 		student:    &fixtureStudent{ID: student.ID},

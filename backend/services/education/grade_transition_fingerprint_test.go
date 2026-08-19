@@ -25,7 +25,7 @@ func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGr
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-fingerprint-sentinel@test.local")

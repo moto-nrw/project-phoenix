@@ -32,7 +32,7 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("AlumniGroup-%s", suffix))
@@ -89,7 +89,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("AlumniInfoGroup-%s", suffix))
@@ -138,7 +138,7 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	alumniOnlyClass := fmt.Sprintf("4gone-%s", suffix)
@@ -166,7 +166,7 @@ func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class := fmt.Sprintf("1na-%s", suffix)

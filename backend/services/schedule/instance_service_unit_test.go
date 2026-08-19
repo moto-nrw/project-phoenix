@@ -170,7 +170,7 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 		StudentRepo: studentReadScopeStub{byID: map[int64]*usersModel.Student{42: student}},
 	}}
 
-	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, []int64{42})
+	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, []int64{42})
 
 	groupEvents := broadcaster.EventsOfType(realtime.EventBulkStudentCheckIn)
 	require.Len(t, groupEvents, 2)
@@ -277,7 +277,7 @@ func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {
 func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
-	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, nil)
+	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, nil)
 	assert.Empty(t, broadcaster.Calls())
 }
 

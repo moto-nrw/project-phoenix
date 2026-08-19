@@ -21,7 +21,7 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-list")
@@ -70,7 +70,7 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	staff := testpkg.CreateTestStaff(t, db, "Present", "List")
@@ -110,7 +110,7 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-source")
@@ -184,7 +184,7 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-graduate-source")
@@ -227,7 +227,7 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-all-absent-target")
 	room := testpkg.CreateTestRoom(t, db, "Move All Absent Target Room")
@@ -247,7 +247,7 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, nil, 0, activeSvcBypassAuth)
 	require.Error(t, err)
@@ -269,7 +269,7 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-ended-target")
 	room := testpkg.CreateTestRoom(t, db, "Move Ended Target Room")
@@ -292,7 +292,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSou
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-source")
@@ -334,7 +334,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-allowed-source")
@@ -378,7 +378,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-transit-target")
@@ -409,7 +409,7 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-transit-auth-source")
@@ -441,17 +441,17 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-binary-target")
@@ -480,17 +480,17 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	now := time.Now()
@@ -530,7 +530,7 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-transit-source")
@@ -593,7 +593,7 @@ func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	absentStudent := testpkg.CreateTestStudent(t, db, "TransitMove", "AllAbsent", "TMA3")
 	defer testpkg.CleanupActivityFixtures(t, db, absentStudent.ID)
@@ -609,7 +609,7 @@ func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, nil, activeSvcBypassAuth)
 	require.Error(t, err)
@@ -626,17 +626,17 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	const (
@@ -658,7 +658,7 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "transit-assign-source")
@@ -705,7 +705,7 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, nil, 42)
 	require.Error(t, err)
@@ -727,17 +727,17 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-binary-target")
@@ -768,7 +768,7 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *te
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-ended-target")
 	room := testpkg.CreateTestRoom(t, db, "Transit Ended Target Room")

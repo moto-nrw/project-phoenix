@@ -81,7 +81,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
 	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	thread, err := repos.ParentMessageThread.GetOrCreate(ctx, chain.TenantID, chain.StudentID, chain.AccountID)
 	require.NoError(t, err)
 	m := &usersModels.ParentMessage{

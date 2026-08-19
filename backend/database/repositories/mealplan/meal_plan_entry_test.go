@@ -28,7 +28,7 @@ func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	monday := timezone.NewDate(2026, time.July, 6) // a Monday
 	friday := monday.AddDays(4)
@@ -57,7 +57,7 @@ func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 	assert.Equal(t, 1, rows[1].Position)
 	assert.Nil(t, rows[1].Note)
 	assert.Equal(t, "Suppe", rows[2].Dish)
-	assert.Equal(t, int64(1), rows[0].TenantID, "ReplaceDay must stamp tenant_id from context")
+	assert.Equal(t, testpkg.Tenant(t), rows[0].TenantID, "ReplaceDay must stamp tenant_id from context")
 
 	// ReplaceDay is a full replace: fewer dishes overwrite the day.
 	require.NoError(t, repo.ReplaceDay(ctx, monday, []*mealplan.MealPlanEntry{
@@ -90,7 +90,7 @@ func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	monday := timezone.NewDate(2026, time.August, 3) // Monday
 	friday := monday.AddDays(4)
@@ -115,7 +115,7 @@ func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := repo.ReplaceDay(ctx, timezone.Date{}, []*mealplan.MealPlanEntry{{Dish: "x"}})
 	require.Error(t, err)
@@ -128,7 +128,7 @@ func TestMealPlanRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
-	tenant1 := testpkg.TenantContext(1)
+	tenant1 := testpkg.Ctx(t)
 
 	const otherTenantID = int64(910001)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)

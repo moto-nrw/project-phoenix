@@ -106,7 +106,7 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 
 	// Tracking indicators: enable the feature with one label so the aggregate
 	// exercises the settings-gated ActiveService path.
-	settingsCtx := testpkg.TenantContext(1)
+	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {

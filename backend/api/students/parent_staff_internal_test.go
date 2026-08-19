@@ -74,11 +74,11 @@ func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
 		"dates":  []string{"2026-05-25"},
 		"reason": "Fieber",
 	})
-	createRR := executeStatusDayHandler(router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, createRR.Code, createRR.Body.String())
 
 	getReq := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
-	getRR := executeStatusDayHandler(router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, getRR.Code, getRR.Body.String())
 
 	var env struct {

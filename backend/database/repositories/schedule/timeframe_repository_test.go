@@ -19,7 +19,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
 		now := time.Now()
@@ -65,7 +65,7 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -94,7 +94,7 @@ func TestTimeframeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -123,7 +123,7 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -151,7 +151,7 @@ func TestTimeframeRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -174,7 +174,7 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -219,7 +219,7 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
 		now := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -257,7 +257,7 @@ func TestTimeframeRepository_FindByDescription(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds timeframes by description", func(t *testing.T) {
 		now := time.Now()

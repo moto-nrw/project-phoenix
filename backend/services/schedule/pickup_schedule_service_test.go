@@ -48,7 +48,7 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -83,7 +83,7 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -118,7 +118,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -179,7 +179,7 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates multiple schedules in transaction", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -249,7 +249,7 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -278,7 +278,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -313,7 +313,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -387,7 +387,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Guardian", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", time.Now().UnixNano()))
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("guardian-partial-%d@test.local", time.Now().UnixNano()))
@@ -442,7 +442,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -472,7 +472,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -517,7 +517,7 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -715,7 +715,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -773,7 +773,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -843,7 +843,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns combined schedule and exception data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -879,7 +879,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns exception when present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1056,7 +1056,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns effective times for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -1213,7 +1213,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1267,7 +1267,7 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1295,7 +1295,7 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1331,7 +1331,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1373,7 +1373,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1418,7 +1418,7 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1447,7 +1447,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1479,7 +1479,7 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	studentA := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentA", "BP-A")
 	studentB := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentB", "BP-B")
 	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
@@ -1524,7 +1524,7 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAllowed", "Student", "BP-A")
 	denied := testpkg.CreateTestStudent(t, db, "BulkPickupDenied", "Student", "BP-B")
 	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
@@ -1548,7 +1548,7 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSe
 func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUnauthorized(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrA", "Student", "BP-E1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrB", "Student", "BP-E2")
 	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)

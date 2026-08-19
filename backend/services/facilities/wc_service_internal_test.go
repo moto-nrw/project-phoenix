@@ -75,7 +75,7 @@ func TestWCService_findWCActivity_NotFoundSentinel(t *testing.T) {
 
 	service := setupWCServiceInternal(t, db)
 
-	activityGroup, err := service.findWCActivity(testpkg.TenantContext(1))
+	activityGroup, err := service.findWCActivity(testpkg.Ctx(t))
 
 	require.Nil(t, activityGroup)
 	require.Error(t, err)
@@ -90,7 +90,7 @@ func TestWCService_EnsureInfrastructure_PropagatesActivityLookupErrors(t *testin
 
 	service := setupWCServiceInternal(t, db)
 
-	ctx, cancel := context.WithCancel(testpkg.TenantContext(1))
+	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -108,7 +108,7 @@ func TestWCService_ensureWCRoom_PropagatesLookupErrors(t *testing.T) {
 
 	service := setupWCServiceInternal(t, db)
 
-	ctx, cancel := context.WithCancel(testpkg.TenantContext(1))
+	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
 	room, err := service.ensureWCRoom(ctx)
@@ -126,7 +126,7 @@ func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
 
 	service := setupWCServiceInternal(t, db)
 
-	ctx, cancel := context.WithCancel(testpkg.TenantContext(1))
+	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
 	category, err := service.ensureWCCategory(ctx)
@@ -196,7 +196,7 @@ func TestWCService_ensureWCCategory_ReusesExisting(t *testing.T) {
 	defer cleanupWCArtifactsInternal(t, db)
 
 	service := setupWCServiceInternal(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create category first time
 	cat1, err := service.ensureWCCategory(ctx)
@@ -218,7 +218,7 @@ func TestWCService_ensureWCRoom_CreatesNewRoom(t *testing.T) {
 	defer cleanupWCArtifactsInternal(t, db)
 
 	service := setupWCServiceInternal(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	room, err := service.ensureWCRoom(ctx)
 

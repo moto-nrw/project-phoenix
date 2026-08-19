@@ -20,7 +20,7 @@ import (
 func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
@@ -52,7 +52,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 			row.Note = &note
 			row.CheckedInAt = &checkedAt
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		return row
 	}
 
@@ -123,7 +123,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
@@ -149,7 +149,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 			Status:       status,
 			NotScheduled: notScheduled,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		return row
 	}
 
@@ -236,7 +236,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Mila", fmt.Sprintf("HP-%d", time.Now().UnixNano()), "2b")
@@ -258,7 +258,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 			Status:      scheduleModels.AttendanceStatusPresent,
 			IsUnplanned: unplanned,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		return row
 	}
 
@@ -314,7 +314,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
@@ -332,7 +332,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusPresent,
 	}
-	planned.SetTenantID(1)
+	planned.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, planned))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", planned.ID)
 

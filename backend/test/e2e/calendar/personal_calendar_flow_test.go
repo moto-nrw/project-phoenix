@@ -41,7 +41,7 @@ func calendarToken(t *testing.T, accountID int64, perms ...string) string {
 		ID:          int(accountID),
 		Sub:         "calendar-e2e@example.com",
 		Roles:       []string{"user"},
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Permissions: perms,
 	})
 }

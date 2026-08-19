@@ -48,7 +48,7 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -83,7 +83,7 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -118,7 +118,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -179,7 +179,7 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates multiple schedules in transaction", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -249,7 +249,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -278,7 +278,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -313,7 +313,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -376,7 +376,7 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -405,7 +405,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -449,7 +449,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -558,7 +558,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -587,7 +587,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -623,7 +623,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -677,7 +677,7 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -705,7 +705,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -741,7 +741,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -783,7 +783,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -828,7 +828,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -857,7 +857,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -893,7 +893,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns combined schedule, exception, and note data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -939,7 +939,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns exception when present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1135,7 +1135,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns effective times for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
@@ -1289,7 +1289,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error without a filter", func(t *testing.T) {
 		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{}, []schedule.ArrivalScheduleInput{

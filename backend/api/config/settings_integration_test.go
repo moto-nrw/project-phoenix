@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -476,7 +478,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 
 	count, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", claims.TenantID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", "operations.student_daily_checkout_time").
 		Count(context.Background())
 	require.NoError(t, err)
@@ -675,7 +677,7 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	// Override should still exist — the failed hook rolled back the delete.
 	count, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", claims.TenantID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", "operations.student_photos_enabled").
 		Count(context.Background())
 	require.NoError(t, err)

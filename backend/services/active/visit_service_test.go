@@ -24,7 +24,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit when found", func(t *testing.T) {
 		// ARRANGE
@@ -72,7 +72,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -274,7 +274,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -405,7 +405,7 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -452,7 +452,7 @@ func TestActiveService_ListVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits with no options", func(t *testing.T) {
 		// ARRANGE
@@ -494,7 +494,7 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits for student", func(t *testing.T) {
 		// ARRANGE
@@ -539,7 +539,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits for active group", func(t *testing.T) {
 		// ARRANGE
@@ -586,7 +586,7 @@ func TestActiveService_EndVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ends visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -643,7 +643,7 @@ func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns current visit when student is visiting", func(t *testing.T) {
 		// ARRANGE
@@ -706,7 +706,7 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns current visits for multiple students", func(t *testing.T) {
 		// ARRANGE
@@ -767,7 +767,7 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns false when teacher has no access", func(t *testing.T) {
 		// ARRANGE - teacher and student not related
@@ -807,7 +807,7 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "alumnus-checkin")
 	room := testpkg.CreateTestRoom(t, db, "Alumnus Checkin Room")

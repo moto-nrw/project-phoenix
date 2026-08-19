@@ -53,7 +53,7 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-status-restore@test.local")
@@ -106,7 +106,7 @@ func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-reverse-order@test.local")
@@ -155,7 +155,7 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-preserve-edit@test.local")
@@ -220,7 +220,7 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 		DB:             db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-checked-in@test.local")
@@ -260,7 +260,7 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Both names are built from digit-free tokens so their shape is deterministic:
@@ -303,7 +303,7 @@ func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-stale-preview@test.local")
@@ -382,7 +382,7 @@ func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.
 	_, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// At least one non-empty class so the loop reaches the failing count.

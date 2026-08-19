@@ -34,6 +34,9 @@ func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
 
 func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkin", "Target", "1a")
 	// Full chain: caller must have a resolvable account → person → staff
@@ -65,6 +68,9 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 
 func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Idem", "Target", "1a")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Idem", "Caller")
@@ -96,6 +102,9 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 
 func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkout", "Target", "2b")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkout", "Caller")
@@ -186,6 +195,9 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 // per-child attendance.web_checkin_access setting is gone.
 func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Allowed", "Target", "3c")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Allowed", "Caller")

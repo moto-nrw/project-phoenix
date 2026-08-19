@@ -423,7 +423,7 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 // guardian row, so the time staff rely on stays put — only the author link clears.
 func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 	_, _, db := buildCareService(t, true)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Orphan", "Care", "3c")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -441,7 +441,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
-	exception.SetTenantID(1)
+	exception.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
 	require.NoError(t, repos.StudentPickupException.Create(ctx, exception))
 	defer func() {

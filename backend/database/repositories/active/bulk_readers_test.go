@@ -22,7 +22,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkSupervisedRoom")
 	otherRoom := testpkg.CreateTestRoom(t, db, "BulkSupervisedRoomOther")
@@ -103,7 +103,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
 		today := timezone.TodayDate()
-		err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, tx bun.Tx) error {
+		err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string
@@ -202,7 +202,7 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkVisitRoom")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "BulkVisitActivity")

@@ -48,7 +48,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 		DB:               db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-reconcile@test.local")
@@ -84,7 +84,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 		ActivityGroupID: activityGroup.ID,
 		ValidFrom:       validFrom,
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
@@ -145,7 +145,7 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-edits@test.local")
@@ -187,7 +187,7 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 		ActivityGroupID: enrolledGroup.ID,
 		ValidFrom:       today.AddDays(-30),
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
@@ -234,7 +234,7 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-today@test.local")
@@ -318,7 +318,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-boundary@test.local")
@@ -339,7 +339,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 		ActivityGroupID: activityGroup.ID,
 		ValidFrom:       today.AddDays(-30),
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
@@ -434,7 +434,7 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-finalized@test.local")
@@ -516,7 +516,7 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-backdated@test.local")
@@ -537,7 +537,7 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 		ActivityGroupID: activityGroup.ID,
 		ValidFrom:       today.AddDays(-30),
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
@@ -606,7 +606,7 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-handplanned@test.local")
@@ -627,7 +627,7 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 		ActivityGroupID: activityGroup.ID,
 		ValidFrom:       today.AddDays(-30),
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)

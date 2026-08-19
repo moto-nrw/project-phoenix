@@ -51,7 +51,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 func seedMealPlanWeek(t *testing.T, db *bun.DB, monday timezone.Date) {
 	t.Helper()
 	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, repo.ReplaceDay(ctx, monday, []*mealplanModels.MealPlanEntry{
 		{Date: monday, Position: 0, Dish: "Spaghetti"},
 		{Date: monday, Position: 1, Dish: "Salat"},

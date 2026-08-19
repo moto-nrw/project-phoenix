@@ -51,7 +51,7 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyLow", "Companion", "1a")
@@ -83,7 +83,7 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 
 	holdStudentRowLock(t, db, busy.ID)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 750*time.Millisecond)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 750*time.Millisecond)
 	defer cancel()
 
 	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID)
@@ -98,7 +98,7 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	first := testpkg.CreateTestStudent(t, db, "LockFreeOne", "Companion", "1a")
@@ -128,7 +128,7 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	firstSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectOne", "Companion", "1a")

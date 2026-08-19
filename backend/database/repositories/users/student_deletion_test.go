@@ -36,7 +36,7 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Locked", "1a")
 	guardian := testpkg.CreateTestAccount(t, db, "delete-preview-message-guardian@example.com")
 	var threadID int64
@@ -73,7 +73,7 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, db, "DeletePreview", "Spared", "1a")
 	room := testpkg.CreateTestRoom(t, db, "delete-preview-room")

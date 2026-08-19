@@ -32,7 +32,7 @@ func TestAccountParentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates parent account with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("parent_create_%d@example.com", time.Now().UnixNano())
@@ -79,7 +79,7 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds parent account by email", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "find_by_email")
@@ -119,7 +119,7 @@ func TestAccountParentRepository_FindByUsername(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds parent account by username", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "find_by_user")
@@ -142,7 +142,7 @@ func TestAccountParentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates parent account email", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "update_email")
@@ -182,7 +182,7 @@ func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "last_login")
@@ -213,7 +213,7 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates password hash", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "update_pass")
@@ -238,7 +238,7 @@ func TestAccountParentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all parent accounts", func(t *testing.T) {
 		account := testpkg.CreateTestParentAccount(t, db, "list_all")

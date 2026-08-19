@@ -44,12 +44,12 @@ func cleanupWCRoomAliasIntegrationArtifacts(t *testing.T, db *bun.DB) {
 func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(room).
@@ -152,7 +152,7 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	err := ctx.db.NewSelect().
 		TableExpr(`facilities.rooms AS "room"`).
 		ColumnExpr(`COUNT(*)`).
-		Where(`"room".tenant_id = ?`, 1).
+		Where(`"room".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"room".name IN (?, ?)`, constants.WCRoomName, constants.WCRoomAliasName).
 		Scan(context.Background(), &aliasCount)
 	require.NoError(t, err)

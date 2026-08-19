@@ -18,7 +18,7 @@ import (
 
 func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Exclusive")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -52,7 +52,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 
 func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Invalid")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -87,7 +87,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 
 func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	ownStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Owner")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Other")
@@ -105,7 +105,7 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 		ValidFrom:      queryDate.AddDays(10),
 		ValidUntil:     ptrDate(queryDate.AddDays(20)),
 	}
-	otherRow.SetTenantID(1)
+	otherRow.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(otherRow).
 		ModelTableExpr("config.staff_work_schedules").
@@ -120,7 +120,7 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 
 func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Template", "Refresh")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
@@ -199,7 +199,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 
 func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	repo := configRepo.NewWorkTimeModelRepository(db)
 	model := &configModel.WorkTimeModel{
@@ -234,7 +234,7 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 
 func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Assigned", "Template")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
@@ -279,7 +279,7 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 
 func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	foreignTenantID := int64(1837001)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 
@@ -304,7 +304,7 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayThursday, TargetMinutes: 700, ValidFrom: to.AddDays(1)},
 	}
 	for _, row := range rows {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -337,7 +337,7 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 
 func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	foreignTenantID := int64(1837002)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)

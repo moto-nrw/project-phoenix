@@ -52,7 +52,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	})
 
 	matReq := map[string]any{"from_date": dateS, "to_date": dateS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
@@ -65,7 +65,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 		"understaffed_ack":  true,
 		"understaffed_note": "Kein Ersatz verfügbar",
 	}
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID), devReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID), devReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "deviations body=%s", rr.Body.String())
 
 	// Edit the template as the "all occurrences" flow would: new title + new time.
@@ -73,7 +73,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 		ModelTableExpr(`activities.groups AS "group"`).
 		Set(`name = ?`, "FlowH-Renamed").
 		Where(`"group".id = ?`, tmpl.group.ID).
-		Where(`"group".tenant_id = ?`, primaryTenantID).
+		Where(`"group".tenant_id = ?`, s.primaryTenant).
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "rename template")
 	newStart := parseHHMM(t, "09:30")
@@ -83,12 +83,12 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 		Set(`start_time = ?`, newStart).
 		Set(`end_time = ?`, newEnd).
 		Where(`id = ?`, tmpl.timeframe.ID).
-		Where(`tenant_id = ?`, primaryTenantID).
+		Where(`tenant_id = ?`, s.primaryTenant).
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "retime template")
 
 	// Re-plan.
-	rr = s.do("POST", "/instances/re-plan-week", matReq, primaryAdminClaims())
+	rr = s.do("POST", "/instances/re-plan-week", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "re-plan body=%s", rr.Body.String())
 
 	// Exactly one instance for (template, date) — fetchOneInstance's single-row
@@ -145,7 +145,7 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	})
 
 	matReq := map[string]any{"from_date": dateS, "to_date": dateS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
 	s.registerCleanup("schedule.activity_instances", inst.ID)
@@ -156,10 +156,10 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 			{"absent_staff_id": staffA.ID, "substitute_staff_id": subC.ID},
 		},
 	}
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID), subReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID), subReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "substitute body=%s", rr.Body.String())
 
-	rr = s.do("POST", "/instances/re-plan-week", matReq, primaryAdminClaims())
+	rr = s.do("POST", "/instances/re-plan-week", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "re-plan body=%s", rr.Body.String())
 
 	newInst := fetchOneInstance(t, s, tmpl.group.ID, target)
@@ -208,14 +208,14 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 	})
 
 	matReq := map[string]any{"from_date": dateS, "to_date": dateS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
 	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Mark staffA absent, then reopen and clear it.
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID),
-		map[string]any{"absences": []map[string]any{{"staff_id": staffA.ID}}}, primaryAdminClaims())
+		map[string]any{"absences": []map[string]any{{"staff_id": staffA.ID}}}, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "mark absent body=%s", rr.Body.String())
 	for _, r := range fetchInstanceStaff(t, s, inst.ID) {
 		if r.StaffID == staffA.ID {
@@ -224,7 +224,7 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 	}
 
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID),
-		map[string]any{"presences": []int64{staffA.ID}}, primaryAdminClaims())
+		map[string]any{"presences": []int64{staffA.ID}}, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "clear absence body=%s", rr.Body.String())
 
 	var staffARow *scheduleModel.InstanceStaff
@@ -243,6 +243,6 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 		map[string]any{
 			"absences":  []map[string]any{{"staff_id": staffA.ID}},
 			"presences": []int64{staffA.ID},
-		}, primaryAdminClaims())
+		}, s.primaryAdminClaims())
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "present+absent contradiction rejected")
 }

@@ -77,7 +77,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates activity group with valid data", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "GroupCreate")
@@ -198,7 +198,7 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing activity group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
@@ -221,7 +221,7 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates activity group name", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
@@ -271,7 +271,7 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing activity group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
@@ -294,7 +294,7 @@ func TestActivityGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all activity groups", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "List")
@@ -327,7 +327,7 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups by category ID", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory")
@@ -362,7 +362,7 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only open groups", func(t *testing.T) {
 		// Create an open group
@@ -394,7 +394,7 @@ func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only groups flagged as templates", func(t *testing.T) {
 		// Template group — should be returned.
@@ -444,7 +444,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups with enrollment counts", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithEnrollments")
@@ -463,7 +463,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 			ActivityGroupID: group.ID,
 			ValidFrom:       timezone.TodayDate(),
 		}
-		enrollment1.SetTenantID(1)
+		enrollment1.SetTenantID(testpkg.Tenant(t))
 		_, _ = db.NewInsert().
 			Model(enrollment1).
 			ModelTableExpr(`activities.student_enrollments`).
@@ -474,7 +474,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 			ActivityGroupID: group.ID,
 			ValidFrom:       timezone.TodayDate(),
 		}
-		enrollment2.SetTenantID(1)
+		enrollment2.SetTenantID(testpkg.Tenant(t))
 		_, _ = db.NewInsert().
 			Model(enrollment2).
 			ModelTableExpr(`activities.student_enrollments`).
@@ -505,7 +505,7 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
@@ -521,7 +521,7 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 			StaffID:   staff.ID,
 			IsPrimary: true,
 		}
-		sup.SetTenantID(1)
+		sup.SetTenantID(testpkg.Tenant(t))
 		_, _ = db.NewInsert().
 			Model(sup).
 			ModelTableExpr(`activities.supervisors`).
@@ -545,7 +545,7 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups supervised by staff member", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "BySupervisor")
@@ -561,7 +561,7 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 			StaffID:   staff.ID,
 			IsPrimary: true,
 		}
-		sup.SetTenantID(1)
+		sup.SetTenantID(testpkg.Tenant(t))
 		_, _ = db.NewInsert().
 			Model(sup).
 			ModelTableExpr(`activities.supervisors`).
@@ -599,7 +599,7 @@ func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when group is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -612,7 +612,7 @@ func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when group is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -625,7 +625,7 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent group", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
@@ -637,7 +637,7 @@ func TestActivityGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
 		groups, err := repo.FindByIDs(ctx, nil)

@@ -94,7 +94,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",

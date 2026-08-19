@@ -72,7 +72,7 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns nothing for an empty id list", func(t *testing.T) {
 		released, err := repo.ReleaseStudentTagsByIDs(ctx, nil)
@@ -121,7 +121,7 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does nothing without a ledgered tag", func(t *testing.T) {
 		// A graduate that held no bracelet ledgers an empty rfid_tag; the revert
@@ -228,7 +228,7 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns an empty map for an empty id list", func(t *testing.T) {
 		states, err := repo.FindStudentStatesByIDs(ctx, nil)
@@ -266,7 +266,7 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -331,7 +331,7 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-batch-mappings")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -370,7 +370,7 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("promotes nobody for an empty cohort", func(t *testing.T) {
 		affected, err := repo.PromoteStudentsByIDs(ctx, nil, "1a", "2a")
@@ -410,7 +410,7 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("graduates nobody for an empty cohort", func(t *testing.T) {
 		affected, err := repo.GraduateStudentsByIDs(ctx, nil)
@@ -452,7 +452,7 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-validation")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

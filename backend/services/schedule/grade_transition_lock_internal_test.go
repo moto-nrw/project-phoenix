@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -23,7 +22,7 @@ import (
 func TestLockTenantGradeTransitions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	tenantCtx := tenant.WithTenantID(context.Background(), 1)
+	tenantCtx := testpkg.Ctx(t)
 
 	t.Run("refuses without a database", func(t *testing.T) {
 		require.ErrorContains(t, lockTenantGradeTransitions(tenantCtx, nil),
@@ -58,7 +57,7 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 func TestLockTenantRecurrenceWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	tenantCtx := tenant.WithTenantID(context.Background(), 1)
+	tenantCtx := testpkg.Ctx(t)
 
 	require.ErrorContains(t, lockTenantRecurrenceWrites(tenantCtx, nil),
 		"database is not configured")

@@ -131,7 +131,7 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	today := timezone.TodayDate()
 	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
 
-	settingsCtx := testpkg.TenantContext(1)
+	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {

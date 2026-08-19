@@ -32,8 +32,8 @@ func insertFieldEdit(tb testing.TB, db *bun.DB, studentID int64, createdAt time.
 	_, err := db.NewRaw(
 		`INSERT INTO audit.student_field_edits
 			(tenant_id, student_id, edited_by, edited_by_name, field_name, old_value, new_value, created_at)
-		 VALUES (1, ?, 1, 'Test Editor', 'supervisor_notes', 'alt', 'neu', ?)`,
-		studentID, createdAt,
+		 VALUES (?, ?, 1, 'Test Editor', 'supervisor_notes', 'alt', 'neu', ?)`,
+		testpkg.Tenant(tb), studentID, createdAt,
 	).Exec(ctx)
 	require.NoError(tb, err, "failed to insert student_field_edit")
 }
@@ -86,7 +86,7 @@ func changeLogSettings(retentionDays int) *configtest.Mock {
 
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Old", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -118,7 +118,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 
 func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Fresh", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

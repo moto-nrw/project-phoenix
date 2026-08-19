@@ -47,7 +47,7 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermiss
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	factory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
 
 	config := NewStudentImportConfig(StudentImportDeps{

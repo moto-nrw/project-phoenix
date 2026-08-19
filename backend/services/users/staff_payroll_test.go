@@ -76,7 +76,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 		DB:                   db,
 	})
 
-	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.TenantContext(1)}
+	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
 func (s *payrollScenario) auditRows(t *testing.T, staffID int64) []*auditModels.PersonnelNumberChange {

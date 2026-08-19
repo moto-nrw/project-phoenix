@@ -32,8 +32,8 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	insertUsage := func(portal string, lastSeen time.Time) {
 		_, err := db.ExecContext(context.Background(),
 			`INSERT INTO iot.pwa_standalone_usage (tenant_id, account_id, portal, first_seen_at, last_seen_at)
-			 VALUES (1, ?, ?, ?, ?)`,
-			account.ID, portal, lastSeen, lastSeen)
+			 VALUES (?, ?, ?, ?, ?)`,
+			testpkg.Tenant(t), account.ID, portal, lastSeen, lastSeen)
 		require.NoError(t, err)
 	}
 	insertUsage("staff", time.Now().AddDate(0, 0, -200))

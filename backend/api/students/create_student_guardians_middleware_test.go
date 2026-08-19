@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func emailPtr(s string) *string { return &s }
@@ -214,7 +215,7 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 		LastName:  "Guardian",
 		Email:     emailPtr(dupEmail),
 	}
-	existing.SetTenantID(1)
+	existing.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(existing).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {

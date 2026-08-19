@@ -27,15 +27,15 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
 	bodies := []string{"eins", "zwei", "drei"}
 	var lastID int64
 	for _, b := range bodies {
-		m := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, b)
+		m := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, b)
 		require.NoError(t, msgRepo.Create(ctx, m))
 		lastID = m.ID
 	}
@@ -70,15 +70,15 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
 	const refTable = "schedule.care_schedule_change_requests"
 	refID := int64(4242)
 
-	pill := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
+	pill := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
 	pill.Kind = usersModels.ParentMessageKindEvent
 	pill.EventType = "request_created"
 	pill.EventActorKind = usersModels.ParentMessageSenderGuardian
@@ -87,13 +87,13 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	require.NoError(t, msgRepo.Create(ctx, pill))
 
 	// Same ref, but a decision pill (different event_type) — must NOT match.
-	decision := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
+	decision := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
 	decision.Kind = usersModels.ParentMessageKindEvent
 	decision.EventType = "request_status"
 	decision.RefTable = refTable
 	decision.RefID = &refID
 	require.NoError(t, msgRepo.Create(ctx, decision))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
 
 	found, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID)
 	require.NoError(t, err)
@@ -132,11 +132,11 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
 
 	// Verified staff → sees the conversation regardless of the child's group.
 	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)

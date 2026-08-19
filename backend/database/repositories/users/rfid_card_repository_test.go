@@ -31,7 +31,7 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates RFID card with valid data", func(t *testing.T) {
 		uniqueID := generateHexID("ABCD")
@@ -78,7 +78,7 @@ func TestRFIDCardRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "CAFE")
@@ -103,7 +103,7 @@ func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card active status via Deactivate", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "BABE")
@@ -125,7 +125,7 @@ func TestRFIDCardRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "FADE")
@@ -154,7 +154,7 @@ func TestRFIDCardRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all RFID cards with no filters", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "BEEF")
@@ -185,7 +185,7 @@ func TestRFIDCardRepository_Deactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deactivates active RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "DECA")
@@ -217,7 +217,7 @@ func TestRFIDCardRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card fields", func(t *testing.T) {
 		// Create card with valid hex ID

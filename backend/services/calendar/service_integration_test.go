@@ -114,10 +114,11 @@ func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, 
 	return 0, nil
 }
 
-func calendarContext(accountID int64) context.Context {
-	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, jwt.AppClaims{
+func calendarContext(tb testing.TB, accountID int64) context.Context {
+	tb.Helper()
+	return context.WithValue(testpkg.Ctx(tb), jwt.CtxClaims, jwt.AppClaims{
 		ID:       int(accountID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(tb),
 	})
 }
 
@@ -183,7 +184,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	})
 
 	endsOn := timezone.NewDate(2026, 1, 12)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Recurring planning",
 		Description:  testpkg.StrPtr("Weekly planning with staff and parents"),
 		Location:     testpkg.StrPtr("Room 1"),
@@ -217,7 +218,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	guardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	staffEvents, err := service.ListMyStaffEvents(
-		calendarContext(invitedAccount.ID),
+		calendarContext(t, invitedAccount.ID),
 		timezone.NewDate(2026, 1, 5),
 		timezone.NewDate(2026, 1, 12),
 	)
@@ -227,9 +228,9 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	assert.Equal(t, calModels.ResponseStatusPending, *staffEvents[0].ResponseStatus)
 	assert.True(t, staffEvents[0].CanRespond)
 
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
 	staffEvents, err = service.ListMyStaffEvents(
-		calendarContext(invitedAccount.ID),
+		calendarContext(t, invitedAccount.ID),
 		timezone.NewDate(2026, 1, 5),
 		timezone.NewDate(2026, 1, 5),
 	)
@@ -238,7 +239,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	assert.Equal(t, calModels.ResponseStatusAccepted, *staffEvents[0].ResponseStatus)
 
 	parentEvents, err := service.ListMyParentEvents(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		parentChain.AccountID,
 		timezone.NewDate(2026, 1, 5),
 		timezone.NewDate(2026, 1, 12),
@@ -249,9 +250,9 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	assert.Equal(t, calModels.ResponseStatusPending, *parentEvents[0].ResponseStatus)
 	assert.True(t, parentEvents[0].CanRespond)
 
-	require.NoError(t, service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined))
+	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined))
 	parentEvents, err = service.ListMyParentEvents(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		parentChain.AccountID,
 		timezone.NewDate(2026, 1, 5),
 		timezone.NewDate(2026, 1, 5),
@@ -272,7 +273,7 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Information only",
 		StartDate:    timezone.NewDate(2026, 2, 2),
 		EndDate:      timezone.NewDate(2026, 2, 2),
@@ -287,7 +288,7 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	recipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), recipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), recipientID, calModels.ResponseStatusAccepted)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
@@ -303,7 +304,7 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Original title",
 		Location:     testpkg.StrPtr("Room 1"),
 		StartDate:    timezone.NewDate(2026, 3, 2),
@@ -319,7 +320,7 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// A non-organizer may not edit the appointment.
-	_, err = service.UpdateStaffAppointment(calendarContext(invitedAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	_, err = service.UpdateStaffAppointment(calendarContext(t, invitedAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:     "Hijack",
 		StartDate: timezone.NewDate(2026, 3, 2),
 		EndDate:   timezone.NewDate(2026, 3, 2),
@@ -330,7 +331,7 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
 	// The organizer edits event details; recipients (RSVP audience) are preserved.
-	updated, err := service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	updated, err := service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:     "Updated title",
 		Location:  testpkg.StrPtr("Room 2"),
 		StartDate: timezone.NewDate(2026, 3, 3),
@@ -343,16 +344,16 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	require.Len(t, updated.Recipients, 1)
 
 	// The organizer can re-read the full detail (used to prefill the edit modal).
-	detailAfter, err := service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	detailAfter, err := service.GetStaffAppointmentDetail(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated title", detailAfter.Appointment.Title)
 	assert.Equal(t, "Room 2", *detailAfter.Appointment.Location)
 	// A non-organizer is refused.
-	_, err = service.GetStaffAppointmentDetail(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentDetail(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
 	assert.Equal(t, "Updated title", events[0].Title)
@@ -360,16 +361,16 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	assert.False(t, events[0].Cancelled)
 
 	// Cancelling marks the event but keeps it visible so parents/staff see it.
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
-	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
 	assert.True(t, events[0].Cancelled)
 
 	// Deleting removes it from every reader.
-	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
-	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
+	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
 	require.NoError(t, err)
 	assert.Empty(t, eventDates(events, calModels.EventSourceAppointment))
 }
@@ -388,7 +389,7 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	})
 
 	// Create WITHOUT send_email: no mail is queued.
-	silent, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	silent, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Silent",
 		StartDate:    timezone.NewDate(2026, 4, 1),
 		EndDate:      timezone.NewDate(2026, 4, 1),
@@ -404,7 +405,7 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	assert.Empty(t, outbox.enqueued, "no email should be queued without send_email")
 
 	// Create WITH send_email: one published mail to the guardian.
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		Location:     testpkg.StrPtr("Aula"),
 		StartDate:    timezone.NewDate(2026, 4, 2),
@@ -428,7 +429,7 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	assert.NotEmpty(t, published.Payload["recipient_email"])
 
 	// Cancelling queues a cancellation notice and clears pending mail.
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, outbox.cancelled, "cancel should clear pending mail once")
 	require.Len(t, outbox.enqueued, 2)
@@ -450,7 +451,7 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	})
 
 	newSilentAppointment := func(title string, day int) *calendarSvc.AppointmentDetail {
-		detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 			Title:        title,
 			StartDate:    timezone.NewDate(2026, 4, day),
 			EndDate:      timezone.NewDate(2026, 4, day),
@@ -470,7 +471,7 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	// Cancelling a send_email=false appointment must not mail guardians.
 	silent := newSilentAppointment("Stiller Termin", 1)
 	require.Empty(t, outbox.enqueued)
-	_, err := service.CancelStaffAppointment(calendarContext(organizerAccount.ID), silent.Appointment.ID)
+	_, err := service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), silent.Appointment.ID)
 	require.NoError(t, err)
 	assert.Empty(t, outbox.enqueued, "a send_email=false appointment must stay silent on cancellation")
 
@@ -478,10 +479,10 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	// concurrent callers gate notifications so no duplicate cancellation e-mail is
 	// sent.
 	fresh := newSilentAppointment("Zweiter", 2)
-	first, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), fresh.Appointment.ID)
+	first, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.True(t, first, "first cancel performs the transition")
-	second, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), fresh.Appointment.ID)
+	second, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
 }
@@ -500,7 +501,7 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 	})
 
 	// send_email=true, so a successful cancellation WOULD notify guardians.
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wird gelöscht",
 		StartDate:    timezone.NewDate(2026, 5, 1),
 		EndDate:      timezone.NewDate(2026, 5, 1),
@@ -517,15 +518,15 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 
 	// Simulate a delete landing after a cancel request loaded the still-live
 	// appointment: soft-delete it directly.
-	require.NoError(t, repos.CalendarAppointment.SoftDelete(testpkg.TenantContext(1), detail.Appointment.ID))
+	require.NoError(t, repos.CalendarAppointment.SoftDelete(testpkg.Ctx(t), detail.Appointment.ID))
 
 	// The cancel transition must now match zero rows (deleted_at guard) and report
 	// no transition, so CancelStaffAppointment skips the guardian notice.
-	transitioned, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), detail.Appointment.ID)
+	transitioned, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, transitioned, "cancel must not transition an appointment a concurrent delete removed")
 
-	after, err := repos.CalendarAppointment.FindByID(testpkg.TenantContext(1), detail.Appointment.ID)
+	after, err := repos.CalendarAppointment.FindByID(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.DeletedAt, "the appointment stays deleted")
@@ -545,7 +546,7 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	})
 
 	endsOn := timezone.NewDate(2026, 5, 25)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wöchentliche AG",
 		Location:     testpkg.StrPtr("Turnhalle"),
 		StartDate:    timezone.NewDate(2026, 5, 4), // Monday
@@ -567,7 +568,7 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// Organizer can export.
-	filename, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	filename, content, err := service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Wchentliche-AG.ics", filename)
 	assert.Contains(t, content, "BEGIN:VEVENT")
@@ -580,13 +581,13 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	// Cancelling a single occurrence emits an EXDATE so subscribed calendars
 	// drop that date (matching the in-app view).
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(
-		calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 5, 11)))
-	_, contentAfter, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+		calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 5, 11)))
+	_, contentAfter, err := service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, contentAfter, "EXDATE;TZID=Europe/Berlin:20260511T140000")
 
 	// The invited guardian can export, and also sees the exclusion.
-	_, parentContent, err := service.ParentAppointmentICS(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	_, parentContent, err := service.ParentAppointmentICS(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, parentContent, "SUMMARY:Wöchentliche AG")
 	assert.Contains(t, parentContent, "EXDATE;TZID=Europe/Berlin:20260511T140000")
@@ -597,7 +598,7 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 		testpkg.CleanupStaffFixtures(t, db, other.ID)
 		testpkg.CleanupAuthFixtures(t, db, otherAccount.ID)
 	})
-	_, _, err = service.StaffAppointmentICS(calendarContext(otherAccount.ID), detail.Appointment.ID)
+	_, _, err = service.StaffAppointmentICS(calendarContext(t, otherAccount.ID), detail.Appointment.ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 }
@@ -619,7 +620,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Sommerfest",
 		StartDate:    timezone.TodayDate().AddDays(7),
 		EndDate:      timezone.TodayDate().AddDays(7),
@@ -634,14 +635,14 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// First request generates the token and returns the subscription URLs once.
-	httpsURL, webcalURL, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL, webcalURL, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(httpsURL, "https://parents.test/api/calendar-feed/"))
 	assert.True(t, strings.HasPrefix(webcalURL, "webcal://parents.test/api/calendar-feed/"))
 
 	// Show-once: only the token hash is stored, so a second request cannot
 	// re-display the raw URL — it returns empty (the UI then offers a rotate).
-	httpsURL2, webcalURL2, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL2, webcalURL2, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	assert.Empty(t, httpsURL2)
 	assert.Empty(t, webcalURL2)
@@ -660,7 +661,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	assert.Equal(t, hex.EncodeToString(rawSum[:]), storedFeedToken, "only the token hash is persisted")
 	assert.NotEqual(t, token, storedFeedToken, "the raw token must never be stored")
 
-	filename, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	filename, content, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Equal(t, "moto-kalender.ics", filename)
 	assert.Contains(t, content, "BEGIN:VCALENDAR")
@@ -671,7 +672,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	// in the feed, so subscribers drop that date.
 	recurStart := timezone.TodayDate().AddDays(7)
 	recurEnd := recurStart.AddDays(28)
-	recurring, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	recurring, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wöchentliches Treffen",
 		StartDate:    recurStart,
 		EndDate:      recurStart,
@@ -691,23 +692,23 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, recurring.Appointment.ID) })
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(
-		calendarContext(organizerAccount.ID), recurring.Appointment.ID, recurStart.AddDays(7)))
+		calendarContext(t, organizerAccount.ID), recurring.Appointment.ID, recurStart.AddDays(7)))
 
-	_, contentWithExdate, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, contentWithExdate, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Contains(t, contentWithExdate, "SUMMARY:Wöchentliches Treffen")
 	assert.Contains(t, contentWithExdate, "EXDATE;TZID=Europe/Berlin:")
 
 	// An unknown token is a plain not-found.
-	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), "nope-not-a-real-token")
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), "nope-not-a-real-token")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
 	// Rotation invalidates the old token.
-	httpsURL3, _, err := service.RotateParentCalendarFeed(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL3, _, err := service.RotateParentCalendarFeed(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	assert.NotEqual(t, httpsURL, httpsURL3)
-	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.Error(t, err)
 }
 
@@ -728,7 +729,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    timezone.TodayDate().AddDays(7),
 		EndDate:      timezone.TodayDate().AddDays(7),
@@ -743,7 +744,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	// The appointment is tombstoned, not hard-deleted, so clean it up explicitly.
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
 
@@ -754,21 +755,21 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	// Before deletion the appointment is a normal (non-cancelled) feed event and
 	// shows up in the parent's interactive calendar.
-	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Contains(t, content, "SUMMARY:Elternabend")
 	assert.NotContains(t, content, "STATUS:CANCELLED")
 
-	before, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, viewFrom, viewTo)
+	before, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, viewFrom, viewTo)
 	require.NoError(t, err)
 	assert.NotEmpty(t, eventDates(before, calModels.EventSourceAppointment))
 
-	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
 
 	// The subscription feed keeps re-exporting the same UID as a durable
 	// STATUS:CANCELLED tombstone with a bumped SEQUENCE, so subscribers purge it
 	// instead of retaining a stale event.
-	_, afterDelete, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, afterDelete, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Contains(t, afterDelete, "SUMMARY:Elternabend")
 	assert.Contains(t, afterDelete, "STATUS:CANCELLED")
@@ -776,11 +777,11 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	// But the delete is a real delete for every interactive surface: the organizer
 	// can no longer open it, and it is gone from the parent's calendar.
-	_, err = service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentDetail(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	afterParent, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, viewFrom, viewTo)
+	afterParent, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, viewFrom, viewTo)
 	require.NoError(t, err)
 	assert.Empty(t, eventDates(afterParent, calModels.EventSourceAppointment))
 }
@@ -797,7 +798,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Original",
 		StartDate:    timezone.NewDate(2026, 3, 2),
 		EndDate:      timezone.NewDate(2026, 3, 2),
@@ -813,7 +814,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	require.Nil(t, detail.Appointment.CancelledAt)
 
 	// Cancel it (persists cancelled_at via the dedicated conditional update).
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
 	// Flushing the stale edit must NOT touch the terminal row: the conditional
@@ -821,11 +822,11 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	// neither reactivates the appointment nor overwrites its content.
 	stale := *detail.Appointment
 	stale.Title = "Edited concurrently"
-	err = repos.CalendarAppointment.Update(testpkg.TenantContext(1), &stale)
+	err = repos.CalendarAppointment.Update(testpkg.Ctx(t), &stale)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, calModels.ErrAppointmentLifecycleConflict)
 
-	after, err := repos.CalendarAppointment.FindByID(testpkg.TenantContext(1), detail.Appointment.ID)
+	after, err := repos.CalendarAppointment.FindByID(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.CancelledAt, "the cancellation stands")
@@ -852,7 +853,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	// A guardian-facing appointment whose date is already far beyond the feed's
 	// 30-day lookback, so the live feed query never returns it.
 	pastDate := timezone.TodayDate().AddDays(-60)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Vergangener Termin",
 		StartDate:    pastDate,
 		EndDate:      pastDate,
@@ -864,22 +865,22 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
 
 	// Before cancellation: outside the lookback, so absent from the feed.
-	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.NotContains(t, content, "SUMMARY:Vergangener Termin")
 
 	// Cancel it. Even though its date aged out of the lookback, the feed must
 	// re-export it as a durable STATUS:CANCELLED tombstone (retained by cancel
 	// time), so a subscriber who was offline still receives the cancellation.
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
-	_, afterCancel, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, afterCancel, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Contains(t, afterCancel, "SUMMARY:Vergangener Termin")
 	assert.Contains(t, afterCancel, "STATUS:CANCELLED")
@@ -897,7 +898,7 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Schulfest",
 		StartDate:    timezone.NewDate(2026, 6, 20),
 		EndDate:      timezone.NewDate(2026, 6, 20),
@@ -919,7 +920,7 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 
 	// The parent sees it in their calendar.
 	events, err := service.ListMyParentEvents(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		parentChain.AccountID,
 		timezone.NewDate(2026, 6, 20),
 		timezone.NewDate(2026, 6, 20),
@@ -951,7 +952,7 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Schulfest",
 		StartDate:    timezone.NewDate(2026, 6, 20),
 		EndDate:      timezone.NewDate(2026, 6, 20),
@@ -984,7 +985,7 @@ func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	})
 
 	endsOn := timezone.NewDate(2026, 1, 19)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Weekly standup",
 		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
 		EndDate:      timezone.NewDate(2026, 1, 5),
@@ -1004,18 +1005,18 @@ func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
 
 	// Cancel the middle occurrence.
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
-	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
 
 	// Cancelling the same occurrence again is idempotent.
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 }
 
 func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
@@ -1032,7 +1033,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:              "Overview visible to all",
 		StartDate:          timezone.NewDate(2026, 2, 10),
 		EndDate:            timezone.NewDate(2026, 2, 10),
@@ -1049,9 +1050,9 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
 
-	staffOverview, err := service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	staffOverview, err := service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staffOverview)
 	assert.Equal(t, calModels.OverviewVisibilityAll, staffOverview.OverviewVisibility)
@@ -1065,16 +1066,16 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	assert.Equal(t, calModels.ResponseStatusAccepted, staffOverview.Attendees[1].Status)
 	require.NotNil(t, staffOverview.Attendees[1].RespondedAt)
 
-	parentOverview, err := service.GetParentAppointmentOverview(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	parentOverview, err := service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, parentOverview.Attendees, 2)
 
-	staffEvents, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 2, 10), timezone.NewDate(2026, 2, 10))
+	staffEvents, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 2, 10), timezone.NewDate(2026, 2, 10))
 	require.NoError(t, err)
 	require.NotEmpty(t, staffEvents)
 	assert.True(t, staffEvents[0].CanViewOverview)
 
-	parentEvents, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 2, 10), timezone.NewDate(2026, 2, 10))
+	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, timezone.NewDate(2026, 2, 10), timezone.NewDate(2026, 2, 10))
 	require.NoError(t, err)
 	require.NotEmpty(t, parentEvents)
 	assert.True(t, parentEvents[0].CanViewOverview)
@@ -1093,7 +1094,7 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:              "Wird gelöscht",
 		StartDate:          timezone.NewDate(2026, 2, 10),
 		EndDate:            timezone.NewDate(2026, 2, 10),
@@ -1114,28 +1115,28 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 	guardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	// Sanity: while live, overview and RSVP are reachable.
-	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
 
 	// It targets a guardian, so delete tombstones (soft-deletes) it.
-	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
 
 	// Every interactive detail/overview/RSVP path — staff and parent — must now
 	// treat the retained appointment/recipient IDs as not found.
-	_, err = service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentDetail(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 
-	_, err = service.GetStaffAppointmentOverview(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	_, err = service.GetParentAppointmentOverview(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 
-	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 }
 
@@ -1154,7 +1155,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, outsiderAccount.ID, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:              "Staff-only overview",
 		StartDate:          timezone.NewDate(2026, 2, 11),
 		EndDate:            timezone.NewDate(2026, 2, 11),
@@ -1170,23 +1171,23 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	organizerOverview, err := service.GetStaffAppointmentOverview(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	organizerOverview, err := service.GetStaffAppointmentOverview(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, organizerOverview.Attendees, 2)
 	for _, attendee := range organizerOverview.Attendees {
 		assert.Equal(t, calModels.ResponseStatusInfo, attendee.Status)
 	}
 
-	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
-	_, err = service.GetParentAppointmentOverview(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	_, err = service.GetStaffAppointmentOverview(calendarContext(outsiderAccount.ID), detail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, outsiderAccount.ID), detail.Appointment.ID)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	parentEvents, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 2, 11), timezone.NewDate(2026, 2, 11))
+	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, timezone.NewDate(2026, 2, 11), timezone.NewDate(2026, 2, 11))
 	require.NoError(t, err)
 	require.NotEmpty(t, parentEvents)
 	assert.False(t, parentEvents[0].CanViewOverview)
@@ -1214,7 +1215,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	invisibleGuardian.SetTenantID(1)
+	invisibleGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
 	accountlessGuardian := &userModels.GuardianProfile{
@@ -1223,7 +1224,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	accountlessGuardian.SetTenantID(1)
+	accountlessGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(accountlessGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
 	accountlessLink := &userModels.StudentGuardian{
@@ -1232,7 +1233,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		RelationshipType:  "parent",
 	}
 	authorize.ApplyStudentGuardianRole(accountlessLink, authorize.GuardianRoleLegalGuardian)
-	accountlessLink.SetTenantID(1)
+	accountlessLink.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(accountlessLink).ModelTableExpr(`users.students_guardians`).Exec(context.Background())
 	require.NoError(t, err)
 
@@ -1246,7 +1247,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	options, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "target", 20)
+	options, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "target", 20)
 	require.NoError(t, err)
 	assert.NotEmpty(t, options.Staff)
 	assert.NotNil(t, options.Parents)
@@ -1257,33 +1258,33 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotContains(t, parentOptionIDs(options.Parents), strconv.FormatInt(inactiveParentChain.GuardianProfileID, 10))
 	assert.NotContains(t, parentOptionIDs(options.Parents), strconv.FormatInt(accountlessGuardian.ID, 10))
 
-	schneiderOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "schneider", 20)
+	schneiderOptions, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "schneider", 20)
 	require.NoError(t, err)
 	assert.Contains(t, parentOptionIDs(schneiderOptions.Parents), strconv.FormatInt(parentChain.GuardianProfileID, 10))
 	assert.NotContains(t, parentOptionIDs(schneiderOptions.Parents), strconv.FormatInt(inactiveParentChain.GuardianProfileID, 10))
 
-	hiddenOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "hidden", 20)
+	hiddenOptions, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "hidden", 20)
 	require.NoError(t, err)
 	assert.NotContains(t, parentOptionIDs(hiddenOptions.Parents), strconv.FormatInt(invisibleGuardian.ID, 10))
 
-	childOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "felix", 20)
+	childOptions, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "felix", 20)
 	require.NoError(t, err)
 	require.NotEmpty(t, childOptions.Students)
 	assert.Contains(t, childOptions.Students[0].Name, "Felix")
 
-	limitedOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "", 1)
+	limitedOptions, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "", 1)
 	require.NoError(t, err)
 	assert.LessOrEqual(t, len(limitedOptions.Staff), 1)
 	assert.LessOrEqual(t, len(limitedOptions.Groups), 1)
 	assert.LessOrEqual(t, len(limitedOptions.Classes), 1)
 	assert.LessOrEqual(t, len(limitedOptions.Students), 1)
 
-	defaultedOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "target", 999)
+	defaultedOptions, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "target", 999)
 	require.NoError(t, err)
 	assert.NotNil(t, defaultedOptions.Staff)
 
 	className := "1a"
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:              "Grouped target coverage",
 		StartDate:          timezone.NewDate(2026, 2, 12),
 		EndDate:            timezone.NewDate(2026, 2, 12),
@@ -1308,7 +1309,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.Zero(t, findOptionalRecipientByGuardian(detail, accountlessGuardian.ID))
 	require.Len(t, detail.Targets, 3)
 
-	parentEvents, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 2, 12), timezone.NewDate(2026, 2, 12))
+	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, timezone.NewDate(2026, 2, 12), timezone.NewDate(2026, 2, 12))
 	require.NoError(t, err)
 	require.NotEmpty(t, parentEvents)
 	assert.True(t, parentEvents[0].CanViewOverview)
@@ -1339,7 +1340,7 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	invisibleGuardian.SetTenantID(1)
+	invisibleGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1372,7 +1373,7 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+			_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 				Title:        "Invalid target",
 				StartDate:    timezone.NewDate(2026, 2, 14),
 				EndDate:      timezone.NewDate(2026, 2, 14),
@@ -1399,7 +1400,7 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 	})
 
 	title := "Invalid recurrence must not persist"
-	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:     title,
 		StartDate: timezone.NewDate(2026, 2, 20),
 		EndDate:   timezone.NewDate(2026, 2, 20),
@@ -1435,7 +1436,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	})
 
 	endsOn := timezone.NewDate(2026, 1, 31)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Overnight recurring appointment",
 		StartDate:    timezone.NewDate(2026, 1, 31),
 		EndDate:      timezone.NewDate(2026, 2, 1),
@@ -1454,7 +1455,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	events, err := service.ListMyStaffEvents(
-		calendarContext(organizerAccount.ID),
+		calendarContext(t, organizerAccount.ID),
 		timezone.NewDate(2026, 2, 1),
 		timezone.NewDate(2026, 2, 1),
 	)
@@ -1466,10 +1467,10 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 		OccurrenceDate: timezone.NewDate(2026, 1, 31),
 		Cancelled:      true,
 	}
-	require.NoError(t, repos.CalendarOccurrenceOverride.Create(calendarContext(organizerAccount.ID), cancelledOverride))
+	require.NoError(t, repos.CalendarOccurrenceOverride.Create(calendarContext(t, organizerAccount.ID), cancelledOverride))
 
 	events, err = service.ListMyStaffEvents(
-		calendarContext(organizerAccount.ID),
+		calendarContext(t, organizerAccount.ID),
 		timezone.NewDate(2026, 2, 1),
 		timezone.NewDate(2026, 2, 1),
 	)
@@ -1491,7 +1492,7 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	rsvpDetail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	rsvpDetail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Response errors",
 		StartDate:    timezone.NewDate(2026, 2, 15),
 		EndDate:      timezone.NewDate(2026, 2, 15),
@@ -1509,28 +1510,28 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	staffRecipientID := findRecipientByStaff(t, rsvpDetail, invitedStaff.ID)
 	guardianRecipientID := findRecipientByGuardian(t, rsvpDetail, parentChain.GuardianProfileID)
 
-	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusPending)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusPending)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToStaffInvitation(calendarContext(organizerAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToStaffInvitation(calendarContext(t, organizerAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusPending)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusPending)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), 0, guardianRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), 0, guardianRecipientID, calModels.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, staffRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, staffRecipientID, calModels.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), 999999999)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), 999999999)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	_, err = service.GetParentAppointmentOverview(testpkg.TenantContext(1), parentChain.AccountID, 999999999)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, 999999999)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	privateDetail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	privateDetail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Organizer-only overview",
 		StartDate:    timezone.NewDate(2026, 2, 16),
 		EndDate:      timezone.NewDate(2026, 2, 16),
@@ -1544,10 +1545,10 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, privateDetail.Appointment.ID) })
 
-	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), privateDetail.Appointment.ID)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), privateDetail.Appointment.ID)
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	infoDetail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	infoDetail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Parent information only",
 		StartDate:    timezone.NewDate(2026, 2, 17),
 		EndDate:      timezone.NewDate(2026, 2, 17),
@@ -1562,7 +1563,7 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, infoDetail.Appointment.ID) })
 
 	infoGuardianRecipientID := findRecipientByGuardian(t, infoDetail, parentChain.GuardianProfileID)
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, infoGuardianRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, infoGuardianRecipientID, calModels.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
 
@@ -1582,7 +1583,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	})
 
 	endsOn := timezone.NewDate(2026, 2, 20)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Repository coverage",
 		StartDate:    timezone.NewDate(2026, 2, 13),
 		EndDate:      timezone.NewDate(2026, 2, 13),
@@ -1603,7 +1604,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	organized, err := repos.CalendarAppointment.ListOrganizedByStaff(ctx, organizer.ID, timezone.NewDate(2026, 2, 13), timezone.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	require.NotEmpty(t, organized)
@@ -1683,7 +1684,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
-	events, err := service.ListMyStaffEvents(calendarContext(account.ID), timezone.NewDate(2026, 3, 3), timezone.NewDate(2026, 3, 3))
+	events, err := service.ListMyStaffEvents(calendarContext(t, account.ID), timezone.NewDate(2026, 3, 3), timezone.NewDate(2026, 3, 3))
 	require.NoError(t, err)
 	require.Len(t, events, 1)
 	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
@@ -1700,7 +1701,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Shift", "Staff")
 
 	shiftType := &scheduleModels.ShiftType{Name: "Frühdienst", Color: "#F78C10", IsActive: true}
-	shiftType.SetTenantID(1)
+	shiftType.SetTenantID(testpkg.Tenant(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := db.NewInsert().Model(shiftType).ModelTableExpr(`schedule.shift_types`).Exec(ctx)
@@ -1728,7 +1729,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
-	events, err := service.ListMyStaffEvents(calendarContext(account.ID), day, day.AddDays(1))
+	events, err := service.ListMyStaffEvents(calendarContext(t, account.ID), day, day.AddDays(1))
 	require.NoError(t, err)
 	require.Len(t, events, 2)
 
@@ -1768,7 +1769,7 @@ func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *test
 		testpkg.CleanupParentGuardianChain(t, db, parentChain)
 	})
 
-	events, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 4, 8), timezone.NewDate(2026, 4, 8))
+	events, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, timezone.NewDate(2026, 4, 8), timezone.NewDate(2026, 4, 8))
 	require.NoError(t, err)
 	assert.Empty(t, events)
 }
@@ -1792,7 +1793,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elterninfo",
 		StartDate:    timezone.TodayDate().AddDays(3),
 		EndDate:      timezone.TodayDate().AddDays(3),
@@ -1806,12 +1807,12 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
 
 	// While active, the feed serves the family's appointments.
-	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 	assert.Contains(t, content, "SUMMARY:Elterninfo")
 
@@ -1824,7 +1825,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	require.NoError(t, err)
 
 	// The same token now behaves like an unknown token: a plain not-found, no leak.
-	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 }
@@ -1852,7 +1853,7 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 			EndsOn:        &endsOn,
 		}
 	}
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Weekly standup",
 		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
 		EndDate:      timezone.NewDate(2026, 1, 5),
@@ -1868,14 +1869,14 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// Cancel the middle occurrence, confirm it disappears.
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
 
 	// Edit the series (same cadence). The stale cancellation must be cleared, so
 	// 2026-01-12 reappears in the edited series.
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:      "Weekly standup (edited)",
 		StartDate:  timezone.NewDate(2026, 1, 5),
 		EndDate:    timezone.NewDate(2026, 1, 5),
@@ -1885,7 +1886,7 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 	})
 	require.NoError(t, err)
 
-	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
 }
@@ -1905,7 +1906,7 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 	})
 
 	endsOn := timezone.NewDate(2026, 5, 27)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Mittwochs-AG",
 		StartDate:    timezone.NewDate(2026, 5, 4), // Monday — NOT a selected weekday
 		EndDate:      timezone.NewDate(2026, 5, 4),
@@ -1927,12 +1928,12 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 
 	// The in-app expansion starts on the first Wednesday (2026-05-06), not the
 	// Monday StartDate.
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 5, 4), timezone.NewDate(2026, 5, 6))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 5, 4), timezone.NewDate(2026, 5, 6))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-05-06"}, eventDates(events, calModels.EventSourceAppointment))
 
 	// The ICS export must anchor DTSTART on that same first Wednesday.
-	_, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, content, err := service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, content, "DTSTART;TZID=Europe/Berlin:20260506T140000")
 	assert.NotContains(t, content, "20260504T140000", "must not anchor DTSTART on the non-matching StartDate")
@@ -1955,7 +1956,7 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    timezone.NewDate(2026, 4, 2),
 		EndDate:      timezone.NewDate(2026, 4, 2),
@@ -1982,7 +1983,7 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 
 	// Edit WITHOUT re-sending: the stale pending mail is cancelled and no new mail
 	// is queued.
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, base)
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, base)
 	require.NoError(t, err)
 	assert.Equal(t, 1, outbox.cancelled, "update must cancel pending mail even when not re-sending")
 	require.Len(t, outbox.enqueued, 1, "no new mail queued when send_email is off")
@@ -1997,7 +1998,7 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	// Edit WITH re-sending: cancels again, then queues a single update notice.
 	resend := base
 	resend.SendEmail = true
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, resend)
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, resend)
 	require.NoError(t, err)
 	assert.Equal(t, 2, outbox.cancelled)
 	require.Len(t, outbox.enqueued, 2)
@@ -2026,7 +2027,7 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    timezone.NewDate(2026, 4, 2),
 		EndDate:      timezone.NewDate(2026, 4, 2),
@@ -2042,7 +2043,7 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	require.Len(t, outbox.enqueued, 1)
 
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:     "Elternabend (verschoben)",
 		StartDate: timezone.NewDate(2026, 4, 3),
 		EndDate:   timezone.NewDate(2026, 4, 3),
@@ -2072,7 +2073,7 @@ func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *tes
 	})
 
 	endsOn := timezone.NewDate(2026, 5, 27)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Mittwochs-AG",
 		StartDate:    timezone.NewDate(2026, 5, 4), // Monday — NOT a selected weekday
 		EndDate:      timezone.NewDate(2026, 5, 4),
@@ -2114,7 +2115,7 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elterngespräch",
 		StartDate:    timezone.NewDate(2026, 6, 3),
 		EndDate:      timezone.NewDate(2026, 6, 3),
@@ -2133,29 +2134,29 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	parentRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	// While active, responses are accepted and CanRespond is true.
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
 	assert.True(t, events[0].CanRespond)
 
 	// Cancel the appointment.
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
 	// The API shape now forbids responding.
-	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
+	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
 	assert.True(t, events[0].Cancelled)
 	assert.False(t, events[0].CanRespond, "cancelled appointment must not be respondable")
 
 	// Both response endpoints reject RSVP changes after cancellation.
-	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, parentRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, parentRecipientID, calModels.ResponseStatusDeclined)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
@@ -2173,7 +2174,7 @@ func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Termin",
 		StartDate:    timezone.NewDate(2026, 8, 3),
 		EndDate:      timezone.NewDate(2026, 8, 3),
@@ -2187,10 +2188,10 @@ func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, err = service.CancelStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:     "Termin (editiert)",
 		StartDate: timezone.NewDate(2026, 8, 4),
 		EndDate:   timezone.NewDate(2026, 8, 4),
@@ -2215,7 +2216,7 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 	})
 
 	// Non-recurring appointment: cancelling an occurrence is rejected.
-	single, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	single, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Einmalig",
 		StartDate:    timezone.NewDate(2026, 9, 1),
 		EndDate:      timezone.NewDate(2026, 9, 1),
@@ -2229,14 +2230,14 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, single.Appointment.ID) })
 
-	err = service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), single.Appointment.ID, timezone.NewDate(2026, 9, 1))
+	err = service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), single.Appointment.ID, timezone.NewDate(2026, 9, 1))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
 	// Recurring appointment: a date the series does not generate is rejected, a
 	// generated date succeeds.
 	endsOn := timezone.NewDate(2026, 9, 28)
-	recurring, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	recurring, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Montags",
 		StartDate:    timezone.NewDate(2026, 9, 7), // Monday
 		EndDate:      timezone.NewDate(2026, 9, 7),
@@ -2257,12 +2258,12 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, recurring.Appointment.ID) })
 
 	// 2026-09-08 is a Tuesday — not part of the Monday series.
-	err = service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 8))
+	err = service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 8))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
 	// 2026-09-14 is a generated Monday — accepted.
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 14)))
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 14)))
 }
 
 // A recurrence that generates no occurrence (weekly weekday outside its EndsOn
@@ -2279,7 +2280,7 @@ func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
 	})
 
 	endsOn := timezone.NewDate(2026, 5, 5) // Tuesday — no Wednesday in [Mon, Tue]
-	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Nie",
 		StartDate:    timezone.NewDate(2026, 5, 4), // Monday
 		EndDate:      timezone.NewDate(2026, 5, 4),
@@ -2322,7 +2323,7 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 			EndsOn:        &endsOn,
 		}
 	}
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Reihe",
 		StartDate:    timezone.NewDate(2026, 10, 5), // Monday
 		EndDate:      timezone.NewDate(2026, 10, 5),
@@ -2338,12 +2339,12 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// Freshly created: revision 0, so no SEQUENCE line.
-	_, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, content, err := service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.NotContains(t, content, "SEQUENCE:")
 
 	// Editing bumps the revision → SEQUENCE:1.
-	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+	_, err = service.UpdateStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
 		Title:      "Reihe (v2)",
 		StartDate:  timezone.NewDate(2026, 10, 5),
 		EndDate:    timezone.NewDate(2026, 10, 5),
@@ -2352,14 +2353,14 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 		Recurrence: weekly(),
 	})
 	require.NoError(t, err)
-	_, content, err = service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	_, content, err = service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, content, "SEQUENCE:1")
 	assert.Contains(t, content, "LAST-MODIFIED:")
 
 	// Cancelling a single occurrence bumps it again → SEQUENCE:2 (and an EXDATE).
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 10, 12)))
-	_, content, err = service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 10, 12)))
+	_, content, err = service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, content, "SEQUENCE:2")
 	assert.Contains(t, content, "EXDATE;TZID=Europe/Berlin:20261012T090000")
@@ -2382,7 +2383,7 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 	// Monthly, every 24 months, on day 30. Start 2026-01-31 (day 30 in Jan is
 	// before the start), so the first real occurrence is 2028-01-30 — over a year
 	// out but perfectly valid.
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Alle zwei Jahre",
 		StartDate:    timezone.NewDate(2026, 1, 31),
 		EndDate:      timezone.NewDate(2026, 1, 31),
@@ -2402,7 +2403,7 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	// The first occurrence lands on 2028-01-30, in-app.
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2028, 1, 30), timezone.NewDate(2028, 1, 30))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2028, 1, 30), timezone.NewDate(2028, 1, 30))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2028-01-30"}, eventDates(events, calModels.EventSourceAppointment))
 }
@@ -2431,7 +2432,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	// three occurrences are well before the feed's 30-day lookback.
 	count := 3
 	pastStart := timezone.TodayDate().AddDays(-200)
-	expired, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	expired, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Abgelaufene Reihe",
 		StartDate:    pastStart,
 		EndDate:      pastStart,
@@ -2451,7 +2452,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, expired.Appointment.ID) })
 
 	// A current appointment inside the feed window.
-	current, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	current, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Aktueller Termin",
 		StartDate:    timezone.TodayDate().AddDays(5),
 		EndDate:      timezone.TodayDate().AddDays(5),
@@ -2465,10 +2466,10 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, current.Appointment.ID) })
 
-	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), parentChain.AccountID)
 	require.NoError(t, err)
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
-	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "SUMMARY:Aktueller Termin", "current appointment must be in the feed")
@@ -2491,7 +2492,7 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	})
 
 	endsOn := timezone.NewDate(2026, 1, 26)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Montags",
 		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
 		EndDate:      timezone.NewDate(2026, 1, 5),
@@ -2513,12 +2514,12 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 
 	// The insert path is exercised twice for the same occurrence; the second call
 	// takes the ON CONFLICT DO UPDATE branch and must NOT error.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 
 	// The occurrence is excluded from the series exactly once.
-	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))
+	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-19", "2026-01-26"}, eventDates(events, calModels.EventSourceAppointment))
 }
@@ -2537,7 +2538,7 @@ func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testi
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
 	})
 
-	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Nie",
 		StartDate:    timezone.NewDate(2026, 2, 15), // February — reached every 12 months
 		EndDate:      timezone.NewDate(2026, 2, 15),
@@ -2574,7 +2575,7 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	})
 
 	endsOn := timezone.NewDate(2026, 1, 26)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wöchentlich",
 		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
 		EndDate:      timezone.NewDate(2026, 1, 5),
@@ -2597,7 +2598,7 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	require.Len(t, outbox.enqueued, 1, "create with send_email queues one notice")
 
 	// Removing a single occurrence clears the still-pending notice.
-	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 	assert.Equal(t, 1, outbox.cancelled, "single-occurrence cancel must clear pending notifications")
 }
 
@@ -2639,7 +2640,7 @@ func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) 
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
-	events, err := service.ListMyStaffEvents(calendarContext(account.ID), day, day)
+	events, err := service.ListMyStaffEvents(calendarContext(t, account.ID), day, day)
 	require.NoError(t, err)
 	require.Len(t, events, 3)
 

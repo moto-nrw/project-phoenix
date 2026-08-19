@@ -16,7 +16,7 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant")
 	tenantID := account.ID + 1000
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -60,7 +60,7 @@ func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := repo.Create(ctx, nil)
 	require.Error(t, err)
@@ -75,7 +75,7 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
 	tenantID := account.ID + 2000
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -119,7 +119,7 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-deactivate")
 	tenantID := account.ID + 3000
 	otherTenantID := account.ID + 3001

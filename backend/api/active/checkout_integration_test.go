@@ -36,8 +36,6 @@ func makeCheckoutRequest(t *testing.T, studentID int64, token string) *http.Requ
 }
 
 func TestCheckoutStudent_Integration(t *testing.T) {
-	setupViperForTest()
-
 	db := testpkg.SetupTestDB(t)
 
 	checkoutPermissions := []string{permissions.VisitsUpdate}

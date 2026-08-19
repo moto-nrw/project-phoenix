@@ -31,17 +31,17 @@ func createCareMaterializationSchedule(
 		IsActive:    true,
 		Description: "care materializability",
 	}
-	timeframe.SetTenantID(1)
+	timeframe.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.Timeframe.Create(testpkg.TenantContext(1), timeframe))
+	require.NoError(t, repos.Timeframe.Create(testpkg.Ctx(t), timeframe))
 	schedule := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
 		TimeframeID:      &timeframe.ID,
 		ActivityGroupID:  groupID,
 		CalendarPeriodID: &periodID,
 	}
-	schedule.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
+	schedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
@@ -58,7 +58,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = start
 	phase.ServiceEndDate = end
-	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.TenantContext(1), phase))
+	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.Ctx(t), phase))
 }
 
 func createCareMaterializationException(
@@ -67,8 +67,8 @@ func createCareMaterializationException(
 	exception *scheduleModels.ActivityException,
 ) {
 	t.Helper()
-	exception.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.TenantContext(1), exception))
+	exception.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.Ctx(t), exception))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exception.ID)
 	})
@@ -85,10 +85,10 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 			Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 			CalendarPeriodID: &period.ID,
 		}
-		schedule.SetTenantID(1)
-		require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
+		schedule.SetTenantID(testpkg.Tenant(t))
+		require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 
-		_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+		_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 		require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 		assert.ErrorContains(t, err, "no complete timeframe")
 	})
@@ -101,7 +101,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 		group := createCareOfferingTemplateGroup(t, db, "open-timeframe")
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, nil)
 
-		_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+		_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 		require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 		assert.ErrorContains(t, err, "no complete timeframe")
 	})
@@ -113,11 +113,11 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 			timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "missing-room")
 		group.PlannedRoomID = nil
-		require.NoError(t, repositories.NewFactory(db).ActivityGroup.Update(testpkg.TenantContext(1), group))
+		require.NoError(t, repositories.NewFactory(db).ActivityGroup.Update(testpkg.Ctx(t), group))
 		end := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 
-		_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+		_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 		require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 		assert.ErrorContains(t, err, "no effective room")
 	})
@@ -133,14 +133,14 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 	group := createCareOfferingTemplateGroup(t, db, "exception-no-timeframe")
 	group.PlannedRoomID = nil
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.ActivityGroup.Update(testpkg.TenantContext(1), group))
+	require.NoError(t, repos.ActivityGroup.Update(testpkg.Ctx(t), group))
 	schedule := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
 		ActivityGroupID:  group.ID,
 		CalendarPeriodID: &period.ID,
 	}
-	schedule.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
+	schedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care no-timeframe override")
 	start := timezone.WallClock(time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC))
@@ -157,7 +157,7 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
 	})
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "no complete timeframe",
 		"date-specific time and room overrides must not fabricate the missing base timeframe")
@@ -174,19 +174,19 @@ func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *
 	end := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	repos := repositories.NewFactory(db)
-	schedules, err := repos.ActivitySchedule.FindByGroupID(testpkg.TenantContext(1), group.ID)
+	schedules, err := repos.ActivitySchedule.FindByGroupID(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Len(t, schedules, 1)
 	schedules[0].Weekday = activitiesModels.WeekdayTuesday
 	schedules[0].TimeframeID = &timeframe.ID
-	require.NoError(t, repos.ActivitySchedule.Update(testpkg.TenantContext(1), schedules[0]))
+	require.NoError(t, repos.ActivitySchedule.Update(testpkg.Ctx(t), schedules[0]))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
 		ExceptionDate:   monday,
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	})
 
-	_, err = svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err = svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "recurrence does not cover",
 		"a cancellation suppresses a real occurrence; it cannot create one on another weekday")
@@ -202,7 +202,7 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	group := createCareOfferingTemplateGroup(t, db, "exception-room")
 	group.PlannedRoomID = nil
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.ActivityGroup.Update(testpkg.TenantContext(1), group))
+	require.NoError(t, repos.ActivityGroup.Update(testpkg.Ctx(t), group))
 	end := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care exception override")
@@ -212,14 +212,14 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		RoomID:          &overrideRoom.ID,
 	}
-	exception.SetTenantID(1)
-	require.NoError(t, repos.ActivityException.Create(testpkg.TenantContext(1), exception))
+	exception.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivityException.Create(testpkg.Ctx(t), exception))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exception.ID)
 		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
 	})
 
-	created, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	created, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err, "the exact occurrence room override must satisfy materialization")
 
 	secondMonday := firstMonday.AddDays(7)
@@ -227,13 +227,13 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	require.True(t, ok)
 	replacement := *phase
 	replacement.ServiceEndDate = secondMonday
-	err = phaseValidator.ValidatePhaseChange(testpkg.TenantContext(1), phase.ID, &replacement)
+	err = phaseValidator.ValidatePhaseChange(testpkg.Ctx(t), phase.ID, &replacement)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, secondMonday.String(),
 		"phase service-window expansion must validate the newly exposed occurrence")
 
 	setCareTestPhaseWindow(t, db, phase, firstMonday, secondMonday)
-	err = svc.Update(testpkg.TenantContext(1), created)
+	err = svc.Update(testpkg.Ctx(t), created)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, secondMonday.String(),
 		"the first occurrence override must not become a series-wide room fallback")
@@ -253,9 +253,9 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 	successor.PlannedRoomID = nil
 	successor.SeriesRootID = &root.ID
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.ActivityGroup.Update(testpkg.TenantContext(1), root))
-	require.NoError(t, repos.ActivityGroup.Update(testpkg.TenantContext(1), successor))
-	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, 1, "segment exception")
+	require.NoError(t, repos.ActivityGroup.Update(testpkg.Ctx(t), root))
+	require.NoError(t, repos.ActivityGroup.Update(testpkg.Ctx(t), successor))
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "segment exception")
 	rootSchedule := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
 		TimeframeID:      &timeframe.ID,
@@ -263,8 +263,8 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		CalendarPeriodID: &period.ID,
 		ValidUntil:       &secondMonday,
 	}
-	rootSchedule.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), rootSchedule))
+	rootSchedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), rootSchedule))
 	successorSchedule := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
 		TimeframeID:      &timeframe.ID,
@@ -272,8 +272,8 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		CalendarPeriodID: &period.ID,
 		ValidFrom:        &secondMonday,
 	}
-	successorSchedule.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), successorSchedule))
+	successorSchedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), successorSchedule))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "activities.schedules", rootSchedule.ID, successorSchedule.ID)
 		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
@@ -292,7 +292,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
 	})
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, root.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, root.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, secondMonday.String())
 	assert.ErrorContains(t, err, "no effective room",
@@ -307,27 +307,27 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 	group := createCareOfferingTemplateGroup(t, db, "resource-change")
 	end := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
 
 	validator, ok := svc.(enrollmentService.CareOfferingMaterializationResourceValidator)
 	require.True(t, ok)
-	err = validator.ValidateRoomDeletion(testpkg.TenantContext(1), *group.PlannedRoomID)
+	err = validator.ValidateRoomDeletion(testpkg.Ctx(t), *group.PlannedRoomID)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "no effective room")
 
-	err = validator.ValidateTimeframeDeletion(testpkg.TenantContext(1), timeframe.ID)
+	err = validator.ValidateTimeframeDeletion(testpkg.Ctx(t), timeframe.ID)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "no complete timeframe")
 
 	openEnded := *timeframe
 	openEnded.EndTime = nil
-	err = validator.ValidateTimeframeChange(testpkg.TenantContext(1), timeframe.ID, &openEnded)
+	err = validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &openEnded)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 
 	inactive := *timeframe
 	inactive.IsActive = false
-	require.NoError(t, validator.ValidateTimeframeChange(testpkg.TenantContext(1), timeframe.ID, &inactive),
+	require.NoError(t, validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &inactive),
 		"materialization deliberately accepts inactive timeframes with complete clock times")
 }
 
@@ -348,7 +348,7 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &overrideStart,
 	})
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err, "the partial override is valid against the stored 17:00 end")
 
 	validator, ok := svc.(enrollmentService.CareOfferingMaterializationResourceValidator)
@@ -356,7 +356,7 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 	replacement := *timeframe
 	replacementEnd := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	replacement.EndTime = &replacementEnd
-	err = validator.ValidateTimeframeChange(testpkg.TenantContext(1), timeframe.ID, &replacement)
+	err = validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &replacement)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "invalid effective start/end time",
 		"replacement and partial exception must be composed before validating effective times")
@@ -372,7 +372,7 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 	group := createCareOfferingTemplateGroup(t, db, "cancelled-room")
 	group.PlannedRoomID = nil
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.ActivityGroup.Update(testpkg.TenantContext(1), group))
+	require.NoError(t, repos.ActivityGroup.Update(testpkg.Ctx(t), group))
 	end := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	exception := &scheduleModels.ActivityException{
@@ -380,10 +380,10 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 		ExceptionDate:   monday,
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exception.SetTenantID(1)
-	require.NoError(t, repos.ActivityException.Create(testpkg.TenantContext(1), exception))
+	exception.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivityException.Create(testpkg.Ctx(t), exception))
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err, "a genuine recurrence that is intentionally cancelled needs no room")
 }
 
@@ -404,10 +404,10 @@ func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &invalidStart,
 	}
-	exception.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.TenantContext(1), exception))
+	exception.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.Ctx(t), exception))
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "invalid effective start/end time")
 }

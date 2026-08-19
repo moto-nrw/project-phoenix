@@ -24,7 +24,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	readStatus := func(t *testing.T, db *bun.DB, studentID int64) string {
 		t.Helper()

@@ -130,9 +130,10 @@ func (r *CategoryRepository) UpdateIfActive(ctx context.Context, category *activ
 	return rows == 1, nil
 }
 
-// ListAll returns all categories
+// ListAll returns all categories. Empty, not nil, on no rows: the result is
+// serialized straight to JSON, where a nil slice becomes null (#2419).
 func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Category, error) {
-	var categories []*activities.Category
+	categories := make([]*activities.Category, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&categories).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat)

@@ -78,6 +78,6 @@ func TestSchoolClassesAPI_UnknownStaff(t *testing.T) {
 
 func cleanupClassTeacherAssignments(t *testing.T, ctx *overviewAPIContext, staffID int64) {
 	t.Helper()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	_, _ = ctx.tc.db.NewDelete().TableExpr("education.class_teachers").Where("staff_id = ?", staffID).Exec(tenantCtx)
 }

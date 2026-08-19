@@ -79,7 +79,7 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 	})
 	service.SetOfferingSourceResyncer(&orderRecordingResyncer{log: &log})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-resync-order@test.local")
@@ -121,7 +121,7 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 	resyncer := &recordingOfferingResyncer{}
 	service.SetOfferingSourceResyncer(resyncer)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-offering-resync@test.local")

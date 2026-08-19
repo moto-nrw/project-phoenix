@@ -55,7 +55,7 @@ func buildDevSetup(t *testing.T) *devSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Dev-Room-%d", suffix))

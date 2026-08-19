@@ -70,7 +70,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	// --- Materialize + start both instances --------------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 
 	instX := fetchOneInstance(t, s, tmplX.group.ID, target)
@@ -108,7 +108,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	require.NoError(t, s.factory.Active.CreateVisit(ctx, v2), "visit B→Y (unplanned)")
 
 	// --- /student/{B}/day → expect both instances surfaced ----------------
-	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "day body=%s", rr.Body.String())
 
 	var dayResp struct {
@@ -149,7 +149,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	weekFrom := target.String()
 	weekTo := target.AddDays(13).Format("2006-01-02")
 	path := fmt.Sprintf("/student/%d/week?from=%s&to=%s", studentB.ID, weekFrom, weekTo)
-	rr = s.do("GET", path, nil, primaryAdminClaims())
+	rr = s.do("GET", path, nil, s.primaryAdminClaims())
 	weekQueryCount := qc.get()
 	require.Equal(t, http.StatusOK, rr.Code, "week body=%s", rr.Body.String())
 
@@ -173,7 +173,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 		"/week query count %d looks pathological (likely N+1 on days)", weekQueryCount)
 
 	// --- Tenant isolation -------------------------------------------------
-	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, secondaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.secondaryAdminClaims())
 	assert.Equal(t, http.StatusNotFound, rr.Code,
 		"secondary tenant must 404 on primary's student (got %d: %s)", rr.Code, rr.Body.String())
 }
@@ -185,7 +185,7 @@ func startInstance(t *testing.T, s *scenario, instanceID int64) struct {
 	ActiveGroupID int64  `json:"active_group_id"`
 } {
 	t.Helper()
-	rr := s.do("POST", fmt.Sprintf("/instances/%d/start", instanceID), nil, primaryAdminClaims())
+	rr := s.do("POST", fmt.Sprintf("/instances/%d/start", instanceID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "start instance %d body=%s", instanceID, rr.Body.String())
 	var resp struct {
 		InstanceID    int64  `json:"instance_id"`

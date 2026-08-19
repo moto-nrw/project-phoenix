@@ -232,7 +232,7 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1")
 
 		// Assign room to group using raw SQL to avoid BUN ORM syntax issues
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
@@ -312,7 +312,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
 
 		// Assign room to group
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
@@ -350,7 +350,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
 
 		// Assign group room to group
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", groupRoom.ID, group.ID)
 		require.NoError(t, err)
 

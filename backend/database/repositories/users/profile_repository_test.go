@@ -22,7 +22,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates profile with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-create")
@@ -94,7 +94,7 @@ func TestProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "findbyid")
@@ -117,7 +117,7 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds profile by account ID", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "byaccount")
@@ -140,7 +140,7 @@ func TestProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "update")
@@ -170,7 +170,7 @@ func TestProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "delete")
@@ -194,7 +194,7 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates avatar", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "avatar")
@@ -219,7 +219,7 @@ func TestProfileRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all profiles", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "listall")

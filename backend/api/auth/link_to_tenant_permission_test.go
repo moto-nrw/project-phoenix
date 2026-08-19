@@ -45,7 +45,7 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 	}
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "link-perm-test",
 		Roles:    []string{"user"},

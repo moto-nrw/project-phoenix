@@ -252,7 +252,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsUpdate},
@@ -529,7 +529,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsRead},
@@ -1106,13 +1106,13 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	combinedGroup := &active.CombinedGroup{
 		StartTime: time.Now(),
 	}
-	combinedGroup.SetTenantID(1)
+	combinedGroup.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(combinedGroup).
@@ -1127,7 +1127,7 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	// First delete any mappings
@@ -1152,14 +1152,14 @@ func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	mapping := &active.GroupMapping{
 		ActiveGroupID:         activeGroupID,
 		ActiveCombinedGroupID: combinedGroupID,
 	}
-	mapping.SetTenantID(1)
+	mapping.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1174,7 +1174,7 @@ func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGro
 func cleanupGroupMapping(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().

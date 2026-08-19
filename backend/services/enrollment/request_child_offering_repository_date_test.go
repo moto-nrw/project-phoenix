@@ -14,7 +14,7 @@ import (
 func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
 	require.NoError(t, env.repos.RequestChildOffering.ReplaceForRequestChild(ctx, fx.childID, nil))
@@ -44,7 +44,7 @@ func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(
 func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "PreStartFallback")
 
 	beforeStart := env.sourcePhase.ServiceStartDate.AddDays(-10)
@@ -63,7 +63,7 @@ func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t
 func TestRequestChildOfferingRepository_ListAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
 	futureStart := env.sourcePhase.ServiceStartDate.AddDays(30)

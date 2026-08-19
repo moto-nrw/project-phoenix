@@ -38,7 +38,6 @@ var fastArgon2Params = &userpass.PasswordParams{
 // buildAuthService creates a fully-wired OperatorAuthService via the standard factory.
 func buildAuthService(t *testing.T, db *bun.DB) platformSvc.OperatorAuthService {
 	t.Helper()
-	withJWTSecret(t)
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")

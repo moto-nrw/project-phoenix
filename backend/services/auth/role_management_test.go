@@ -12,7 +12,7 @@ func TestGetAccountEmailsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns emails for valid account IDs", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "svc-emails1")

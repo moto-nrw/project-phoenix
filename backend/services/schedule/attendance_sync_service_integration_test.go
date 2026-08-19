@@ -57,7 +57,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("AS-Room-%d", suffix))
@@ -78,7 +78,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func seedInstanceStudent(t *testing.T, s *attendanceSyncSetup, studentID int64, 
 		StudentID:  studentID,
 		Status:     status,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID)
@@ -290,14 +290,14 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:    s.roomID, Status: scheduleModels.InstanceStatusPlanned,
 	}
-	afternoonInstance.SetTenantID(1)
+	afternoonInstance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.instRepo.Create(s.ctx, afternoonInstance))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", afternoonInstance.ID) })
 	afternoon := &scheduleModels.InstanceStudent{
 		InstanceID: afternoonInstance.ID, StudentID: student.ID,
 		Status: scheduleModels.AttendanceStatusExpected,
 	}
-	afternoon.SetTenantID(1)
+	afternoon.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, afternoon))
 
 	statusRepo := activeRepo.NewStudentStatusDayRepository(s.db)
@@ -357,7 +357,7 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 		Substatus:   &excused,
 		CheckedInAt: &firstCheckin,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 
@@ -429,7 +429,7 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 		Substatus:  &late,
 		Note:       &note,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 

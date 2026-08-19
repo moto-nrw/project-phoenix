@@ -21,7 +21,7 @@ import (
 
 func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRepository, name string) *scheduleModels.CalendarPeriod {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
@@ -31,7 +31,7 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 
 	err := repo.Create(ctx, period)
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Create-%d", time.Now().UnixNano())
@@ -55,7 +55,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -77,7 +77,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			WeekCycleAnchor: &anchor,
 			IsActive:        true,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -100,7 +100,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -116,7 +116,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -132,7 +132,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2025, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -148,7 +148,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -161,7 +161,7 @@ func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds period by ID", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByID-%d", time.Now().UnixNano())
@@ -188,7 +188,7 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Update-%d", time.Now().UnixNano())
@@ -235,7 +235,7 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all periods for tenant", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -249,7 +249,7 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
-		p2.SetTenantID(1)
+		p2.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, p2)
 		require.NoError(t, err)
 
@@ -278,7 +278,7 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only active periods", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -293,7 +293,7 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
-		inactivePeriod.SetTenantID(1)
+		inactivePeriod.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, inactivePeriod)
 		require.NoError(t, err)
 
@@ -321,7 +321,7 @@ func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds period by name", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByName-%d", time.Now().UnixNano())
@@ -641,7 +641,7 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
 	usage, err := repo.UsageCounts(ctx)
@@ -655,7 +655,7 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Delete-%d", time.Now().UnixNano())
@@ -678,7 +678,7 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 func TestCalendarPeriodFKOnDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	tables := []string{
 		"activities.schedules",
@@ -713,7 +713,7 @@ func TestCalendarPeriodRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists periods with nil options", func(t *testing.T) {
 		name := fmt.Sprintf("Test-List-%d", time.Now().UnixNano())

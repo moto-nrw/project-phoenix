@@ -17,7 +17,7 @@ func TestOrganizationRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates organization", func(t *testing.T) {
 		now := time.Now().UnixNano()
@@ -54,7 +54,7 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	now := time.Now().UnixNano()
 	orgA := &platformModels.Organization{

@@ -95,7 +95,7 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 
 	// Use teacher claims but with an account ID that doesn't have a staff record
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		testutil.WithClaims(t, testutil.TeacherTestClaims(int(account.ID))),
 	)
 	req = req.WithContext(withValidSSEToken(t, req.Context()))
 
@@ -126,7 +126,7 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	// Note: This test will actually enter the SSE streaming loop
 	// We use a context with a timeout to prevent hanging
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		testutil.WithClaims(t, testutil.TeacherTestClaims(int(account.ID))),
 	)
 
 	// Note: This request will hang because SSE enters streaming loop
@@ -146,7 +146,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 
 	// Admin without staff record should reach the streaming path (not 403).
 	// Use a context timeout so the event loop exits cleanly.
-	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
 	defer cancel()
 
 	claims := testutil.AdminTestClaims(int(account.ID))
@@ -171,7 +171,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 
 	// Default claims have IsAdmin=true, so after the admin SSE fix they reach
 	// the streaming path. Use a context timeout so the event loop exits cleanly.
-	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
 	defer cancel()
 
 	claims := testutil.DefaultTestClaims()
@@ -205,7 +205,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 	// Create request with timeout context FIRST, then add claims on top
 	// This ensures the claims are in the context that will timeout
-	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
 	defer cancel()
 
 	// Add claims to the timeout context
@@ -236,7 +236,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	router.Get("/events", tctx.resource.eventsHandler)
 
 	// Use context with timeout, then add claims
-	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 50*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 50*time.Millisecond)
 	defer cancel()
 
 	claims := testutil.TeacherTestClaims(int(account.ID))

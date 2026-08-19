@@ -29,7 +29,7 @@ func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.Pay
 			return values[key], nil
 		},
 	}
-	return configSvc.NewPayrollStatusService(settings, repos.Staff), repos, testpkg.TenantContext(1)
+	return configSvc.NewPayrollStatusService(settings, repos.Staff), repos, testpkg.Ctx(t)
 }
 
 func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {

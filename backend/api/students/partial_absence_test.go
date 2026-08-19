@@ -127,7 +127,7 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	deleteRR := authExec(t, tc, deleteReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code, deleteRR.Body.String())
 
-	fresh, err := tc.services.PickupSchedule.GetStudentPickupExceptionByID(testpkg.TenantContext(1), exceptionID)
+	fresh, err := tc.services.PickupSchedule.GetStudentPickupExceptionByID(testpkg.Ctx(t), exceptionID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.PickupTime)
@@ -155,7 +155,7 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 	require.Equal(t, http.StatusConflict, statusRR.Code, statusRR.Body.String())
 	assert.Contains(t, statusRR.Body.String(), "partial absence")
 
-	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, date, date)
+	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }

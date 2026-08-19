@@ -32,7 +32,7 @@ func setupFeedbackService(t *testing.T, db *bun.DB) feedbackSvc.Service {
 func createTestFeedbackEntry(t *testing.T, db *bun.DB, studentID int64, value string, day timezone.Date) *feedback.Entry {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	entry := &feedback.Entry{
@@ -42,7 +42,7 @@ func createTestFeedbackEntry(t *testing.T, db *bun.DB, studentID int64, value st
 		StudentID:       studentID,
 		IsMensaFeedback: false,
 	}
-	entry.SetTenantID(1)
+	entry.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(entry).
@@ -57,7 +57,7 @@ func createTestFeedbackEntry(t *testing.T, db *bun.DB, studentID int64, value st
 func cleanupFeedbackFixtures(t *testing.T, db *bun.DB, entryIDs []int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	for _, id := range entryIDs {
@@ -78,7 +78,7 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "TestStudent", "1a")
@@ -149,7 +149,7 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entry
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "GetStudent", "2a")
@@ -190,7 +190,7 @@ func TestFeedbackService_DeleteEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DeleteStudent", "4a")
@@ -232,7 +232,7 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "ListStudent", "5a")
@@ -274,7 +274,7 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentQuery", "6a")
@@ -306,7 +306,7 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a")
@@ -338,7 +338,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
@@ -390,7 +390,7 @@ func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("retrieves mensa feedback", func(t *testing.T) {
 		// ACT
@@ -417,7 +417,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
@@ -477,7 +477,7 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "BatchStudent", "12a")
@@ -541,7 +541,7 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "CleanupStudent", "13a")

@@ -68,7 +68,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	// --- Step 1: materialize both templates --------------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	var matResp struct {
 		InstancesCreated int `json:"instances_created"`
@@ -81,7 +81,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s.registerCleanup("schedule.activity_instances", inst1.ID, inst2.ID)
 
 	// --- Step 2: start inst1 so we can assert active.group_supervisors rotate
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", inst1.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", inst1.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "start body=%s", rr.Body.String())
 
 	var startResp struct {
@@ -97,7 +97,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s.db.AddQueryHook(qc)
 	qc.reset()
 
-	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
 	gapsQueryCount := qc.get()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps body=%s", rr.Body.String())
 
@@ -119,7 +119,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 			{"absent_staff_id": staff1.ID, "substitute_staff_id": staff3.ID},
 		},
 	}
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), subReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), subReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "substitute body=%s", rr.Body.String())
 
 	var subResp struct {
@@ -182,7 +182,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 			{"absent_staff_id": staff1.ID, "substitute_staff_id": staff4.ID},
 		},
 	}
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), conflictReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), conflictReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusConflict, rr.Code,
 		"second substitute with different sub expected 409 (got %d: %s)", rr.Code, rr.Body.String())
 
@@ -212,7 +212,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 		Status:        scheduleModel.InstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	gapInstance.SetTenantID(primaryTenantID)
+	gapInstance.SetTenantID(s.primaryTenant)
 	_, err := s.db.NewInsert().Model(gapInstance).
 		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert gap instance")
@@ -225,7 +225,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 			StaffID:    stid,
 			IsAbsent:   true,
 		}
-		row.SetTenantID(primaryTenantID)
+		row.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().Model(row).
 			ModelTableExpr(`schedule.instance_staff`).Exec(s.tenantCtx())
 		require.NoError(t, err, "insert absent instance_staff for gap instance")
@@ -233,7 +233,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	// --- Step 8: /gaps must now surface the gap instance -------------------
 	qc.reset()
-	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
 	gapsQueryCount2 := qc.get()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps(with-gap) body=%s", rr.Body.String())
 
@@ -265,7 +265,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	// --- Step 9: tenant isolation --------------------------------------------
 	// Secondary tenant attempting to substitute this tenant's staff: 404
 	// because FindByID returns no row under the tenant-2 tx.
-	rr = s.do("POST", "/substitute", subReq, secondaryAdminClaims())
+	rr = s.do("POST", "/substitute", subReq, s.secondaryAdminClaims())
 	assert.Equal(t, http.StatusNotFound, rr.Code,
 		"secondary tenant must not substitute primary's staff (got %d: %s)", rr.Code, rr.Body.String())
 }
@@ -277,7 +277,7 @@ func fetchInstanceStaff(t *testing.T, s *scenario, instanceID int64) []scheduleM
 	err := s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
-		Where(`"instance_staff".tenant_id = ?`, primaryTenantID).
+		Where(`"instance_staff".tenant_id = ?`, s.primaryTenant).
 		Scan(s.tenantCtx())
 	require.NoError(t, err, "fetch instance_staff for %d", instanceID)
 	return rows
@@ -290,7 +290,7 @@ func fetchGroupSupervisors(t *testing.T, s *scenario, activeGroupID int64) []act
 	err := s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where(`"group_supervisor".group_id = ?`, activeGroupID).
-		Where(`"group_supervisor".tenant_id = ?`, primaryTenantID).
+		Where(`"group_supervisor".tenant_id = ?`, s.primaryTenant).
 		Scan(s.tenantCtx())
 	require.NoError(t, err, "fetch group_supervisors for %d", activeGroupID)
 	return rows

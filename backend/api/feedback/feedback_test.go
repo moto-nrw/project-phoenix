@@ -66,7 +66,7 @@ func feedbackRequest(t *testing.T, method, target string, body interface{}) *htt
 // via a real DB setting override. Cleanup is deferred automatically.
 func enableFeedback(t *testing.T, ctx *testContext) {
 	t.Helper()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	err := ctx.services.Settings.SetValue(tenantCtx, configModel.KeyFeedbackEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {

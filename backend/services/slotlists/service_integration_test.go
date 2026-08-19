@@ -270,7 +270,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-Room-%d", suffix))
@@ -289,7 +289,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -305,7 +305,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 			StudentID:  studentID,
 			Status:     scheduleModels.AttendanceStatusExpected,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		instanceStudentIDs = append(instanceStudentIDs, row.ID)
 	}
@@ -348,7 +348,7 @@ func rowByStudent(rows []slotlists.Row, studentID int64) *slotlists.Row {
 
 func TestBuildList_MensaReconciliation(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -389,7 +389,7 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-ManRoom-%d", suffix))
@@ -408,7 +408,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -424,7 +424,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 		Status:         scheduleModels.AttendanceStatusAbsent,
 		ManualStatusAt: &manualAt,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	entry := atOn(listDate, 11, 35)
@@ -468,7 +468,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 // 13:30–14:00 — wholly after the planned end, as for a late start.
 func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-LateRoom-%d", suffix))
@@ -487,7 +487,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -502,7 +502,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 			StudentID:  studentID,
 			Status:     scheduleModels.AttendanceStatusExpected,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		instanceStudentIDs = append(instanceStudentIDs, row.ID)
 	}
@@ -549,7 +549,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 // client submits the cancelled ID directly.
 func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Preserve ActiveGroupID and visits exactly as InstanceService.Cancel does for
 	// an occurrence that was already active when called off.
@@ -558,7 +558,7 @@ func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("status = ?", scheduleModels.InstanceStatusCancelled).
 		Where(`"activity_instance".id = ?`, f.instanceID).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -606,7 +606,7 @@ func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxlManRoom-%d", suffix))
@@ -627,7 +627,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -643,7 +643,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 		Status:         scheduleModels.AttendanceStatusAbsent,
 		ManualStatusAt: &manualAt,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	entry := atOn(listDate, 11, 35)
@@ -674,7 +674,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 
 func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, f.db, fmt.Sprintf("SL-Other-Room-%d", suffix))
@@ -690,7 +690,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &listKind,
 	}
-	otherInstance.SetTenantID(1)
+	otherInstance.SetTenantID(testpkg.Tenant(t))
 	_, err := f.db.NewInsert().Model(otherInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -700,7 +700,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(f.db).Create(ctx, row))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_students", row.ID)
@@ -743,7 +743,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 // around the per-child gate.
 func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupA")
 	groupB := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupB")
@@ -807,7 +807,7 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 
 func TestBuildList_SlotFilter(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	full, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -856,7 +856,7 @@ func TestBuildList_SlotFilter(t *testing.T) {
 
 func TestBuildList_ClassFilterAndOptions(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	full, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -883,7 +883,7 @@ func TestBuildList_ClassFilterAndOptions(t *testing.T) {
 
 func TestBuildList_MensaPlannedAndActualModes(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	planned, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -908,7 +908,7 @@ func TestBuildList_MensaPlannedAndActualModes(t *testing.T) {
 
 func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	planned, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -959,7 +959,7 @@ func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
 
 func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	roomErr := errors.New("room repository unavailable")
 	// Settings is a required dependency (NewService panics on nil); this slot
 	// list never reads the pickup cutoffs, so an empty stub is enough.
@@ -978,7 +978,7 @@ func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -992,7 +992,7 @@ func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 		{StudentID: early.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: late.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1032,7 +1032,7 @@ func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1048,7 +1048,7 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 		{StudentID: longDay.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: tooLate.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 17, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1091,7 +1091,7 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	svc := newTestServiceWithSettings(db, stubSlotListSettings{
 		configModels.KeySlotListShortDayCutoff: "9:00",
 		configModels.KeySlotListLongDayCutoff:  "16:00",
@@ -1121,7 +1121,7 @@ func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
 
 	svc := newTestServiceWithSettingsReader(db, failingSlotListSettings{})
 
-	_, err := svc.BuildList(testpkg.TenantContext(1), slotlists.Params{
+	_, err := svc.BuildList(testpkg.Ctx(t), slotlists.Params{
 		Date:         pickupDate,
 		Target:       slotlists.TargetPickupCohort,
 		PickupCohort: slotlists.PickupCohortShortDay,
@@ -1135,7 +1135,7 @@ func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
 // every row and rejects a grouping that doesn't fit the target.
 func TestBuildList_GroupByClass(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	grouped, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:    listDate,
@@ -1177,7 +1177,7 @@ func TestBuildList_GroupByClass(t *testing.T) {
 func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1193,7 +1193,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 		{StudentID: early.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: late.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		p.SetTenantID(1)
+		p.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, p))
 		pickupIDs = append(pickupIDs, p.ID)
 	}
@@ -1212,7 +1212,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 			CheckedInBy:  staff.ID,
 			DeviceID:     device.ID,
 		}
-		att.SetTenantID(1)
+		att.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(att).ModelTableExpr(`active.attendance`).Exec(ctx)
 		require.NoError(t, err)
 		attendanceIDs = append(attendanceIDs, att.ID)
@@ -1264,7 +1264,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 func TestBuildList_ExcusedAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-ExRoom-%d", suffix))
@@ -1279,7 +1279,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 		RoomID:          room.ID,
 		Status:          scheduleModels.InstanceStatusActive,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1305,7 +1305,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 			Status:     sc.status,
 			Substatus:  sc.substatus,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		isIDs = append(isIDs, row.ID)
 	}
@@ -1357,7 +1357,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxlRoom-%d", suffix))
@@ -1374,7 +1374,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 		RoomID:          room.ID,
 		Status:          scheduleModels.InstanceStatusCompleted,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1388,7 +1388,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 		StudentID:  child.ID,
 		Status:     scheduleModels.AttendanceStatusAbsent,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// A timeless "Kommt heute nicht" pickup exception on the list date is the
@@ -1396,7 +1396,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 	exc := &scheduleModels.StudentPickupException{
 		StudentID: child.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1425,7 +1425,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 
 func TestRenderList_PDFSmoke(t *testing.T) {
 	f := buildMensaFixture(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	file, err := f.svc.RenderList(ctx, slotlists.Params{
 		Date:   listDate,
@@ -1445,7 +1445,7 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1460,7 +1460,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 		{StudentID: partial.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1478,7 +1478,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 		Source:                scheduleModels.ExceptionSourceStaff,
 		CreatedBy:             staff.ID,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exceptionRepo.Create(ctx, exc))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
@@ -1517,7 +1517,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1531,7 +1531,7 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 		{StudentID: sick.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1575,7 +1575,7 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1590,7 +1590,7 @@ func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 		{StudentID: notYetArrived.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: alreadyDue.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1602,7 +1602,7 @@ func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 		// 11:00 arrival is already past → a genuine no-show.
 		{StudentID: alreadyDue.ID, Weekday: weekday, ExpectedArrival: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.student_arrival_schedules`).Exec(ctx)
 		require.NoError(t, err)
 		arrivalIDs = append(arrivalIDs, row.ID)
@@ -1667,7 +1667,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
-			ctx := testpkg.TenantContext(1)
+			ctx := testpkg.Ctx(t)
 			suffix := time.Now().UnixNano()
 
 			child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("C-%d", suffix), "2c")
@@ -1678,7 +1678,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 				StudentID: child.ID, Weekday: weekday,
 				PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
 			}
-			sched.SetTenantID(1)
+			sched.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, pickupRepo.Create(ctx, sched))
 
 			var exceptionTable string
@@ -1687,7 +1687,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 				exc := &scheduleModels.StudentPickupException{
 					StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
 				}
-				exc.SetTenantID(1)
+				exc.SetTenantID(testpkg.Tenant(t))
 				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 				require.NoError(t, err)
 				exceptionTable, exceptionID = "schedule.student_pickup_exceptions", exc.ID
@@ -1695,7 +1695,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 				exc := &scheduleModels.StudentArrivalException{
 					StudentID: child.ID, ExceptionDate: pickupDate, ExpectedArrival: nil, CreatedBy: staff.ID,
 				}
-				exc.SetTenantID(1)
+				exc.SetTenantID(testpkg.Tenant(t))
 				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_arrival_exceptions`).Exec(ctx)
 				require.NoError(t, err)
 				exceptionTable, exceptionID = "schedule.student_arrival_exceptions", exc.ID
@@ -1732,7 +1732,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 // availability (#1565 review).
 func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1752,7 +1752,7 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 			StudentID: id, Weekday: weekday,
 			PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1787,7 +1787,7 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 // lists stay available for the same past date.
 func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	svc := newTestService(db)
 
 	// Relative to the injected service clock (pickupDate == "today"), so the
@@ -1828,7 +1828,7 @@ func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 // (#1565 review).
 func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1860,7 +1860,7 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 			StudentID: id, Weekday: weekday,
 			PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID, // 14:00 → short cohort
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -1897,7 +1897,7 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 // weekly bucket), matching what the preview/export show (#1565 review).
 func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -1909,7 +1909,7 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 		StudentID: child.ID, Weekday: weekday,
 		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID, // 16:00 → long cohort
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, pickupRepo.Create(ctx, sched))
 
 	// A timeless pickup exception ("Kommt heute nicht") clears the effective
@@ -1917,7 +1917,7 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 	exc := &scheduleModels.StudentPickupException{
 		StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1957,7 +1957,7 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 // (#1565 review).
 func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-EndRoom-%d", suffix))
@@ -1973,7 +1973,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1995,7 +1995,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 			StudentID:  id,
 			Status:     scheduleModels.AttendanceStatusExpected,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		isIDs = append(isIDs, row.ID)
 	}
@@ -2030,7 +2030,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 // planned and, in the Abgleich, as "Fehlt".
 func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-UnbookedRoom-%d", suffix))
@@ -2047,7 +2047,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2063,7 +2063,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -2076,7 +2076,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 			StudentID:  id,
 			Status:     scheduleModels.AttendanceStatusExpected,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		isIDs = append(isIDs, row.ID)
 	}
@@ -2125,7 +2125,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 // for a signed-off (cancelled) child who attends anyway.
 func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-UpRoom-%d", suffix))
@@ -2142,7 +2142,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2158,7 +2158,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -2169,7 +2169,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		StudentID:  booked.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	bookedRow.SetTenantID(1)
+	bookedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, bookedRow))
 	// The unbooked child checked in: attendance sync flipped the roster row to
 	// present (a timetable PATCH, no active-group visit required — see
@@ -2179,7 +2179,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		StudentID:  unbooked.ID,
 		Status:     scheduleModels.AttendanceStatusPresent,
 	}
-	presentRow.SetTenantID(1)
+	presentRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, presentRow))
 
 	t.Cleanup(func() {
@@ -2226,7 +2226,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 // the row's present status, not blanket-drop every cancellation.
 func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxaRoom-%d", suffix))
@@ -2243,7 +2243,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		Status:          scheduleModels.InstanceStatusActive, // live: no_show not yet finalized
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2257,7 +2257,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		exc := &scheduleModels.StudentPickupException{
 			StudentID: sid, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
 		}
-		exc.SetTenantID(1)
+		exc.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 		require.NoError(t, err)
 		excIDs = append(excIDs, exc.ID)
@@ -2271,14 +2271,14 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		StudentID:  attended.ID,
 		Status:     scheduleModels.AttendanceStatusPresent,
 	}
-	attendedRow.SetTenantID(1)
+	attendedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, attendedRow))
 	noShowRow := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  noShow.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	noShowRow.SetTenantID(1)
+	noShowRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, noShowRow))
 
 	t.Cleanup(func() {
@@ -2337,7 +2337,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 // status still counts as the Abgemeldet row it prints as.
 func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxvRoom-%d", suffix))
@@ -2356,7 +2356,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		ActiveGroupID:   &activeGroup.ID,                     // started, so visits are reachable
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2370,7 +2370,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		exc := &scheduleModels.StudentPickupException{
 			StudentID: sid, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
 		}
-		exc.SetTenantID(1)
+		exc.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 		require.NoError(t, err)
 		excIDs = append(excIDs, exc.ID)
@@ -2385,14 +2385,14 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		StudentID:  attended.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	attendedRow.SetTenantID(1)
+	attendedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, attendedRow))
 	noShowRow := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  noShow.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	noShowRow.SetTenantID(1)
+	noShowRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, noShowRow))
 
 	// attended has visit evidence in the active group; noShow does not.
@@ -2455,7 +2455,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 // child the plan never expected (#1565 review).
 func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-SdRoom-%d", suffix))
@@ -2472,7 +2472,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2487,7 +2487,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: sickUnbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -2502,7 +2502,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		StudentID:  booked.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	bookedRow.SetTenantID(1)
+	bookedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, bookedRow))
 	sickRow := &scheduleModels.InstanceStudent{
 		InstanceID:         instance.ID,
@@ -2510,7 +2510,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		Status:             scheduleModels.AttendanceStatusAbsent,
 		StudentStatusDayID: &statusDay.ID,
 	}
-	sickRow.SetTenantID(1)
+	sickRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, sickRow))
 
 	t.Cleanup(func() {
@@ -2562,7 +2562,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-DefSdRoom-%d", suffix))
@@ -2582,7 +2582,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(1)
+	future.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2600,7 +2600,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		// the day off → CareDayCancelled, a real all-day absence.
 		{StudentID: cancelled.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 	} {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 		pickupIDs = append(pickupIDs, row.ID)
 	}
@@ -2608,7 +2608,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	cancelExc := &scheduleModels.StudentPickupException{
 		StudentID: cancelled.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
 	}
-	cancelExc.SetTenantID(1)
+	cancelExc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(cancelExc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2623,7 +2623,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		Status:             scheduleModels.AttendanceStatusAbsent,
 		StudentStatusDayID: &statusDay.ID,
 	}
-	sickRow.SetTenantID(1)
+	sickRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, sickRow))
 	// The signed-off child is still expected on the roster; the cancellation lives
 	// in the care plan, not the row.
@@ -2632,7 +2632,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		StudentID:  cancelled.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	cancelledRow.SetTenantID(1)
+	cancelledRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, cancelledRow))
 
 	t.Cleanup(func() {
@@ -2674,7 +2674,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 // preview/export render (#1565 review).
 func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxRoom-%d", suffix))
@@ -2691,7 +2691,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2704,12 +2704,12 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		StudentID: cancelled.ID, Weekday: 3,
 		PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, pickupRepo.Create(ctx, sched))
 	exc := &scheduleModels.StudentPickupException{
 		StudentID: cancelled.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2719,7 +2719,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		StudentID:  cancelled.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	t.Cleanup(func() {
@@ -2767,7 +2767,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-NysRoom-%d", suffix))
@@ -2785,7 +2785,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(1)
+	future.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2797,7 +2797,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		StudentID:  planned.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	t.Cleanup(func() {
@@ -2842,7 +2842,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	started.SetTenantID(1)
+	started.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(started).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 	startedRow := &scheduleModels.InstanceStudent{
@@ -2850,7 +2850,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		StudentID:  planned.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	startedRow.SetTenantID(1)
+	startedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, startedRow))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", startedRow.ID)
@@ -2880,7 +2880,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-RegAbsRoom-%d", suffix))
@@ -2899,7 +2899,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(1)
+	future.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -2926,7 +2926,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 			Status:     sc.status,
 			Substatus:  sc.substatus,
 		}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, isRepo.Create(ctx, row))
 		isIDs = append(isIDs, row.ID)
 	}
@@ -2967,7 +2967,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 // presence ("Ungeplant anwesend"), never planned-and-present ("Anwesend").
 func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	weekday := int(pickupDate.Weekday())
 
@@ -2983,13 +2983,13 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 		StudentID: child.ID, Weekday: weekday,
 		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, pickupRepo.Create(ctx, sched))
 
 	exc := &scheduleModels.StudentPickupException{
 		StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -3004,7 +3004,7 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 		CheckedInBy:  staff.ID,
 		DeviceID:     device.ID,
 	}
-	att.SetTenantID(1)
+	att.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(att).ModelTableExpr(`active.attendance`).Exec(ctx)
 	require.NoError(t, err)
 

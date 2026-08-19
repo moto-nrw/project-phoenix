@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +92,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	checkOut := checkIn.Add(5*time.Hour + 30*time.Minute)
 
 	row := &active.Attendance{
-		TenantModel:  base.TenantModel{TenantID: 1},
+		TenantModel:  base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:    10,
 		Date:         timezone.DateFromTime(date),
 		CheckInTime:  checkIn,
@@ -101,7 +102,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	}
 	exit := checkIn.Add(90 * time.Minute)
 	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   10,
 		EntryTime:   checkIn,
 		ExitTime:    &exit,
@@ -140,7 +141,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	checkOut := roomCutoff.Add(15 * time.Hour)
 
 	row := &active.Attendance{
-		TenantModel:  base.TenantModel{TenantID: 1},
+		TenantModel:  base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:    10,
 		Date:         timezone.DateFromTime(roomCutoff),
 		CheckInTime:  checkIn,
@@ -150,7 +151,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	}
 	exit := checkIn.Add(time.Hour)
 	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   10,
 		EntryTime:   checkIn,
 		ExitTime:    &exit,
@@ -178,7 +179,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	checkIn := today.Add(8 * time.Hour)
 
 	row := &active.Attendance{
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   10,
 		Date:        timezone.DateFromTime(today),
 		CheckInTime: checkIn,
@@ -187,7 +188,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	}
 	exit := checkIn.Add(time.Hour)
 	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   10,
 		EntryTime:   checkIn,
 		ExitTime:    &exit,
@@ -213,8 +214,8 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 	roomCutoff := today.AddDate(0, 0, -6)
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(yesterday), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(yesterday), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 	assert.Len(t, days, 2, "should return one day entry per unique date")
@@ -228,7 +229,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 
 	statusRows := []*active.StudentStatusDay{
 		{
-			TenantModel: base.TenantModel{TenantID: 1},
+			TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 			StudentID:   10,
 			Date:        timezone.DateFromTime(today),
 			Status:      active.StudentStatusDaySick,
@@ -261,8 +262,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	afternoonOut := today.Add(16 * time.Hour)
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 
@@ -287,8 +288,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 	// Second session still open (no check-out).
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 
@@ -305,7 +306,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	checkIn := oldDate.Add(8 * time.Hour)
 
 	row := &active.Attendance{
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   10,
 		Date:        timezone.DateFromTime(oldDate),
 		CheckInTime: checkIn,

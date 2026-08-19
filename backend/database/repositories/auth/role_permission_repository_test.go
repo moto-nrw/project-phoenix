@@ -30,7 +30,7 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates role permission mapping", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_create_role")
@@ -87,7 +87,7 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions by role ID", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_find_by_role")
@@ -123,7 +123,7 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates role permission mapping", func(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_update_role1")
@@ -169,7 +169,7 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all permissions for a role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_delete_by_role")
@@ -213,7 +213,7 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all roles for a permission", func(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_delete_by_perm1")
@@ -256,7 +256,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all role permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_list")

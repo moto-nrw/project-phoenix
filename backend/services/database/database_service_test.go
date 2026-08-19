@@ -26,13 +26,13 @@ func setupDatabaseService(t *testing.T) (*repositories.Factory, databaseSvc.Data
 }
 
 // contextWithPermissions creates a context with JWT claims containing permissions
-func contextWithPermissions(userID int, perms ...string) context.Context {
+func contextWithPermissions(tb testing.TB, userID int, perms ...string) context.Context {
 	claims := jwt.AppClaims{
 		ID:          userID,
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(tb),
 		Permissions: perms,
 	}
-	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.Ctx(tb), jwt.CtxClaims, claims)
 }
 
 // ============================================================================
@@ -44,7 +44,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns stats for admin user", func(t *testing.T) {
 		// ARRANGE - Admin has full access
-		ctx := contextWithPermissions(1, permissions.AdminWildcard)
+		ctx := contextWithPermissions(t, 1, permissions.AdminWildcard)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -66,7 +66,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns stats for user with full access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.FullAccess)
+		ctx := contextWithPermissions(t, 1, permissions.FullAccess)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -82,7 +82,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with users permission only", func(t *testing.T) {
 		// ARRANGE - User can only view users
-		ctx := contextWithPermissions(1, permissions.UsersRead)
+		ctx := contextWithPermissions(t, 1, permissions.UsersRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -106,7 +106,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with rooms permission only", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.RoomsRead)
+		ctx := contextWithPermissions(t, 1, permissions.RoomsRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -125,7 +125,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with activities permission only", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.ActivitiesRead)
+		ctx := contextWithPermissions(t, 1, permissions.ActivitiesRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -143,7 +143,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with groups permission only", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.GroupsRead)
+		ctx := contextWithPermissions(t, 1, permissions.GroupsRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -161,7 +161,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with auth manage permission", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.AuthManage)
+		ctx := contextWithPermissions(t, 1, permissions.AuthManage)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -180,7 +180,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns limited stats for user with IOT permission only", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.IOTRead)
+		ctx := contextWithPermissions(t, 1, permissions.IOTRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -198,7 +198,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns no stats for user without permissions", func(t *testing.T) {
 		// ARRANGE - No permissions
-		ctx := contextWithPermissions(1)
+		ctx := contextWithPermissions(t, 1)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -230,7 +230,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("returns stats with multiple specific permissions", func(t *testing.T) {
 		// ARRANGE - User has users and rooms permissions
-		ctx := contextWithPermissions(1, permissions.UsersRead, permissions.RoomsRead, permissions.GroupsRead)
+		ctx := contextWithPermissions(t, 1, permissions.UsersRead, permissions.RoomsRead, permissions.GroupsRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -254,7 +254,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("works with empty context", func(t *testing.T) {
 		// ARRANGE - Empty context without claims
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -277,7 +277,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("users list permission grants student access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.UsersList)
+		ctx := contextWithPermissions(t, 1, permissions.UsersList)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -290,7 +290,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("rooms list permission grants room access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.RoomsList)
+		ctx := contextWithPermissions(t, 1, permissions.RoomsList)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -302,7 +302,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("activities list permission grants activity access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.ActivitiesList)
+		ctx := contextWithPermissions(t, 1, permissions.ActivitiesList)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -314,7 +314,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("groups list permission grants group access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.GroupsList)
+		ctx := contextWithPermissions(t, 1, permissions.GroupsList)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -326,7 +326,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("iot manage permission grants device access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.IOTManage)
+		ctx := contextWithPermissions(t, 1, permissions.IOTManage)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -338,7 +338,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("grade transitions read permission grants grade transition access", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.GradeTransitionsRead)
+		ctx := contextWithPermissions(t, 1, permissions.GradeTransitionsRead)
 
 		// ACT
 		result, err := service.GetStats(ctx)
@@ -351,7 +351,7 @@ func TestDatabaseService_PermissionChecks(t *testing.T) {
 
 	t.Run("no grade transitions permission hides grade transition card", func(t *testing.T) {
 		// ARRANGE
-		ctx := contextWithPermissions(1, permissions.UsersList)
+		ctx := contextWithPermissions(t, 1, permissions.UsersList)
 
 		// ACT
 		result, err := service.GetStats(ctx)

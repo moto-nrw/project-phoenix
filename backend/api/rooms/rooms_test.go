@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -397,7 +396,7 @@ func TestGetRoomHistory(t *testing.T) {
 	// tenant. Enable it so the smoke checks below exercise the happy path
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
@@ -491,7 +490,7 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 func TestGetRoomHistory_StaffScope(t *testing.T) {
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
@@ -529,7 +528,7 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 			Username:    "teacher",
 			Roles:       []string{"user"},
 			Permissions: staffPermissions,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 		}
 	}
 
@@ -605,7 +604,7 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
@@ -660,7 +659,7 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)

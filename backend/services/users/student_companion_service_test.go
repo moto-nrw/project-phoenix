@@ -78,7 +78,7 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimSubject", "Companion", "1a")
@@ -119,7 +119,7 @@ func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) 
 func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ConfirmSubject", "Companion", "1a")
@@ -167,7 +167,7 @@ func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testi
 func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 	studentRepo := repositories.NewFactory(db).Student
 
@@ -221,7 +221,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
-	ctx := context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, jwt.AppClaims{
+	ctx := context.WithValue(testpkg.Ctx(t), jwt.CtxClaims, jwt.AppClaims{
 		ID:        int(account.ID),
 		FirstName: "Clara",
 		LastName:  "Confirm",
@@ -275,7 +275,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 	studentRepo := repositories.NewFactory(db).Student
 
@@ -318,7 +318,7 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "OrphanSubject", "Companion", "1a")
@@ -361,7 +361,7 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "DaySubject", "Companion", "1a")
@@ -415,7 +415,7 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimDaySubject", "Companion", "1a")
@@ -455,7 +455,7 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimOrphanSubject", "Companion", "1a")
@@ -490,7 +490,7 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	// One popular child, MaxStudentCompanions children already linked to them,
@@ -540,7 +540,7 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 	studentRepo := repositories.NewFactory(db).Student
 
@@ -596,7 +596,7 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 	studentRepo := repositories.NewFactory(db).Student
 
@@ -644,7 +644,7 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "StaleSubject", "Companion", "1a")
@@ -710,7 +710,7 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 func TestStudentService_ListCompanionsForStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "BulkSubject", "Companion", "1a")

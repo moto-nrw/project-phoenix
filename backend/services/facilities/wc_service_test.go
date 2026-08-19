@@ -80,7 +80,7 @@ func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	defer cleanupWCArtifacts(t, db)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -102,7 +102,7 @@ func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	defer cleanupWCArtifacts(t, db)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT - First call creates infrastructure
 	group1, err := service.EnsureInfrastructure(ctx)
@@ -123,7 +123,7 @@ func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
 	defer cleanupWCArtifacts(t, db)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -148,7 +148,7 @@ func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
 	defer cleanupWCArtifacts(t, db)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -171,12 +171,12 @@ func TestWCService_EnsureInfrastructure_ReuseExistingRoom(t *testing.T) {
 	cleanupWCArtifacts(t, db)
 	defer cleanupWCArtifacts(t, db)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE - Pre-create the WC room via raw SQL
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO facilities.rooms (tenant_id, name, capacity, category, color) VALUES (1, ?, ?, ?, ?)`,
-		constants.WCRoomName, constants.WCRoomCapacity, constants.WCCategoryName, constants.WCColor,
+		`INSERT INTO facilities.rooms (tenant_id, name, capacity, category, color) VALUES (?, ?, ?, ?, ?)`,
+		testpkg.Tenant(t), constants.WCRoomName, constants.WCRoomCapacity, constants.WCCategoryName, constants.WCColor,
 	)
 	require.NoError(t, err)
 

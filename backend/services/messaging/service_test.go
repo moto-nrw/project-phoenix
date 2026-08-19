@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -122,14 +121,14 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 	return svc, bc, repos, db
 }
 
-// adminCtx returns a tenant-1 context carrying admin permissions and the given
-// staff account id (the inbox reader / message sender).
-func adminCtx(accountID int64) context.Context {
-	return claimsCtx(accountID, []string{"admin:*"})
+// adminCtx returns a context in this test's tenant carrying admin permissions
+// and the given staff account id (the inbox reader / message sender).
+func adminCtx(tb testing.TB, accountID int64) context.Context {
+	return claimsCtx(tb, accountID, []string{"admin:*"})
 }
 
-func claimsCtx(accountID int64, perms []string) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), 1)
+func claimsCtx(tb testing.TB, accountID int64, perms []string) context.Context {
+	ctx := testpkg.Ctx(tb)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
 	return ctx
@@ -166,7 +165,7 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 		Body:            body,
 	}
 	gm.SetTenantID(chain.TenantID)
-	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), gm))
+	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(testpkg.Ctx(t), gm))
 	return gm
 }
 
@@ -178,7 +177,7 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 // and the staff sender name, and a new-message SSE fan-out fires to the guardian.
 func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 
 	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Guten Tag, bitte um Rückruf")
 	require.NoError(t, err)
@@ -205,7 +204,7 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 	t.Run("setting on -> stamped visible", func(t *testing.T) {
 		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: true})
-		detail, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		detail, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 		require.NoError(t, err)
 		require.Len(t, detail.Messages, 1)
 		assert.True(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is on must be stamped visible")
@@ -213,7 +212,7 @@ func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 
 	t.Run("setting off -> stamped hidden", func(t *testing.T) {
 		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: false})
-		detail, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		detail, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 		require.NoError(t, err)
 		require.Len(t, detail.Messages, 1)
 		assert.False(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is off stays anonymous")
@@ -225,7 +224,7 @@ func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 // opening a duplicate.
 func TestStartThread_IsGetOrCreate(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 
 	first, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste")
 	require.NoError(t, err)
@@ -239,7 +238,7 @@ func TestStartThread_IsGetOrCreate(t *testing.T) {
 // the message is appended in chat order and a fan-out fires.
 func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
@@ -263,17 +262,17 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, f.db, colleagueAccount.ID) })
 	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, colleagueAccount.ID) })
 
-	started, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	firstGuardianMessage := createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Erste Frage")
 
 	assertStaffUnread := func(accountID int64, expected int) {
 		t.Helper()
-		count, countErr := f.svc.UnreadMessageCount(adminCtx(accountID))
+		count, countErr := f.svc.UnreadMessageCount(adminCtx(t, accountID))
 		require.NoError(t, countErr)
 		assert.Equal(t, expected, count)
 
-		inbox, inboxErr := f.svc.ListInbox(adminCtx(accountID), true)
+		inbox, inboxErr := f.svc.ListInbox(adminCtx(t, accountID), true)
 		require.NoError(t, inboxErr)
 		if expected == 0 {
 			assert.Empty(t, inbox)
@@ -282,7 +281,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 			assert.Equal(t, expected, inbox[0].UnreadCount)
 		}
 
-		threads, threadsErr := f.svc.ListStudentThreads(adminCtx(accountID), f.chain.StudentID)
+		threads, threadsErr := f.svc.ListStudentThreads(adminCtx(t, accountID), f.chain.StudentID)
 		require.NoError(t, threadsErr)
 		require.Len(t, threads, 1)
 		assert.Equal(t, expected, threads[0].UnreadCount)
@@ -291,7 +290,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	_, err = f.svc.PostMessage(adminCtx(f.staffAccount), started.ThreadID, "Team-Antwort", firstGuardianMessage.ID)
+	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Team-Antwort", firstGuardianMessage.ID)
 	require.NoError(t, err)
 	assertStaffUnread(f.staffAccount, 0)
 	assertStaffUnread(colleagueAccount.ID, 0)
@@ -303,9 +302,9 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	`, started.ThreadID, colleagueAccount.ID).Scan(context.Background(), &colleagueReadRows))
 	assert.Zero(t, colleagueReadRows, "team handling must not forge a colleague's personal read receipt")
 
-	allMessages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(f.staffAccount), started.ThreadID, 0)
+	allMessages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	parentmessaging.DecorateReadReceipts(adminCtx(f.chain.AccountID), repositories.NewFactory(f.db).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
+	parentmessaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
@@ -313,30 +312,30 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	assertStaffUnread(colleagueAccount.ID, 1)
 
 	readRepo := repositories.NewFactory(f.db).ParentMessageRead
-	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, true)
+	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
-	count, err = readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, false)
+	count, err = readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, false)
 	require.NoError(t, err)
 	assert.Zero(t, count, "the team boundary must not broaden student access beyond the caller's own scope")
 }
 
 func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 	f := newFixture(t, true)
-	started, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
-	_, err = f.svc.PostMessage(adminCtx(f.staffAccount), started.ThreadID, "Antwort", 0)
+	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 0)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 
-	messages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(f.staffAccount), started.ThreadID, 0)
+	messages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "the rejected legacy reply must not be inserted")
 
-	_, err = f.svc.PostMessage(adminCtx(f.staffAccount), started.ThreadID, "Antwort", 999999999)
+	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 999999999)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
-	messages, err = repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(f.staffAccount), started.ThreadID, 0)
+	messages, err = repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "a reply with a foreign boundary must not be inserted")
 }
@@ -345,7 +344,7 @@ func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 // over the 2000-rune cap → ErrBodyTooLong, both BEFORE any insert.
 func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
@@ -363,7 +362,7 @@ func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 // another receipt (the anti-ping-pong gate).
 func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 	f := newFixture(t, true)
-	staffCtx := adminCtx(f.staffAccount)
+	staffCtx := adminCtx(t, f.staffAccount)
 
 	started, err := f.svc.StartThread(staffCtx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
@@ -394,7 +393,7 @@ func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 // ErrThreadNotFound, not a 500.
 func TestGetThread_NotFound(t *testing.T) {
 	f := newFixture(t, true)
-	_, err := f.svc.GetThread(adminCtx(f.staffAccount), 999999999)
+	_, err := f.svc.GetThread(adminCtx(t, f.staffAccount), 999999999)
 	require.ErrorIs(t, err, messaging.ErrThreadNotFound)
 }
 
@@ -406,7 +405,7 @@ func TestGetThread_NotFound(t *testing.T) {
 // list.
 func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 
 	detail, err := f.svc.OpenThread(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
@@ -423,7 +422,7 @@ func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 // and fires a read-receipt SSE so the guardian's open chat updates live.
 func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Antwort")
@@ -447,7 +446,7 @@ func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
 // onlyUnread filter keeps it while there is unread and drops it once read.
 func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
@@ -478,7 +477,7 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 // flag.
 func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
 	f := newFixture(t, true)
-	guardians, err := f.svc.ListGuardians(adminCtx(f.staffAccount), f.chain.StudentID)
+	guardians, err := f.svc.ListGuardians(adminCtx(t, f.staffAccount), f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
 	assert.Equal(t, f.chain.AccountID, guardians[0].AccountID)
@@ -490,7 +489,7 @@ func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
 // conversation(s) after authorizing read access to that child.
 func TestListStudentThreads_FiltersToChild(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	_, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
@@ -512,7 +511,7 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, stranger.ID)
 	})
 
-	_, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, stranger.ID, "Hallo")
+	_, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, stranger.ID, "Hallo")
 	require.ErrorIs(t, err, messaging.ErrInvalidGuardian)
 }
 
@@ -522,14 +521,14 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 // never leaking the conversation. users:read alone is not enough.
 func TestMessaging_Forbidden(t *testing.T) {
 	f := newFixture(t, true)
-	started, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider")
 	t.Cleanup(func() {
 		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
 	})
-	ctx := claimsCtx(outsider.ID, []string{"users:read"})
+	ctx := claimsCtx(t, outsider.ID, []string{"users:read"})
 
 	_, err = f.svc.GetThread(ctx, started.ThreadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
@@ -543,7 +542,7 @@ func TestMessaging_Forbidden(t *testing.T) {
 // it to ErrForbidden (→ 403), never a 500 that would tell staff the child exists.
 func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	_, err := f.svc.ListGuardians(ctx, 999999999)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 	_, err = f.svc.ListStudentThreads(ctx, 999999999)
@@ -552,7 +551,7 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 
 func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
@@ -579,7 +578,7 @@ func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 // leak to a revoked account).
 func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
@@ -604,7 +603,7 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 // and the rows agree.
 func TestMessaging_DisabledFeature(t *testing.T) {
 	f := newFixture(t, true)
-	ctx := adminCtx(f.staffAccount)
+	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")

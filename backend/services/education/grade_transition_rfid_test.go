@@ -41,7 +41,7 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-rfid-release@test.local")
@@ -108,7 +108,7 @@ func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 
 	service := newRosterReconcilingTransitionService(t, db)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-rfid-reissue@test.local")

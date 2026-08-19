@@ -22,7 +22,7 @@ import (
 
 func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Old")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -72,7 +72,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 
 func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Abs")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -101,7 +101,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 
 func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Preview")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -127,11 +127,11 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 
 func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "PreviewFresh")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	purgeOldRowsInTenant(t, db, 1)
+	purgeOldRowsInTenant(t, db, testpkg.Tenant(t))
 
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
@@ -152,7 +152,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 
 func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoOp")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -162,7 +162,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	// the tenant has zero rows older than the cutoff, so we clear them
 	// first. We don't truncate, that would also kill any newly inserted
 	// rows from concurrent staff.
-	purgeOldRowsInTenant(t, db, 1)
+	purgeOldRowsInTenant(t, db, testpkg.Tenant(t))
 
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
@@ -183,7 +183,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	// Service must refuse to delete when no audit repo is configured,
 	// otherwise we'd lose the compliance trail silently.
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoAudit")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -198,7 +198,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 
 func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "BusinessDate")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -248,7 +248,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, crea
 		BreakMinutes: 30,
 		CreatedBy:    staffID,
 	}
-	s.SetTenantID(1)
+	s.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(s).Exec(context.Background())
 	require.NoError(t, err)
 	// Override created_at after the fact. BUN's BeforeAppendModel hook
@@ -272,7 +272,7 @@ func insertBreak(t *testing.T, db *bun.DB, sessionID int64, createdAt time.Time)
 		EndedAt:         &end,
 		DurationMinutes: 30,
 	}
-	b.SetTenantID(1)
+	b.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(b).Exec(context.Background())
 	require.NoError(t, err)
 	return b.ID
@@ -293,7 +293,7 @@ func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt ti
 		Notes:     &notes,
 		CreatedAt: createdAt,
 	}
-	e.SetTenantID(1)
+	e.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(e).Exec(context.Background())
 	require.NoError(t, err)
 	return e.ID
@@ -314,7 +314,7 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, cre
 		Status:      activeModels.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}
-	a.SetTenantID(1)
+	a.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(a).Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewUpdate().

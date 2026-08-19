@@ -123,7 +123,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
-	category.SetTenantID(1)
+	category.SetTenantID(fixtureTenantID(tb))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -159,7 +159,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(group).
@@ -185,7 +185,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 		Building: "Test Building",
 		Capacity: IntPtr(30),
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(room).
@@ -213,7 +213,7 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 		Status:     iot.DeviceStatusActive,
 		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
-	device.SetTenantID(1)
+	device.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(device).
@@ -224,8 +224,16 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	return device
 }
 
-// EnsureWebManualDevice creates or returns the web manual device needed for manual check-ins.
-// This device is normally created by migration 001007005 but may need to be created in tests.
+// EnsureWebManualDevice creates or returns the web manual device needed for
+// manual check-ins. Every real school is provisioned with it
+// (services/platform.createWebManualDevice); web check-ins fall back to it when
+// no physical device is involved, and without it the attendance insert fails on
+// fk_attendance_device_tenant.
+//
+// Deliberately NOT part of EnsureTestTenant: that would put a device row in
+// every test tenant, and the dozens of tests that delete their school with raw
+// SQL would then trip devices_tenant_id_fkey. Tests that exercise a web
+// check-in ask for it explicitly (#2419).
 func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	tb.Helper()
 
@@ -239,7 +247,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 		Name:       StrPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
-	device.SetTenantID(1)
+	device.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(device).
@@ -273,7 +281,7 @@ func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *us
 		FirstName: firstName,
 		LastName:  lastName,
 	}
-	person.SetTenantID(1)
+	person.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(person).
@@ -299,7 +307,7 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
-	staff.SetTenantID(1)
+	staff.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(staff).
@@ -324,7 +332,7 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	staff := &users.Staff{
 		PersonID: personID,
 	}
-	staff.SetTenantID(1)
+	staff.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(staff).
@@ -351,7 +359,7 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
-	student.SetTenantID(1)
+	student.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(student).
@@ -385,7 +393,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 		CheckedInBy:  staffID,
 		DeviceID:     deviceID,
 	}
-	attendance.SetTenantID(1)
+	attendance.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(attendance).
@@ -412,7 +420,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 //	defer CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 	tb.Helper()
-	CleanupActivityFixturesForTenant(tb, db, 1, ids...)
+	CleanupActivityFixturesForTenant(tb, db, fixtureTenantID(tb), ids...)
 }
 
 // CleanupActivityFixturesForTenant is the tenant-scoped variant of
@@ -792,7 +800,7 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education
 	group := &education.Group{
 		Name: uniqueName,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(group).
@@ -818,7 +826,7 @@ func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *u
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
-	teacher.SetTenantID(1)
+	teacher.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -843,7 +851,7 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
-	gt.SetTenantID(1)
+	gt.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(gt).
@@ -865,7 +873,7 @@ func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClas
 		StaffID:     staffID,
 		SchoolClass: schoolClass,
 	}
-	ct.SetTenantID(1)
+	ct.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(ct).
@@ -897,7 +905,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
-	activeGroup.SetTenantID(1)
+	activeGroup.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -922,7 +930,7 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 		EntryTime:     entryTime,
 		ExitTime:      exitTime,
 	}
-	visit.SetTenantID(1)
+	visit.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(visit).
@@ -947,7 +955,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		Role:      role,
 		StartDate: timezone.TodayDate(),
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -1047,7 +1055,7 @@ func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 		return
 	}
 
-	ctx := TenantContext(1)
+	ctx := TenantContext(fixtureTenantID(tb))
 
 	_, _ = db.NewDelete().
 		TableExpr("auth.role_permissions").
@@ -1076,7 +1084,7 @@ func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64)
 		return
 	}
 
-	ctx := TenantContext(1)
+	ctx := TenantContext(fixtureTenantID(tb))
 
 	_, _ = db.NewDelete().
 		TableExpr("auth.role_permissions").
@@ -1246,7 +1254,7 @@ func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastNam
 		LastName:  lastName,
 		AccountID: &accountID,
 	}
-	person.SetTenantID(1)
+	person.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(person).
@@ -1363,7 +1371,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 		LastName:  lastName,
 		AccountID: &account.ID,
 	}
-	person.SetTenantID(1)
+	person.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(person).
@@ -1390,7 +1398,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
-	student.SetTenantID(1)
+	student.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(student).
@@ -1415,7 +1423,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
-	staff.SetTenantID(1)
+	staff.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(staff).
@@ -1448,7 +1456,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	now := time.Now()
 	mapping := &auth.AccountTenant{
 		AccountID:   account.ID,
-		TenantID:    1,
+		TenantID:    fixtureTenantID(tb),
 		Status:      auth.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
@@ -1464,7 +1472,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	require.NoError(tb, err, "Failed to find seeded user role")
 
 	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: userRoleID}
-	roleAssignment.SetTenantID(1)
+	roleAssignment.SetTenantID(fixtureTenantID(tb))
 	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign user role to staff account")
 
@@ -1486,7 +1494,7 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
-	teacher.SetTenantID(1)
+	teacher.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -1524,7 +1532,7 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 // CreateTestRole creates a role in the database for permission testing.
 func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	tb.Helper()
-	return CreateTestRoleForTenant(tb, db, name, 1)
+	return CreateTestRoleForTenant(tb, db, name, fixtureTenantID(tb))
 }
 
 // CreateTestRoleForTenant creates a role scoped to the given tenant.
@@ -1682,7 +1690,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
 		Generation: 0,
 	}
-	token.SetTenantID(1)
+	token.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(token).
@@ -1712,7 +1720,7 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 		Active: true,
 	}
 	card.ID = uniqueTagID
-	card.SetTenantID(1)
+	card.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(card).
@@ -1756,7 +1764,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1787,7 +1795,7 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 		EndDate:           endDate,
 		Reason:            "Test substitution",
 	}
-	substitution.SetTenantID(1)
+	substitution.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(substitution).
@@ -1814,7 +1822,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
-	guest.SetTenantID(1)
+	guest.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(guest).
@@ -1845,7 +1853,7 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 		Bio:       "Test bio for " + prefix,
 		Settings:  `{"theme": "dark"}`,
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1884,7 +1892,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		RenewalRequired:   false,
 		DataRetentionDays: 30,
 	}
-	consent.SetTenantID(1)
+	consent.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(consent).
@@ -1914,7 +1922,7 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 		Username: &username,
 		Active:   true,
 	}
-	account.SetTenantID(1)
+	account.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(account).
@@ -1976,7 +1984,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	if createdBy > 0 {
 		invitation.CreatedBy = base.Int64Ptr(createdBy)
 	}
-	invitation.SetTenantID(1)
+	invitation.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -2012,7 +2020,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.FirstName = opts.FirstName
 		invitation.LastName = opts.LastName
 	}
-	invitation.SetTenantID(1)
+	invitation.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -2060,7 +2068,7 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	}
 
 	// Create a new role if not found
-	tenantID := int64(1) // matches TenantContext(1) used by tests
+	tenantID := fixtureTenantID(tb)
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
@@ -2119,7 +2127,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
 		Roles:       []string{"user"},
 		Permissions: permissions,
-		TenantID:    1, // Default test tenant
+		TenantID:    fixtureTenantID(tb),
 	}
 
 	token, err := tokenAuth.CreateJWT(claims)
@@ -2144,7 +2152,7 @@ func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, c
 		Status:       education.TransitionStatusDraft,
 		CreatedBy:    createdBy,
 	}
-	transition.SetTenantID(1)
+	transition.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(transition).
@@ -2167,7 +2175,7 @@ func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID in
 		FromClass:    fromClass,
 		ToClass:      toClass,
 	}
-	mapping.SetTenantID(1)
+	mapping.SetTenantID(fixtureTenantID(tb))
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -2350,6 +2358,14 @@ func CleanupTestTenant(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		Table("audit.auth_events").
 		Where(whereTenantIDIn, bun.List(tenantIDs)),
 		"audit.auth_events")
+
+	// ensureTestTenant provisions the virtual WEB-MANUAL-001 device the same
+	// way a real school gets one, so the school row cannot be deleted while it
+	// is still there (devices_tenant_id_fkey).
+	cleanupDelete(tb, db.NewDelete().
+		Table("iot.devices").
+		Where(whereTenantIDIn, bun.List(tenantIDs)),
+		"iot.devices")
 
 	cleanupDelete(tb, db.NewDelete().
 		Table("platform.schools").
@@ -2957,7 +2973,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 		ExpectedArrival: parseTimeHHMM(tb, arrivalHHMM),
 		CreatedBy:       staffID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2987,7 +3003,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3010,7 +3026,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 		PickupTime: parseTimeHHMM(tb, pickupHHMM),
 		CreatedBy:  staffID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3040,7 +3056,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3107,7 +3123,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 		Status:           status,
 		IsSpontaneous:    opts.IsSpontaneous,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3137,7 +3153,7 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3184,7 +3200,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezon
 		ShiftTypeID: opts.ShiftTypeID,
 		CreatedBy:   staffID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3240,7 +3256,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		ManualStatusAt:     opt.ManualStatusAt,
 		CheckedInAt:        opt.CheckedInAt,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3268,7 +3284,7 @@ func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date
 		ReportedAt: time.Now(),
 		Source:     active.StudentStatusSourceManual,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3309,7 +3325,7 @@ func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int6
 		IsSubstitute: opts.IsSubstitute,
 		IsAbsent:     opts.IsAbsent,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -3410,7 +3426,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(fixtureTenantID(tb))
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test guardian profile")
 
@@ -3424,14 +3440,14 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
-	link.SetTenantID(1)
+	link.SetTenantID(fixtureTenantID(tb))
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create students_guardians link")
 
 	now := time.Now()
 	mapping := &auth.AccountTenant{
 		AccountID:   account.ID,
-		TenantID:    1,
+		TenantID:    fixtureTenantID(tb),
 		Status:      auth.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
@@ -3454,13 +3470,13 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	require.NoError(tb, err, "Failed to find seeded guardian role")
 
 	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
-	roleAssignment.SetTenantID(1)
+	roleAssignment.SetTenantID(fixtureTenantID(tb))
 	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign guardian role")
 
 	return ParentChain{
 		AccountID:         account.ID,
-		TenantID:          1,
+		TenantID:          fixtureTenantID(tb),
 		GuardianProfileID: profile.ID,
 		StudentID:         student.ID,
 		PersonID:          student.PersonID,
@@ -3534,7 +3550,7 @@ func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...i
 // tenant 1 covering the current school year, with cleanup registered.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	tb.Helper()
-	ctx := TenantContext(1)
+	ctx := TenantContext(fixtureTenantID(tb))
 	phase := &enrollment.Phase{
 		Name:                      fmt.Sprintf("Testphase-%d", time.Now().UnixNano()),
 		Kind:                      "school_year",
@@ -3544,7 +3560,7 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 		CareOfferingSelectionMode: "optional",
 		IsActive:                  true,
 	}
-	phase.SetTenantID(1)
+	phase.SetTenantID(fixtureTenantID(tb))
 	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Returning("*").Exec(ctx)
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
@@ -3559,7 +3575,7 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 // phase (fixed Mo-Fr), with cleanup registered.
 func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
 	tb.Helper()
-	ctx := TenantContext(1)
+	ctx := TenantContext(fixtureTenantID(tb))
 	offering := &enrollment.CareOffering{
 		PhaseID:            phaseID,
 		Name:               fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
@@ -3569,7 +3585,7 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 		IsActive:           true,
 		CountsAsCare:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(fixtureTenantID(tb))
 	_, err := db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Returning("*").Exec(ctx)
 	if err != nil {
 		tb.Fatalf("create test care offering: %v", err)
@@ -3584,7 +3600,7 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 // default test tenant, with cleanup (entry + audit trail) registered.
 func CreateTestClassListEntry(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.ClassListEntry {
 	tb.Helper()
-	return CreateTestClassListEntryForTenant(tb, db, 1, firstName, lastName, schoolClass)
+	return CreateTestClassListEntryForTenant(tb, db, fixtureTenantID(tb), firstName, lastName, schoolClass)
 }
 
 // CreateTestClassListEntryForTenant creates a class-list-only entry (#2382)

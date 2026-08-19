@@ -278,7 +278,7 @@ func TestEndActiveGroup(t *testing.T) {
 		)
 		disabledRouter := chi.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
-		settingCtx := testpkg.TenantContext(adminClaims.TenantID)
+		settingCtx := testpkg.Ctx(t)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, disabledRouter, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -1982,7 +1982,7 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 
 	supervisorClaims := jwt.AppClaims{
 		ID:          int(supervisorAccount.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         "supervisor@example.com",
 		Roles:       []string{"staff"},
 		Permissions: []string{permissions.VisitsUpdate},
@@ -2024,7 +2024,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         "teacher@example.com",
 		Roles:       []string{"staff"},
 		Permissions: []string{permissions.VisitsUpdate},
@@ -2059,7 +2059,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         "unrelated@example.com",
 		Roles:       []string{"staff"},
 		Permissions: []string{permissions.VisitsUpdate},
@@ -2140,7 +2140,7 @@ func TestClaimGroup(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         "claim@example.com",
 		Roles:       []string{"staff"},
 		Permissions: []string{permissions.GroupsUpdate},
@@ -2194,7 +2194,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         "display@example.com",
 		Roles:       []string{"staff"},
 		Permissions: []string{permissions.GroupsRead},

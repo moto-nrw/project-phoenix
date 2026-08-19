@@ -21,7 +21,7 @@ import (
 func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *auth.InvitationToken {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	token := &auth.InvitationToken{
 		Email:     email,
 		Token:     uuid.Must(uuid.NewV4()).String(),
@@ -31,7 +31,7 @@ func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, c
 	if createdBy > 0 {
 		token.CreatedBy = &createdBy
 	}
-	token.SetTenantID(1)
+	token.SetTenantID(testpkg.Tenant(t))
 
 	_, err := db.NewInsert().
 		Model(token).
@@ -56,7 +56,7 @@ func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invite-test-role")
@@ -83,7 +83,7 @@ func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	_, err := repo.FindByToken(ctx, "nonexistent-token")
@@ -100,7 +100,7 @@ func TestInvitationTokenRepository_FindByID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invite-by-id-role")
@@ -126,7 +126,7 @@ func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	_, err := repo.FindByID(ctx, int64(999999))
@@ -143,7 +143,7 @@ func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "valid-token-role")
@@ -169,7 +169,7 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "expired-token-role")
@@ -182,9 +182,9 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	var invitationID int64
 	err := db.NewRaw(`
 		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, "expired@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour)).
+	`, "expired@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour), testpkg.Tenant(t)).
 		Scan(ctx, &invitationID)
 	require.NoError(t, err)
 	defer cleanupInvitationTokens(t, db, invitationID)
@@ -200,7 +200,7 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "used-token-role")
@@ -214,9 +214,9 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	var invitationID int64
 	err := db.NewRaw(`
 		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, used_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, "used@example.com", token, role.ID, creator.ID, time.Now().Add(48*time.Hour), usedAt).
+	`, "used@example.com", token, role.ID, creator.ID, time.Now().Add(48*time.Hour), usedAt, testpkg.Tenant(t)).
 		Scan(ctx, &invitationID)
 	require.NoError(t, err)
 	defer cleanupInvitationTokens(t, db, invitationID)
@@ -236,7 +236,7 @@ func TestInvitationTokenRepository_FindByEmail_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "email-search-role")
@@ -263,7 +263,7 @@ func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "case-insensitive-role")
@@ -292,7 +292,7 @@ func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "mark-used-role")
@@ -325,7 +325,7 @@ func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invalidate-role")
@@ -362,7 +362,7 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delete-expired-role")
@@ -375,9 +375,9 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	var expiredID int64
 	err := db.NewRaw(`
 		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, "expired-delete@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour)).
+	`, "expired-delete@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour), testpkg.Tenant(t)).
 		Scan(ctx, &expiredID)
 	require.NoError(t, err)
 
@@ -410,7 +410,7 @@ func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "list-role")
@@ -435,7 +435,7 @@ func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "list-email-role")
@@ -466,7 +466,7 @@ func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "pending-filter-role")
@@ -500,7 +500,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delivery-result-role")
@@ -532,7 +532,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delivery-error-role")
@@ -568,7 +568,7 @@ func TestInvitationTokenRepository_Update_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "update-role")
@@ -602,7 +602,7 @@ func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	err := repo.Update(ctx, nil)

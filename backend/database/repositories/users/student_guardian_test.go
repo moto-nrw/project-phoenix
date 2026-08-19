@@ -22,7 +22,7 @@ import (
 func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProfileID int64, relType string, isPrimary bool) *users.StudentGuardian {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	sg := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
@@ -32,7 +32,7 @@ func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProf
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
-	sg.SetTenantID(1)
+	sg.SetTenantID(testpkg.Tenant(t))
 
 	_, err := db.NewInsert().
 		Model(sg).
@@ -57,7 +57,7 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Guardian", "Student", "1a")
@@ -86,7 +86,7 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create student with no guardians
 	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
@@ -108,7 +108,7 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "2a")
@@ -153,7 +153,7 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "SetPrimary", "Student", "6a")
@@ -205,7 +205,7 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "CreateSG", "Student", "10a")
@@ -239,7 +239,7 @@ func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	err := repo.Create(ctx, nil)
@@ -253,7 +253,7 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT - Create with invalid data
 	sg := &users.StudentGuardian{
@@ -279,7 +279,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "ListTest", "Student", "13a")
@@ -296,7 +296,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
-	sg.SetTenantID(1)
+	sg.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(sg).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
 	defer cleanupStudentGuardians(t, db, sg.ID)
@@ -323,7 +323,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("inserts a new link and reports it as inserted", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Link", "Student", "1a")
@@ -337,7 +337,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 			CanPickup:         true,
 			EmergencyPriority: 1,
 		}
-		rel.SetTenantID(1)
+		rel.SetTenantID(testpkg.Tenant(t))
 
 		inserted, err := repo.LinkIfNotExists(ctx, rel)
 		defer cleanupStudentGuardians(t, db, rel.ID)
@@ -358,7 +358,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		}
-		first.SetTenantID(1)
+		first.SetTenantID(testpkg.Tenant(t))
 		inserted, err := repo.LinkIfNotExists(ctx, first)
 		require.NoError(t, err)
 		require.True(t, inserted)
@@ -372,7 +372,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 			RelationshipType:  "guardian",
 			EmergencyPriority: 2,
 		}
-		dup.SetTenantID(1)
+		dup.SetTenantID(testpkg.Tenant(t))
 		inserted, err = repo.LinkIfNotExists(ctx, dup)
 		require.NoError(t, err, "a duplicate link must not error")
 		assert.False(t, inserted, "a duplicate link must report inserted=false")
@@ -405,7 +405,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		require.True(t, inserted)
-		assert.Equal(t, int64(1), rel.GetTenantID(), "tenant_id must be auto-set from context")
+		assert.Equal(t, testpkg.Tenant(t), rel.GetTenantID(), "tenant_id must be auto-set from context")
 		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
 		assert.True(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
 	})
@@ -439,7 +439,7 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
 	require.NoError(t, err)
@@ -460,7 +460,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Relationship", "1a")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-relationship-guardian")
@@ -532,7 +532,7 @@ func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Primary guardian (all parent-portal permissions) → chain.StudentID, with an
 	// ACTIVE account_tenants mapping. This is the authorized child.
@@ -593,7 +593,7 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Guardian WITH an account and an active mapping, primary role on its child.
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -630,25 +630,25 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	perm := authorize.GuardianPermissionEnrollmentSubmit
 
 	t.Run("granted for an accountless guardian of the child", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, 1, perm)
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.True(t, granted, "a guardian without a portal account must still be able to renew their own child")
 	})
 
 	t.Run("email matching is case-insensitive and trimmed", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "  "+strings.ToUpper(accountlessEmail)+" ", accountlessChild.ID, 1, perm)
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "  "+strings.ToUpper(accountlessEmail)+" ", accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.True(t, granted)
 	})
 
 	t.Run("denied on another family's child", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, chain.StudentID, 1, perm)
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, chain.StudentID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "the reviewed P1: an invited guardian must not renew a child they have no relationship with")
 	})
 
 	t.Run("denied on the guardian's other child lacking the permission", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, otherChild.ID, 1, perm)
+		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, otherChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "submit permission on one child must not extend to another")
 	})
@@ -672,11 +672,11 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	})
 
 	t.Run("rejects invalid arguments", func(t *testing.T) {
-		_, err := repo.GuardianEmailHasStudentPermission(ctx, "  ", accountlessChild.ID, 1, perm)
+		_, err := repo.GuardianEmailHasStudentPermission(ctx, "  ", accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.Error(t, err)
-		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, 0, 1, perm)
+		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, 0, testpkg.Tenant(t), perm)
 		require.Error(t, err)
-		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, 1, "  ")
+		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), "  ")
 		require.Error(t, err)
 	})
 }
@@ -691,7 +691,7 @@ func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	perm := authorize.GuardianPermissionPortalAccess
 
 	// Primary guardian with parent_portal.access on chain.StudentID.

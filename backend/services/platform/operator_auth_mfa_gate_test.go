@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -32,24 +31,6 @@ func randomOperatorGatePassword() string {
 		panic(err)
 	}
 	return "Aa1!" + hex.EncodeToString(b)
-}
-
-// withJWTSecret seeds viper with a stable HMAC key for the duration of
-// the test, mirroring the convention used by the sibling operator-auth
-// tests. Token-issuing paths fail with "missing key" without it.
-func withJWTSecret(t *testing.T) {
-	t.Helper()
-	old := viper.GetString("auth_jwt_secret")
-	oldExpiry := viper.Get("auth_jwt_expiry")
-	oldRefreshExpiry := viper.Get("auth_jwt_refresh_expiry")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", time.Hour)
-	t.Cleanup(func() {
-		viper.Set("auth_jwt_secret", old)
-		viper.Set("auth_jwt_expiry", oldExpiry)
-		viper.Set("auth_jwt_refresh_expiry", oldRefreshExpiry)
-	})
 }
 
 // stubOperatorMFAService is a minimal OperatorMFAService implementation
@@ -147,7 +128,6 @@ func newOperatorAuthServiceForGate(t *testing.T, mfa *stubOperatorMFAService) (p
 }
 
 func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
-	withJWTSecret(t)
 	svc, op := newOperatorAuthServiceForGate(t, nil)
 
 	result, err := svc.LoginWithMFAGate(
@@ -170,7 +150,6 @@ func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T
 	// + MFAEnrollmentRequired flag — an advisory-only signal that any
 	// direct API client could ignore, bypassing the mandatory operator
 	// MFA entirely.
-	withJWTSecret(t)
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
 	}
@@ -217,7 +196,6 @@ func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T
 }
 
 func TestOperatorLoginWithMFAGate_EnrolledValidCookie_SkipsMFA(t *testing.T) {
-	withJWTSecret(t)
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
 		verifyTrustedDeviceFn: func(_ context.Context, _ int64, cookie string) (bool, error) {

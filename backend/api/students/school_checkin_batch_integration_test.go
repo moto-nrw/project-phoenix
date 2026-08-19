@@ -55,6 +55,9 @@ func postBatchCheckin(t *testing.T, tc *testContext, accountID int64, body map[s
 
 func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	first := testpkg.CreateTestStudent(t, tc.db, "BatchIn", "First", "1a")
 	second := testpkg.CreateTestStudent(t, tc.db, "BatchIn", "Second", "1a")
@@ -81,6 +84,9 @@ func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 
 func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	present := testpkg.CreateTestStudent(t, tc.db, "BatchMixed", "Present", "2a")
 	absent := testpkg.CreateTestStudent(t, tc.db, "BatchMixed", "Absent", "2a")
@@ -119,6 +125,9 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 
 func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchSkip", "Known", "3a")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchSkip", "Caller")
@@ -151,6 +160,9 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 
 func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchDup", "Target", "4a")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchDup", "Caller")

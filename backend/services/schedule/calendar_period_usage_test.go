@@ -23,7 +23,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 
@@ -70,7 +70,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		IsActive:                  true,
 		CalendarPeriodID:          &used.ID,
 	}
-	phase.SetTenantID(1)
+	phase.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(phase).
 		ModelTableExpr("enrollment.phases").
@@ -108,7 +108,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		WeekPattern:      0,
 		CalendarPeriodID: &used.ID,
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(sched).
 		ModelTableExpr("activities.schedules").
@@ -123,7 +123,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		ValidFrom:        timezone.NewDate(2026, 8, 1),
 		CalendarPeriodID: &used.ID,
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(enrollment).
 		ModelTableExpr("activities.student_enrollments").
@@ -137,7 +137,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		ValidFrom:        timezone.NewDate(2026, 8, 1),
 		CalendarPeriodID: &used.ID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(supervisor).
 		ModelTableExpr("activities.supervisors").

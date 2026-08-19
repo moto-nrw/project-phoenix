@@ -101,7 +101,7 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Tpl-Room-%d", suffix))
 	category := testpkg.CreateTestActivityCategory(t, db, fmt.Sprintf("Tpl-Cat-%d", suffix))
@@ -189,7 +189,7 @@ func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
 
 func cleanupTemplatesByPrefix(t *testing.T, db *bun.DB, prefix string) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := db.NewDelete().
 		Table("activities.student_enrollments").
 		Where("activity_group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
@@ -991,7 +991,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
-	periodBEnrollment.SetTenantID(1)
+	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
@@ -999,7 +999,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ActivityGroupID: created.TemplateID,
 		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
-	globalEnrollment.SetTenantID(1)
+	globalEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
@@ -1008,7 +1008,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
-	periodBSupervisor.SetTenantID(1)
+	periodBSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
@@ -1016,7 +1016,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		GroupID:   created.TemplateID,
 		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
-	globalSupervisor.SetTenantID(1)
+	globalSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
@@ -1031,7 +1031,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("calendar_period_id = ?", periodB.ID).
 		Where("valid_until IS NULL").
@@ -1039,7 +1039,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("calendar_period_id IS NULL").
 		Where("valid_until IS NULL").
@@ -1047,7 +1047,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.supervisors").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("group_id = ?", created.TemplateID).
 		Where("calendar_period_id = ?", periodB.ID).
 		Where("valid_until IS NULL").
@@ -1055,7 +1055,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.supervisors").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("group_id = ?", created.TemplateID).
 		Where("calendar_period_id IS NULL").
 		Where("valid_until IS NULL").
@@ -1069,7 +1069,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		Column("valid_until").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("student_id = ?", s.studentA).
 		Where("calendar_period_id = ?", periodA.ID).
@@ -1077,7 +1077,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		Column("valid_from").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("student_id = ?", studentD.ID).
 		Where("calendar_period_id = ?", periodA.ID).
@@ -1200,7 +1200,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	_, err := s.db.NewUpdate().
 		Table("activities.schedules").
 		Set("calendar_period_id = NULL").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", createdP.TemplateID).
 		Exec(s.ctx)
 	require.NoError(t, err)
@@ -1235,7 +1235,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidUntil:       &boundedUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
-	boundedEnrollment.SetTenantID(1)
+	boundedEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, boundedEnrollment))
 
 	for _, roster := range []struct {
@@ -1255,7 +1255,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			ValidFrom:        periodP.StartDate,
 			CalendarPeriodID: roster.periodID,
 		}
-		enrollment.SetTenantID(1)
+		enrollment.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
@@ -1264,7 +1264,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidFrom:        periodP.StartDate,
 		CalendarPeriodID: &periodP.ID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
 	// A bounded staff assignment contributes only on dates inside its own
 	// validity window. Occurrence-level capacity must count it there without
@@ -1277,7 +1277,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidUntil:       &boundedSupervisorUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
-	boundedSupervisor.SetTenantID(1)
+	boundedSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, boundedSupervisor))
 	// Staff assigned only to overlapping period Q must stay visible in the
 	// period-tolerant roster, but must not make period P's 1/3 capacity look
@@ -1289,7 +1289,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			ValidFrom:        periodQ.StartDate,
 			CalendarPeriodID: &periodQ.ID,
 		}
-		periodQSupervisor.SetTenantID(1)
+		periodQSupervisor.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, periodQSupervisor))
 	}
 
@@ -1521,7 +1521,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionDate:   date,
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
@@ -1541,7 +1541,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.schedules").
 			Set("timeframe_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("activity_group_id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1565,7 +1565,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("planned_room_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1589,7 +1589,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("planned_room_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1599,7 +1599,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionType:   scheduleModel.ActivityExceptionModified,
 			RoomID:          &s.roomID,
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
@@ -1622,7 +1622,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("calendar_period_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1637,7 +1637,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			IsActive:    true,
 			Description: "Tpl-Occurrence-Explicit-Periods-Q",
 		}
-		timeframe.SetTenantID(1)
+		timeframe.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateTimeframe(s.ctx, timeframe))
 
 		timeframeID := timeframe.ID
@@ -1648,7 +1648,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			WeekPattern:      0,
 			CalendarPeriodID: &periodQ.ID,
 		}
-		scheduleQ.SetTenantID(1)
+		scheduleQ.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
 
 		createCapacityEnrollment(t, s, templateID, s.studentA, start, nil, &periodP.ID, nil)
@@ -1701,7 +1701,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		createCapacityEnrollment(t, s, templateID, s.studentA, period.StartDate, &end, &period.ID, nil)
 		_, err := s.db.NewUpdate().Table("schedule.calendar_periods").
 			Set("is_active = FALSE").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", period.ID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1752,7 +1752,7 @@ func createCapacityEnrollment(
 		CalendarPeriodID: periodID,
 		SelectedWeekdays: selectedWeekdays,
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, enrollment))
 }
 
@@ -1772,7 +1772,7 @@ func createCapacitySupervisor(
 		ValidUntil:       validUntil,
 		CalendarPeriodID: periodID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, supervisor))
 }
 
@@ -1788,7 +1788,7 @@ func setCapacityScheduleWindow(
 		Table("activities.schedules").
 		Set("valid_from = ?", validFrom).
 		Set("valid_until = ?", validUntil).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", templateID).
 		Where("weekday = ?", weekday).
 		Exec(s.ctx)
@@ -1867,11 +1867,11 @@ func createTemplateTestPeriodRange(
 		WeekCycleAnchor: weekCycleAnchor,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(period).
 		ModelTableExpr("schedule.calendar_periods").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	return period
 }

@@ -20,7 +20,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -161,7 +161,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -212,7 +212,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -284,7 +284,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -348,7 +348,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")

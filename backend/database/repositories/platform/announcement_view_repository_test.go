@@ -21,7 +21,7 @@ var schoolCounter int64
 func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	// Create operator for announcement
@@ -133,9 +133,9 @@ func createTestPerson(t *testing.T, db *bun.DB, accountID int64, firstName, last
 	var id int64
 	_, err := db.NewRaw(`
 		INSERT INTO users.persons (account_id, first_name, last_name, tenant_id, created_at, updated_at)
-		VALUES (?, ?, ?, 1, NOW(), NOW())
+		VALUES (?, ?, ?, ?, NOW(), NOW())
 		RETURNING id
-	`, accountID, firstName, lastName).Exec(ctx, &id)
+	`, accountID, firstName, lastName, testpkg.Tenant(t)).Exec(ctx, &id)
 	require.NoError(t, err)
 	return id
 }
@@ -440,7 +440,7 @@ func pgInt64Array(vals []int64) string {
 func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "markseen-op@test.com", "MarkSeen Op")
@@ -473,7 +473,7 @@ func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "markdismiss-op@test.com", "Dismiss Op")
@@ -511,7 +511,7 @@ func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "unread-op@test.com", "Unread Op")
@@ -543,7 +543,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	// Create account_tenants membership so the subquery finds this user's org/tenant
 	createTestAccountTenant(t, db, accountID, schoolID)
 	defer func() {
-		cleanupCtx := testpkg.TenantContext(1)
+		cleanupCtx := testpkg.Ctx(t)
 		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, schoolID).Exec(cleanupCtx)
 	}()
 
@@ -819,7 +819,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "baseline-op@test.com", "Baseline Op")
@@ -954,7 +954,7 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "count-op@test.com", "Count Op")
@@ -984,7 +984,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	// Create account_tenants membership so the subquery finds this user's org/tenant
 	createTestAccountTenant(t, db, accountID, schoolID)
 	defer func() {
-		cleanupCtx := testpkg.TenantContext(1)
+		cleanupCtx := testpkg.Ctx(t)
 		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, schoolID).Exec(cleanupCtx)
 	}()
 
@@ -1122,7 +1122,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "stats-op@test.com", "Stats Op")

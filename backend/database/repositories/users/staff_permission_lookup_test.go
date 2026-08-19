@@ -20,7 +20,7 @@ import (
 func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := usersRepo.NewStaffRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Staff WITH an active tenant mapping (calendar helper adds mapping + base
 	// user role) plus a direct vacation:approve grant.
@@ -49,7 +49,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 		PermissionID: permissionID,
 		Granted:      true,
 	}
-	grant.SetTenantID(1)
+	grant.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(grant).ModelTableExpr(`auth.account_permissions`).Exec(sqlCtx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -72,7 +72,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := usersRepo.NewStaffRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Mila", "Muster")
 	t.Cleanup(func() {

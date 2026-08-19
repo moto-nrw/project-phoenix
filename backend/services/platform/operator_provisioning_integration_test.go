@@ -20,9 +20,12 @@ import (
 
 var testClientIP = net.IPv4(127, 0, 0, 1)
 
-// testSchoolID is the tenant_id used by all test fixtures (SetupTestDB ensures tenant 1 exists).
+// testSchoolID(t) is the tenant_id used by all test fixtures (SetupTestDB ensures tenant 1 exists).
 // Expressed as a const to avoid triggering the hermetic int64(1) pattern check.
-const testSchoolID int64 = 1 //nolint:unused
+// testSchoolID(t) is the school (= tenant) this test owns. It used to be the
+// fixed bootstrap tenant 1; per-test tenants (#2419) make it a function so
+// every test in the package gets its own school.
+func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 
 func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProvisioningService {
 	t.Helper()
@@ -46,8 +49,7 @@ func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
 	person1 := testpkg.CreateTestPerson(t, db, "Alice", "Schmidt")
 	person2 := testpkg.CreateTestPerson(t, db, "Bob", "Mueller")
 
-	// schoolID=1 is the default test tenant
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -84,7 +86,7 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 	require.NoError(t, err)
 
 	// List should not include soft-deleted person
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -102,7 +104,7 @@ func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 	student := testpkg.CreateTestStudent(t, db, "Student", "Kid", "3a")
 
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -126,7 +128,7 @@ func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 
 	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "With", "Account")
 
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -237,7 +239,7 @@ func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 	rfidTag := fmt.Sprintf("TAG-SOFTDEL-%d", person.ID)
 	_, err := db.ExecContext(ctx,
 		`INSERT INTO users.rfid_cards (id, tenant_id) VALUES (?, ?)`,
-		rfidTag, testSchoolID)
+		rfidTag, testSchoolID(t))
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM users.rfid_cards WHERE id = ?`, rfidTag)

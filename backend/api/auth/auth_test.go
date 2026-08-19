@@ -111,7 +111,7 @@ func TestLogin(t *testing.T) {
 	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
 	testPassword := "Test1234%"
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, testEmail, testPassword)
-	testpkg.EnsureAccountTenant(t, tc.db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, tc.db, account.ID, testpkg.Tenant(t))
 
 	t.Run("success with valid credentials", func(t *testing.T) {
 		body := map[string]string{
@@ -155,7 +155,7 @@ func TestLogin(t *testing.T) {
 
 	// Cleanup test account
 	t.Cleanup(func() {
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
@@ -199,10 +199,10 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	t.Helper()
 	ctx := context.Background()
 
-	// Belt-and-suspenders: ensure FK target row for tenant_id=1 exists.
-	// SetupTestDB already calls EnsureTestTenant, but parallel test packages
-	// sharing the same database may interfere.
-	testpkg.EnsureTestTenant(t, db, 1)
+	// Belt-and-suspenders: ensure the FK target row for this test's tenant
+	// exists. testpkg.Tenant creates it, but the explicit call keeps the
+	// dependency visible at the point where the FK matters.
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	// 1. Create admin account with known password
 	adminEmail := fmt.Sprintf("registeradmin_%d@example.com", time.Now().UnixNano())
@@ -210,7 +210,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	adminAccount := testpkg.CreateTestAccountWithPassword(t, db, adminEmail, adminPassword)
 
 	// Map account to tenant 1 so Login can resolve the tenant for JWT/token creation
-	testpkg.EnsureAccountTenant(t, db, adminAccount.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, adminAccount.ID, testpkg.Tenant(t))
 
 	// 2. Get or create "admin" role and assign it
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
@@ -218,7 +218,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 		AccountID: adminAccount.ID,
 		RoleID:    adminRole.ID,
 	}
-	accountRole.SetTenantID(1)
+	accountRole.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 	require.NoError(t, err, "Failed to assign admin role")
 
@@ -502,20 +502,20 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 	t.Run("non-admin returns forbidden", func(t *testing.T) {
 		// Create a fresh role with NO permissions to guarantee 403
 		ctx := context.Background()
-		testpkg.EnsureTestTenant(t, db, 1)
+		testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 		noPermsRole := testpkg.CreateTestRole(t, db, "noperms")
 
 		// Create account, map to tenant, assign the empty role
 		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
 		userPassword := "UserPass123!"
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
-		testpkg.EnsureAccountTenant(t, db, userAccount.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, userAccount.ID, testpkg.Tenant(t))
 
 		userAccountRole := &authModel.AccountRole{
 			AccountID: userAccount.ID,
 			RoleID:    noPermsRole.ID,
 		}
-		userAccountRole.SetTenantID(1)
+		userAccountRole.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 
@@ -762,7 +762,7 @@ func TestGetAccount(t *testing.T) {
 	t.Run("success with valid claims", func(t *testing.T) {
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         account.Email,
 			Username:    "testuser",
 			Roles:       []string{"user"},
@@ -784,7 +784,7 @@ func TestGetAccount(t *testing.T) {
 	t.Run("returns permissions from claims", func(t *testing.T) {
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         account.Email,
 			Username:    "testuser",
 			Roles:       []string{"admin"},
@@ -816,7 +816,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
@@ -839,7 +839,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
@@ -862,7 +862,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
@@ -1027,7 +1027,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			TableExpr("auth.roles").
 			Set("base_role = ?", "admin").
 			Where("id = ?", role.ID).
-			Exec(testpkg.TenantContext(1))
+			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
 		// Update name only — no base_role in payload
@@ -1058,7 +1058,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			Where(`"role".is_system = true`).
 			Where(`"role".tenant_id IS NULL`).
 			Limit(1).
-			Scan(testpkg.TenantContext(1))
+			Scan(testpkg.Ctx(t))
 		require.NoError(t, err, "Expected at least one system role in test DB")
 
 		body := map[string]string{
@@ -1081,7 +1081,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			TableExpr("auth.roles").
 			Set("base_role = ?", "user").
 			Where("id = ?", role.ID).
-			Exec(testpkg.TenantContext(1))
+			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
 		// Update to a different base_role
@@ -2034,7 +2034,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 
 	adminClaims := jwt.AppClaims{
 		ID:          int(account.ID),
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		Sub:         account.Email,
 		Username:    "test-admin",
 		Roles:       []string{"admin"},
@@ -2271,11 +2271,11 @@ func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inviter-%d@example.com", time.Now().UnixNano()))
 
-	role := testpkg.CreateTestRoleForTenant(t, tc.db, "invite-target", 1)
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "invite-target", testpkg.Tenant(t))
 
 	claims := jwt.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "betreuer",
 		Roles:    []string{"user"},
@@ -2306,7 +2306,7 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 
 	claims := jwt.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "betreuer",
 		Roles:    []string{"user"},

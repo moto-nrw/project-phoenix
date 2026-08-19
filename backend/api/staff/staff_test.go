@@ -382,7 +382,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
-	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	tenantID := testpkg.Tenant(t)
 	tenantCtx := testpkg.TenantContext(tenantID)
 	today := timezone.TodayDate()
 	session := &active.WorkSession{
@@ -523,7 +523,7 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 	rawStaffID, ok := data["id"].(float64)
 	require.True(t, ok, "create staff response should contain the staff ID")
 
-	granted, err := ctx.services.Auth.GetAccountDirectPermissions(testpkg.TenantContext(1), int(accountID))
+	granted, err := ctx.services.Auth.GetAccountDirectPermissions(testpkg.Ctx(t), int(accountID))
 	require.NoError(t, err)
 
 	names := make([]string, 0, len(granted))
@@ -543,8 +543,8 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Lehrkraft"+uniqueSuffix, "Person")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
-	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
-	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "lehrkraft")
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
+	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "lehrkraft")
 
 	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
@@ -562,8 +562,8 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "PlainStaff"+uniqueSuffix, "Person")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
-	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
-	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "user")
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
+	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "user")
 
 	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
@@ -613,8 +613,8 @@ func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "LehrkraftProfil"+uniqueSuffix, "Person")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
-	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
-	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "lehrkraft")
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
+	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "lehrkraft")
 
 	body := map[string]interface{}{
 		"person_id":      person.ID,
@@ -935,8 +935,8 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
-	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
+	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "teacher")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=teacher", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -967,8 +967,8 @@ func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
-	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
+	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "teacher")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -1406,7 +1406,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
-	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,
@@ -1436,20 +1436,20 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	activeRows, err := repositories.NewFactory(ctx.db).StaffWorkSchedule.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
+	activeRows, err := repositories.NewFactory(ctx.db).StaffWorkSchedule.GetCurrentByStaffID(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
 	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
 	assert.Equal(t, 360, activeRows[0].TargetMinutes)
 
-	reloadedStaff, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.TenantContext(1), staff.ID)
+	reloadedStaff, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
 	t.Cleanup(func() {
-		_ = repositories.NewFactory(ctx.db).WorkTimeModel.Delete(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+		_ = repositories.NewFactory(ctx.db).WorkTimeModel.Delete(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
 	})
 
-	model, err := repositories.NewFactory(ctx.db).WorkTimeModel.FindByID(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	model, err := repositories.NewFactory(ctx.db).WorkTimeModel.FindByID(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
 	require.NoError(t, err)
 	require.Len(t, model.Entries, 1)
 	assert.Equal(t, configModels.DayTuesday, model.Entries[0].DayOfWeek)
@@ -1463,7 +1463,7 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
-	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,

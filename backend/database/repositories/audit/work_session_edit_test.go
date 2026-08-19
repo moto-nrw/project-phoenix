@@ -22,7 +22,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -202,7 +202,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -338,7 +338,7 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -407,7 +407,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -511,7 +511,7 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -662,7 +662,7 @@ func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	edit := &audit.WorkSessionEdit{
 		SessionID: 1,
 		StaffID:   1,

@@ -53,7 +53,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guardian successfully", func(t *testing.T) {
 		// ARRANGE - use unique email to avoid collisions
@@ -137,7 +137,7 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	email := fmt.Sprintf("dup-guardian-%d@example.com", time.Now().UnixNano())
 	req := users.GuardianCreateRequest{
@@ -176,7 +176,7 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns guardian when found", func(t *testing.T) {
 		// ARRANGE
@@ -213,7 +213,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guardian successfully", func(t *testing.T) {
 		// ARRANGE
@@ -313,7 +313,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
@@ -365,7 +365,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — guardian linked to two students (the sibling case #819 is about).
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete")
@@ -393,7 +393,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// MUST run in one (the SELECT ... FOR UPDATE row lock and the link-then-
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
-	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs)
 	})
 
@@ -410,7 +410,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete-stale")
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Changed", "1a")
@@ -424,7 +424,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999})
 	})
 
@@ -445,7 +445,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("links guardian to student successfully", func(t *testing.T) {
 		// ARRANGE
@@ -659,7 +659,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns guardians for student", func(t *testing.T) {
 		// ARRANGE
@@ -712,7 +712,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 			ExpiresAt:         time.Now().Add(48 * time.Hour),
 			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 		}
-		invitation.SetTenantID(1)
+		invitation.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, invitation))
 
 		// ACT
@@ -747,7 +747,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns students for guardian", func(t *testing.T) {
 		// ARRANGE
@@ -819,7 +819,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns relationship by ID", func(t *testing.T) {
 		// ARRANGE
@@ -863,7 +863,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates relationship successfully", func(t *testing.T) {
 		// ARRANGE
@@ -1024,7 +1024,7 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("accepts existing profile link request", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-existing")
@@ -1148,7 +1148,7 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new guardian links student and adds phone", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "BatchAdd", "Student", "7a")
@@ -1229,7 +1229,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns matches with linked children", func(t *testing.T) {
 		token := fmt.Sprintf("picker-%d", time.Now().UnixNano())
@@ -1292,7 +1292,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("removes guardian from student", func(t *testing.T) {
 		// ARRANGE
@@ -1342,7 +1342,7 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of guardians", func(t *testing.T) {
 		// ARRANGE
@@ -1367,7 +1367,7 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns guardians without accounts", func(t *testing.T) {
 		// ARRANGE
@@ -1400,7 +1400,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns invitable guardians", func(t *testing.T) {
 		// ARRANGE - create guardian with email (invitable)
@@ -1426,7 +1426,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns pending invitations after creating one", func(t *testing.T) {
 		// ARRANGE - create a pending invitation
@@ -1475,7 +1475,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("cleans up expired invitations", func(t *testing.T) {
 		// ACT
@@ -1528,7 +1528,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sends invitation email to guardian", func(t *testing.T) {
 		// ARRANGE - create guardian with email
@@ -1575,7 +1575,7 @@ func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent guardian", func(t *testing.T) {
 		// ACT
@@ -1595,7 +1595,7 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when guardian has no email", func(t *testing.T) {
 		// ARRANGE - create guardian without email (phone numbers are added separately)
@@ -1626,7 +1626,7 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when guardian has pending invitation", func(t *testing.T) {
 		// ARRANGE - create guardian
@@ -1673,7 +1673,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guardian and sends invitation in one transaction", func(t *testing.T) {
 		// ARRANGE
@@ -1716,7 +1716,7 @@ func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when email not provided", func(t *testing.T) {
 		// ARRANGE - no email
@@ -1741,7 +1741,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when guardian already has account", func(t *testing.T) {
 		// ARRANGE - create guardian, send invitation, accept it first
@@ -1790,7 +1790,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds first phone number as primary by default", func(t *testing.T) {
 		// ARRANGE
@@ -1905,7 +1905,7 @@ func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
@@ -1932,7 +1932,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		// ARRANGE
@@ -2069,7 +2069,7 @@ func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ARRANGE
@@ -2095,7 +2095,7 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes non-primary phone", func(t *testing.T) {
 		// ARRANGE
@@ -2194,7 +2194,7 @@ func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
@@ -2214,7 +2214,7 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets phone as primary", func(t *testing.T) {
 		// ARRANGE
@@ -2255,7 +2255,7 @@ func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
@@ -2275,7 +2275,7 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all phone numbers sorted by priority", func(t *testing.T) {
 		// ARRANGE
@@ -2340,7 +2340,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns phone number by ID", func(t *testing.T) {
 		// ARRANGE
@@ -2372,7 +2372,7 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
@@ -2387,7 +2387,7 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(db)
 	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
 
@@ -2423,7 +2423,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 			}
 			c.mutate(inv)
-			inv.SetTenantID(1)
+			inv.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
 
 			res, err := service.GetStudentGuardians(ctx, student.ID)
@@ -2448,7 +2448,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	email := fmt.Sprintf("lock-guardian-%d@example.com", time.Now().UnixNano())
 	profile := testpkg.CreateTestGuardianProfile(t, db, email)
@@ -2532,7 +2532,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(db)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
@@ -2567,7 +2567,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
 		RoleUpgrade:       true,
 	}
-	inv.SetTenantID(1)
+	inv.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
 
 	res, err := service.GetStudentGuardians(ctx, student.ID)

@@ -54,13 +54,17 @@ func TestResource_Router(t *testing.T) {
 
 func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 	testutil.SeedTestJWTConfig()
-	resource := &Resource{}
-	router := resource.Router()
 	claims := testutil.DefaultTestClaims()
 	claims.Roles = []string{"user"}
 	claims.Permissions = []string{"users:read"}
 	claims.IsAdmin = false
+	// Mint before building the router: MintTestJWT resolves this test's own
+	// tenant (#2419), which initializes the test DB and loads .env — and with
+	// it AUTH_JWT_SECRET. A router built before that load would sign-check
+	// against a different secret than the token carries.
 	token := testutil.MintTestJWT(t, claims)
+	resource := &Resource{}
+	router := resource.Router()
 
 	cases := []string{
 		"/123/time-tracking/history?from=2026-06-01&to=2026-06-07",

@@ -89,7 +89,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 	t.Run("returns true for real 23505 violation on uniq_active_visits_open_per_student", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		repo := repositories.NewFactory(db).ActiveVisit
 
 		// Hermetic fixtures.

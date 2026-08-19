@@ -23,7 +23,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
@@ -132,7 +132,7 @@ func TestGuestRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByID")
@@ -155,7 +155,7 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByStaff")
@@ -178,7 +178,7 @@ func TestGuestRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Update")
@@ -208,7 +208,7 @@ func TestGuestRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Delete")
@@ -232,7 +232,7 @@ func TestGuestRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active guests with no date range", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate")
@@ -262,7 +262,7 @@ func TestGuestRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ListOrg")

@@ -160,7 +160,7 @@ type requestTestEnv struct {
 func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	repoFactory := repositories.NewFactory(db)
 	settings := newStubRequestSettings()
@@ -194,7 +194,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	}
 	svc := enrollmentService.NewRequestService(config)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// FormSchema is required for Submit (FK on enrollment.requests.schema_id).
 	// Use the form_schema service to publish a minimal active version.
@@ -221,7 +221,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(1)
+	phase.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.Phase.Create(ctx, phase))
 
 	env := &requestTestEnv{
@@ -243,7 +243,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		// tenant_id=1 across tests.
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.submission_rate_limits").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Exec(bg)
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.late_invites").
@@ -273,9 +273,9 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	return env, cleanup
 }
 
-func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
+func validSubmission(t *testing.T, phaseID int64) enrollmentService.SubmitRequest {
 	return enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           phaseID,
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
@@ -300,7 +300,7 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(env.db)
 	config := env.config
 	config.LateInviteRepo = repos.LateInvite
@@ -312,7 +312,7 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	})
 	require.NoError(t, err)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "submitted@example.test"
 	req.LateInviteToken = created.Token
 	result, err := svc.Submit(ctx, req)
@@ -331,10 +331,10 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(env.db)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	student := testpkg.CreateTestStudent(t, env.db, req.Children[0].FirstName, req.Children[0].LastName, "1a")
 	defer testpkg.CleanupTableRecords(t, env.db, "users.persons", student.PersonID)
 	defer testpkg.CleanupTableRecords(t, env.db, "users.students", student.ID)
@@ -386,10 +386,10 @@ func withLateInviteRenewalFixture(
 	t.Helper()
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(env.db)
 
-	submission := validSubmission(env.phaseID)
+	submission := validSubmission(t, env.phaseID)
 	student := testpkg.CreateTestStudent(t, env.db, submission.Children[0].FirstName, submission.Children[0].LastName, "1a")
 	defer func() {
 		_, err := env.db.NewDelete().
@@ -453,7 +453,7 @@ func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthor
 		authorizer *recordingGuardianAuthorizer,
 	) {
 		authorizer.email = ""
-		updated, err := svc.ReplaceEditable(testpkg.TenantContext(1), result.Request.StatusToken, submission)
+		updated, err := svc.ReplaceEditable(testpkg.Ctx(t), result.Request.StatusToken, submission)
 
 		require.NoError(t, err)
 		assert.Equal(t, authorizer.grantedEmail, authorizer.email)
@@ -472,10 +472,10 @@ func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthor
 func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	req := validSubmission(env.phaseID) // phase belongs to tenant 1
-	req.TenantID = 2                    // ...but the submission claims tenant 2
+	req := validSubmission(t, env.phaseID) // phase belongs to tenant 1
+	req.TenantID = 2                       // ...but the submission claims tenant 2
 	req.SkipRateLimit = true
 
 	_, err := env.svc.Submit(ctx, req)
@@ -486,14 +486,14 @@ func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
 func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Configure two notification recipients to verify both admin emails
 	// + one parent email get enqueued.
 	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] =
 		"admin1@example.com, admin2@example.com"
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.NotNil(t, result.Request)
 	require.Len(t, result.Children, 1)
@@ -514,12 +514,12 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	opaPhone := "012345678"
 	omaEmail := "OMA@example.com"  // upper-case: must be lowercased
 	dupEmail := "anna@example.com" // duplicates the primary guardian
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
 		{FirstName: " Opa ", LastName: "Schmidt", Phone: &opaPhone}, // contact-only, no email
 		{FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail},
@@ -559,12 +559,12 @@ func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
 func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	phoneA := "0151-111"
 	phoneB := "0151-222"
 	phoneDup := "0151-111"
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
 		{FirstName: "Maria", LastName: "Schmidt", Phone: &phoneA},
 		{FirstName: "Maria", LastName: "Schmidt", Phone: &phoneB},   // same name, different phone -> kept
@@ -595,10 +595,10 @@ func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *te
 func TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	omaEmail := "oma@example.com"
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
 		{FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail},
 	}
@@ -619,10 +619,10 @@ func TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians(t *testi
 func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentEnabled] = false
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		"disabled enrollment must return ErrEnrollmentDisabled, got %v", err)
@@ -631,7 +631,7 @@ func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {
 func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Set the phase's window to "ended yesterday" via repo update,
 	// then re-submit. Phase-window enforcement runs in Submit's
@@ -643,7 +643,7 @@ func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed))
 }
@@ -651,9 +651,9 @@ func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "not-an-email"
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -663,9 +663,9 @@ func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
@@ -674,11 +674,11 @@ func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *
 func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
@@ -687,12 +687,12 @@ func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *test
 func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{"agb": false}
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -702,13 +702,13 @@ func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T)
 func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
 	env.settings.boolErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("bad bool setting")
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -719,11 +719,11 @@ func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.hasErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("settings db unavailable")
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
@@ -733,12 +733,12 @@ func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testin
 func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -752,11 +752,11 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.stringErrors[configModel.KeyEnrollmentLegalDSGVOText] = errors.New("settings json broken")
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
@@ -767,12 +767,12 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{"photo": false}
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
@@ -785,10 +785,10 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	badPhone := "12345"
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianPhone = &badPhone
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -799,7 +799,7 @@ func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := env.db.ExecContext(ctx, `
 		UPDATE enrollment.form_schemas
@@ -808,7 +808,7 @@ func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T)
 	`, env.schemaID)
 	require.NoError(t, err)
 
-	_, err = env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err = env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
 		"missing required guardian phone must return ErrInvalidSubmission; got %v", err)
@@ -823,10 +823,10 @@ func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T)
 func TestRequestService_Submit_RejectsEmailRejectedAtApproval(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, badEmail := range []string{"test@localhost", "a@b"} {
-		req := validSubmission(env.phaseID)
+		req := validSubmission(t, env.phaseID)
 		req.GuardianEmail = badEmail
 		_, err := env.svc.Submit(ctx, req)
 		require.Error(t, err, "submit must reject %q (approval would reject it)", badEmail)
@@ -838,9 +838,9 @@ func TestRequestService_Submit_RejectsEmailRejectedAtApproval(t *testing.T) {
 func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children = nil
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -855,9 +855,9 @@ func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].TargetGradeLevel = nil
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -869,10 +869,10 @@ func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
 func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "enrollment.grade_level_max")
 }
@@ -880,7 +880,7 @@ func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
 func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Phase model: per-offering windows are gone. The only way a
 	// parent's selection can be rejected at offering level is via
@@ -892,11 +892,11 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       false,
 	}
-	inactiveOffering.SetTenantID(1)
+	inactiveOffering.SetTenantID(testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, inactiveOffering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{inactiveOffering.ID}
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
@@ -907,13 +907,13 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingMissing),
 		"at_least_one mode must reject children without an offering; got %v", err)
@@ -922,7 +922,7 @@ func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing
 func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
@@ -930,7 +930,7 @@ func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 
 	first := setupCareOfferingForCapacity(t, env, 0)
 	second := setupCareOfferingForCapacity(t, env, 0)
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{first.ID, second.ID}
 
 	_, err := env.svc.Submit(ctx, req)
@@ -949,7 +949,7 @@ func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
@@ -964,7 +964,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 		IsActive:       true,
 		IsRequired:     true,
 	}
-	required.SetTenantID(1)
+	required.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
 
 	// Two choosable time-slot offerings the parent picks exactly one of.
@@ -972,7 +972,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 	slotB := setupCareOfferingForCapacity(t, env, 5)
 
 	// required + exactly one choosable → valid.
-	ok := validSubmission(env.phaseID)
+	ok := validSubmission(t, env.phaseID)
 	ok.GuardianEmail = "valid@example.com"
 	ok.Children[0].OfferingIDs = []int64{required.ID, slotA.ID}
 	_, err := env.svc.Submit(ctx, ok)
@@ -980,7 +980,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 		"required base offering plus exactly one choosable must submit; got %v", err)
 
 	// required + two choosable → rejected (choosable count is 2).
-	tooMany := validSubmission(env.phaseID)
+	tooMany := validSubmission(t, env.phaseID)
 	tooMany.GuardianEmail = "toomany@example.com"
 	tooMany.Children[0].OfferingIDs = []int64{required.ID, slotA.ID, slotB.ID}
 	_, err = env.svc.Submit(ctx, tooMany)
@@ -989,7 +989,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 		"two choosable offerings must be rejected under exactly_one; got %v", err)
 
 	// required only, zero choosable → rejected (choosable count is 0).
-	none := validSubmission(env.phaseID)
+	none := validSubmission(t, env.phaseID)
 	none.GuardianEmail = "none@example.com"
 	none.Children[0].OfferingIDs = []int64{required.ID}
 	_, err = env.svc.Submit(ctx, none)
@@ -1005,7 +1005,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
@@ -1019,13 +1019,13 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 		IsActive:       true,
 		IsRequired:     true,
 	}
-	required.SetTenantID(1)
+	required.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
 
 	choosable := setupCareOfferingForCapacity(t, env, 5)
 
 	// required only → rejected (zero choosable selected).
-	none := validSubmission(env.phaseID)
+	none := validSubmission(t, env.phaseID)
 	none.GuardianEmail = "none@example.com"
 	none.Children[0].OfferingIDs = []int64{required.ID}
 	_, err := env.svc.Submit(ctx, none)
@@ -1034,7 +1034,7 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 		"a lone required offering does not satisfy at_least_one; got %v", err)
 
 	// required + one choosable → valid.
-	ok := validSubmission(env.phaseID)
+	ok := validSubmission(t, env.phaseID)
 	ok.GuardianEmail = "valid@example.com"
 	ok.Children[0].OfferingIDs = []int64{required.ID, choosable.ID}
 	_, err = env.svc.Submit(ctx, ok)
@@ -1047,9 +1047,9 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 func TestRequestService_GetByStatusToken_RoundTrip(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
@@ -1077,9 +1077,9 @@ func TestRequestService_GetByStatusToken_UnknownReturnsNotFound(t *testing.T) {
 func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	// Admin records a rejection with an internal reason.
@@ -1102,9 +1102,9 @@ func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *tes
 func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	reason := "Leider keine freien Plätze in diesem Durchgang"
@@ -1128,9 +1128,9 @@ func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *tes
 func TestRequestService_Edit_AppliesPatchWhileSubmitted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
@@ -1149,9 +1149,9 @@ func TestRequestService_Edit_AppliesPatchWhileSubmitted(t *testing.T) {
 func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
@@ -1174,9 +1174,9 @@ func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
@@ -1192,11 +1192,11 @@ func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotification(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.com"
 
-	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	originalRequestID := submitted.Request.ID
 	originalToken := submitted.Request.StatusToken
@@ -1207,7 +1207,7 @@ func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotificati
 
 	guardianPhone := "0211123456"
 	coGuardianEmail := "CO@example.com"
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.GuardianFirstName = "Anja"
 	replace.GuardianLastName = "Neu"
 	replace.GuardianEmail = "attacker@example.com"
@@ -1269,9 +1269,9 @@ func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotificati
 func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(env.db)
@@ -1281,7 +1281,7 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 		),
 	)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children[0].FirstName = "Blockiert"
 	_, err = env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
 	require.Error(t, err)
@@ -1298,12 +1298,12 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 13
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "draft-inactive-current@example.com"
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	submitted, err := env.svc.Submit(ctx, req)
@@ -1332,14 +1332,14 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
 	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "draft-inactive-conditional@example.com"
 	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(1)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
@@ -1360,9 +1360,9 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
 
@@ -1374,11 +1374,11 @@ func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.
 func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "draft-direct-inactive@example.com"
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	submitted, err := env.svc.Submit(ctx, req)
@@ -1395,9 +1395,9 @@ func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t 
 func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	pastStart := time.Now().AddDate(0, 0, -14)
@@ -1411,7 +1411,7 @@ func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindo
 	require.NoError(t, err)
 	require.Equal(t, submitted.Request.ID, draft.Request.ID)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children[0].FirstName = "Nachfrist"
 	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
 	require.NoError(t, err)
@@ -1423,14 +1423,14 @@ func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindo
 func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sourceReq := validSubmission(env.phaseID)
+	sourceReq := validSubmission(t, env.phaseID)
 	sourceReq.GuardianEmail = "source@example.com"
 	source, err := env.svc.Submit(ctx, sourceReq)
 	require.NoError(t, err)
 
-	targetReq := validSubmission(env.phaseID)
+	targetReq := validSubmission(t, env.phaseID)
 	targetReq.GuardianEmail = "target@example.com"
 	target, err := env.svc.Submit(ctx, targetReq)
 	require.NoError(t, err)
@@ -1447,7 +1447,7 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 		Exec(ctx)
 	require.NoError(t, err)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.GuardianEmail = "ignored@example.com"
 	replace.GuardianFirstName = "Rollover"
 	replace.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
@@ -1470,14 +1470,14 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sourceReq := validSubmission(env.phaseID)
+	sourceReq := validSubmission(t, env.phaseID)
 	sourceReq.GuardianEmail = "source@example.com"
 	source, err := env.svc.Submit(ctx, sourceReq)
 	require.NoError(t, err)
 
-	targetReq := validSubmission(env.phaseID)
+	targetReq := validSubmission(t, env.phaseID)
 	targetReq.GuardianEmail = "target@example.com"
 	target, err := env.svc.Submit(ctx, targetReq)
 	require.NoError(t, err)
@@ -1489,7 +1489,7 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *test
 		Exec(ctx)
 	require.NoError(t, err)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children = append(replace.Children, enrollmentService.SubmitChild{
 		FirstName:        "Neu",
 		LastName:         "Kind",
@@ -1509,9 +1509,9 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *test
 func TestRequestService_ReplaceEditable_RejectsRolloverChildReorder(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sourceReq := validSubmission(env.phaseID)
+	sourceReq := validSubmission(t, env.phaseID)
 	sourceReq.GuardianEmail = "source-reorder@example.com"
 	sourceReq.Children = append(sourceReq.Children, enrollmentService.SubmitChild{
 		FirstName:        "Max",
@@ -1551,14 +1551,14 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildReorder(t *testing.T
 func TestRequestService_ReplaceEditable_RejectsRolloverChildIdentityChanges(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sourceReq := validSubmission(env.phaseID)
+	sourceReq := validSubmission(t, env.phaseID)
 	sourceReq.GuardianEmail = "source-identity@example.com"
 	source, err := env.svc.Submit(ctx, sourceReq)
 	require.NoError(t, err)
 
-	targetReq := validSubmission(env.phaseID)
+	targetReq := validSubmission(t, env.phaseID)
 	targetReq.GuardianEmail = "target-identity@example.com"
 	target, err := env.svc.Submit(ctx, targetReq)
 	require.NoError(t, err)
@@ -1580,26 +1580,26 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildIdentityChanges(t *t
 func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	req1 := validSubmission(env.phaseID)
+	req1 := validSubmission(t, env.phaseID)
 	req1.GuardianEmail = "holder@example.com"
 	req1.Children[0].OfferingIDs = []int64{offering.ID}
 	holder, err := env.svc.Submit(ctx, req1)
 	require.NoError(t, err)
 	require.Equal(t, enrollmentModels.ChildStatusSubmitted, holder.Children[0].Status)
 
-	req2 := validSubmission(env.phaseID)
+	req2 := validSubmission(t, env.phaseID)
 	req2.GuardianEmail = "waitlisted@example.com"
 	req2.Children[0].OfferingIDs = []int64{offering.ID}
 	waitlisted, err := env.svc.Submit(ctx, req2)
 	require.NoError(t, err)
 	require.Equal(t, enrollmentModels.ChildStatusWaitlisted, waitlisted.Children[0].Status)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children[0].OfferingIDs = []int64{offering.ID}
 	updated, err := env.svc.ReplaceEditable(ctx, holder.Request.StatusToken, replace)
 	require.NoError(t, err)
@@ -1610,17 +1610,17 @@ func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists
 func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	holderReq := validSubmission(env.phaseID)
+	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-edit-notification@example.com"
 	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holderReq)
 	require.NoError(t, err)
 
-	editorReq := validSubmission(env.phaseID)
+	editorReq := validSubmission(t, env.phaseID)
 	editorReq.GuardianEmail = "editor-waitlist-notification@example.com"
 	editor, err := env.svc.Submit(ctx, editorReq)
 	require.NoError(t, err)
@@ -1644,23 +1644,23 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	holderReq := validSubmission(env.phaseID)
+	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder@example.com"
 	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holderReq)
 	require.NoError(t, err)
 
-	editorReq := validSubmission(env.phaseID)
+	editorReq := validSubmission(t, env.phaseID)
 	editorReq.GuardianEmail = "editor@example.com"
 	editor, err := env.svc.Submit(ctx, editorReq)
 	require.NoError(t, err)
 
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err = env.svc.ReplaceEditable(ctx, editor.Request.StatusToken, replace)
 	require.Error(t, err)
@@ -1670,12 +1670,12 @@ func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testi
 func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 
 	offeringA := setupCareOfferingForCapacity(t, env, 10)
 	offeringB := setupCareOfferingForCapacity(t, env, 10)
-	base := validSubmission(env.phaseID)
+	base := validSubmission(t, env.phaseID)
 	base.GuardianEmail = "hidden-offering-identity@example.com"
 	base.Children[0].FirstName = "Anna"
 	base.Children[0].OfferingIDs = []int64{offeringA.ID}
@@ -1694,7 +1694,7 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 	))
 
 	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
-	replace := validSubmission(env.phaseID)
+	replace := validSubmission(t, env.phaseID)
 	replace.Children = []enrollmentService.SubmitChild{
 		{
 			ID:                submitted.Children[1].ID,
@@ -1733,10 +1733,10 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Two children so we can withdraw one and confirm the other survives.
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
 		LastName:         "Beispiel",
@@ -1764,9 +1764,9 @@ func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 func TestRequestService_Withdraw_BulkSetsWithdrawnAt(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	// childID == 0 means "withdraw the whole request".
@@ -1782,9 +1782,9 @@ func TestRequestService_Withdraw_BulkSetsWithdrawnAt(t *testing.T) {
 func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
 	// Promote child to approved → per-child withdraw must fail.
@@ -1803,10 +1803,10 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
 
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-digest@example.com"
 	request.Children = append(request.Children, enrollmentService.SubmitChild{
 		FirstName:        "Noah",
@@ -1838,10 +1838,10 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
 
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-digest-failure@example.com"
 	request.Children = append(request.Children, enrollmentService.SubmitChild{
 		FirstName:        "Noah",
@@ -1871,10 +1871,10 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringErrors[configModel.KeyEnrollmentNotifyPerDecision] = errors.New("settings unavailable")
 
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-nonfinal-settings-error@example.com"
 	request.Children = append(request.Children, enrollmentService.SubmitChild{
 		FirstName:        "Noah",
@@ -1906,11 +1906,11 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Use distinct IPs so we hit the email bucket, not the IP one.
 	for i := 0; i < 5; i++ {
-		req := validSubmission(env.phaseID)
+		req := validSubmission(t, env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
 		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
 		req.Children[0].LastName = "Beispiel" + strconv.Itoa(i)
@@ -1919,7 +1919,7 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	}
 
 	// 6th attempt → over the email threshold.
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.RemoteIP = "10.0.0.99"
 	req.Children[0].FirstName = "LinaOver"
 	req.Children[0].LastName = "BeispielOver"
@@ -1935,11 +1935,11 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	const sharedIP = "203.0.113.7"
 	for i := 0; i < 10; i++ {
-		req := validSubmission(env.phaseID)
+		req := validSubmission(t, env.phaseID)
 		req.RemoteIP = sharedIP
 		req.GuardianEmail = "anna+" + strconv.Itoa(i) + "@example.com"
 		_, err := env.svc.Submit(ctx, req)
@@ -1947,7 +1947,7 @@ func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
 	}
 
 	// 11th request → over the IP threshold.
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.RemoteIP = sharedIP
 	req.GuardianEmail = "anna+over@example.com"
 	_, err := env.svc.Submit(ctx, req)
@@ -1966,11 +1966,11 @@ func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
 func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Tenant 1 burns through its email bucket.
 	for i := 0; i < 5; i++ {
-		req := validSubmission(env.phaseID)
+		req := validSubmission(t, env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
 		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
 		req.Children[0].LastName = "Beispiel" + strconv.Itoa(i)
@@ -1979,7 +1979,7 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	}
 
 	// Tenant 1 hits the limit.
-	overReq := validSubmission(env.phaseID)
+	overReq := validSubmission(t, env.phaseID)
 	overReq.RemoteIP = "10.0.0.99"
 	overReq.Children[0].FirstName = "LinaOver"
 	overReq.Children[0].LastName = "BeispielOver"
@@ -2012,23 +2012,23 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	email := "rollback+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 	ip := "198.51.100.42"
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.submission_rate_limits").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("key_value IN (?)", bun.List([]string{email, ip})).
 			Exec(context.Background())
 	})
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = email
 	req.RemoteIP = ip
 	req.Children = nil
 
-	err := tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, submitErr := env.svc.Submit(txCtx, req)
 		return submitErr
 	})
@@ -2040,7 +2040,7 @@ func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.
 	err = env.db.NewSelect().
 		TableExpr("enrollment.submission_rate_limits").
 		Column("attempts").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("key_type = ?", enrollmentModels.SubmissionRateLimitKeyTypeEmail).
 		Where("key_value = ?", email).
 		Scan(context.Background(), &attempts)
@@ -2061,7 +2061,7 @@ func (r *lockedCareOfferingRepo) ListByIDsForUpdate(_ context.Context, _ []int64
 
 func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	cap := capacity
 	offering := &enrollmentModels.CareOffering{
@@ -2074,7 +2074,7 @@ func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity in
 		Capacity:            &cap,
 		IsActive:            true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 	return offering
 }
@@ -2095,7 +2095,7 @@ func requestTestGradeAvailabilityRule(operator string, values ...int) *enrollmen
 // Submit's applyCapacityOverflow reads the new mode.
 func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.phase.CareOverflowMode = mode
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
@@ -2104,7 +2104,7 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -2118,7 +2118,7 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 	}
 	svc := enrollmentService.NewRequestService(config)
 
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "locked-capacity@example.com"
 	request.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := svc.Submit(ctx, request)
@@ -2128,7 +2128,7 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.phase.ServiceStartDate = timezone.NewDate(2025, 9, 1)
 	env.phase.ServiceEndDate = timezone.NewDate(2026, 7, 31)
 	repoFactory := repositories.NewFactory(env.db)
@@ -2136,7 +2136,7 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.AllowClosedPhase = true
 	request.GuardianEmail = "historical-care-offering@example.com"
 	request.Children[0].OfferingIDs = []int64{offering.ID}
@@ -2152,14 +2152,14 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
 	// Fill the slot via a normal submission.
-	req1 := validSubmission(env.phaseID)
+	req1 := validSubmission(t, env.phaseID)
 	req1.GuardianEmail = "first@example.com"
 	req1.Children[0].OfferingIDs = []int64{offering.ID}
 	r1, err := env.svc.Submit(ctx, req1)
@@ -2167,7 +2167,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	require.Equal(t, enrollmentModels.ChildStatusSubmitted, r1.Children[0].Status)
 
 	// Second parent picks the same now-full offering → should be waitlisted.
-	req2 := validSubmission(env.phaseID)
+	req2 := validSubmission(t, env.phaseID)
 	req2.GuardianEmail = "second@example.com"
 	req2.Children[0].OfferingIDs = []int64{offering.ID}
 	r2, err := env.svc.Submit(ctx, req2)
@@ -2186,18 +2186,18 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	holder := validSubmission(env.phaseID)
+	holder := validSubmission(t, env.phaseID)
 	holder.GuardianEmail = "immediate-holder@example.com"
 	holder.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holder)
 	require.NoError(t, err)
 
-	overflow := validSubmission(env.phaseID)
+	overflow := validSubmission(t, env.phaseID)
 	overflow.GuardianEmail = "immediate-overflow@example.com"
 	overflow.Children[0].OfferingIDs = []int64{offering.ID}
 	result, err := env.svc.Submit(ctx, overflow)
@@ -2214,17 +2214,17 @@ func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t
 func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	holder := validSubmission(env.phaseID)
+	holder := validSubmission(t, env.phaseID)
 	holder.GuardianEmail = "all-overflow-holder@example.com"
 	holder.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holder)
 	require.NoError(t, err)
 
-	overflow := validSubmission(env.phaseID)
+	overflow := validSubmission(t, env.phaseID)
 	overflow.GuardianEmail = "all-overflow@example.com"
 	overflow.Children[0].OfferingIDs = []int64{offering.ID}
 	overflow.Children = append(overflow.Children, enrollmentService.SubmitChild{
@@ -2249,17 +2249,17 @@ func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *tes
 func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	holder := validSubmission(env.phaseID)
+	holder := validSubmission(t, env.phaseID)
 	holder.GuardianEmail = "mixed-holder@example.com"
 	holder.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holder)
 	require.NoError(t, err)
 
-	mixed := validSubmission(env.phaseID)
+	mixed := validSubmission(t, env.phaseID)
 	mixed.GuardianEmail = "mixed-overflow@example.com"
 	mixed.Children[0].OfferingIDs = []int64{offering.ID}
 	mixed.Children = append(mixed.Children, enrollmentService.SubmitChild{
@@ -2285,11 +2285,11 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	holder := validSubmission(env.phaseID)
+	holder := validSubmission(t, env.phaseID)
 	holder.GuardianEmail = "rollback-holder@example.com"
 	holder.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, holder)
@@ -2298,7 +2298,7 @@ func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testin
 	env.outbox.mu.Lock()
 	env.outbox.err = errors.New("outbox unavailable")
 	env.outbox.mu.Unlock()
-	overflow := validSubmission(env.phaseID)
+	overflow := validSubmission(t, env.phaseID)
 	overflow.GuardianEmail = "rollback-overflow@example.com"
 	overflow.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err = env.svc.Submit(ctx, overflow)
@@ -2318,19 +2318,19 @@ func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testin
 func TestRequestService_Submit_CapacityOverflowReject(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	req1 := validSubmission(env.phaseID)
+	req1 := validSubmission(t, env.phaseID)
 	req1.GuardianEmail = "first@example.com"
 	req1.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, req1)
 	require.NoError(t, err)
 
-	req2 := validSubmission(env.phaseID)
+	req2 := validSubmission(t, env.phaseID)
 	req2.GuardianEmail = "second@example.com"
 	req2.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err = env.svc.Submit(ctx, req2)
@@ -2345,19 +2345,19 @@ func TestRequestService_Submit_CapacityOverflowReject(t *testing.T) {
 func TestRequestService_Submit_CapacityOverflowAllow(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowAllow)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	req1 := validSubmission(env.phaseID)
+	req1 := validSubmission(t, env.phaseID)
 	req1.GuardianEmail = "first@example.com"
 	req1.Children[0].OfferingIDs = []int64{offering.ID}
 	_, err := env.svc.Submit(ctx, req1)
 	require.NoError(t, err)
 
-	req2 := validSubmission(env.phaseID)
+	req2 := validSubmission(t, env.phaseID)
 	req2.GuardianEmail = "second@example.com"
 	req2.Children[0].OfferingIDs = []int64{offering.ID}
 	r2, err := env.svc.Submit(ctx, req2)
@@ -2373,13 +2373,13 @@ func TestRequestService_Submit_CapacityOverflowAllow(t *testing.T) {
 func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
@@ -2401,7 +2401,7 @@ func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
@@ -2416,11 +2416,11 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 		Capacity:            nil, // unlimited
 		IsActive:            true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	for i := 0; i < 3; i++ {
-		req := validSubmission(env.phaseID)
+		req := validSubmission(t, env.phaseID)
 		req.GuardianEmail = "u" + strconv.Itoa(i) + "@example.com"
 		req.RemoteIP = "10.1.0." + strconv.Itoa(i+1)
 		req.Children[0].OfferingIDs = []int64{offering.ID}
@@ -2440,14 +2440,14 @@ func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	first, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.NotNil(t, first.Request)
 
 	// Same parent + same child + same phase = duplicate.
-	dup := validSubmission(env.phaseID)
+	dup := validSubmission(t, env.phaseID)
 	dup.RemoteIP = "10.0.0.99"
 	_, err = env.svc.Submit(ctx, dup)
 	require.Error(t, err)
@@ -2464,12 +2464,12 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
-	variant := validSubmission(env.phaseID)
+	variant := validSubmission(t, env.phaseID)
 	variant.GuardianEmail = "  Anna@EXAMPLE.com  "
 	variant.Children[0].FirstName = "  LINA"
 	variant.Children[0].LastName = "beispiel  "
@@ -2483,12 +2483,12 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
-	duplicate := validSubmission(env.phaseID)
+	duplicate := validSubmission(t, env.phaseID)
 	duplicate.RemoteIP = "10.0.0.61"
 	result, err := env.svc.Submit(ctx, duplicate)
 
@@ -2500,12 +2500,12 @@ func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testin
 func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingIgnore
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
-	duplicate := validSubmission(env.phaseID)
+	duplicate := validSubmission(t, env.phaseID)
 	duplicate.RemoteIP = "10.0.0.62"
 	result, err := env.svc.Submit(ctx, duplicate)
 
@@ -2520,12 +2520,12 @@ func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.
 func TestRequestService_Submit_DedupAllowsDifferentChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
-	sibling := validSubmission(env.phaseID)
+	sibling := validSubmission(t, env.phaseID)
 	sibling.Children[0].FirstName = "Max"
 	sibling.Children[0].LastName = "Beispiel"
 	sibling.RemoteIP = "10.0.0.51"
@@ -2539,12 +2539,12 @@ func TestRequestService_Submit_DedupAllowsDifferentChild(t *testing.T) {
 func TestRequestService_Submit_DedupAllowsDifferentParent(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
-	other := validSubmission(env.phaseID)
+	other := validSubmission(t, env.phaseID)
 	other.GuardianEmail = "different@example.com"
 	other.RemoteIP = "10.0.0.52"
 	_, err = env.svc.Submit(ctx, other)
@@ -2559,9 +2559,9 @@ func TestRequestService_Submit_DedupAllowsDifferentParent(t *testing.T) {
 func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	first, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.Len(t, first.Children, 1)
 
@@ -2569,7 +2569,7 @@ func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
 	// through the same code path the parent would hit.
 	require.NoError(t, env.svc.Withdraw(ctx, first.Request.StatusToken, first.Children[0].ID))
 
-	retry := validSubmission(env.phaseID)
+	retry := validSubmission(t, env.phaseID)
 	retry.RemoteIP = "10.0.0.53"
 	_, err = env.svc.Submit(ctx, retry)
 	require.NoError(t, err, "withdrawn submission must not block a resubmit")
@@ -2586,7 +2586,7 @@ func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
 func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Build a second phase with FormSchemaID nil ("Basis"). The shared
 	// env phase doesn't pin a schema either, but it's safer to spell
@@ -2600,7 +2600,7 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     nil,
 	}
-	basis.SetTenantID(1)
+	basis.SetTenantID(testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
 	defer func() {
@@ -2610,7 +2610,7 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	req := validSubmission(basis.ID)
+	req := validSubmission(t, basis.ID)
 	req.GuardianEmail = "basis-tester@example.com"
 	req.Children[0].FirstName = "BasisChild"
 	req.Children[0].LastName = "BasisName"
@@ -2624,7 +2624,7 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSchemaChange(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	basis := &enrollmentModels.Phase{
 		Name:             "basis-edit-" + t.Name(),
@@ -2635,7 +2635,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     nil,
 	}
-	basis.SetTenantID(1)
+	basis.SetTenantID(testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(env.db)
 	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
 	defer func() {
@@ -2645,7 +2645,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 			Exec(context.Background())
 	}()
 
-	req := validSubmission(basis.ID)
+	req := validSubmission(t, basis.ID)
 	req.GuardianEmail = "basis-edit@example.com"
 	submitted, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
@@ -2673,7 +2673,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 	assert.Nil(t, draft.Schema,
 		"schema_id=NULL is the request's Basis schema pin and must not resolve the phase's later schema")
 
-	replace := validSubmission(basis.ID)
+	replace := validSubmission(t, basis.ID)
 	replace.GuardianFirstName = "BasisEdit"
 	replace.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
 	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
@@ -2697,7 +2697,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Schema: per-child boolean controller "has_allergy" + per-child REQUIRED
 	// text "which_allergy" that is only visible when has_allergy == true.
@@ -2725,7 +2725,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 
 	// has_allergy=false → which_allergy is hidden + unanswered. The client
 	// also smuggles a stale value for the hidden field.
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].CustomData = map[string]any{
 		"has_allergy":   false,
 		"which_allergy": "smuggled value",
@@ -2747,7 +2747,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	repoFactory := repositories.NewFactory(env.db)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
@@ -2770,7 +2770,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
 	// has_allergy=true → which_allergy is visible + required, but left blank.
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].CustomData = map[string]any{"has_allergy": true}
 
 	_, err = env.svc.Submit(ctx, req)
@@ -2784,7 +2784,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	repoFactory := repositories.NewFactory(env.db)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
@@ -2804,13 +2804,13 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
 	// Malformed: a single contact with no name and no email/phone.
-	bad := validSubmission(env.phaseID)
+	bad := validSubmission(t, env.phaseID)
 	bad.Children[0].CustomData = map[string]any{"contacts": []any{map[string]any{}}}
 	_, err = env.svc.Submit(ctx, bad)
 	require.Error(t, err, "a required contact_list with a malformed entry must be rejected at submit")
 
 	// Valid: a complete contact (name + email).
-	ok := validSubmission(env.phaseID)
+	ok := validSubmission(t, env.phaseID)
 	ok.Children[0].CustomData = map[string]any{"contacts": []any{
 		map[string]any{"first_name": "Eva", "last_name": "Muster", "email": "eva@example.test"},
 	}}
@@ -2825,7 +2825,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 // standard cleanup removes it.
 func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
@@ -2849,10 +2849,10 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].CustomData = map[string]any{
 		"schedule_pickup": map[string]any{"mon": "14:45", "wed": "16:00"},
 	}
@@ -2871,7 +2871,7 @@ func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
 func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Free-entry schedule (no fixed times) so only the care-day prune, not the
 	// allowed-times gate, is exercised.
@@ -2886,10 +2886,10 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 		AvailableDays:  []string{"tue", "thu"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	// The Friday pickup was never offered for a Tue/Thu child -> must be pruned.
 	req.Children[0].CustomData = map[string]any{
@@ -2914,10 +2914,10 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].CustomData = map[string]any{
 		"schedule_pickup": map[string]any{"mon": "15:00"},
 	}
@@ -2938,7 +2938,7 @@ func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
 func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
 	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
@@ -2950,10 +2950,10 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 		AvailableDays:  []string{"tue", "thu"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	// tue: an allowed time on a care day. mon: an OFF-LIST time on a non-care
 	// day -- it must be pruned, not trip the allowed-times gate.
@@ -2979,11 +2979,11 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
 	// Submit a valid request first so there is something to edit.
-	first := validSubmission(env.phaseID)
+	first := validSubmission(t, env.phaseID)
 	first.Children[0].CustomData = map[string]any{
 		"schedule_pickup": map[string]any{"mon": "14:45"},
 	}
@@ -2991,7 +2991,7 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 	require.NoError(t, err)
 
 	// Editing it to an off-list time must hit the same enforcement.
-	edit := validSubmission(env.phaseID)
+	edit := validSubmission(t, env.phaseID)
 	edit.Children[0].CustomData = map[string]any{
 		"schedule_pickup": map[string]any{"mon": "15:00"},
 	}
@@ -3007,7 +3007,7 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 // offered list rather than replacing it.
 func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source string) *enrollmentService.SubmitResult {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
 	env.phase.AvailableSchoolClasses = []string{"2a", "2b"}
 	env.phase.EligibleSchoolClasses = []string{"2a"}
@@ -3015,7 +3015,7 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 	env.phase.RequireSchoolClass = true
 	require.NoError(t, repositories.NewFactory(env.db).Phase.Update(ctx, env.phase))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "edit-draft-eligibility@example.com"
 	req.SubmissionSource = source
 	req.AllowClosedPhase = source != ""
@@ -3035,7 +3035,7 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submitted := restrictClassesForEditDraftTest(t, env, "")
 
@@ -3053,7 +3053,7 @@ func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.
 func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submitted := restrictClassesForEditDraftTest(t, env, enrollmentModels.RequestSourceAdminManual)
 

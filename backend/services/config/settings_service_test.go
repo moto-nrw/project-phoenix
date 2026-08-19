@@ -2020,7 +2020,7 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a dedicated org + school to avoid polluting shared test state.
 	now := time.Now().UnixNano()
@@ -2095,7 +2095,7 @@ func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
 	defer cleanup()
 
 	// Pre-populate the school with other settings via direct SQL
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	db := testpkg.SetupTestDB(t)
 	_, err := db.ExecContext(ctx,
 		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,

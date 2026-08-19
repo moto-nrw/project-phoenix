@@ -20,7 +20,7 @@ import (
 // via a real DB setting override. Cleanup is deferred automatically.
 func enableAttendanceLog(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	err := tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {

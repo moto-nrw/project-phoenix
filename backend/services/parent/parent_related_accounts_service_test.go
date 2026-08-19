@@ -90,7 +90,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
@@ -101,7 +101,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
@@ -123,7 +123,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
@@ -135,7 +135,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 	studentID := chain.StudentID
 	invitation := &authModels.GuardianInvitation{
@@ -146,7 +146,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		StudentID:         &studentID,
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
-	invitation.SetTenantID(1)
+	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
@@ -168,7 +168,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
 	defer func() {
@@ -183,7 +183,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 	otherStudentID := otherStudent.ID
 	invitation := &authModels.GuardianInvitation{
@@ -194,7 +194,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		StudentID:         &otherStudentID,
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
-	invitation.SetTenantID(1)
+	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
@@ -468,7 +468,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
 	defer func() {
@@ -483,7 +483,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 		EmergencyPriority: 1,
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
@@ -506,7 +506,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
 	defer func() {
@@ -521,7 +521,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		EmergencyPriority: 1,
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 	studentID := chain.StudentID
 	invitation := &authModels.GuardianInvitation{
@@ -533,7 +533,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
 		RoleUpgrade:       true,
 	}
-	invitation.SetTenantID(1)
+	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)

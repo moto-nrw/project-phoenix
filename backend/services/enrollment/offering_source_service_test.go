@@ -39,14 +39,14 @@ func createSourcedTemplate(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &period.ID
-	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(testpkg.TenantContext(1), group))
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(testpkg.Ctx(t), group))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 	return group
 }
 
 func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *enrollmentModels.CareOffering {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: activityGroupID,
@@ -55,7 +55,7 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 		AvailableDays:   []string{"mon"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
@@ -76,9 +76,9 @@ func submitAndApproveOfferingChild(
 	grade int16,
 ) (studentID, requestChildID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Quelle",
@@ -119,10 +119,10 @@ func loadTemplateEnrollments(t *testing.T, env *decisionTestEnv, templateID int6
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
-		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"student_enrollment".activity_group_id = ?`, templateID).
 		Order("id ASC").
-		Scan(testpkg.TenantContext(1)))
+		Scan(testpkg.Ctx(t)))
 	return rows
 }
 
@@ -221,7 +221,7 @@ func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T
 
 	template := createSourcedTemplate(t, env, "SeedJg2", offering.ID, []int{2}, period)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offering.ID},
@@ -258,12 +258,12 @@ func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *test
 		EffectiveFrom:    timezone.TodayDate(),
 	}
 	resyncer := offeringResyncer(t, env)
-	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(testpkg.TenantContext(1), input))
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(testpkg.Ctx(t), input))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2, "empty filter admits every enrolled child")
 
 	// Re-running with unchanged input must keep matching rows instead of
 	// duplicating or churning them.
-	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(testpkg.TenantContext(1), input))
+	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(testpkg.Ctx(t), input))
 	assert.Len(t, loadTemplateEnrollments(t, env, template.ID), 2)
 }
 
@@ -278,7 +278,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 
 	template := createSourcedTemplate(t, env, "SeedWechselTermin", offering.ID, []int{1}, period)
 	resyncer := offeringResyncer(t, env)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 		TemplateID:       template.ID,
@@ -316,7 +316,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SpaeterWechsel", nil)
@@ -355,7 +355,7 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "EndetFrueher", nil)
@@ -401,7 +401,7 @@ func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 	// legacy offering's rows.
 	otherOffering := createSourceOffering(t, env, "AndereQuelle", nil)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:       legacyTemplate.ID,
 			OfferingIDs:      []int64{otherOffering.ID},
@@ -437,7 +437,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	repoFactory := repositories.NewFactory(env.db)
 	successor := createCareOfferingTemplateGroup(t, env.db, "LineageNachfolger")
 	successor.SeriesRootID = &predecessor.ID
-	require.NoError(t, repoFactory.ActivityGroup.Update(testpkg.TenantContext(1), successor))
+	require.NoError(t, repoFactory.ActivityGroup.Update(testpkg.Ctx(t), successor))
 	createCareOfferingTemplateSchedule(t, env.db, successor.ID, activitiesModels.WeekdayMonday, &period.ID)
 
 	carried := predecessorRows[0]
@@ -450,8 +450,8 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 		EnrollmentRequestChildID: carried.EnrollmentRequestChildID,
 		SelectedWeekdays:         carried.SelectedWeekdays,
 	}
-	carriedRow.SetTenantID(1)
-	require.NoError(t, repoFactory.StudentEnrollment.Create(testpkg.TenantContext(1), carriedRow))
+	carriedRow.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repoFactory.StudentEnrollment.Create(testpkg.Ctx(t), carriedRow))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.student_enrollments").
@@ -461,7 +461,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 
 	// The dropped-source cleanup runs with OfferingID nil on the successor.
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:    successor.ID,
 			EffectiveFrom: timezone.TodayDate(),
@@ -482,7 +482,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "RestQuelle", nil)
@@ -528,7 +528,7 @@ func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 		ids[i] = int64(i + 1)
 	}
 	err := offeringResyncer(t, env).ResyncTemplateOfferingRoster(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:    template.ID,
 			OfferingIDs:   ids,
@@ -548,7 +548,7 @@ func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "LueckeQuelle", nil)
@@ -593,7 +593,7 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SchrumpfQuelle", nil)
@@ -633,7 +633,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "QuelleAlt", nil)
@@ -684,7 +684,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "VersetzungsQuelle", nil)
@@ -724,7 +724,7 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "KorrekturQuelle", nil)
@@ -766,7 +766,7 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "RenewalQuelle", nil)
@@ -783,7 +783,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 	// existing_students phase does at submission time.
 	grade := int16(3)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Erneuerung",
@@ -826,7 +826,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "LoeschQuelle", nil)
@@ -858,7 +858,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "CheckQuelle", nil)
@@ -879,7 +879,7 @@ func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
 func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "DetachQuelleA", nil)
@@ -923,7 +923,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createSourceOffering(t, env, "PruefQuelle", nil)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
@@ -955,7 +955,7 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "DriftQuelleA", nil)
@@ -1009,7 +1009,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "UnionQuelleA", nil)
@@ -1021,7 +1021,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	// One child holds BOTH offerings (same request), one child only offering B.
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Union",
@@ -1094,7 +1094,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "FanoutQuelleA", nil)
@@ -1119,7 +1119,7 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := &enrollmentModels.CareOffering{
@@ -1129,7 +1129,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
-	offeringA.SetTenantID(1)
+	offeringA.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offeringA))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
@@ -1147,7 +1147,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	// row shaped by A (first in the array): Mo–Fr.
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Breit",
@@ -1211,7 +1211,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// The phase started a week ago; the period is built around it so the
 	// template pin stays valid regardless of the real date.
@@ -1243,7 +1243,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	phaseStart := timezone.TodayDate().AddDays(-7)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
@@ -1292,7 +1292,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 	disabled := false
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offeringA := createSourceOffering(t, env, "GateQuelleA", nil)
@@ -1316,7 +1316,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
@@ -1381,7 +1381,7 @@ func createBoundedTemplateSchedule(
 	validFrom, validUntil *timezone.Date,
 ) {
 	t.Helper()
-	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, 1, "CareTemplate")
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, testpkg.Tenant(t), "CareTemplate")
 	schedule := &activitiesModels.Schedule{
 		Weekday:          weekday,
 		TimeframeID:      &timeframe.ID,
@@ -1391,8 +1391,8 @@ func createBoundedTemplateSchedule(
 		ValidFrom:        validFrom,
 		ValidUntil:       validUntil,
 	}
-	schedule.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(env.db).ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
+	schedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(env.db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, env.db, "activities.schedules", schedule.ID)
 		testpkg.CleanupTableRecords(t, env.db, "schedule.timeframes", timeframe.ID)
@@ -1416,7 +1416,7 @@ func createSourcedTemplateSegment(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &period.ID
-	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(testpkg.TenantContext(1), group))
+	require.NoError(t, repositories.NewFactory(env.db).ActivityGroup.Update(testpkg.Ctx(t), group))
 	createBoundedTemplateSchedule(t, env, group.ID, activitiesModels.WeekdayMonday, &period.ID, validFrom, validUntil)
 	return group
 }
@@ -1460,7 +1460,7 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SegmentQuelle", nil)
@@ -1500,7 +1500,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzQuelle", nil)
@@ -1583,7 +1583,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "HandEntfernt", nil)
@@ -1636,7 +1636,7 @@ func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID 
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Order("student_id ASC").
-		Scan(testpkg.TenantContext(1)))
+		Scan(testpkg.Ctx(t)))
 	return rows
 }
 
@@ -1668,7 +1668,7 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "LinkFenster", nil)
@@ -1676,7 +1676,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Fenster",
@@ -1758,7 +1758,7 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzWechselQuelle", nil)
@@ -1807,7 +1807,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SegmentBehaltQuelle", nil)
@@ -1855,7 +1855,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	legacyTemplate := createCareOfferingTemplateGroup(t, env.db, "LegacyMisch")
@@ -1869,7 +1869,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	// The child holds BOTH offerings.
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Misch",
@@ -1946,7 +1946,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSourceRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	sourceOffering := createSourceOffering(t, env, "FruehQuelle", nil)
@@ -1995,7 +1995,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "TagQuelle", nil)
@@ -2052,7 +2052,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
 	// period's end, so the template's source fails the period-fit validation.
@@ -2085,7 +2085,7 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := tenant.WithRollbackMarker(testpkg.TenantContext(1))
+	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
 
 	period := offeringSourcePeriod(t, env) // 2026-08-01 .. 2027-08-31
 	offering := createSourceOffering(t, env, "PhasenWechsel", nil)
@@ -2099,7 +2099,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	latePhase.SetTenantID(1)
+	latePhase.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Phase.Create(ctx, latePhase))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
@@ -2155,7 +2155,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	// still counts today, but contributes nothing to that period. valid_from
 	// opens so the interval stays non-empty (the approval stamped the phase
 	// start, which lies after the cap).
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := env.db.NewRaw(
 		`UPDATE enrollment.request_child_offerings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
 		phaseStart.AddDays(-20), childID, offering.ID,
@@ -2204,7 +2204,7 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 
 	template := createSourcedTemplate(t, env, "ListReadJg2", offering.ID, []int{2}, period)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offering.ID},
@@ -2214,7 +2214,7 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 		},
 	))
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := repositories.NewFactory(env.db).ActivityGroup
 
 	rows, err := repo.ListTemplateRows(ctx, &template.ID)

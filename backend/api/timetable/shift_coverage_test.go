@@ -39,7 +39,7 @@ func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, 
 		StartTime: coverageClock(t, start), EndTime: coverageClock(t, end),
 		CreatedBy: staffID,
 	}
-	shift.SetTenantID(1)
+	shift.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(s.db).StaffShift.Create(s.ctx, shift))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.staff_shifts", shift.ID) })
 	return shift
@@ -141,7 +141,7 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 		Name: fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), PeriodType: scheduleModel.PeriodTypeSchoolYear,
 		StartDate: weekA, EndDate: weekB.AddDays(6), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, period))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	weekPattern := 1

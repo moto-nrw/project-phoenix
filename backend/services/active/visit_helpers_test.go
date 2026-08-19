@@ -27,7 +27,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
 		// ARRANGE: Create fixtures using testpkg (proven to work)
@@ -69,7 +69,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "completed-visit")
 	room := testpkg.CreateTestRoom(t, db, "Completed Visit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -102,7 +102,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "revised-visit")
 	room := testpkg.CreateTestRoom(t, db, "Revised Visit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -139,7 +139,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "moved-visit-checkout")
 	sourceRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Source Room")
 	targetRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Target Room")
@@ -183,7 +183,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("keeps the completed session and creates a new one on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -242,7 +242,7 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-sick-test")
 	room := testpkg.CreateTestRoom(t, db, "Autoclear Sick Room")
@@ -292,7 +292,7 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert a per-tenant override for excused_clear_mode = next_checkin.
 	// We write directly to config.setting_values so the test doesn't depend
@@ -300,13 +300,13 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	// its own tests).
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.excused_clear_mode', '"next_checkin"', NULL)
+		VALUES (?, 'operations.excused_clear_mode', '"next_checkin"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.excused_clear_mode'`).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.excused_clear_mode'`, testpkg.Tenant(t)).Exec(context.Background())
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-exc-test")
@@ -354,7 +354,7 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "keepexc-test")
 	room := testpkg.CreateTestRoom(t, db, "Keep Excused Room")
@@ -400,7 +400,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
 	room := testpkg.CreateTestRoom(t, db, "Planned Clear Room")
@@ -476,7 +476,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "parent-clear-test")
 	room := testpkg.CreateTestRoom(t, db, "Parent Clear Room")
@@ -564,7 +564,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		CheckedOutBy: &checkedOutBy,
 		DeviceID:     deviceID,
 	}
-	attendance.SetTenantID(1)
+	attendance.SetTenantID(testpkg.Tenant(t))
 
 	_, err := db.NewInsert().
 		Model(attendance).

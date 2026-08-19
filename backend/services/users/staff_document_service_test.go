@@ -60,7 +60,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 		db:      db,
 		repos:   repos,
 		svc:     svc,
-		ctx:     testpkg.TenantContext(1),
+		ctx:     testpkg.Ctx(t),
 		staffID: staff.ID,
 		account: account.ID,
 	}

@@ -89,7 +89,7 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
@@ -169,7 +169,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
@@ -216,7 +216,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	_, err := db.NewUpdate().
 		TableExpr(`users.guardian_profiles`).
 		Set(`email = NULL`).
@@ -275,7 +275,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	_, err := db.NewUpdate().
 		TableExpr(`users.guardian_profiles`).
 		Set(`email = NULL`).
@@ -328,7 +328,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	detail, err := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{}).
 		CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
@@ -387,7 +387,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	})
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -403,7 +403,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
@@ -434,7 +434,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	})
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -466,7 +466,7 @@ func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 9)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Ausflug",
@@ -510,7 +510,7 @@ func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T)
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 16)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Interner Termin",
@@ -551,7 +551,7 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	seriesStart := timezone.NewDate(2026, 5, 6) // a Wednesday
 	endsOn := timezone.NewDate(2026, 5, 27)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
@@ -617,7 +617,7 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	// The series starts before the scan window, so it only reaches the candidate
 	// query through its recurrence bound — the arm that does the date arithmetic.
@@ -680,7 +680,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	seriesStart := timezone.NewDate(2026, 1, 7)
 	endsOn := timezone.NewDate(2026, 1, 7)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{

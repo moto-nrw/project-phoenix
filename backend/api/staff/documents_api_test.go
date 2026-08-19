@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -74,7 +75,7 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 	target := testpkg.CreateTestStaff(t, tc.db, "Dokumente", fmt.Sprintf("API-%d", suffix))
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("dokumente-api-%d@example.test", suffix))
 	t.Cleanup(func() {
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
 		testpkg.CleanupStaffFixtures(t, tc.db, target.ID)
@@ -143,7 +144,7 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 	docID, filename := uploadedDocument(t, rec.Body.Bytes())
 	require.NotZero(t, docID)
 	assert.Equal(t, "Erste-Hilfe Zeugnis.pdf", filename)
-	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(testpkg.TenantContext(1))
+	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(testpkg.Ctx(t))
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "a persisted document must complete its cleanup intent")
 
@@ -208,7 +209,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654321)
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
 	var retryAfter time.Time
 	require.NoError(t, c.tc.db.NewRaw(`SELECT retry_after FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName).Scan(ctx, &retryAfter))
@@ -223,7 +224,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
-	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10), storedName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
 	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
 
@@ -245,7 +246,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654322)
 	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
 	t.Cleanup(func() {
 		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
@@ -254,7 +255,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
-	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10), storedName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
 	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
 
@@ -307,13 +308,13 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "users:update")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
 
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
-	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10), storedName)
 	_, err = os.Stat(filePath)
 	require.NoError(t, err)
 
@@ -332,12 +333,12 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
-	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10), storedName)
 	_, err = os.Stat(filePath)
 	require.NoError(t, err)
 
@@ -369,12 +370,12 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
-	filePath := filepath.Join(pubDir, "uploads", "staff-documents", "1", storedName)
+	filePath := filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10), storedName)
 	_, err = c.tc.db.NewRaw(`UPDATE users.staff_documents SET deleted_at = NOW(), file_deleted_at = NULL WHERE id = ?`, docID).Exec(ctx)
 	require.NoError(t, err)
 

@@ -18,7 +18,7 @@ func TestSchoolRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewSchoolRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates school", func(t *testing.T) {
 		now := time.Now().UnixNano()
@@ -66,7 +66,7 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 
 	repo := platformRepo.NewSchoolRepository(db)
 	orgRepo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now().UnixNano()
 
 	orgA := &platformModels.Organization{Model: modelBase.Model{ID: now}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}

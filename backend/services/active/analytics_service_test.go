@@ -21,7 +21,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns dashboard analytics without error", func(t *testing.T) {
 		// ACT

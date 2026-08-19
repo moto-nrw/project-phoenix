@@ -380,7 +380,7 @@ func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, student.PersonID)
 
 	// Assign student to group
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student.GroupID = &group.ID
 	_, err := tc.db.NewUpdate().
 		Model(student).

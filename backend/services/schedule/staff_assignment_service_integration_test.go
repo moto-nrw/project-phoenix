@@ -19,7 +19,7 @@ import (
 func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaff(t, db, "Anna", "Assign")

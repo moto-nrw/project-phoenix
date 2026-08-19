@@ -74,7 +74,7 @@ func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 			TableExpr("education.grade_transitions").
 			Column("status").
 			Where("id = ?", transitionID).
-			Scan(testpkg.TenantContext(1), &status))
+			Scan(testpkg.Ctx(t), &status))
 		assert.Equal(t, education.TransitionStatusDraft, status)
 	})
 

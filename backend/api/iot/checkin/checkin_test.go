@@ -1064,7 +1064,7 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Delete in FK-safe order: child tables first, then parents.
@@ -1093,7 +1093,7 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)
@@ -1123,7 +1123,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Building: "Test Building",
 		IsSystem: true,
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	_, err = db.NewInsert().
 		Model(room).
@@ -1137,7 +1137,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Model(room).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Where(`"room".name = ?`, "Schulhof").
-		Where(`"room".tenant_id = ?`, 1).
+		Where(`"room".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(dbCtx)
 	require.NoError(t, err, "Failed to fetch Schulhof room")
 
@@ -1236,7 +1236,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 		TableExpr("active.groups").
 		Set("device_id = ?", device.ID).
 		Where("id = ?", activeGroup.ID).
-		Exec(testutil.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -1300,7 +1300,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 		TableExpr("active.groups").
 		Set("device_id = ?", device.ID).
 		Where("id = ?", activeGroup.ID).
-		Exec(testutil.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -1480,7 +1480,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 		Building: "Test Building",
 		Capacity: testpkg.IntPtr(1),
 	}
-	capacityRoom.SetTenantID(1)
+	capacityRoom.SetTenantID(testpkg.Tenant(t))
 	err := ctx.db.NewInsert().
 		Model(capacityRoom).
 		ModelTableExpr("facilities.rooms").
@@ -1677,7 +1677,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 		CategoryID:      category.ID,
 		CreatedBy:       &creatorStaff.ID,
 	}
-	activityGroup.SetTenantID(1)
+	activityGroup.SetTenantID(testpkg.Tenant(t))
 	err := ctx.db.NewInsert().
 		Model(activityGroup).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -1886,7 +1886,7 @@ func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing WC room and its infrastructure (from seed data or prior tests)
@@ -1915,7 +1915,7 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Name:     "WC",
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	_, err = db.NewInsert().
 		Model(room).
@@ -1929,7 +1929,7 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Model(room).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Where(`"room".name = ?`, "WC").
-		Where(`"room".tenant_id = ?`, 1).
+		Where(`"room".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(dbCtx)
 	require.NoError(t, err, "Failed to fetch WC room")
 
@@ -2153,8 +2153,8 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
-		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID,
+		 VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID, testpkg.Tenant(t),
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
 
@@ -2208,8 +2208,8 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
-		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID,
+		 VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID, testpkg.Tenant(t),
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
 
@@ -2472,7 +2472,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 		t.Skip("Skipping pickup time test on weekend — no pickup schedule applies")
 	}
 
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	sched := &scheduleModels.StudentPickupSchedule{
 		StudentID:  student.ID,
@@ -2583,7 +2583,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
 	todayUTC := timezone.TodayDate()
 
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  student.ID,
@@ -2816,7 +2816,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	}
 
 	todayUTC := timezone.TodayDate()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Papa holt normalerweise ab"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
@@ -2887,7 +2887,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 	}
 
 	todayUTC := timezone.TodayDate()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Bitte am Seiteneingang klingeln"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{

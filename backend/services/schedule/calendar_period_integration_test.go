@@ -35,7 +35,7 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all periods for tenant", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -78,7 +78,7 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only active periods", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -123,7 +123,7 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns period by ID", func(t *testing.T) {
 		name := fmt.Sprintf("GetByID-%d", time.Now().UnixNano())
@@ -162,7 +162,7 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Create-%d", time.Now().UnixNano())
@@ -451,7 +451,7 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Update-%d", time.Now().UnixNano())
@@ -832,7 +832,7 @@ func TestCalendarPeriodService_DeletePeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Delete-%d", time.Now().UnixNano())

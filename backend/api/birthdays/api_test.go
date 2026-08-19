@@ -50,7 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-func claimsFor(accountID int64) jwt.AppClaims {
+func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday@example.com",
@@ -58,7 +58,7 @@ func claimsFor(accountID int64) jwt.AppClaims {
 		FirstName: "Birthday",
 		LastName:  "Tester",
 		Roles:     []string{"user"},
-		TenantID:  1,
+		TenantID:  testpkg.Tenant(tb),
 	}
 }
 
@@ -87,7 +87,7 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.D
 
 func setSetting(t *testing.T, tc *testContext, key string, value any) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, key, value, nil, nil), "set %s", key)
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, key, nil, nil)
@@ -104,7 +104,7 @@ func getOverview(t *testing.T, tc *testContext, accountID int64, perms []string)
 	t.Helper()
 	req, err := http.NewRequest("GET", "/", nil)
 	require.NoError(t, err)
-	return authExec(t, tc, req, claimsFor(accountID), perms)
+	return authExec(t, tc, req, claimsFor(t, accountID), perms)
 }
 
 type overviewPayload struct {
@@ -239,7 +239,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	setPersonBirthday(t, tc.db, staff.PersonID, birthday)
 	setPersonBirthday(t, tc.db, optedOut.PersonID, birthday)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.NewUpdate().
 		Table("users.staff").
 		Set("birthday_display_opt_out = TRUE").
@@ -286,7 +286,7 @@ func TestOptOutRoundTrip(t *testing.T) {
 	read := func() *httptest.ResponseRecorder {
 		req, err := http.NewRequest("GET", "/opt-out", nil)
 		require.NoError(t, err)
-		return authExec(t, tc, req, claimsFor(account.ID), []string{})
+		return authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 	}
 
 	rr := read()
@@ -296,7 +296,7 @@ func TestOptOutRoundTrip(t *testing.T) {
 	req, err := http.NewRequest("PUT", "/opt-out", strings.NewReader(`{"opt_out":true}`))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	rr = authExec(t, tc, req, claimsFor(account.ID), []string{})
+	rr = authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	rr = read()
@@ -312,7 +312,7 @@ func TestOptOutWithoutStaffRecord(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/opt-out", nil)
 	require.NoError(t, err)
-	rr := authExec(t, tc, req, claimsFor(account.ID), []string{})
+	rr := authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 }
@@ -331,12 +331,12 @@ func TestStaffExportPermissionGate(t *testing.T) {
 	}
 
 	t.Run("rejected with users:read alone", func(t *testing.T) {
-		rr := authExec(t, tc, request(), claimsFor(account.ID), []string{permissions.UsersRead})
+		rr := authExec(t, tc, request(), claimsFor(t, account.ID), []string{permissions.UsersRead})
 		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	})
 
 	t.Run("allowed with users:update", func(t *testing.T) {
-		rr := authExec(t, tc, request(), claimsFor(account.ID), []string{permissions.UsersUpdate})
+		rr := authExec(t, tc, request(), claimsFor(t, account.ID), []string{permissions.UsersUpdate})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		assert.Equal(t,
 			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -355,7 +355,7 @@ func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	rr := authExec(t, tc, req, claimsFor(account.ID), []string{permissions.UsersUpdate})
+	rr := authExec(t, tc, req, claimsFor(t, account.ID), []string{permissions.UsersUpdate})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 

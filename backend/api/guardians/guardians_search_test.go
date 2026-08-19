@@ -44,7 +44,7 @@ func seedSearchGuardian(t *testing.T, tc *testContext, firstName, lastName, emai
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	g.SetTenantID(1)
+	g.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(g).Exec(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupGuardian(t, tc.db, g.ID) })
@@ -182,7 +182,7 @@ func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 		IsPrimary:         true,
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(link).
 		ModelTableExpr(`users.students_guardians`).
 		Exec(ctx)

@@ -32,7 +32,7 @@ func birthdayExportRequest(t *testing.T, body string) *http.Request {
 	return req
 }
 
-func birthdayExportClaims(accountID int64) jwt.AppClaims {
+func birthdayExportClaims(tb testing.TB, accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday-export@example.com",
@@ -40,7 +40,7 @@ func birthdayExportClaims(accountID int64) jwt.AppClaims {
 		FirstName: "Birthday",
 		LastName:  "Export",
 		Roles:     []string{"user"},
-		TenantID:  1,
+		TenantID:  testpkg.RebaseTenantID(tb, 1),
 	}
 }
 
@@ -54,18 +54,18 @@ func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`
 
 	t.Run("rejected without users:read", func(t *testing.T) {
-		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(account.ID), []string{})
+		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID), []string{})
 		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	})
 
 	t.Run("rejected with an unrelated permission", func(t *testing.T) {
-		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(account.ID),
+		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),
 			[]string{permissions.RoomsRead})
 		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	})
 
 	t.Run("allowed with users:read", func(t *testing.T) {
-		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(account.ID),
+		rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),
 			[]string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	})
@@ -93,7 +93,7 @@ func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`
-	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(account.ID),
+	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),
 		[]string{permissions.UsersRead})
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -111,7 +111,7 @@ func TestBirthdayExportRejectsInvalidMonth(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["13"]}}`
-	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(account.ID),
+	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),
 		[]string{permissions.UsersRead})
 
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())

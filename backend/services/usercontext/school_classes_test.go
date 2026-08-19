@@ -24,7 +24,7 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "ClassesNonStaff", "User")
 
-		ctx := contextWithClaims(int(account.ID))
+		ctx := contextWithClaims(t, int(account.ID))
 
 		classes, err := service.GetMySchoolClasses(ctx)
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		ctx := contextWithClaims(int(account.ID))
+		ctx := contextWithClaims(t, int(account.ID))
 
 		classes, err := service.GetMySchoolClasses(ctx)
 		require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+		ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 		first, err := service.GetMySchoolClasses(ctx)
 		require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 		assert.Equal(t, []string{"1a"}, second)
 
 		// A fresh request context sees the new assignment.
-		fresh, err := service.GetMySchoolClasses(contextWithClaims(int(account.ID)))
+		fresh, err := service.GetMySchoolClasses(contextWithClaims(t, int(account.ID)))
 		require.NoError(t, err)
 		assert.Equal(t, []string{"1a", "2b"}, fresh)
 	})

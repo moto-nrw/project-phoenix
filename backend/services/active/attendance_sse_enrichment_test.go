@@ -48,7 +48,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
@@ -106,7 +106,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID) })
@@ -117,7 +117,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
@@ -172,7 +172,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &targetGroup.ID,
 	}
-	targetInstance.SetTenantID(1)
+	targetInstance.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -184,7 +184,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	targetRow.SetTenantID(1)
+	targetRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, targetRow))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", targetRow.ID) })
 
@@ -265,7 +265,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 			activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
 	})
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 

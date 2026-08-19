@@ -22,9 +22,9 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	inst := buildInstance(1, fx.roomID, &fx.activityID, date,
+	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		fmt.Sprintf("Instance-%s-%d", prefix, time.Now().UnixNano()),
@@ -42,7 +42,7 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stf", timezone.NewDate(2026, 9, 15))
@@ -56,14 +56,14 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 		StaffID:    staffA.ID,
 		IsPrimary:  true,
 	}
-	rowA.SetTenantID(1)
+	rowA.SetTenantID(testpkg.Tenant(t))
 
 	rowB := &scheduleModels.InstanceStaff{
 		InstanceID:   inst.ID,
 		StaffID:      staffB.ID,
 		IsSubstitute: true,
 	}
-	rowB.SetTenantID(1)
+	rowB.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, rowA))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", rowA.ID)
@@ -101,7 +101,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 			InstanceID: inst.ID,
 			StaffID:    staffA.ID,
 		}
-		dup.SetTenantID(1)
+		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err, "UNIQUE constraint must reject duplicate")
 	})
@@ -114,7 +114,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 
 	t.Run("Create rejects invalid payload", func(t *testing.T) {
 		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staffA.ID}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "instance_id is required")
@@ -124,7 +124,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	date := timezone.NewDate(2026, 9, 16)
@@ -138,7 +138,7 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 		InstanceID: inst.ID,
 		StaffID:    staff.ID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
@@ -156,7 +156,7 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "del", timezone.NewDate(2026, 9, 18))
@@ -166,7 +166,7 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
 	require.NoError(t, repo.DeleteByInstanceID(ctx, inst.ID))
@@ -179,7 +179,7 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	cutoff := timezone.NewDate(2026, 10, 1)
@@ -202,7 +202,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	makeRow := func(instanceID, staffID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
 		return row
@@ -239,7 +239,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 func TestInstanceStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "upd", timezone.NewDate(2026, 9, 21))
@@ -252,7 +252,7 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 		InstanceID: inst.ID,
 		StaffID:    staff.ID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
@@ -278,7 +278,7 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 
 	t.Run("rejects invalid payload", func(t *testing.T) {
 		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staff.ID}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		bad.ID = row.ID
 		err := repo.Update(ctx, bad)
 		require.Error(t, err)
@@ -289,7 +289,7 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 func TestInstanceStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "fid", timezone.NewDate(2026, 9, 22))
@@ -299,7 +299,7 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID, IsPrimary: true}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
@@ -336,7 +336,7 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 func TestInstanceStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "lst", timezone.NewDate(2026, 9, 23))
@@ -346,7 +346,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
@@ -385,7 +385,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
@@ -421,7 +421,7 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
@@ -475,7 +475,7 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	instEarly, cleanupEarly := createInstanceFixture(t, db, "range-early", timezone.NewDate(2026, 9, 18))
@@ -491,7 +491,7 @@ func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 
 	newRow := func(instID, staffID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instID, StaffID: staffID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
 		return row

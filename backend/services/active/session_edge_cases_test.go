@@ -31,7 +31,7 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("fails when room has existing session", func(t *testing.T) {
 		// ARRANGE: Create first session in a room
@@ -67,7 +67,7 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start ends existing device session", func(t *testing.T) {
 		// ARRANGE: Create first session
@@ -83,7 +83,11 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 		require.NotNil(t, session1)
 
 		// ACT: Force start new session on same device
-		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, nil)
+		// The room is passed explicitly: with nil the service falls back to the
+		// hardcoded room ID 1, which belongs to the bootstrap tenant (#2419).
+		// What is under test here is the device-session override, not room
+		// resolution — the same room as session1 is what force start is for.
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT: New session started, old session ended
 		require.NoError(t, err)
@@ -101,7 +105,7 @@ func TestForceStartWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -147,7 +151,7 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("replaces supervisors successfully", func(t *testing.T) {
 		// ARRANGE
@@ -238,7 +242,7 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -302,7 +306,7 @@ func TestCheckActivityConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("no conflict for new activity", func(t *testing.T) {
 		// ARRANGE

@@ -30,7 +30,7 @@ func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueName("Betreuung")
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: name, Color: "#83CD2D", IsActive: true})
@@ -52,7 +52,7 @@ func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: uniqueName("Pause"), Color: "#6B7280", IsActive: true})
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "ShiftType", "FKNull")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
@@ -154,7 +154,7 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{
 		Name:     uniqueName("Inaktiv"),

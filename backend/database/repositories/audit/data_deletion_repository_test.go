@@ -19,7 +19,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student for FK reference
 	student := testpkg.CreateTestStudent(t, db, "Deletion", "Student", "1a")
@@ -86,7 +86,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -123,7 +123,7 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "3b")
@@ -157,7 +157,7 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -189,7 +189,7 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -226,7 +226,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

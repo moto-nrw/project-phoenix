@@ -67,7 +67,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("LC-Room-%d", suffix))
@@ -143,20 +143,20 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 		Status:          scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous:   false,
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 	if withStudents {
 		for _, sid := range []int64{s.student1, s.student2} {
 			row := &scheduleModels.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
-			row.SetTenantID(1)
+			row.SetTenantID(testpkg.Tenant(t))
 			_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
 			require.NoError(t, err)
 		}
@@ -178,12 +178,12 @@ func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *s
 		Status:        scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
@@ -203,7 +203,7 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("status = ?", status).
 		Where(`"activity_instance".id = ?`, id).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Exec(s.ctx)
 	require.NoError(t, err)
 }
@@ -521,7 +521,7 @@ func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 
 	now := time.Now()
 	visit := &activeModels.Visit{StudentID: s.student1, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
-	visit.SetTenantID(1)
+	visit.SetTenantID(testpkg.Tenant(t))
 	_, err = s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
@@ -688,7 +688,7 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 	now := time.Now()
 	for _, studentID := range []int64{s.student1, s.student2} {
 		visit := &activeModels.Visit{StudentID: studentID, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
-		visit.SetTenantID(1)
+		visit.SetTenantID(testpkg.Tenant(t))
 		_, insertErr := s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
 		require.NoError(t, insertErr)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
@@ -964,7 +964,7 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 	primary := &scheduleModels.InstanceStaff{
 		InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true, IsAbsent: false,
 	}
-	primary.SetTenantID(1)
+	primary.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(primary).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -974,7 +974,7 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 	absentRow := &scheduleModels.InstanceStaff{
 		InstanceID: ai.ID, StaffID: absent.ID, IsPrimary: false, IsAbsent: true,
 	}
-	absentRow.SetTenantID(1)
+	absentRow.SetTenantID(testpkg.Tenant(t))
 	_, err = s.db.NewInsert().Model(absentRow).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -1009,7 +1009,7 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 		StartTime: now, LastActivity: now, TimeoutMinutes: 30,
 		GroupID: &s.tmplID, RoomID: s.roomID,
 	}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID)
@@ -1033,12 +1033,12 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 	// instance starts in — sanctioned parallel supervision (#2139).
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
@@ -1071,14 +1071,14 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeMod
 		IsSpontaneous: true,
 		ActiveGroupID: &group.ID,
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID) })
 
 	if withStaffRow {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: staffID, IsPrimary: true, RoomID: overrideRoomID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID) })
@@ -1097,12 +1097,12 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
@@ -1131,12 +1131,12 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
@@ -1166,12 +1166,12 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	// so the warning must stay ("not certainly the same room").
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
@@ -1202,12 +1202,12 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
@@ -1234,7 +1234,7 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
@@ -1242,7 +1242,7 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 	// writes (checked_in_by on active.attendance) that need a full staff/
 	// account chain. We only need the visit row for the conflict check.
 	visit := &activeModels.Visit{StudentID: s.student1, ActiveGroupID: preGroup.ID, EntryTime: now}
-	visit.SetTenantID(1)
+	visit.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
@@ -1350,7 +1350,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 		IsSpontaneous:   false,
 		ActivityGroupID: &otherGroup.ID,
 	}
-	other.SetTenantID(1)
+	other.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(other).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1835,7 +1835,7 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date timezone.Date, statu
 	if !spontaneous {
 		row.ActivityGroupID = &s.tmplID
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1851,7 +1851,7 @@ func countRowsWhere(t *testing.T, s *lifecycleSetup, table, column string, value
 		TableExpr(table).
 		ColumnExpr("COUNT(*)").
 		Where(column+" = ?", value).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count
@@ -1864,7 +1864,7 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 		TableExpr(`schedule.activity_instances AS "ai"`).
 		ColumnExpr("COUNT(*)").
 		Where(`"ai".id = ?`, id).
-		Where(`"ai".tenant_id = ?`, 1).
+		Where(`"ai".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count > 0
@@ -1876,7 +1876,7 @@ func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
-		Where(`"activity_exception".tenant_id = ?`, 1).
+		Where(`"activity_exception".tenant_id = ?`, testpkg.Tenant(t)).
 		Order("exception_date ASC").
 		Scan(s.ctx)
 	require.NoError(t, err)
@@ -1901,7 +1901,7 @@ func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int6
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".tenant_id = ?`, 1).
+		Where(`"instance_student".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(s.ctx)
 	require.NoError(t, err)
 	return &row

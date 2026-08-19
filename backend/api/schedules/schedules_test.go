@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +104,7 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 		Name:      fmt.Sprintf("Current Dateframe %d", time.Now().UnixNano()),
 	}
 
-	dateframe.SetTenantID(1)
+	dateframe.SetTenantID(testpkg.Tenant(t))
 
 	_, err := ctx.db.NewInsert().
 		Model(dateframe).

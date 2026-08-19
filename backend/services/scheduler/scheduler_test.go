@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -2253,7 +2254,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.False(t, result)
 }
 
@@ -2264,7 +2265,7 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
 
@@ -2276,7 +2277,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	// Returns true because primary cleanup (expired visits) succeeded
 	assert.True(t, result)
 }
@@ -2293,7 +2294,7 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
 
@@ -2309,7 +2310,7 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
 
@@ -2324,7 +2325,7 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
 
@@ -2336,7 +2337,7 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 		},
 		logger: slog.Default(),
 	}
-	result := s.executeCleanupForTenant(context.Background(), 1)
+	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
 

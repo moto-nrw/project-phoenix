@@ -20,7 +20,7 @@ import (
 func TestTimetableConflictAckRepository_CapPrunesOldest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewTimetableConflictAckRepository(db)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-cap-%d@example.com", time.Now().UnixNano()))

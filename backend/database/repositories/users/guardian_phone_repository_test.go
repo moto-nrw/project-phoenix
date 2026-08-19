@@ -19,7 +19,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates phone number with valid data", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "create-phone")
@@ -99,7 +99,7 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-phone")
@@ -138,7 +138,7 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-all-phones")
@@ -204,7 +204,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-phone")
@@ -265,7 +265,7 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-phone")
@@ -304,7 +304,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
@@ -367,7 +367,7 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("unsets all primary flags", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
@@ -412,7 +412,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("counts phone numbers correctly", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "count-phones")
@@ -455,7 +455,7 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-all")
@@ -501,7 +501,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority-empty")

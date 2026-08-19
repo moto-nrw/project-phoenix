@@ -49,7 +49,7 @@ func TestGradeTransitionService_Create(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Create a test account for created_by
@@ -139,7 +139,7 @@ func TestGradeTransitionService_Update(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-updater@test.local")
@@ -230,7 +230,7 @@ func TestGradeTransitionService_Delete(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-deleter@test.local")
@@ -280,7 +280,7 @@ func TestGradeTransitionService_GetByID(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-getter@test.local")
@@ -309,7 +309,7 @@ func TestGradeTransitionService_List(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-lister@test.local")
@@ -352,7 +352,7 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-preview@test.local")
@@ -428,7 +428,7 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-applier@test.local")
@@ -533,7 +533,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-reverter@test.local")
@@ -616,7 +616,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("suggests promotion for lower grades", func(t *testing.T) {
@@ -748,7 +748,7 @@ func TestGradeTransitionService_GetDistinctClasses(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("returns distinct classes", func(t *testing.T) {
@@ -775,7 +775,7 @@ func TestGradeTransitionService_GetHistory(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-history@test.local")
@@ -831,7 +831,7 @@ func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-apply-reverted@test.local")
@@ -865,7 +865,7 @@ func TestGradeTransitionService_Create_InvalidAcademicYearFormat(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-invalid-year@test.local")
@@ -898,7 +898,7 @@ func TestGradeTransitionService_Update_InvalidAcademicYearFormat(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-invalid@test.local")
@@ -923,7 +923,7 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-invalid-map@test.local")
@@ -975,7 +975,7 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-create-invalid-map@test.local")
@@ -1029,7 +1029,7 @@ func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("revert non-existent transition", func(t *testing.T) {
@@ -1043,7 +1043,7 @@ func TestGradeTransitionService_Apply_NonExistentTransition(t *testing.T) {
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("apply non-existent transition", func(t *testing.T) {
@@ -1057,7 +1057,7 @@ func TestGradeTransitionService_SuggestMappings_EmptyResult(t *testing.T) {
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("suggest mappings returns sorted results", func(t *testing.T) {
@@ -1074,7 +1074,7 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-graduate@test.local")
@@ -1130,7 +1130,7 @@ func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cascade@test.local")
@@ -1194,7 +1194,7 @@ func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-grad@test.local")
@@ -1284,7 +1284,7 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 		DB:               db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-partial@test.local")
@@ -1344,7 +1344,7 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 		DB:               db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-pending@test.local")
@@ -1389,7 +1389,7 @@ func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-preview-none@test.local")
@@ -1412,7 +1412,7 @@ func TestGradeTransitionService_List_NilOptions(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-list-nil@test.local")
@@ -1433,7 +1433,7 @@ func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-clear-map@test.local")
@@ -1469,7 +1469,7 @@ func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-alumni-excl@test.local")
@@ -1528,7 +1528,7 @@ func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-alumni-promo@test.local")

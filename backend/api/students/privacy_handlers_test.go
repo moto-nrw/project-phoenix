@@ -33,7 +33,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
-		require.NoError(t, tc.services.Settings.SetValue(testpkg.TenantContext(1), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+		require.NoError(t, tc.services.Settings.SetValue(testpkg.Ctx(t), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

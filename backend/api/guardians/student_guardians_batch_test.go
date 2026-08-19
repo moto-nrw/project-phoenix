@@ -63,7 +63,7 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	// The guardian is created and linked to the student.
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.TenantContext(1), student.ID)
+	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 1, "expected exactly one linked guardian")
 	assert.Equal(t, "Atomic", linked[0].Profile.FirstName)
@@ -108,7 +108,7 @@ func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	// Authenticated but not admin and not a staff member → canModifyStudent fails.
-	nonStaff := jwt.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: 1, Roles: []string{"user"}, Permissions: []string{"users:read"}}
+	nonStaff := jwt.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Permissions: []string{"users:read"}}
 	req := testutil.NewAuthenticatedRequest(t, "POST",
 		fmt.Sprintf("/students/%d/guardians/batch", student.ID), body,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, nonStaff)),

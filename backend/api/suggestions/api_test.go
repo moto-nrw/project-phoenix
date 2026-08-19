@@ -54,7 +54,7 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	_, _ = db.NewDelete().

@@ -28,7 +28,7 @@ func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
 func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -60,7 +60,7 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
@@ -79,7 +79,7 @@ func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -111,7 +111,7 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 func TestProcessSessionTimeout_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
@@ -130,7 +130,7 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -167,7 +167,7 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -197,7 +197,7 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -233,7 +233,7 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// ARRANGE: First, end any existing sessions to start with a clean slate
@@ -255,7 +255,7 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -288,7 +288,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 			"role":       "supervisor",
 			"start_date": yesterday,
 			"end_date":   nil, // Orphaned - no end date
-			"tenant_id":  int64(1),
+			"tenant_id":  testpkg.Tenant(t),
 		}).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -307,7 +307,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -352,7 +352,7 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -398,7 +398,7 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// ACT: Cleanup with no sessions
@@ -416,7 +416,7 @@ func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -458,7 +458,7 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -498,7 +498,7 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -535,7 +535,7 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 func TestEndActivitySession_BySessionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures

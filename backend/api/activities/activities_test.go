@@ -70,7 +70,7 @@ func setupTestContext(t *testing.T) *testContext {
 // cleanupActivity cleans up an activity and its related records
 func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Delete enrollments (actual table name is student_enrollments)
 	_, _ = db.NewDelete().
@@ -100,7 +100,7 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 // cleanupCategory cleans up a category and any groups referencing it
 func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// First delete any groups that reference this category (FK constraint)
 	_, _ = db.NewDelete().
@@ -298,9 +298,9 @@ func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 		var persistedCapacity *int
 		require.NoError(t, ctx.db.NewRaw(
 			`SELECT max_participants FROM activities.groups WHERE id = ?`, activityID,
-		).Scan(testpkg.TenantContext(1), &persistedCapacity))
+		).Scan(testpkg.Ctx(t), &persistedCapacity))
 		assert.Nil(t, persistedCapacity)
-		persistedActivity, err := ctx.services.Activities.GetGroup(testpkg.TenantContext(1), activityID)
+		persistedActivity, err := ctx.services.Activities.GetGroup(testpkg.Ctx(t), activityID)
 		require.NoError(t, err)
 		assert.Zero(t, persistedActivity.MaxParticipants)
 		cleanupActivity(t, ctx.db, activityID)
@@ -867,7 +867,7 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 	require.NotNil(t, schedule)
 
@@ -909,7 +909,7 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 
 	body := map[string]interface{}{
@@ -958,7 +958,7 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
@@ -1002,7 +1002,7 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1049,7 +1049,7 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1089,7 +1089,7 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	supervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, outgoingStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1108,7 +1108,7 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testpkg.Ctx(t), activity.ID)
 	require.NoError(t, err)
 
 	staffIDs := make([]int64, 0, len(supervisors))
@@ -1131,15 +1131,15 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, primaryStaff.ID, true)
+	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, primaryStaff.ID, true)
 	require.NoError(t, err)
 	require.NotNil(t, primarySupervisor)
 
-	outgoingSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	outgoingSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, outgoingStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, outgoingSupervisor)
 
-	otherSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, otherStaff.ID, false)
+	otherSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, otherStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, otherSupervisor)
 
@@ -1158,7 +1158,7 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testpkg.Ctx(t), activity.ID)
 	require.NoError(t, err)
 	require.Len(t, supervisors, 2)
 
@@ -1182,7 +1182,7 @@ func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, onlyStaff.ID, true)
+	supervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, onlyStaff.ID, true)
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 

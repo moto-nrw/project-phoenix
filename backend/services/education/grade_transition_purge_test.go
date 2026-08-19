@@ -24,7 +24,7 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-states@test.local")
@@ -79,7 +79,7 @@ func TestAnonymizePurgedGraduate(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize@test.local")

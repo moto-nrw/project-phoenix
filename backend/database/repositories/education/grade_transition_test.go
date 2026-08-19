@@ -18,7 +18,7 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create test account for created_by
 	account := testpkg.CreateTestAccount(t, db, "transition-creator")
@@ -67,7 +67,7 @@ func TestGradeTransitionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-find")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -92,7 +92,7 @@ func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mappings")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -115,7 +115,7 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -160,7 +160,7 @@ func TestGradeTransitionRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-delete")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -195,7 +195,7 @@ func TestGradeTransitionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-list")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -216,7 +216,7 @@ func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-year")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -241,7 +241,7 @@ func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-status")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -264,7 +264,7 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mapping-ops")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -331,7 +331,7 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-history-ops")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -397,7 +397,7 @@ func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns distinct classes from students", func(t *testing.T) {
 		// Create test students with different classes
@@ -419,7 +419,7 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("counts students in class", func(t *testing.T) {
 		// Create unique class name using UUID to ensure test isolation
@@ -444,7 +444,7 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("gets students by classes", func(t *testing.T) {
 		// Create unique class names using UUID to ensure test isolation
@@ -477,7 +477,7 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-classes")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -568,7 +568,7 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	studentStatus := func(id int64) string {
 		var status string
@@ -655,7 +655,7 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("restores alumni back to active", func(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -708,7 +708,7 @@ func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create with nil transition returns error", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -721,7 +721,7 @@ func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("update with nil transition returns error", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -734,7 +734,7 @@ func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create mapping with nil returns error", func(t *testing.T) {
 		err := repo.CreateMapping(ctx, nil)
@@ -747,7 +747,7 @@ func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create mappings with empty slice succeeds", func(t *testing.T) {
 		err := repo.CreateMappings(ctx, []*educationModels.GradeTransitionMapping{})
@@ -759,7 +759,7 @@ func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create history with nil returns error", func(t *testing.T) {
 		err := repo.CreateHistory(ctx, nil)
@@ -772,7 +772,7 @@ func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create history batch with empty slice succeeds", func(t *testing.T) {
 		err := repo.CreateHistoryBatch(ctx, []*educationModels.GradeTransitionHistory{})
@@ -788,7 +788,7 @@ func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create with invalid academic year format fails", func(t *testing.T) {
 		transition := &educationModels.GradeTransition{
@@ -831,7 +831,7 @@ func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "mapping-invalid")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -870,7 +870,7 @@ func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "history-invalid")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

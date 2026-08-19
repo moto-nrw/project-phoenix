@@ -56,7 +56,7 @@ func TestForEachActive_HappyPath_InvokesFnPerTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	// testpkg.SetupTestDB guarantees tenant_id=1 exists via EnsureTestTenant.
+	// The tenant row this test needs is created by testpkg.Tenant.
 	lister := &fakeLister{
 		schools: []platform.School{{}, {}},
 	}

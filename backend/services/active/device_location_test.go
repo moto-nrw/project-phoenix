@@ -28,7 +28,7 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 
 	service := buildDeviceLocationService(t, db)
 	deviceRepo := repositories.NewFactory(db).Device
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("session start updates device room_id", func(t *testing.T) {
 		// ARRANGE

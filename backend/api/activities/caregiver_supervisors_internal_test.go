@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
 	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	supervisors, err := resource.fetchAllSupervisors(ctx)
 	require.NoError(t, err)
 
@@ -63,7 +62,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	supervisors, err := resource.fetchSupervisorsBySpecialization(ctx, "Sport")
 	require.NoError(t, err)
 

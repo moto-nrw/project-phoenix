@@ -24,7 +24,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(40)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -37,7 +37,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	err := service.CreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
@@ -70,7 +70,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
 	defer testpkg.CleanupActivityFixtures(t, db, withConflict.ID, clear.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(50)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -83,7 +83,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
@@ -139,11 +139,11 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 	denied := testpkg.CreateTestStudent(t, db, "BulkStatusDenied", "Student", "BSD1")
 	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	dates := []timezone.Date{timezone.NewDate(2026, 5, 12)}
 	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize: func(_ context.Context, student *userModels.Student) bool {
 			return student.ID == allowed.ID

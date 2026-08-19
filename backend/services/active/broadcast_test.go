@@ -74,7 +74,7 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	// students.tenant_id otherwise — see the edu-batch test below).
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID, staff.ID, iotDevice.ID)
 
-	staffCtx := context.WithValue(testpkg.TenantContext(1), device.CtxStaff, staff)
+	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
 	visit := &activeModels.Visit{
@@ -140,7 +140,7 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	waker := &recordingGuardianWaker{}
 	svc.(interface{ SetGuardianWaker(active.GuardianWaker) }).SetGuardianWaker(waker)
 
-	err := svc.EndVisit(testpkg.TenantContext(1), visit.ID)
+	err := svc.EndVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{student.ID}, waker.studentIDs)
 
@@ -205,7 +205,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	broadcaster.Reset()
 
 	visit.ActiveGroupID = targetGroup.ID
-	err := svc.UpdateVisit(testpkg.TenantContext(1), visit)
+	err := svc.UpdateVisit(testpkg.Ctx(t), visit)
 	require.NoError(t, err)
 
 	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
@@ -237,7 +237,7 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 
 	broadcaster.Reset()
 
-	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
+	err := svc.EndActivitySession(testpkg.Ctx(t), session.ID)
 	require.NoError(t, err)
 
 	// Should have dashboard_counts_changed from the batch student checkout,
@@ -280,7 +280,7 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 
 	broadcaster.Reset()
 
-	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
+	err := svc.EndActivitySession(testpkg.Ctx(t), session.ID)
 	require.NoError(t, err)
 
 	// No per-student student_checkout events on the bulk path — those would be
@@ -359,7 +359,7 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 
 	broadcaster.Reset()
 
-	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
+	err := svc.EndActivitySession(testpkg.Ctx(t), session.ID)
 	require.NoError(t, err)
 
 	idA := strconv.FormatInt(studentA.ID, 10)
@@ -441,7 +441,7 @@ func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, stude
 
 	testpkg.CreateTestAttendance(t, db, studentID, staff.ID, iotDevice.ID, time.Now(), nil)
 
-	_, err := svc.CheckOutStudent(testpkg.TenantContext(1), studentID, staff.ID, true)
+	_, err := svc.CheckOutStudent(testpkg.Ctx(t), studentID, staff.ID, true)
 	require.NoError(t, err)
 
 	return func() { testpkg.CleanupActivityFixtures(t, db, staff.ID, iotDevice.ID) }
@@ -503,6 +503,9 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "broadcast-gdpr")
 	room := testpkg.CreateTestRoom(t, db, "Broadcast GDPR Room")
@@ -512,7 +515,7 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	studentIDStr := strconv.FormatInt(student.ID, 10)
 
 	// --- check-in -----------------------------------------------------------

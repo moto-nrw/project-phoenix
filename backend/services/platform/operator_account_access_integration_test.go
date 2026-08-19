@@ -76,7 +76,7 @@ func entryFor(entries []platformSvc.AccountTenantAccessEntry, tenantID int64) *p
 func setupAccessTestAccount(t *testing.T, db *bun.DB) (*authModels.Account, func()) {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, "access-target")
-	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 
 	person := testpkg.CreateTestPerson(t, db, "Zugriff", "Testperson")
@@ -145,7 +145,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	assert.True(t, granted.HasStaff, "grant must create a staff record at the target school")
 
 	// The original school is untouched.
-	assert.NotNil(t, entryFor(entries, testSchoolID), "existing access must survive")
+	assert.NotNil(t, entryFor(entries, testSchoolID(t)), "existing access must survive")
 }
 
 // A school's own caregiver-tier role gets the caregiver profile the platform
@@ -232,7 +232,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 	operator := testpkg.CreateTestOperator(t, db)
 
 	// A custom role that exists only at the ORIGINAL school.
-	foreignRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-fremdrolle", testSchoolID)
+	foreignRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-fremdrolle", testSchoolID(t))
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: foreignRole.ID}, operator.ID, testClientIP)
@@ -367,7 +367,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID), "tenant-scoped roles must be removed")
 
 	// The account keeps its original school and therefore stays active.
-	assert.NotNil(t, entryFor(entries, testSchoolID))
+	assert.NotNil(t, entryFor(entries, testSchoolID(t)))
 	assertAccountActive(t, db, account.ID, true)
 }
 
@@ -497,7 +497,7 @@ func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.
 	assert.NotEmpty(t, granted.SchoolName)
 	assert.NotEmpty(t, granted.OrganizationName)
 	assert.True(t, granted.SchoolActive)
-	assert.NotNil(t, entryFor(entries, testSchoolID), "the original school is listed as well")
+	assert.NotNil(t, entryFor(entries, testSchoolID(t)), "the original school is listed as well")
 }
 
 func TestIntegration_ListAccountTenantAccess_UnknownAccountID(t *testing.T) {
@@ -522,7 +522,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	// An account that carries no person anywhere: there is no name to copy, so
 	// the operator has to supply one.
 	account := testpkg.CreateTestAccount(t, db, "access-nameless")
-	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -792,7 +792,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-regrant-ambiguous")
-	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 
 	// Two other schools that disagree on the name, so no name can be borrowed.

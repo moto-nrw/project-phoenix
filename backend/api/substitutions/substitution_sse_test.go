@@ -49,7 +49,7 @@ func assertGroupAccessChanged(t *testing.T, b *testpkg.RecordingBroadcaster, sou
 	t.Helper()
 
 	event := testpkg.AssertSingleTenantEvent(t, b, realtime.EventGroupAccessChanged,
-		int64(testutil.DefaultTestClaims().TenantID))
+		testpkg.Tenant(t))
 	require.NotNil(t, event.Data.Source)
 	assert.Equal(t, source, *event.Data.Source)
 }

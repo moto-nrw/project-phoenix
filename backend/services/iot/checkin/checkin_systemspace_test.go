@@ -73,7 +73,7 @@ func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room, err := tc.svc.EnsureWCRoomForTest(ctx)
 
 	require.NoError(t, err, "ensureWCRoom should not return error")
@@ -88,7 +88,7 @@ func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room1, err := tc.svc.EnsureWCRoomForTest(ctx)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	category, err := tc.svc.EnsureWCCategoryForTest(ctx)
 
 	require.NoError(t, err, "ensureWCCategory should not return error")
@@ -122,7 +122,7 @@ func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	cat1, err := tc.svc.EnsureWCCategoryForTest(ctx)
 	require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -166,7 +166,7 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group1, err := tc.svc.WCActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 
 	require.NoError(t, err, "ensureSchulhofRoom should not return error")
@@ -204,7 +204,7 @@ func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room1, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 	require.NoError(t, err)
@@ -223,7 +223,7 @@ func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	category, err := tc.svc.EnsureSchulhofCategoryForTest(ctx)
 
 	require.NoError(t, err, "ensureSchulhofCategory should not return error")
@@ -238,7 +238,7 @@ func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	cat1, err := tc.svc.EnsureSchulhofCategoryForTest(ctx)
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -281,7 +281,7 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group1, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -304,7 +304,7 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -321,7 +321,7 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -342,7 +342,7 @@ func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room, err := tc.svc.EnsureWCRoomForTest(ctx)
 	require.NoError(t, err)
@@ -366,7 +366,7 @@ func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 	require.NoError(t, err)
@@ -446,12 +446,12 @@ func cleanupWCRoomAliasTestArtifacts(t *testing.T, db *bun.DB) {
 func createWCRoomAliasRoom(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(room).
@@ -470,7 +470,7 @@ func TestEnsureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 
 	aliasRoom := createWCRoomAliasRoom(t, tc.db, constants.WCRoomAliasName)
 
-	room, err := tc.svc.EnsureWCRoomForTest(tenant.WithTenantID(context.Background(), 1))
+	room, err := tc.svc.EnsureWCRoomForTest(testpkg.Ctx(t))
 
 	require.NoError(t, err)
 	require.NotNil(t, room)
@@ -490,7 +490,7 @@ func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 
 	lowercaseWC := createWCRoomAliasRoom(t, tc.db, "wc")
 
-	room, err := tc.svc.EnsureWCRoomForTest(tenant.WithTenantID(context.Background(), 1))
+	room, err := tc.svc.EnsureWCRoomForTest(testpkg.Ctx(t))
 
 	require.Error(t, err, "ensureWCRoom must not silently reuse lowercase wc; the duplicate-name collision must surface as an error")
 	assert.Nil(t, room)
@@ -501,7 +501,7 @@ func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 		Table("facilities.rooms").
 		Column("name").
 		Where("id = ?", lowercaseWC.ID).
-		Scan(tenant.WithTenantID(context.Background(), 1), &nameAfter)
+		Scan(testpkg.Ctx(t), &nameAfter)
 	require.NoError(t, err)
 	assert.Equal(t, "wc", nameAfter)
 }

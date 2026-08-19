@@ -6,9 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -73,8 +71,6 @@ func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ authServi
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -173,8 +169,6 @@ func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req authServi
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.GuardianInvitationService) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,

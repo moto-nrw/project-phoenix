@@ -26,7 +26,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("successful activity update", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -107,7 +107,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("valid timeout - session is timed out", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -220,7 +220,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("successful timeout info retrieval", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -273,7 +273,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		visit1.SetTenantID(1)
+		visit1.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().
 			Model(visit1).
 			ModelTableExpr("active.visits").
@@ -285,7 +285,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		visit2.SetTenantID(1)
+		visit2.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().
 			Model(visit2).
 			ModelTableExpr("active.visits").

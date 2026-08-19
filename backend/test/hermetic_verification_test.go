@@ -96,6 +96,22 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("db_packages_opt_into_per_test_tenants", func(t *testing.T) {
+		violations := checkPerTestTenantsOptIn(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Found %d test package(s) that touch the database without per-test tenants:\n\n%s\n\n"+
+				"A package that opens the test database must give each of its tests\n"+
+				"its own tenant (#2419), otherwise every test writes into the shared\n"+
+				"bootstrap tenant and tenant-wide assertions become order-dependent.\n\n"+
+				"Add a TestMain to the package:\n"+
+				"  func TestMain(m *testing.M) {\n"+
+				"      testpkg.PerTestTenants()\n"+
+				"      m.Run()\n"+
+				"  }",
+				len(violations), strings.Join(violations, "\n"))
+		}
+	})
+
 	t.Run("parallel_on_bootstrap_tenant_ratchet", func(t *testing.T) {
 		violations := checkParallelBootstrapTenantRatchet(t, backendRoot)
 		if len(violations) > 0 {
@@ -536,77 +552,34 @@ var cleanupCallBaseline = map[string]int{
 }
 
 // tenantContext1Baseline is the shrink-only per-package baseline of
-// TenantContext(1) call sites (#2419). Per-test tenants (NewTenantScope)
-// replace the fixed bootstrap tenant so parallel tests cannot collide.
+// bootstrap-tenant call sites (#2419). Every package that opens the test
+// database now runs on per-test tenants (see PerTestTenants and the
+// db_packages_opt_into_per_test_tenants gate), so what is left here is the
+// residue that does NOT come from a test writing into the shared tenant.
 // Counts may only go DOWN. A package not listed here must stay at zero.
+//
+// Why each entry survives — check the reason before touching a number:
+//
+//	api/testutil        the values TestClaimsFollowTheTestIntoItsOwnTenant
+//	                    feeds in: the bootstrap tenant IS the input whose
+//	                    rebase that test pins.
+//	auth/jwt            test imports auth/jwt, so auth/jwt's own internal
+//	                    tests cannot import test — no way to reach a
+//	                    per-test tenant from there.
+//	services/calendar   in-memory structs in pure unit tests (no DB, no rows).
+//	services/auth       an in-memory stub row standing in for "some other
+//	                    tenant" in a cross-tenant invalidation test.
+//	services/active     a comment naming the column in a UNIQUE constraint.
+//	services/enrollment a comment.
+//	tenant              an internal context test with no database at all.
 var tenantContext1Baseline = map[string]int{
-	"api":                               1,
-	"api/active":                        12,
-	"api/activities":                    16,
-	"api/admin":                         3,
-	"api/auth":                          19,
-	"api/birthdays":                     3,
-	"api/classday":                      3,
-	"api/classlistentries":              4,
-	"api/feedback":                      1,
-	"api/groups":                        1,
-	"api/guardians":                     17,
-	"api/import":                        3,
-	"api/iot":                           8,
-	"api/iot/checkin":                   11,
-	"api/rooms":                         1,
-	"api/shift-types":                   1,
-	"api/sse":                           4,
-	"api/staff":                         20,
-	"api/students":                      65,
-	"api/suggestions":                   4,
-	"api/testutil":                      5,
-	"api/time-tracking":                 4,
-	"api/timetable":                     30,
-	"auth/jwt":                          2,
-	"database/migrations":               2,
-	"database/repositories/active":      141,
-	"database/repositories/activities":  74,
-	"database/repositories/audit":       37,
-	"database/repositories/auth":        157,
-	"database/repositories/base":        11,
-	"database/repositories/config":      20,
-	"database/repositories/education":   87,
-	"database/repositories/facilities":  10,
-	"database/repositories/feedback":    13,
-	"database/repositories/iot":         20,
-	"database/repositories/mealplan":    4,
-	"database/repositories/parent":      2,
-	"database/repositories/platform":    49,
-	"database/repositories/schedule":    191,
-	"database/repositories/suggestions": 27,
-	"database/repositories/users":       179,
-	"models/base":                       28,
-	"services/active":                   221,
-	"services/activities":               99,
-	"services/auth":                     164,
-	"services/calendar":                 52,
-	"services/config":                   3,
-	"services/database":                 3,
-	"services/education":                97,
-	"services/enrollment":               540,
-	"services/facilities":               41,
-	"services/feedback":                 13,
-	"services/import":                   1,
-	"services/iot":                      20,
-	"services/iot/checkin":              5,
-	"services/parent":                   16,
-	"services/pwa":                      1,
-	"services/reminders":                1,
-	"services/schedule":                 102,
-	"services/scheduler":                4,
-	"services/slotlists":                41,
-	"services/suggestions":              7,
-	"services/usercontext":              1,
-	"services/users":                    148,
-	"tenant":                            2,
-	"test":                              11,
-	"test/e2e/calendar":                 1,
+	"api/testutil":        3,
+	"auth/jwt":            2,
+	"services/active":     1,
+	"services/auth":       1,
+	"services/calendar":   3,
+	"services/enrollment": 1,
+	"tenant":              1,
 }
 
 // countMatchesPerPackage walks root and counts regex matches per package
@@ -679,47 +652,50 @@ func checkCleanupCallRatchet(t *testing.T, root string) []string {
 }
 
 // bootstrapTenantPattern matches every spelling of "pin this to the fixed
-// bootstrap tenant": the context helper, a direct tenant.WithTenantID(ctx, 1),
-// and a literal TenantID: 1 struct field. Counting only the first spelling
-// would let a new test reach the bootstrap tenant through either of the
-// others and stay green.
+// bootstrap tenant" that turned up during the #2419 migration. Each one was
+// found the hard way, by a test that kept failing after the obvious spellings
+// were gone:
+//
+//	testpkg.TenantContext(1) / testutil.TenantContext(1)
+//	tenant.WithTenantID(context.Background(), 1)   (nested parens on the left)
+//	TenantID: 1                                    (struct literal)
+//	x.SetTenantID(1)                               (local fixtures)
+//	CreateTestRoomForTenant(t, db, 1, ...)         (tenant as an argument)
+//	Where(`x.tenant_id = ?`, 1) / tenant_id = 1    (raw SQL)
+//
+// Counting only some of them is what makes a ratchet decoration: the next
+// test reaches the bootstrap tenant through a spelling nobody counted and
+// the gate stays green.
 var bootstrapTenantPattern = regexp.MustCompile(
-	`TenantContext\(1\)|WithTenantID\([^,)]+,\s*1\)|TenantID:\s*1\b`)
+	`TenantContext\(1\)` +
+		`|WithTenantID\(.*,\s*1\)` +
+		`|TenantID:\s*1\b` +
+		`|SetTenantID\(1\)` +
+		`|ForTenant\([^)\n]*,\s*1\s*[,)]` +
+		`|tenant_id\s*=\s*\?[^,\n]*,\s*1\s*\)` +
+		`|tenant_id\s*=\s*1\b`)
 
 // checkBootstrapTenantRatchet enforces the shrink-only bootstrap-tenant baseline.
 func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 	t.Helper()
 	re := bootstrapTenantPattern
-	current, err := countMatchesPerPackage(root, re, false)
+	// Test files only. The bootstrap tenant is a test construct; the same
+	// literal in production code means something else entirely — the
+	// historical migrations that lifted the single-tenant era onto tenant 1
+	// are immutable history, and api/testutil's default claims carry it on
+	// purpose as the value the per-test rebase maps away from.
+	current, err := countMatchesPerPackage(root, re, true)
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
 	return shrinkOnlyViolations(current, tenantContext1Baseline)
 }
 
-// parallelBootstrapTenantBaseline is the shrink-only per-package count of
-// test FILES that run parallel tests against the fixed bootstrap tenant.
-// Frozen by #2419 tranche 1; the per-test-tenant migration drives it to zero.
-var parallelBootstrapTenantBaseline = map[string]int{
-	"api/active":           3,
-	"api/activities":       1,
-	"api/admin":            1,
-	"api/auth":             3,
-	"api/classday":         1,
-	"api/classlistentries": 1,
-	"api/guardians":        2,
-	"api/iot":              1,
-	"api/iot/checkin":      1,
-	"api/shift-types":      1,
-	"services/facilities":  1,
-	"services/feedback":    1,
-	"services/import":      1,
-	"services/iot":         1,
-	"services/iot/checkin": 1,
-	"services/reminders":   1,
-	"services/scheduler":   3,
-	"tenant":               1,
-}
+// parallelBootstrapTenantBaseline is the shrink-only per-package count of test
+// FILES that run parallel tests against the fixed bootstrap tenant. The
+// per-test-tenant migration emptied it: no file combines the two any more, and
+// the empty map means any new one fails the gate.
+var parallelBootstrapTenantBaseline = map[string]int{}
 
 // globalStateMutation matches the process-global writes that make a test
 // unsafe to run beside another: viper keys, environment variables, the
@@ -1051,4 +1027,65 @@ func itoa(i int) string {
 	}
 
 	return string(b[pos:])
+}
+
+// perTestTenantsOptOut lists packages that cannot call PerTestTenants. Only
+// structural reasons belong here, and each one names its reason.
+var perTestTenantsOptOut = map[string]string{
+	// test/ imports auth/jwt, so auth/jwt's internal tests cannot import test/.
+	"auth/jwt": "import cycle: test imports auth/jwt",
+}
+
+// checkPerTestTenantsOptIn reports test packages that open the test database
+// but never switch to per-test tenants. It is the forward-looking half of the
+// bootstrap-tenant ratchet: that one counts what is left, this one keeps a new
+// package from starting out on the shared tenant.
+func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
+	t.Helper()
+
+	usesDB := make(map[string]bool)
+	optedIn := make(map[string]bool)
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if strings.HasPrefix(rel, "internal/testdb/") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		pkg := filepath.ToSlash(filepath.Dir(rel))
+		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+			usesDB[pkg] = true
+		}
+		if bytes.Contains(content, []byte("PerTestTenants()")) {
+			optedIn[pkg] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+
+	var violations []string
+	for pkg := range usesDB {
+		if optedIn[pkg] {
+			continue
+		}
+		if reason, ok := perTestTenantsOptOut[pkg]; ok {
+			_ = reason
+			continue
+		}
+		violations = append(violations, "  "+pkg)
+	}
+	sort.Strings(violations)
+	return violations
 }

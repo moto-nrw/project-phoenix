@@ -48,7 +48,7 @@ func createSupervisorTestData(t *testing.T, db *bun.DB) *supervisorTestData {
 		GroupID:        modelBase.Int64Ptr(activityGroup.ID),
 		RoomID:         room.ID,
 	}
-	err := groupRepo.Create(testpkg.TenantContext(1), activeGroup)
+	err := groupRepo.Create(testpkg.Ctx(t), activeGroup)
 	require.NoError(t, err)
 
 	return &supervisorTestData{
@@ -77,7 +77,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -127,7 +127,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -159,7 +159,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -189,7 +189,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -220,7 +220,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -294,7 +294,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -335,7 +335,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -412,7 +412,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 
 	repo := repositories.NewFactory(db).GroupSupervisor
 	groupRepo := repositories.NewFactory(db).ActiveGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -476,7 +476,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -509,7 +509,7 @@ func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -654,7 +654,7 @@ func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("update with nil supervision should fail", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -667,7 +667,7 @@ func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -695,7 +695,7 @@ func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("create with invalid supervision should fail validation", func(t *testing.T) {
 		// Missing required StaffID
@@ -725,7 +725,7 @@ func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -752,7 +752,7 @@ func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -780,7 +780,7 @@ func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ending non-existent supervision is no-op", func(t *testing.T) {
 		// This should not fail - just won't update anything
@@ -798,7 +798,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	factory := repositories.NewFactory(db)
 	repo := factory.GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 
@@ -933,7 +933,7 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
 

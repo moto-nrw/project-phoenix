@@ -25,7 +25,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	s.extraCleanup = append(s.extraCleanup, func() {
 		_, _ = s.db.NewDelete().Model((*struct{})(nil)).
 			ModelTableExpr("audit.deviation_events").
-			Where("tenant_id = ?", primaryTenantID).Exec(s.tenantCtx())
+			Where("tenant_id = ?", s.primaryTenant).Exec(s.tenantCtx())
 	})
 
 	date := timezone.TodayDate().AddDays(7)
@@ -55,7 +55,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "schedule.staff_shifts", shiftMover.ID, shiftFree.ID)
 	})
 
-	claims := primaryAdminClaims()
+	claims := s.primaryAdminClaims()
 
 	// 1. Pool read: mover is planned elsewhere, free is on shift and free.
 	rr := s.do(http.MethodGet, fmt.Sprintf("/instances/%d/staff-pool", mensa.ID), nil, claims)
@@ -138,7 +138,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	}
 
 	// 5. Tenant isolation: a foreign tenant cannot see or move.
-	foreign := adminClaimsForTenant(2, secondaryTenantID)
+	foreign := adminClaimsForTenant(2, s.secondaryTenant)
 	rr = s.do(http.MethodGet, fmt.Sprintf("/instances/%d/staff-pool", mensa.ID), nil, foreign)
 	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 	rr = s.do(http.MethodPost, fmt.Sprintf("/instances/%d/move-staff", mensa.ID), moveBody, foreign)

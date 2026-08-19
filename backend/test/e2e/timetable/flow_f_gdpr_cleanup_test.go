@@ -81,7 +81,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 		ExceptionDate:   oldExceptionDate,
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 	}
-	oldExc.SetTenantID(primaryTenantID)
+	oldExc.SetTenantID(s.primaryTenant)
 	// activity_group_id is FK-constrained; point it at a throwaway template.
 	tmpl := s.buildTemplate(templateSpec{
 		name:       "FlowF-TemplatePlaceholder",
@@ -150,8 +150,8 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Tenant isolation: cleanup on T2 does not touch T1 data -----------
 	// Seed an old instance in T2; run cleanup there; verify T1 fresh
 	// instance is still intact.
-	t2Scope := tenant.WithTenantID(context.Background(), secondaryTenantID)
-	err = tenant.WithTenantTx(t2Scope, s.db, secondaryTenantID, func(ctx context.Context, _ bun.Tx) error {
+	t2Scope := tenant.WithTenantID(context.Background(), s.secondaryTenant)
+	err = tenant.WithTenantTx(t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
 		_, err := s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
 		return err
 	})
@@ -163,7 +163,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// from stale state.
 	_, _ = s.db.NewDelete().
 		TableExpr("audit.data_deletions").
-		Where("tenant_id = ?", primaryTenantID).
+		Where("tenant_id = ?", s.primaryTenant).
 		Where("student_id IN (?, ?)", studA.ID, studB.ID).
 		Exec(s.tenantCtx())
 }
@@ -173,7 +173,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 func runInTenantTx(t *testing.T, s *scenario, fn func(ctx context.Context) (any, error)) any {
 	t.Helper()
 	var out any
-	err := tenant.WithTenantTx(context.Background(), s.db, primaryTenantID,
+	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
 			res, err := fn(ctx)
 			out = res
@@ -191,14 +191,14 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 		permissions.ConfigManage,
 		permissions.ConfigUpdate,
 	}
-	err := tenant.WithTenantTx(context.Background(), s.db, primaryTenantID,
+	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
 			return s.factory.Settings.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
 	s.extraCleanup = append(s.extraCleanup, func() {
 		// Reset the override so a subsequent test sees the registry default.
-		_ = tenant.WithTenantTx(context.Background(), s.db, primaryTenantID,
+		_ = tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
 			func(ctx context.Context, _ bun.Tx) error {
 				return s.factory.Settings.ResetValue(ctx, "gdpr.timetable_retention_days", nil, perms)
 			})
@@ -224,7 +224,7 @@ func instanceExists(t *testing.T, s *scenario, id int64) bool {
 		Model((*scheduleModel.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".id = ?`, id).
-		Where(`"activity_instance".tenant_id = ?`, primaryTenantID).
+		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
 	return n > 0
@@ -237,7 +237,7 @@ func exceptionExists(t *testing.T, s *scenario, id int64) bool {
 		Model((*scheduleModel.ActivityException)(nil)).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
 		Where(`"activity_exception".id = ?`, id).
-		Where(`"activity_exception".tenant_id = ?`, primaryTenantID).
+		Where(`"activity_exception".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
 	return n > 0
@@ -251,7 +251,7 @@ func countInstanceStudents(t *testing.T, s *scenario, instanceID int64) int {
 		Model((*scheduleModel.InstanceStudent)(nil)).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
-		Where(`"instance_student".tenant_id = ?`, primaryTenantID).
+		Where(`"instance_student".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
 	return n
@@ -265,7 +265,7 @@ func countAuditRows(t *testing.T, s *scenario, studentID int64, deletionType str
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(`"data_deletion".student_id = ?`, studentID).
 		Where(`"data_deletion".deletion_type = ?`, deletionType).
-		Where(`"data_deletion".tenant_id = ?`, primaryTenantID).
+		Where(`"data_deletion".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
 	return n

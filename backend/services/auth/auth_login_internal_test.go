@@ -105,13 +105,13 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupInternalAuthService(t, db)
 	email := fmt.Sprintf("refresh-lock-order-%d@test.local", time.Now().UnixNano())
 	username := fmt.Sprintf("refresh-lock-order-%d", time.Now().UnixNano())
 	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
 	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
@@ -341,7 +341,7 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	email := "persist-role-" + time.Now().Format("150405.000000000") + "@test.local"
 	passwordHash := "$argon2id$v=19$m=65536,t=3,p=4$persist"
 	account := &authModels.Account{
@@ -360,11 +360,11 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 
 	// nil identity: this test covers the account/mapping/role writes; the
 	// identity provisioning has its own coverage in school_identity_test.go.
-	_, err := service.persistAccountWithRole(ctx, account, role, &role.ID, 1, nil)
+	_, err := service.persistAccountWithRole(ctx, account, role, &role.ID, testpkg.Tenant(t), nil)
 	require.NoError(t, err)
 	assert.NotZero(t, account.ID)
 
-	exists, err := service.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, 1)
+	exists, err := service.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists)
 }

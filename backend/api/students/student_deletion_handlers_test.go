@@ -127,6 +127,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		WHERE tenant_id = ? AND actor_account_id = ?
 		ORDER BY id DESC
 		LIMIT 1
-	`, int64(1), actor.ID).Scan(testpkg.TenantContext(1), &auditID))
+	`, testpkg.Tenant(t), actor.ID).Scan(testpkg.Ctx(t), &auditID))
 	assert.Positive(t, auditID)
 }

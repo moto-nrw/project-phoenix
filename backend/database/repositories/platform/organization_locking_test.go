@@ -35,7 +35,7 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	now := time.Now().UnixNano()
 	org := &platformModels.Organization{

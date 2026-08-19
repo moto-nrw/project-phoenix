@@ -25,9 +25,9 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 			(tenant_id, student_id, guardian_profile_id, relationship_type,
 			 is_primary, is_emergency_contact, can_pickup, emergency_priority,
 			 guardian_role, permissions)
-		VALUES (1, ?, ?, 'guardian', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
+		VALUES (?, ?, ?, 'guardian', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
 		RETURNING id
-	`, student.ID, profile.ID).Scan(ctx, &relationshipID))
+	`, testpkg.Tenant(t), student.ID, profile.ID).Scan(ctx, &relationshipID))
 
 	require.NoError(t, studentGuardianRolesUp(ctx, db))
 
@@ -61,9 +61,9 @@ func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPo
 			(tenant_id, student_id, guardian_profile_id, relationship_type,
 			 is_primary, is_emergency_contact, can_pickup, emergency_priority,
 			 guardian_role, permissions)
-		VALUES (1, ?, ?, 'relative', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
+		VALUES (?, ?, ?, 'relative', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
 		RETURNING id
-	`, student.ID, profile.ID).Scan(ctx, &relationshipID))
+	`, testpkg.Tenant(t), student.ID, profile.ID).Scan(ctx, &relationshipID))
 
 	require.NoError(t, studentGuardianRolesUp(ctx, db))
 

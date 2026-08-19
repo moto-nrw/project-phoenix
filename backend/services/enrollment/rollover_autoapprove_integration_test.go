@@ -108,11 +108,11 @@ func seedApprovedChildWithStudent(
 	grade int16,
 ) (sourceChild *enrollmentModels.RequestChild, existingStudent *usersModels.Student) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// 1. Submit + manually approve.
 	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
@@ -143,7 +143,7 @@ func seedApprovedChildWithStudent(
 	}
 	dob := timezone.NewDate(2018, 4, 15)
 	person.Birthday = &dob
-	person.SetTenantID(1)
+	person.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Person.Create(ctx, person))
 
 	startDate := env.sourcePhase.ServiceStartDate
@@ -158,7 +158,7 @@ func seedApprovedChildWithStudent(
 		EnrolledUntil: &endDate,
 		GuardianEmail: &guardianEmailCopy,
 	}
-	student.SetTenantID(1)
+	student.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Student.Create(ctx, student))
 
 	// 3. Link the source child to the student and stamp approved.
@@ -188,7 +188,7 @@ func classForGrade(grade int16) string {
 // pull the rows via the existing List filter and count the slice.
 func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) int {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	rows, err := env.repos.Student.List(ctx, map[string]interface{}{
 		"person_id": personID,
 	})
@@ -199,7 +199,7 @@ func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) 
 func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -276,7 +276,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -318,7 +318,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -352,7 +352,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -393,7 +393,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -436,7 +436,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -466,7 +466,7 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -503,13 +503,13 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	link := &enrollmentModels.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -539,7 +539,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	rolledChildID := rolled[0].ID
 
 	var summary *enrollmentService.DeadlineWorkerSummary
-	err = tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var workerErr error
 		summary, workerErr = env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
 		return workerErr

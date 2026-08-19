@@ -48,7 +48,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Room-%d", suffix))
 
@@ -267,7 +267,7 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))

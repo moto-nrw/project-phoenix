@@ -49,7 +49,7 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SD-Room-%d", suffix))

@@ -383,7 +383,7 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	}()
 
 	factory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &usersModels.StudentGuardian{
 		StudentID:         student.ID,
@@ -392,7 +392,7 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 		GuardianRole:      authorize.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
-	relationship.SetTenantID(1)
+	relationship.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
 
 	phaseID := insertTestPhase(t, db, 1, "phase-list-permission-"+t.Name())
@@ -427,7 +427,7 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	}()
 
 	factory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &usersModels.StudentGuardian{
 		StudentID:         visible.ID,
@@ -438,7 +438,7 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 			authorize.GuardianPermissionEnrollmentsView: true,
 		},
 	}
-	relationship.SetTenantID(1)
+	relationship.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
 
 	phaseID := insertTestPhase(t, db, 1, "phase-list-mixed-permission-"+t.Name())

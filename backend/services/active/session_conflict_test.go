@@ -123,7 +123,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("no conflict when activity not active", func(t *testing.T) {
 		// ARRANGE: Create test fixtures with real database records
@@ -271,7 +271,7 @@ func TestSessionLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("complete session lifecycle", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -356,7 +356,7 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("concurrent start attempts on same activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -435,7 +435,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -529,7 +529,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			ActiveGroupID:   &activeGroupID,
 			IsSpontaneous:   true,
 		}
-		mirroredInstance.SetTenantID(1)
+		mirroredInstance.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repositories.NewFactory(db).ActivityInstance.Create(ctx, mirroredInstance))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", mirroredInstance.ID)
 
@@ -679,7 +679,7 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE

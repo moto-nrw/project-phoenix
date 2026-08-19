@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -123,7 +125,7 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 			EnqueuedEmails:   3,
 		},
 	}
-	mock.createResult.Phase.SetTenantID(1)
+	mock.createResult.Phase.SetTenantID(testpkg.Tenant(t))
 	router := buildRolloverRouter(mock)
 
 	body := map[string]any{

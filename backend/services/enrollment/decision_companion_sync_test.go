@@ -84,7 +84,7 @@ func newCompanionSyncApplier(
 // student write reconcile the "läuft mit" links.
 func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
@@ -112,7 +112,7 @@ func approveAccompaniedTuesdayChild(
 	guardianEmail, first, last string,
 ) (requestID, childID, studentID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	requestID, childID = submitOneChildWithCustomData(t, env, guardianEmail, first, last, map[string]any{
 		"allowed_modes": map[string]any{"tue": []any{"accompanied"}},
 		enrollmentModels.TargetStudentDepartureCompanionNote: "Nachbarskind",
@@ -139,7 +139,7 @@ func approveAccompaniedTuesdayChild(
 // strands them and the whole write is refused.
 func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID int64, withOwnNote bool) int64 {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	partner := testpkg.CreateTestStudent(t, env.db, "Companion", "SyncPartner", "1a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, env.db, partner.ID) })
@@ -190,7 +190,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 // whose student write must trim the Tuesday link.
 func narrowChildToBusMonday(t *testing.T, env *decisionTestEnv, childID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	child, err := env.repos.RequestChild.FindByID(ctx, childID)
 	require.NoError(t, err)
 	child.CustomData = map[string]any{
@@ -204,7 +204,7 @@ func narrowChildToBusMonday(t *testing.T, env *decisionTestEnv, childID int64) {
 // they only materialize when the transaction actually commits.
 func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentService.ChangeRequestDecisionApplier, requestID, childID int64) error {
 	t.Helper()
-	return tenant.WithTenantTx(testpkg.TenantContext(1), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := applier.SyncApprovedChildData(txCtx, enrollmentService.SyncApprovedChildDataInput{
 			RequestID:           requestID,
 			ChildID:             childID,
@@ -226,7 +226,7 @@ func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentSer
 func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutReplace(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishCompanionModesSchema(t, env, "Testformular Companion Refusal")
 
 	reqID, childID, studentID := approveAccompaniedTuesdayChild(t, env,
@@ -298,7 +298,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := env.repos.StudentCompanion.ListForStudent(testpkg.TenantContext(1), studentID)
+		edges, err := env.repos.StudentCompanion.ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

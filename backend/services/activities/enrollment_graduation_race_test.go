@@ -48,7 +48,7 @@ func (r *graduatingEnrollmentRepo) FindByGroupID(
 func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRosterRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enrollment-race")
 	stays := testpkg.CreateTestStudent(t, db, "Still", "Enrolled", "1a")

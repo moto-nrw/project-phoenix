@@ -35,7 +35,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates device successfully", func(t *testing.T) {
 		// ARRANGE
@@ -138,7 +138,7 @@ func TestIoTService_GetDeviceByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
@@ -192,7 +192,7 @@ func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
@@ -236,7 +236,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates device successfully", func(t *testing.T) {
 		// ARRANGE
@@ -341,7 +341,7 @@ func TestIoTService_DeleteDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes device successfully", func(t *testing.T) {
 		// ARRANGE
@@ -394,7 +394,7 @@ func TestIoTService_ListDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices with no filters", func(t *testing.T) {
 		// ARRANGE - create test devices
@@ -452,7 +452,7 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates status successfully", func(t *testing.T) {
 		// ARRANGE
@@ -507,7 +507,7 @@ func TestIoTService_PingDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last seen time successfully", func(t *testing.T) {
 		// ARRANGE
@@ -559,7 +559,7 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices of specified type", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates terminal type
@@ -604,7 +604,7 @@ func TestIoTService_GetDevicesByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices with specified status", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices
@@ -640,7 +640,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices registered by person", func(t *testing.T) {
 		// ARRANGE - create a person and device with that person as registerer
@@ -711,7 +711,7 @@ func TestIoTService_GetActiveDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active devices", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices by default
@@ -738,7 +738,7 @@ func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices in maintenance status", func(t *testing.T) {
 		// ARRANGE - create device and set to maintenance
@@ -775,7 +775,7 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns devices offline for specified duration", func(t *testing.T) {
 		// ARRANGE - create device with old last seen
@@ -836,7 +836,7 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns device type statistics", func(t *testing.T) {
 		// ARRANGE - create test devices (they have terminal type)
@@ -865,7 +865,7 @@ func TestIoTService_DetectNewDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns not implemented error", func(t *testing.T) {
 		// ACT
@@ -883,7 +883,7 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns not implemented error", func(t *testing.T) {
 		// ACT
@@ -905,7 +905,7 @@ func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last seen to specified time", func(t *testing.T) {
 		// ARRANGE
@@ -954,7 +954,7 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns device when found by API key", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice generates an API key
@@ -998,7 +998,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	webManualDevice := testpkg.EnsureWebManualDevice(t, db)
 

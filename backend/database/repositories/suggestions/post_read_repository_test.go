@@ -16,7 +16,7 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-mark-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -85,7 +85,7 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-isviewed-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -131,7 +131,7 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-count-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

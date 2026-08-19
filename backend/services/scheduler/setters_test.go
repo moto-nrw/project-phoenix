@@ -293,7 +293,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 		overdueBroadcaster: spy,
 	}
 
-	s.runOverdueForTenant(context.Background(), 1, 5, now)
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
 	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
@@ -547,7 +547,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
-	s.runOverdueForTenant(context.Background(), 1, 5, now)
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")
 }
@@ -561,7 +561,7 @@ func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
-	s.runOverdueForTenant(context.Background(), 1, 0, time.Now())
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 0, time.Now())
 	assert.Equal(t, 0, repo.calls, "threshold < 1 must skip repo call")
 }
 
@@ -574,7 +574,7 @@ func TestRunOverdueForTenant_RepoError(t *testing.T) {
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
-	s.runOverdueForTenant(context.Background(), 1, 5, time.Now())
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, time.Now())
 	assert.Empty(t, spy.CallsByMethod("tenant"), "repo error must not result in any broadcast")
 }
 

@@ -24,7 +24,7 @@ func requireStudentsDepartureDaysColumn(t *testing.T, db *bun.DB) {
 			  AND table_name = 'students'
 			  AND column_name = 'departure_days'
 		)
-	`).Scan(testpkg.TenantContext(1), &exists)
+	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
 	if !exists {
 		t.Skip("users.students.departure_days column is not present in this test database")
@@ -42,7 +42,7 @@ func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
 			  AND table_name = 'students'
 			  AND column_name = 'allowed_departure_modes'
 		)
-	`).Scan(testpkg.TenantContext(1), &exists)
+	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
 	if !exists {
 		t.Skip("users.students.allowed_departure_modes column is not present in this test database")
@@ -57,7 +57,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("unified plan derives legacy mirrors", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
@@ -421,7 +421,7 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 			  AND table_name = 'students'
 			  AND column_name = 'departure_companion_note'
 		)
-	`).Scan(testpkg.TenantContext(1), &exists))
+	`).Scan(testpkg.Ctx(t), &exists))
 	return exists
 }
 
@@ -437,7 +437,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	if !companionNoteColumnExists(t, db) {
 		t.Skip("users.students.departure_companion_note column is not present in this test database")
@@ -517,7 +517,7 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("untouched stale plan does not revert a committed change", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)

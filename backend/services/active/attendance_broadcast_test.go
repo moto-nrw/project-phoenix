@@ -174,7 +174,7 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 
 	f, cleanup := setupCheckedInStudent(t, db, "WebVisit", true)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	broadcaster.Reset()
 
 	result, err := svc.CheckOutStudent(ctx, f.studentID, f.staffID, true)
@@ -220,7 +220,7 @@ func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
 
 	f, cleanup := setupCheckedInStudent(t, db, "Idempotent", true)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.CheckOutStudent(ctx, f.studentID, f.staffID, true)
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 	f, cleanup := setupAbsentStudent(t, db, "OrphanedVisit")
 	defer cleanup()
 	testpkg.CreateTestVisit(t, db, f.studentID, f.activeGroupID, time.Now(), nil)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	broadcaster.Reset()
 
 	result, err := svc.CheckOutStudent(ctx, f.studentID, f.staffID, true)
@@ -273,7 +273,7 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 
 	f, cleanup := setupCheckedInStudent(t, db, "Roomless", false)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	broadcaster.Reset()
 
 	_, err := svc.CheckOutStudent(ctx, f.studentID, f.staffID, true)
@@ -309,7 +309,7 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := svc.CheckOutStudent(txCtx, f.studentID, f.staffID, true); err != nil {
 			return err
 		}
@@ -346,7 +346,7 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	f, cleanup := setupCheckedInStudent(t, db, "DailyOnce", false)
 	defer cleanup()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	// The device resolves its auditable principal through the active session's
 	// supervisor, so the session has to point at the device and have one.
 	_, err := db.NewUpdate().
@@ -381,7 +381,7 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 
 	f, cleanup := setupCheckedInStudent(t, db, "DailyOpenVisit", true)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
 		Table("active.groups").
 		Set("device_id = ?", f.deviceID).
@@ -419,10 +419,13 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	f, cleanup := setupAbsentStudent(t, db, "WebCheckin")
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	broadcaster.Reset()
 
 	result, err := svc.CheckInStudent(ctx, f.studentID, f.staffID, 0, true)
@@ -462,10 +465,13 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	f, cleanup := setupAbsentStudent(t, db, "RepeatCheckin")
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.CheckInStudent(ctx, f.studentID, f.staffID, 0, true)
 	require.NoError(t, err)
@@ -484,12 +490,15 @@ func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
 func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	f, cleanup := setupAbsentStudent(t, db, "CheckinCommit")
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := svc.CheckInStudent(txCtx, f.studentID, f.staffID, 0, true); err != nil {
 			return err
 		}
@@ -517,13 +526,16 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()
 
 	staff := &usersModels.Staff{}
 	staff.ID = f.staffID
-	ctx := context.WithValue(testpkg.TenantContext(1), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 	broadcaster.Reset()
 
 	visit := &activeModels.Visit{

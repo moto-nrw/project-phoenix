@@ -36,8 +36,8 @@ func createRequestedVacation(t *testing.T, tc *testContext, staffID int64) *acti
 		CreatedBy:   staffID,
 		RequestedAt: time.Now(),
 	}
-	absence.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(1), absence))
+	absence.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.Ctx(t), absence))
 	t.Cleanup(func() {
 		// Audit rows cascade with the absence (FK ON DELETE CASCADE).
 		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absence.ID)
@@ -65,7 +65,7 @@ func TestQuestionAbsence_Success(t *testing.T) {
 	rec := postQuestion(t, tc, token, absence.ID, "Bitte Vertretung klären")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	updated, err := repositories.NewFactory(tc.db).StaffAbsence.FindByID(testpkg.TenantContext(1), absence.ID)
+	updated, err := repositories.NewFactory(tc.db).StaffAbsence.FindByID(testpkg.Ctx(t), absence.ID)
 	require.NoError(t, err)
 	assert.Equal(t, activeModels.AbsenceStatusQuestion, updated.Status)
 	assert.Equal(t, "Bitte Vertretung klären", updated.DecisionNote)

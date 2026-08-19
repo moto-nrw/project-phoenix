@@ -20,7 +20,7 @@ func TestEntryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student for FK
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "Student", "1a")
@@ -84,7 +84,7 @@ func TestEntryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -118,7 +118,7 @@ func TestEntryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Update", "Student", "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -149,7 +149,7 @@ func TestEntryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "4a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -183,7 +183,7 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "5a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "5b")
@@ -232,7 +232,7 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Day", "Student", "6a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -278,7 +278,7 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -317,7 +317,7 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Mensa", "Student", "8a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -367,7 +367,7 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -411,7 +411,7 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Student", "14a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -487,7 +487,7 @@ func TestEntryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -655,7 +655,7 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -692,7 +692,7 @@ func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "FilterType", "Student", "15a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

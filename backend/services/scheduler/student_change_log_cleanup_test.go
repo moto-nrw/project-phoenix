@@ -31,7 +31,7 @@ func (r *failingDeleteStudentFieldEditRepo) DeleteOlderThan(context.Context, tim
 func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Rollback", "1a")
 	defer func() {

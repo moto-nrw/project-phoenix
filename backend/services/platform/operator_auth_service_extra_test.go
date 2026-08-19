@@ -21,7 +21,6 @@ import (
 const issueOperatorSentinelID int64 = 70010001
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *testing.T) {
-	withJWTSecret(t)
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(_ context.Context, id int64) (*platform.Operator, error) {

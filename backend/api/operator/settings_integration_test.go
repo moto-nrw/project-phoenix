@@ -81,7 +81,15 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 // Uses testutil.WithClaims for consistency (injects claims into context).
 func newOperatorRequest(t *testing.T, method, target string, body any) *http.Request {
 	t.Helper()
-	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithClaims(operatorTestClaims()))
+	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithClaims(t, operatorTestClaims()))
+}
+
+// schoolPath builds an operator settings path for the school this test owns.
+// The school id IS the tenant id, so a hardcoded /schools/1 would pin the test
+// to the bootstrap tenant (#2419).
+func schoolPath(tb testing.TB, suffix string) string {
+	tb.Helper()
+	return fmt.Sprintf("/schools/%d%s", testpkg.Tenant(tb), suffix)
 }
 
 // =============================================================================
@@ -91,7 +99,7 @@ func newOperatorRequest(t *testing.T, method, target string, body any) *http.Req
 func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
+	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/schema"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -144,7 +152,7 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
 	body := map[string]interface{}{"value": "18:30"}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/operations.session_end_time", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_time"), body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -158,7 +166,7 @@ func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 	// but should still succeed because the handler passes nil to SetValue
 	// to bypass per-setting permission checks.
 	body := map[string]interface{}{"value": true}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/feedback.enabled", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/feedback.enabled"), body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -168,7 +176,7 @@ func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
 	body := map[string]interface{}{"value": "anything"}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/nonexistent.key", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/nonexistent.key"), body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
@@ -179,7 +187,7 @@ func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
 
 	// session_end_enabled is a boolean — string value should fail validation.
 	body := map[string]interface{}{"value": "not-a-boolean"}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/operations.session_end_enabled", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_enabled"), body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
@@ -188,10 +196,10 @@ func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
 func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := httptest.NewRequest(http.MethodPut, "/schools/1/settings/values/operations.session_end_time", bytes.NewReader([]byte("{not-json")))
+	req := httptest.NewRequest(http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_time"), bytes.NewReader([]byte("{not-json")))
 	req.Header.Set("Content-Type", "application/json")
 	// Apply operator claims option directly.
-	testutil.WithClaims(operatorTestClaims())(req)
+	testutil.WithClaims(t, operatorTestClaims())(req)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
@@ -214,7 +222,7 @@ func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/operations.session_end_time", nil)
+	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/operations.session_end_time"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
@@ -223,7 +231,7 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/nonexistent.key", nil)
+	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/nonexistent.key"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
@@ -245,7 +253,7 @@ func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/operations.session_end_time/reveal", nil)
+	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/operations.session_end_time/reveal"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -260,7 +268,7 @@ func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
 func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/nonexistent.key/reveal", nil)
+	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/nonexistent.key/reveal"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
@@ -284,7 +292,7 @@ func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 	// security.ogs_device_pin is AccessAdminOnly — operators must not change it.
 	body := map[string]interface{}{"value": "1234"}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/security.ogs_device_pin", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/security.ogs_device_pin"), body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
@@ -293,7 +301,7 @@ func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/security.ogs_device_pin", nil)
+	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/security.ogs_device_pin"), nil)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
@@ -302,7 +310,7 @@ func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/security.ogs_device_pin/reveal", nil)
+	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/security.ogs_device_pin/reveal"), nil)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
@@ -311,7 +319,7 @@ func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
+	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/schema"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -358,12 +366,12 @@ func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 	})
 
 	body := map[string]interface{}{"value": true}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/checkout.schulhof_enabled", body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	require.True(t, called, "OnValueSet hook must fire when operator writes a shared setting")
-	assert.Equal(t, int64(1), capturedTenantID, "hook must receive the school ID from the URL")
+	assert.Equal(t, testpkg.Tenant(t), capturedTenantID, "hook must receive the school ID from the URL")
 	assert.Equal(t, "checkout.schulhof_enabled", capturedKey)
 	assert.Equal(t, true, capturedValue)
 }
@@ -387,7 +395,7 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 	})
 
 	body := map[string]interface{}{"value": true}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+testKey, body)
+	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/")+testKey, body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
 
@@ -403,7 +411,7 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 
-	seed := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/checkout.schulhof_enabled", map[string]interface{}{
+	seed := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), map[string]interface{}{
 		"value": true,
 	})
 	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(ctx.router, seed), http.StatusOK)
@@ -414,7 +422,7 @@ func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *t
 		return nil, nil
 	})
 
-	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/checkout.schulhof_enabled", nil)
+	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
 	assert.False(t, called, "non-photo operator reset must not fire OnValueSet")

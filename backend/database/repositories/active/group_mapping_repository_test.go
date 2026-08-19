@@ -35,7 +35,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	factory := repositories.NewFactory(db)
 	groupRepo := factory.ActiveGroup
 	combinedGroupRepo := factory.CombinedGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	// Create first active group
@@ -80,7 +80,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 
 // cleanupGroupMappingTestData removes test data
 func cleanupGroupMappingTestData(t *testing.T, db *bun.DB, data *groupMappingTestData) {
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Clean up mappings first (foreign key constraints)
 	_, _ = db.NewDelete().
@@ -107,7 +107,7 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -149,7 +149,7 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -193,7 +193,7 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -231,7 +231,7 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -270,7 +270,7 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -312,7 +312,7 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 
@@ -393,7 +393,7 @@ func TestGroupMappingRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createGroupMappingTestData(t, db)
 	defer cleanupGroupMappingTestData(t, db, data)
 

@@ -79,11 +79,11 @@ func bearer(t *testing.T, claims jwt.AppClaims) testutil.RequestOption {
 // request clears the route's RequiresPermission gate and is then denied by the
 // handler's own staff/supervisor check — the 403 the old bare-handler
 // "Forbidden_NonStaff" tests asserted.
-func nonStaffClaims(perms ...string) jwt.AppClaims {
+func nonStaffClaims(tb testing.TB, perms ...string) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          1,
 		Sub:         "nonstaff@example.com",
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(tb),
 		Roles:       []string{"user"},
 		Permissions: perms,
 	}
@@ -100,7 +100,7 @@ func withPerms(claims jwt.AppClaims, perms ...string) jwt.AppClaims {
 // cleanupGuardian cleans up a guardian profile and related records
 func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Delete phone numbers
 	_, _ = db.NewDelete().
@@ -247,7 +247,7 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-		bearer(t, nonStaffClaims("users:create")),
+		bearer(t, nonStaffClaims(t, "users:create")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -363,7 +363,7 @@ func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/99999", body,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -419,7 +419,7 @@ func TestDeleteGuardian_Forbidden_NonStaff(t *testing.T) {
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/99999", nil,
-		bearer(t, nonStaffClaims("users:delete")),
+		bearer(t, nonStaffClaims(t, "users:delete")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -499,7 +499,7 @@ func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
 // test's own teardown).
 func createLinkedGuardian(t *testing.T, ctx *testContext, emailSeed string) (guardianID, studentID int64) {
 	t.Helper()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, emailSeed)
 	student := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Child", "1a")
 	_, err := ctx.services.Guardian.LinkGuardianToStudent(tenantCtx, usersSvc.StudentGuardianCreateRequest{
@@ -530,7 +530,7 @@ func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
 	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	sibling := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Sibling", "1a")
-	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         sibling.ID,
 		GuardianProfileID: guardianID,
 		RelationshipType:  "parent",
@@ -550,7 +550,7 @@ func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
 	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Linked Child")
 
 	// Guardian must still exist after the refused delete.
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
@@ -571,11 +571,11 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
 		Where("id = ?", student.ID).
-		Where("tenant_id = ?", 1).
-		Exec(testpkg.TenantContext(1))
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -609,7 +609,7 @@ func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 
 	router := ctx.resource.Router()
 
-	impact, err := ctx.services.Guardian.GetGuardianDeleteImpact(testpkg.TenantContext(1), guardianID)
+	impact, err := ctx.services.Guardian.GetGuardianDeleteImpact(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	require.Len(t, impact.LinkIDs, 1)
 
@@ -622,7 +622,7 @@ func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	// Guardian is gone.
-	gone, _ := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	gone, _ := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	assert.Nil(t, gone)
 }
 
@@ -643,7 +643,7 @@ func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Vorschau")
 
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
@@ -668,11 +668,11 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
 		Where("id = ?", student.ID).
-		Where("tenant_id = ?", 1).
-		Exec(testpkg.TenantContext(1))
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -691,7 +691,7 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 
 	// Guardian must still exist after the refused force delete.
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardian.ID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
@@ -887,7 +887,7 @@ func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/1/guardians", body,
-		bearer(t, nonStaffClaims("users:create")),
+		bearer(t, nonStaffClaims(t, "users:create")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1031,7 +1031,7 @@ func TestRemoveGuardianFromStudent_Forbidden_NonStaff(t *testing.T) {
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/students/1/guardians/1", nil,
-		bearer(t, nonStaffClaims("users:delete")),
+		bearer(t, nonStaffClaims(t, "users:delete")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1327,7 +1327,7 @@ func TestAddPhoneNumber_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/phone-numbers", phoneReq,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1543,7 +1543,7 @@ func TestUpdatePhoneNumber_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/1/phone-numbers/1", updateReq,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1709,7 +1709,7 @@ func TestDeletePhoneNumber_Forbidden_NonStaff(t *testing.T) {
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/1/phone-numbers/1", nil,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1831,7 +1831,7 @@ func TestSetPrimaryPhone_Forbidden_NonStaff(t *testing.T) {
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/phone-numbers/1/set-primary", nil,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

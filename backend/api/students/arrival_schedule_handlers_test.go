@@ -61,7 +61,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Notes:           &notes,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_arrival_schedules").
 			Returning("id").
@@ -85,7 +85,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -191,7 +191,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 			ExpectedArrival: arrivalTime,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_arrival_schedules").
 			Returning("id").
@@ -590,7 +590,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -738,7 +738,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -962,7 +962,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_arrival_notes").
 			Returning("id").
@@ -1033,7 +1033,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 			Content:   "To be deleted",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_arrival_notes").
 			Returning("id").

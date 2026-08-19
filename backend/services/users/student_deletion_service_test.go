@@ -79,7 +79,7 @@ func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
 func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteService", "Target", "1a")
@@ -258,7 +258,7 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, hostingTenantID) })
 	testpkg.EnsureTestTenant(t, db, hostingTenantID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "CrossTenant", "Visitor", "1a")
@@ -290,7 +290,7 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
@@ -347,7 +347,7 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Target", "1a")
@@ -383,7 +383,7 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Read", "1a")
@@ -425,17 +425,17 @@ func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	service := newStudentDeletionTestService(db, nil, nil)
 
-	_, err := service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{})
+	_, err := service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{})
 	require.ErrorIs(t, err, usersService.ErrStudentDeletionPreviewChanged)
 
-	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+	_, err = service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
 		StudentID:           1,
 		ActorAccountID:      1,
 		ExpectedFingerprint: "aabb",
 	})
 	require.ErrorIs(t, err, usersService.ErrStudentDeletionNotAcknowledged)
 
-	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+	_, err = service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
 		StudentID:           1,
 		ActorAccountID:      1,
 		ExpectedFingerprint: "aabb",
@@ -447,7 +447,7 @@ func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T
 
 func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteAlumnus", "Target", "1a")
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
@@ -466,7 +466,7 @@ func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
 
 func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteMissingAudit", "Target", "1a")
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
@@ -491,7 +491,7 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *t
 func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	auditErr := errors.New("audit unavailable")
 	service := newStudentDeletionTestService(db, repositories.NewFactory(db).DataDeletion, failingStudentDeletionAudit{err: auditErr})
 	target := testpkg.CreateTestStudent(t, db, "DeleteRollback", "Target", "1a")

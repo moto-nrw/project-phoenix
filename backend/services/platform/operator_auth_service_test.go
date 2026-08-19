@@ -523,7 +523,6 @@ func TestOperatorAuthService_ChangePassword_RepositoryError(t *testing.T) {
 
 func TestOperatorAuthService_Login_Success(t *testing.T) {
 	// Set JWT secret for token generation BEFORE creating service
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -588,7 +587,6 @@ func TestOperatorAuthService_Login_Success(t *testing.T) {
 
 func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
 	// Set JWT secret (even though we won't reach token generation)
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -863,7 +861,6 @@ func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
 
 func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 	// Set JWT secret for token generation
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -939,7 +936,6 @@ func countOperatorRefreshTokens(t *testing.T, db *bun.DB, operatorID int64, toke
 }
 
 func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
-	withJWTSecret(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
@@ -957,7 +953,6 @@ func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) {
-	withJWTSecret(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
@@ -973,7 +968,6 @@ func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) 
 }
 
 func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T) {
-	withJWTSecret(t)
 
 	passwordHash, err := authSvc.HashPassword(testPassword)
 	require.NoError(t, err)
@@ -1010,7 +1004,6 @@ func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T
 }
 
 func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1043,7 +1036,6 @@ func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *tes
 }
 
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrace(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1072,7 +1064,6 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrac
 }
 
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMultipleHandoffs(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1103,7 +1094,6 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMult
 }
 
 func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1140,7 +1130,6 @@ func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testi
 }
 
 func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1163,7 +1152,6 @@ func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *tes
 }
 
 func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := buildAuthService(t, db)
@@ -1187,7 +1175,6 @@ func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testi
 }
 
 func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -1226,7 +1213,6 @@ func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -1270,7 +1256,6 @@ func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -1309,7 +1294,6 @@ func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
-	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 
 	rotatedAt := time.Now()

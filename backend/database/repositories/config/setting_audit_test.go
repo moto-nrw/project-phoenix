@@ -15,10 +15,10 @@ import (
 func TestSettingAuditRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	entry := &config.SettingAuditEntry{
-		TenantID:   1,
+		TenantID:   testpkg.Tenant(t),
 		SettingKey: "test.audit_create",
 		Action:     "set",
 		OldValue:   nil,
@@ -34,18 +34,18 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Missing key
 	err := repo.Create(ctx, &config.SettingAuditEntry{
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Action:   "set",
 	})
 	assert.Error(t, err)
 
 	// Invalid action
 	err = repo.Create(ctx, &config.SettingAuditEntry{
-		TenantID:   1,
+		TenantID:   testpkg.Tenant(t),
 		SettingKey: "test.key",
 		Action:     "invalid",
 	})
@@ -55,7 +55,7 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 func TestSettingAuditRepository_CreateNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := repo.Create(ctx, nil)
 	assert.Error(t, err)

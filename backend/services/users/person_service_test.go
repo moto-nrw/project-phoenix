@@ -40,7 +40,7 @@ func TestPersonService_Get(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns person when found", func(t *testing.T) {
 		// ARRANGE
@@ -101,7 +101,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns multiple persons when found", func(t *testing.T) {
 		// ARRANGE
@@ -151,7 +151,7 @@ func TestPersonService_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -228,7 +228,7 @@ func TestPersonService_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -276,7 +276,7 @@ func TestPersonService_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -313,7 +313,7 @@ func TestPersonService_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns persons list", func(t *testing.T) {
 		// ARRANGE
@@ -348,7 +348,7 @@ func TestPersonService_FindByTagID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds person by tag ID", func(t *testing.T) {
 		// ARRANGE
@@ -389,7 +389,7 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds person by account ID", func(t *testing.T) {
 		// ARRANGE
@@ -429,7 +429,7 @@ func TestPersonService_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds persons by first name", func(t *testing.T) {
 		// ARRANGE
@@ -493,7 +493,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("links person to account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -551,7 +551,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("unlinks person from account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -601,7 +601,7 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("links person to RFID card successfully", func(t *testing.T) {
 		// ARRANGE
@@ -679,7 +679,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns the tag to an enrolled student", func(t *testing.T) {
 		// ARRANGE
@@ -750,7 +750,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("unlinks person from RFID card successfully", func(t *testing.T) {
 		// ARRANGE
@@ -803,7 +803,7 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns students with group info for valid teacher", func(t *testing.T) {
 		// ARRANGE
@@ -844,7 +844,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all students including those without groups", func(t *testing.T) {
 		// ARRANGE - student with group
@@ -905,7 +905,7 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT - LinkToRFIDCard takes tagID as string and returns only error
@@ -920,7 +920,7 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -943,7 +943,7 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT
@@ -959,7 +959,7 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ARRANGE
@@ -981,7 +981,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid person", func(t *testing.T) {
 		// ARRANGE - empty names should fail validation
@@ -1008,7 +1008,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates person with RFID card link", func(t *testing.T) {
 		// ARRANGE
@@ -1061,7 +1061,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person with new valid account", func(t *testing.T) {
 		// ARRANGE - create person without account, then link to new account
@@ -1126,7 +1126,7 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -1199,7 +1199,7 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("allows re-linking same person to same account", func(t *testing.T) {
 		// ARRANGE - person already linked to account
@@ -1224,7 +1224,7 @@ func TestPersonService_List_WithPagination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns persons with query options", func(t *testing.T) {
 		// ARRANGE - create some persons
@@ -1246,7 +1246,7 @@ func TestPersonService_Delete_WithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes person with RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -1277,7 +1277,7 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("accepts int ID and converts to int64", func(t *testing.T) {
 		// ARRANGE
@@ -1352,7 +1352,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a person whose staff record already has a caregiver profile.
 	existing := testpkg.CreateTestTeacher(t, db, "Uebernommen", "Betreuung")
@@ -1402,7 +1402,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a staff member who is already in the directory.
 	existing := testpkg.CreateTestStaff(t, db, "Vorhandene", "Kraft")
@@ -1456,13 +1456,13 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — staff with an account that holds the Lehrkraft system role.
 	staffRecord, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Kraft")
 	defer testpkg.CleanupStaffFixtures(t, db, staffRecord.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
 	// ACT — the request asks for a caregiver profile anyway.
 	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
@@ -1491,13 +1491,13 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE
 	staffRecord, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
 	defer testpkg.CleanupStaffFixtures(t, db, staffRecord.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
 	// ACT
 	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")
@@ -1521,7 +1521,7 @@ func TestPersonService_CreateStaffWithTeacher_CreatesCaregiverProfileWithoutAcco
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a person with no account and no staff record yet.
 	person := testpkg.CreateTestPerson(t, db, "Ohne", "Konto")

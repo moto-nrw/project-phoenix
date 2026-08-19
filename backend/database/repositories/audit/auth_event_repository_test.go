@@ -19,7 +19,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test account
 	account := testpkg.CreateTestAccount(t, db, "auth_event_test@example.com")
@@ -94,7 +94,7 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_event@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -125,7 +125,7 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account1 := testpkg.CreateTestAccount(t, db, "account1@example.com")
 	account2 := testpkg.CreateTestAccount(t, db, "account2@example.com")
@@ -176,7 +176,7 @@ func TestAuthEventRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -216,7 +216,7 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "pending_wipe@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -244,15 +244,15 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "old_pending_wipe@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	createdAt := time.Now().Add(-8 * 24 * time.Hour)
 	_, err := db.NewRaw(`
 		INSERT INTO audit.auth_events (tenant_id, account_id, event_type, success, ip_address, metadata, created_at)
-		VALUES (1, ?, 'token_revoked', true, '0.0.0.0', jsonb_build_object('reason', 'password_reset', 'pending_account_wide_wipe', true), ?)
-	`, account.ID, createdAt).Exec(ctx)
+		VALUES (?, ?, 'token_revoked', true, '0.0.0.0', jsonb_build_object('reason', 'password_reset', 'pending_account_wide_wipe', true), ?)
+	`, testpkg.Tenant(t), account.ID, createdAt).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("audit.auth_events").Where("account_id = ?", account.ID).Exec(ctx)
@@ -273,7 +273,7 @@ func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "claim_wipe@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 

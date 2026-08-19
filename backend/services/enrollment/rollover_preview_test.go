@@ -21,7 +21,7 @@ func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, emai
 	if status == enrollmentModels.ChildStatusApproved {
 		return child
 	}
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.RequestChild.UpdateStatus(ctx, child.ID, status, nil, env.creatorID))
 	updated, err := env.repos.RequestChild.FindByID(ctx, child.ID)
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, emai
 func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Two approved children under separate requests: grade 3 rolls, grade 4
 	// with bump lands above the max (4) and needs review.
@@ -59,7 +59,7 @@ func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *t
 func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.keep@example.com", "Lena", "Ahrens", 3)
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Bernd", "Berg", "bernd.keep@example.com", "Tim", "Berg", 4)
@@ -75,7 +75,7 @@ func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *te
 func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.readonly@example.com", "Lena", "Ahrens", 3)
 
@@ -95,7 +95,7 @@ func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 func TestRolloverService_PreviewPhaseFromSource_RejectsAlreadyRolledSource(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.rolled@example.com", "Lena", "Ahrens", 3)
 	_, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))

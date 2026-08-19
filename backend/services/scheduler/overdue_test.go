@@ -65,7 +65,7 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	return &overdueSetup{
 		sched: sched,
 		db:    db,
-		ctx:   testpkg.TenantContext(1),
+		ctx:   testpkg.Ctx(t),
 		spy:   spy,
 		room:  room.ID,
 		now:   anchor,
@@ -90,7 +90,7 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 		Status:        scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous: true, // avoids needing a template FK
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	return ai
@@ -104,13 +104,13 @@ func setStatus(t *testing.T, s *overdueSetup, id int64, status string) {
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("status = ?", status).
 		Where(`"activity_instance".id = ?`, id).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Exec(s.ctx)
 	require.NoError(t, err)
 }
 
 // The tests call runOverdueForTenant directly with the same tenant ctx used
-// to seed fixtures (testpkg.TenantContext(1)). checkAndRunOverdue's tenant-
+// to seed fixtures (testpkg.Ctx(t)). checkAndRunOverdue's tenant-
 // iteration relies on a SchoolRepo + SettingsService stack we'd otherwise
 // need to stand up; the per-tenant helper is the real unit of behaviour
 // and is what the iteration delegates to in production.
@@ -122,7 +122,7 @@ func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
 	// 30 minutes past — well beyond the 5-minute default threshold.
 	ai := seedPlanned(t, s, 30)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
+	s.sched.runOverdueForTenant(s.ctx, testpkg.Tenant(t), 5, s.now)
 
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "one overdue broadcast for the seeded instance expected")
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "one active supervision refresh broadcast expected")
@@ -145,8 +145,8 @@ func TestOverdueTick_ReFireGuard(t *testing.T) {
 
 	ai := seedPlanned(t, s, 30)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
+	s.sched.runOverdueForTenant(s.ctx, testpkg.Tenant(t), 5, s.now)
+	s.sched.runOverdueForTenant(s.ctx, testpkg.Tenant(t), 5, s.now)
 
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "second tick on same instance must suppress overdue event")
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "second tick on same instance must suppress active supervision refresh")
@@ -159,7 +159,7 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 	ai := seedPlanned(t, s, 30)
 	setStatus(t, s, ai.ID, scheduleModels.InstanceStatusActive)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
+	s.sched.runOverdueForTenant(s.ctx, testpkg.Tenant(t), 5, s.now)
 
 	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "active instances must not trigger overdue broadcast")
 	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "active instances must not trigger active supervision refresh")

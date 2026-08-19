@@ -19,7 +19,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -208,13 +207,6 @@ func TestAttendance_Fields(t *testing.T) {
 // Handler Integration Tests (Hermetic with Test DB)
 // =============================================================================
 
-// setupViperForTest configures viper with the test JWT secret
-func setupViperForTest() {
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
-}
-
 // setupCheckinTestHandler creates a handler with real services for integration testing
 func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
@@ -244,10 +236,10 @@ func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token s
 }
 
 func TestCheckinStudent_Integration(t *testing.T) {
-	// Configure viper with test JWT secret before any router is created
-	setupViperForTest()
-
 	db := testpkg.SetupTestDB(t)
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	// Permissions needed for checkin endpoint
 	checkinPermissions := []string{permissions.VisitsUpdate}

@@ -21,7 +21,7 @@ import (
 func TestActivityService_GetStudentEnrollments_HidesGraduatedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	service := setupActivityService(t, db)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-student-read")

@@ -16,7 +16,7 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -62,7 +62,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 

@@ -66,7 +66,7 @@ func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthoriz
 		_ enrollmentService.SubmitRequest,
 		authorizer *recordingGuardianAuthorizer,
 	) {
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		enableChangeRequestMode(t, env, result.Children[0].ID)
 		svc := newChangeRequestServiceForTestWithAuthorizer(env, authorizer)
 		proposed := proposedChangeSubmission(t, env, result)
@@ -163,8 +163,8 @@ func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing
 
 func makeLegacyNoSchemaRequest(t *testing.T, env *requestTestEnv, childStatus string) *enrollmentService.SubmitResult {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
 
@@ -194,7 +194,7 @@ func makeLegacyNoSchemaRequest(t *testing.T, env *requestTestEnv, childStatus st
 
 func proposedChangeSubmission(t *testing.T, env *requestTestEnv, result *enrollmentService.SubmitResult) enrollmentService.SubmitRequest {
 	t.Helper()
-	proposed := validSubmission(env.phaseID)
+	proposed := validSubmission(t, env.phaseID)
 	require.Len(t, result.Children, len(proposed.Children))
 	for i := range proposed.Children {
 		proposed.Children[i].ID = result.Children[i].ID
@@ -206,7 +206,7 @@ func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 	t.Helper()
 	reason := "Warteliste"
 	require.NoError(t, repositories.NewFactory(env.db).RequestChild.UpdateStatus(
-		testpkg.TenantContext(1),
+		testpkg.Ctx(t),
 		childID,
 		enrollmentModels.ChildStatusWaitlisted,
 		&reason,
@@ -217,11 +217,11 @@ func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	result := makeLegacyNoSchemaRequest(t, env, "")
 
 	phone := "+49 221 555 991"
-	edit := validSubmission(env.phaseID)
+	edit := validSubmission(t, env.phaseID)
 	edit.GuardianPhone = &phone
 	edit.CustomData = map[string]any{}
 	edit.Children[0].CustomData = map[string]any{}
@@ -242,9 +242,9 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleChildRemoved(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	base := validSubmission(env.phaseID)
+	base := validSubmission(t, env.phaseID)
 	base.GuardianEmail = "multi-child-edit@example.com"
 	base.Children = []enrollmentService.SubmitChild{
 		{
@@ -323,7 +323,7 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	result := makeLegacyNoSchemaRequest(t, env, enrollmentModels.ChildStatusWaitlisted)
 	svc := newChangeRequestServiceForTest(env)
 
@@ -363,9 +363,9 @@ func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *
 func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	base := validSubmission(env.phaseID)
+	base := validSubmission(t, env.phaseID)
 	base.Children = append(base.Children, enrollmentService.SubmitChild{
 		FirstName:        "Mika",
 		LastName:         "Beispiel",
@@ -400,8 +400,8 @@ func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
 func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 	svc := newChangeRequestServiceForTest(env)
@@ -432,10 +432,10 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 
-	first := validSubmission(env.phaseID)
+	first := validSubmission(t, env.phaseID)
 	first.GuardianEmail = "duplicate-approval@example.com"
 	first.Children[0].FirstName = "Lina"
 	first.Children[0].LastName = "Beispiel"
@@ -443,7 +443,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, firstResult.Children[0].ID)
 
-	second := validSubmission(env.phaseID)
+	second := validSubmission(t, env.phaseID)
 	second.GuardianEmail = "duplicate-approval@example.com"
 	second.Children[0].FirstName = "Noah"
 	second.Children[0].LastName = "Beispiel"
@@ -476,10 +476,10 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	phone := "+49 221 555 010"
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "guardian-stamp@example.com"
 	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
 		{FirstName: "Opa", LastName: "Schmidt", Phone: &phone},
@@ -495,7 +495,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 		PreferredContactMethod: "phone",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.GuardianProfile.Create(ctx, profile))
 	guardians, err := repoFactory.RequestGuardian.ListByRequestID(ctx, result.Request.ID)
 	require.NoError(t, err)
@@ -531,8 +531,8 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 	svc := newChangeRequestServiceForTest(env)
@@ -558,11 +558,11 @@ func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "keep-inactive-offering@example.com"
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	result, err := env.svc.Submit(ctx, req)
@@ -589,14 +589,14 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
 	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "inactive-conditional-change-request@example.com"
 	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(1)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
@@ -628,11 +628,11 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
-	request := validSubmission(env.phaseID)
+	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "change-request-disabled-enabled@example.com"
 	request.Children[0].OfferingIDs = []int64{offering.ID}
 	result, err := env.svc.Submit(ctx, request)
@@ -681,13 +681,13 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 		careOfferingsEnabled: &careOfferingsEnabled,
 	})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	currentOffering := createAdjustmentCareOffering(t, env, "Frühbetreuung vor Umschaltung")
 	replacementOffering := createAdjustmentCareOffering(t, env, "Spätbetreuung vor Umschaltung")
 	grade := int16(2)
 
 	submission := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Toggle",
@@ -773,11 +773,11 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 
 	submission := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Klasse",
@@ -838,10 +838,10 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentAndAudit(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	gradeOne := int16(1)
 	submission := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Beispiel",
@@ -880,7 +880,7 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	correctedDOB := timezone.NewDate(2018, 5, 16)
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
 	var audit *enrollmentService.ChangeRequestAggregate
-	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var correctionErr error
 		audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
@@ -927,7 +927,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 		t.Run(openStatus, func(t *testing.T) {
 			env, cleanup := setupDecisionTest(t)
 			defer cleanup()
-			ctx := testpkg.TenantContext(1)
+			ctx := testpkg.Ctx(t)
 			env.settings.boolValues[configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled] = true
 
 			submission, result := createApprovedAdminCorrectionFixture(t, env, "open-correction-"+openStatus+"@example.com")
@@ -952,7 +952,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			reason := "Nachname anhand der Geburtsurkunde berichtigt"
 			expectedNote := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
 			var audit *enrollmentService.ChangeRequestAggregate
-			err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				var correctionErr error
 				audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 					RequestID:        result.Request.ID,
@@ -1007,7 +1007,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentChangeRequest(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submission, result := createApprovedAdminCorrectionFixture(t, env, "terminal-correction@example.com")
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
@@ -1029,7 +1029,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 	before, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
 			ChildID:          result.Children[0].ID,
@@ -1055,7 +1055,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestWhenAuditFails(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	submission, result := createApprovedAdminCorrectionFixture(t, env, "rollback-correction@example.com")
 	regularService := newChangeRequestServiceWithDecisionForTest(t, env)
@@ -1080,7 +1080,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	failingService := newChangeRequestServiceWithDecisionAndRepoForTest(t, env, failAdminAuditChangeRequestRepo{
 		ChangeRequestRepository: env.repos.ChangeRequest,
 	})
-	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := failingService.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
 			ChildID:          result.Children[0].ID,
@@ -1126,10 +1126,10 @@ func createApprovedAdminCorrectionFixture(
 	guardianEmail string,
 ) (enrollmentService.SubmitRequest, *enrollmentService.SubmitResult) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	grade := int16(1)
 	submission := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Beispiel",
@@ -1164,7 +1164,7 @@ func createApprovedAdminCorrectionFixture(
 func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTargetsWhenCollectionIsDisabled(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
 	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b", "3a"}
@@ -1173,7 +1173,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 	gradeTwo := int16(2)
 	targetClass := "2a"
 	result, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Historie",
@@ -1213,7 +1213,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
 	correct := func(input enrollmentService.CorrectApprovedChildDataInput) error {
-		return tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		return tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			_, correctionErr := svc.CorrectApprovedChildData(txCtx, input)
 			return correctionErr
 		})
@@ -1272,14 +1272,14 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db)
 	firstOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering.Name = "Second inactive slot"
 	require.NoError(t, repoFactory.CareOffering.Update(ctx, secondOffering))
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "cross-child-inactive-offering@example.com"
 	req.Children[0].OfferingIDs = []int64{firstOffering.ID}
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
@@ -1315,8 +1315,8 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 	svc := newChangeRequestServiceForTest(env)
@@ -1335,9 +1335,9 @@ func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	base := validSubmission(env.phaseID)
+	base := validSubmission(t, env.phaseID)
 	base.Children = append(base.Children, enrollmentService.SubmitChild{
 		FirstName:        "Mika",
 		LastName:         "Beispiel",
@@ -1379,12 +1379,12 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 	repoFactory := repositories.NewFactory(env.db)
 
-	holderReq := validSubmission(env.phaseID)
+	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-waitlist@example.com"
 	holderReq.Children[0].FirstName = "Slot"
 	holderReq.Children[0].LastName = "Holder"
@@ -1392,7 +1392,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	_, err := env.svc.Submit(ctx, holderReq)
 	require.NoError(t, err)
 
-	candidateReq := validSubmission(env.phaseID)
+	candidateReq := validSubmission(t, env.phaseID)
 	candidateReq.GuardianEmail = "candidate-change-request-waitlist@example.com"
 	candidateReq.Children[0].FirstName = "Capacity"
 	candidateReq.Children[0].LastName = "Candidate"
@@ -1438,12 +1438,12 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
 	repoFactory := repositories.NewFactory(env.db)
 
-	req := validSubmission(env.phaseID)
+	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "preserved-capacity-change-request@example.com"
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
@@ -1497,12 +1497,12 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 	repoFactory := repositories.NewFactory(env.db)
 
-	holderReq := validSubmission(env.phaseID)
+	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-reject@example.com"
 	holderReq.Children[0].FirstName = "Reject"
 	holderReq.Children[0].LastName = "Holder"
@@ -1510,7 +1510,7 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 	_, err := env.svc.Submit(ctx, holderReq)
 	require.NoError(t, err)
 
-	candidateReq := validSubmission(env.phaseID)
+	candidateReq := validSubmission(t, env.phaseID)
 	candidateReq.GuardianEmail = "candidate-change-request-reject@example.com"
 	candidateReq.Children[0].FirstName = "Reject"
 	candidateReq.Children[0].LastName = "Candidate"
@@ -1559,7 +1559,7 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementFailure(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
 	_, reviewerWithStaffAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
@@ -1585,7 +1585,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	require.NoError(t, err)
 	grade := int16(2)
 	proposed := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",

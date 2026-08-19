@@ -22,13 +22,13 @@ import (
 func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timeframeID *int64) *activities.Schedule {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	schedule := &activities.Schedule{
 		ActivityGroupID: groupID,
 		Weekday:         weekday,
 		TimeframeID:     timeframeID,
 	}
-	schedule.SetTenantID(1)
+	schedule.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(schedule).
@@ -47,7 +47,7 @@ func TestScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates schedule with valid data", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ScheduleGroup")
@@ -90,7 +90,7 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -103,7 +103,7 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
@@ -129,7 +129,7 @@ func TestScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates schedule weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
@@ -153,7 +153,7 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -166,7 +166,7 @@ func TestScheduleRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
@@ -192,7 +192,7 @@ func TestScheduleRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "List")
@@ -212,7 +212,7 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedules for a specific group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "GroupSchedules")
@@ -252,7 +252,7 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedules for a specific weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WeekdaySchedules")
@@ -293,7 +293,7 @@ func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent schedule", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
@@ -318,9 +318,9 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startHour, startMin int) *sch
 		IsActive:    true,
 		Description: fmt.Sprintf("tf-%02d%02d-%d", startHour, startMin, time.Now().UnixNano()),
 	}
-	tf.SetTenantID(1)
+	tf.SetTenantID(testpkg.Tenant(t))
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := db.NewInsert().
 		Model(tf).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
@@ -334,7 +334,7 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group1 := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13TplA-%d", time.Now().UnixNano()))
 	group2 := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13TplB-%d", time.Now().UnixNano()+1))
@@ -391,7 +391,7 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	rows, err := repo.FindTemplateStartTimesByGroupIDs(ctx, nil)
 	require.NoError(t, err)
@@ -402,7 +402,7 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t 
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13Amb-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
@@ -446,7 +446,7 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_TenantScoped(t *tes
 	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched.ID)
 
 	// Tenant 1 sees the row.
-	rows, err := repo.FindTemplateStartTimesByGroupIDs(testpkg.TenantContext(1), []int64{group.ID})
+	rows, err := repo.FindTemplateStartTimesByGroupIDs(testpkg.Ctx(t), []int64{group.ID})
 	require.NoError(t, err)
 	assert.NotEmpty(t, rows)
 

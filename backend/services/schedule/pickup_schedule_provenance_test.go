@@ -27,7 +27,7 @@ func wallClock(t *testing.T, hhmm string) time.Time {
 
 func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	svc := scheduleService.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
@@ -87,7 +87,7 @@ func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
 
 func TestUpsertBulkPickupSchedules_ChangedTimeFlipsToStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	svc := scheduleService.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,

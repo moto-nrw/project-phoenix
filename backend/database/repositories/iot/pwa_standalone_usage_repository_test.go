@@ -42,16 +42,16 @@ func TestPWAStandaloneUsageRepository(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPWAStandaloneUsageRepository(db)
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-usage-%d@example.com", time.Now().UnixNano()))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 	defer cleanupPWAUsage(t, db, account.ID)
-	createAccountTenantMapping(t, db, account.ID, 1)
+	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
 
 	newUsage := func(portal string) *iotModels.PWAStandaloneUsage {
 		usage := &iotModels.PWAStandaloneUsage{AccountID: account.ID, Portal: portal}
-		usage.SetTenantID(1)
+		usage.SetTenantID(testpkg.Tenant(t))
 		return usage
 	}
 

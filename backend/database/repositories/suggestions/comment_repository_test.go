@@ -22,7 +22,7 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().
@@ -41,7 +41,7 @@ func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().
@@ -57,7 +57,7 @@ func TestCommentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-create-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -115,7 +115,7 @@ func TestCommentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbyid-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -159,7 +159,7 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbypost-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -235,7 +235,7 @@ func TestCommentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-delete-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

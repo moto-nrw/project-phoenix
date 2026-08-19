@@ -16,11 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,13 +45,13 @@ func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), 1)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
 		})
 	})
 	r.Post("/", res.create)
 	r.Put("/{id}", res.update)
 
-	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.TenantContext(1)}
+	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.Ctx(t)}
 }
 
 func (s *shiftTypeTestSetup) do(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {

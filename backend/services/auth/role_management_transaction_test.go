@@ -15,7 +15,7 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Live caregiver profile (person → staff → teacher) linked to the
 	// account at this school — the state a role swap must never strand.
@@ -24,7 +24,7 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	var lehrkraftRoleID int64
 	require.NoError(t, db.NewSelect().
@@ -52,12 +52,12 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// No person/staff/teacher chain: a plain account may become Lehrkraft.
 	account := testpkg.CreateTestAccount(t, db, "lehrkraft-plain")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	var lehrkraftRoleID int64
 	require.NoError(t, db.NewSelect().
@@ -113,12 +113,12 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *t
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// A Lehrkraft account by construction: no person → staff → teacher chain.
 	account := testpkg.CreateTestAccount(t, db, "lehrkraft-to-caregiver")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftSystemRoleID(t, db))))
 
 	// The reverse of the guard above: swapping to a caregiver role through
@@ -138,7 +138,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// The operator role change provisions person/staff/teacher BEFORE it
 	// assigns the role, so the same swap must pass there.
@@ -147,7 +147,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) 
 		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	// Put the account into the Lehrkraft state directly: the service guard
 	// itself refuses this combination, and the point here is the state a
@@ -156,7 +156,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) 
 		Model(&map[string]interface{}{
 			"account_id": account.ID,
 			"role_id":    lehrkraftSystemRoleID(t, db),
-			"tenant_id":  int64(1),
+			"tenant_id":  testpkg.Tenant(t),
 		}).
 		TableExpr("auth.account_roles").
 		Exec(context.Background())
@@ -169,14 +169,14 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Negative control for the guard's scope: account provisioning assigns
 	// the caregiver role before it creates the teacher record, so a plain
 	// account without the Lehrkraft role must stay unaffected.
 	account := testpkg.CreateTestAccount(t, db, "plain-caregiver")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db))))
 }
@@ -184,14 +184,14 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("AssignRoleToAccount persists created mapping", func(t *testing.T) {
 		service := setupInternalAuthService(t, db)
 
 		account := testpkg.CreateTestAccount(t, db, "assign-rollback")
 		t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		role := testpkg.CreateTestRole(t, db, "assign-rollback-role-"+time.Now().Format("150405.000000000"))
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
@@ -210,7 +210,7 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 
 		account := testpkg.CreateTestAccount(t, db, "remove-rollback")
 		t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		role := testpkg.CreateTestRole(t, db, "remove-rollback-role-"+time.Now().Format("150405.000000000"))
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
@@ -244,12 +244,12 @@ func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 	})
 
 	roleID := lehrkraftSystemRoleID(t, db)
-	_, _, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, 1,
+	_, _, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
 		&SchoolAccountIdentity{FirstName: "Link", LastName: "Betreuung"})
 	require.ErrorIs(t, err, ErrRoleLehrkraftCaregiverProfile)
 
 	// The guard runs inside the link transaction, so the role is not assigned.
-	roles, err := service.GetAccountRoles(testpkg.TenantContext(1), int(account.ID))
+	roles, err := service.GetAccountRoles(testpkg.Ctx(t), int(account.ID))
 	require.NoError(t, err)
 	assert.Empty(t, roles, "a refused link must not assign the role")
 }
@@ -265,7 +265,7 @@ func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) 
 	t.Cleanup(func() { testpkg.CleanupAccountWithIdentity(t, db, account.ID) })
 
 	roleID := lehrkraftSystemRoleID(t, db)
-	_, identity, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, 1,
+	_, identity, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
 		&SchoolAccountIdentity{FirstName: "Link", LastName: "Lehrkraft"})
 	require.NoError(t, err)
 

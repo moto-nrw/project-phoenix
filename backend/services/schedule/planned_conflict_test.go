@@ -60,7 +60,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 			InstanceStudents:  repoFactory.InstanceStudent,
 		},
 		db:        db,
-		ctx:       testpkg.TenantContext(1),
+		ctx:       testpkg.Ctx(t),
 		roomID:    room.ID,
 		staffID:   staff.ID,
 		studentID: student.ID,

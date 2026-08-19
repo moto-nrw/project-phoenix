@@ -4,24 +4,24 @@ import (
 	"context"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func contextWithRoles(userID int, roles ...string) context.Context {
+func contextWithRoles(tb testing.TB, userID int, roles ...string) context.Context {
 	claims := jwt.AppClaims{
 		ID:       userID,
-		TenantID: 1,
+		TenantID: testpkg.Tenant(tb),
 		Roles:    roles,
 	}
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	return context.WithValue(ctx, jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.Ctx(tb), jwt.CtxClaims, claims)
 }
 
 func TestIsAuthenticated(t *testing.T) {
-	assert.True(t, isAuthenticated(contextWithRoles(42, "Admin")))
+	assert.True(t, isAuthenticated(contextWithRoles(t, 42, "Admin")))
 	assert.False(t, isAuthenticated(context.Background()))
 }
 

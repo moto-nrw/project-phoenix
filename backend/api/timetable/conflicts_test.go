@@ -47,7 +47,7 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	return &plannedConflictsSetup{
 		res:    res,
 		db:     db,
-		ctx:    testpkg.TenantContext(1),
+		ctx:    testpkg.Ctx(t),
 		roomID: room.ID,
 		date:   timezone.NewDate(2026, time.June, 22),
 	}

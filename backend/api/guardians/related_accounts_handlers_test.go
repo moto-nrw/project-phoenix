@@ -25,7 +25,7 @@ func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "Invite", "8a")
 	profile := testpkg.CreateTestGuardianProfile(t, ctx.db, "staff-restricted")
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	defer func() {
 		_, _ = ctx.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
 		_, _ = ctx.db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(context.Background())
@@ -40,7 +40,7 @@ func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 		EmergencyPriority: 1,
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(ctx.db)
 	require.NoError(t, repos.StudentGuardian.Create(tenantCtx, link))
 
@@ -82,7 +82,7 @@ func TestInviteGuardianToStudent_SocialWorkerLinkRefused(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "SocialWorker", "8b")
 	profile := testpkg.CreateTestGuardianProfile(t, ctx.db, "staff-social-worker")
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	defer func() {
 		_, _ = ctx.db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(context.Background())
 		_, _ = ctx.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
@@ -96,7 +96,7 @@ func TestInviteGuardianToStudent_SocialWorkerLinkRefused(t *testing.T) {
 		EmergencyPriority: 1,
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleSocialWorker)
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(ctx.db)
 	require.NoError(t, repos.StudentGuardian.Create(tenantCtx, link))
 

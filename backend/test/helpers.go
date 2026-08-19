@@ -30,7 +30,7 @@ import (
 //	    db := testpkg.SetupTestDB(t)
 //	    // ... test code
 //	}
-func SetupTestDB(t *testing.T) *bun.DB {
+func SetupTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 
 	// -short überspringt alle DB-Integrationstests: `go test -short ./...` ist

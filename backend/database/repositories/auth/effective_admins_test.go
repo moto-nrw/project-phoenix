@@ -52,14 +52,14 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("includes the admin role and excludes a plain user", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-admin@example.test")
 		plain := testpkg.CreateTestAccount(t, db, "effective-plain@example.test")
 
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
-		grantTenantRole(t, db, ctx, plain.ID, 1, authModels.BaseRoleUser)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, plain.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID, plain.ID)
 
@@ -72,7 +72,7 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes a deactivated admin account", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-inactive@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
@@ -90,13 +90,13 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes an admin whose tenant mapping is not active", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-pending@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
 			Set("status = ?", authModels.AccountTenantStatusInactive).
-			Where("account_id = ? AND tenant_id = ?", admin.ID, 1).
+			Where("account_id = ? AND tenant_id = ?", admin.ID, testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)
 

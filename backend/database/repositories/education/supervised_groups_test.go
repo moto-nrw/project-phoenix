@@ -31,7 +31,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	today := timezone.TodayDate()
 
 	t.Run("names the assigned teacher and the substitute of today", func(t *testing.T) {

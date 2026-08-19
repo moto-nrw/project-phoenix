@@ -17,14 +17,14 @@ import (
 
 func createTestClosingDay(t *testing.T, repo scheduleModels.ClosingDayRepository, start, end timezone.Date, reason string) *scheduleModels.ClosingDay {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	day := &scheduleModels.ClosingDay{
 		StartDate: start,
 		EndDate:   end,
 		Reason:    reason,
 	}
-	day.SetTenantID(1)
+	day.SetTenantID(testpkg.Tenant(t))
 
 	err := repo.Create(ctx, day)
 	require.NoError(t, err)
@@ -36,7 +36,7 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates and reads a range", func(t *testing.T) {
 		day := createTestClosingDay(t, repo,
@@ -65,7 +65,7 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 			StartDate: timezone.NewDate(2026, 12, 24),
 			EndDate:   timezone.NewDate(2026, 12, 31),
 		}
-		day.SetTenantID(1)
+		day.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, day)
 		require.Error(t, err)
@@ -99,7 +99,7 @@ func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	day := createTestClosingDay(t, repo,
 		timezone.NewDate(2026, 7, 20), timezone.NewDate(2026, 8, 7), "Sommerschließung")

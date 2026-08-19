@@ -92,7 +92,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 		PickupTime: pickupTime,
 		CreatedBy:  createStudentsAPITestStaffID(t, tc),
 	}
-	schedule.SetTenantID(1)
+	schedule.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(schedule).
 		ModelTableExpr("schedule.student_pickup_schedules").
 		Returning("id").
@@ -192,7 +192,7 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 		ExpectedArrival: arrivalTime,
 		CreatedBy:       staff.ID,
 	}
-	schedule.SetTenantID(1)
+	schedule.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(schedule).
 		ModelTableExpr("schedule.student_arrival_schedules").
 		Returning("id").
@@ -717,7 +717,7 @@ func TestCreateStudent(t *testing.T) {
 			ColumnExpr(`count(*)`).
 			Where(`"person".first_name = ?`, "Invalid").
 			Where(`"person".last_name = ?`, "BusDays").
-			Scan(testpkg.TenantContext(1), &count)
+			Scan(testpkg.Ctx(t), &count)
 		require.NoError(t, err)
 		assert.Zero(t, count)
 	})
@@ -1136,7 +1136,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		assert.Empty(t, clearResp.Data.AddressCity)
 		assert.Empty(t, clearResp.Data.AddressPostalCode)
 
-		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.Nil(t, fresh.AddressStreet)
 		assert.Nil(t, fresh.AddressCity)
@@ -1186,7 +1186,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			TableExpr(`users.students AS "student"`).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
-			Exec(testpkg.TenantContext(1))
+			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
 		body := map[string]interface{}{
@@ -1197,7 +1197,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayWednesday])
@@ -1223,7 +1223,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
@@ -1249,7 +1249,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		// Unified replacement fully overrides the prior Monday bus day.
 		assert.Equal(t, usersModel.DeparturePickup, fresh.DepartureDays.ModeFor("tue"))
@@ -1276,7 +1276,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			TableExpr(`users.students AS "student"`).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
-			Exec(testpkg.TenantContext(1))
+			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
 		body := map[string]interface{}{
@@ -1291,7 +1291,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "sat")
 
-		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
@@ -1354,7 +1354,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set guardian fields
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET guardian_name = ?, guardian_email = ? WHERE id = ?",
 			"Parent Name", "parent@test.com", student.ID)
@@ -1604,7 +1604,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set sick status
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE users.students SET sick = true WHERE id = ?", student.ID)
 		require.NoError(t, err)
 

@@ -20,7 +20,7 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates invitation with valid data", func(t *testing.T) {
 		// Create a guardian profile first
@@ -57,7 +57,7 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByID")
@@ -90,7 +90,7 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitation by token", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByToken")
@@ -124,7 +124,7 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "Update")
@@ -174,7 +174,7 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitations by guardian profile ID", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByProfile")
@@ -206,7 +206,7 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds pending invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindPending")
@@ -234,7 +234,7 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("marks invitation as accepted", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "MarkAccepted")
@@ -270,7 +270,7 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates email status", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "EmailStatus")
@@ -333,7 +333,7 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "DeleteExpired")
@@ -347,7 +347,7 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 			ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired
 			CreatedBy:         1,
 		}
-		expiredInvitation.SetTenantID(1)
+		expiredInvitation.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().
 			Model(expiredInvitation).
 			ModelTableExpr(`auth.guardian_invitations`).

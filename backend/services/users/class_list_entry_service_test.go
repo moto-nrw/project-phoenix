@@ -27,7 +27,7 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-actor@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
@@ -123,7 +123,7 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-assign-actor@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
@@ -205,7 +205,7 @@ func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, _ := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Deliberately created out of order: 10x sorts AFTER 9x (numeric class
 	// collation), names sort by German collation within the class.
@@ -232,7 +232,7 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-update-actor@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
@@ -266,7 +266,7 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 			LastName:    "KIND",
 			SchoolClass: "6V",
 		}
-		err := repos.ClassListEntry.Create(testpkg.TenantContext(1), clone)
+		err := repos.ClassListEntry.Create(testpkg.Ctx(t), clone)
 		require.Error(t, err)
 		assert.True(t, modelBase.IsUniqueViolationOn(err, userModels.ClassListEntryUniqueIndexName),
 			"the collision must be recognizable via the pinned index name")
@@ -311,7 +311,7 @@ func TestClassListEntryService_MissingTargets(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc, _ := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-missing-actor@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
@@ -354,7 +354,7 @@ func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 	entry := testpkg.CreateTestClassListEntry(t, db, "CleErr", "Kind", "4t")
 	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 
-	canceled, cancel := context.WithCancel(testpkg.TenantContext(1))
+	canceled, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
 	_, err := svc.ListAll(canceled)
@@ -381,7 +381,7 @@ func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 	require.Error(t, repos.ClassListEntryChange.Create(canceled, &auditModels.ClassListEntryChange{
 		EntryID: entry.ID, Action: auditModels.ClassListEntryActionCreated, ChangedBy: 1,
 	}))
-	require.Error(t, repos.ClassListEntryChange.Create(testpkg.TenantContext(1), &auditModels.ClassListEntryChange{
+	require.Error(t, repos.ClassListEntryChange.Create(testpkg.Ctx(t), &auditModels.ClassListEntryChange{
 		EntryID: entry.ID, Action: "renamed", ChangedBy: 1,
 	}), "an invalid audit row must be rejected by validation")
 }
@@ -395,7 +395,7 @@ func TestClassListEntryService_TenantIsolation(t *testing.T) {
 	foreign := testpkg.CreateTestClassListEntryForTenant(t, db, 42, "CleForeign", "Kind", "9x")
 
 	t.Run("foreign tenant entries are invisible", func(t *testing.T) {
-		entries, err := svc.ListAll(testpkg.TenantContext(1))
+		entries, err := svc.ListAll(testpkg.Ctx(t))
 		require.NoError(t, err)
 		for _, entry := range entries {
 			assert.NotEqual(t, foreign.ID, entry.ID)
@@ -406,7 +406,7 @@ func TestClassListEntryService_TenantIsolation(t *testing.T) {
 		actor := testpkg.CreateTestAccount(t, db, "cle-iso-actor@test.local")
 		defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
-		err := svc.Delete(testpkg.TenantContext(1), foreign.ID, actor.ID)
+		err := svc.Delete(testpkg.Ctx(t), foreign.ID, actor.ID)
 		require.ErrorIs(t, err, usersService.ErrClassListEntryNotFound)
 	})
 }

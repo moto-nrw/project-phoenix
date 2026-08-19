@@ -118,7 +118,7 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 	resolveFullChain(t, ctx, service)
 
 	assert.Equal(t, 1, counter.count("persons"), "users.persons must be loaded exactly once per request")
@@ -150,7 +150,7 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := contextWithClaims(int(account.ID))
+	ctx := contextWithClaims(t, int(account.ID))
 	resolveFullChain(t, ctx, service)
 
 	assert.Greater(t, counter.count("persons"), 1,
@@ -169,7 +169,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	_, err := service.GetMyGroups(ctx)
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 	email := fmt.Sprintf("identity-evict-%d@test.moto-nrw.de", time.Now().UnixNano())
 	account := testpkg.CreateTestAccount(t, db, email)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	// Prime the memoized "not linked" person stage.
 	_, err := service.GetCurrentPerson(ctx)
@@ -223,7 +223,7 @@ func TestUpdateAvatarEvictsIdentity(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	// Prime the memoized account stage.
 	_, err := service.GetCurrentUser(ctx)

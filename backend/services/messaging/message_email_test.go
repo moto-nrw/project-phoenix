@@ -144,7 +144,7 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 
-	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID,
+	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID,
 		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
+	_, err = f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
 	rows := f.outbox.Rows()
 	require.Len(t, rows, 1)
@@ -191,7 +191,7 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 
 func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
-	ctx := adminCtx(f.staff)
+	ctx := adminCtx(t, f.staff)
 
 	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 
-	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
+	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
 	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")

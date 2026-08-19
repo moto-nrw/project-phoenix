@@ -43,7 +43,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 
 	// Seed a pending excused request covering today for this child.
 	const note = "Zahnarzttermin am Vormittag"
-	err := tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
@@ -95,7 +95,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	const note = "Familienfeier, kommt später"
-	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,

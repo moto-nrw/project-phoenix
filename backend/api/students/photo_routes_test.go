@@ -109,7 +109,7 @@ func buildMultipart(t *testing.T, fieldName, filename string, fileBytes []byte, 
 // audit-bearing UI writes.
 func enableStudentPhotos(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t,
 		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
@@ -131,7 +131,7 @@ func adminBearer(t *testing.T) string {
 // holds users:update + users:read but who is NOT an admin and is NOT
 // (by default) a group supervisor. Since #2329 the handler-level
 // canUpdateStudent gate admits this caller for every child of the tenant.
-func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
+func staffWithUsersUpdate(tb testing.TB, accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          int(accountID),
 		Sub:         "staff@example.com",
@@ -140,7 +140,7 @@ func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
 		LastName:    "Member",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read", "users:update"},
-		TenantID:    1,
+		TenantID:    testpkg.RebaseTenantID(tb, 1),
 	}
 }
 
@@ -150,7 +150,7 @@ func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
 // unrelated PUT /privacy-consent handler.
 func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_consent_given_at = now(),
@@ -163,7 +163,7 @@ func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 
 func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
-	_, err := tc.db.ExecContext(testpkg.TenantContext(1), `
+	_, err := tc.db.ExecContext(testpkg.Ctx(t), `
 		UPDATE users.students SET status = ? WHERE id = ?
 	`, users.StudentStatusAlumnus, studentID)
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
 // upload/delete actually mutated the DB.
 func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
@@ -207,7 +207,7 @@ func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (store
 	storedURL = common.StudentPhotoStoredURLPrefix + filepath.Base(tmp.Name())
 	onDisk = tmp.Name()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_path = ?,
@@ -324,7 +324,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	// Assert the consent audit columns got stamped in the same tx.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var s users.Student
 	err := tc.db.NewSelect().Model(&s).Where("id = ?", student.ID).Scan(ctx)
 	require.NoError(t, err)
@@ -454,7 +454,7 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NonSup", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
 
-	claims := staffWithUsersUpdate(account.ID)
+	claims := staffWithUsersUpdate(t, account.ID)
 	token := testutil.MintTestJWT(t, claims)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -614,7 +614,7 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "DelNonSup", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
 
-	token := testutil.MintTestJWT(t, staffWithUsersUpdate(account.ID))
+	token := testutil.MintTestJWT(t, staffWithUsersUpdate(t, account.ID))
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -780,7 +780,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 		Username:    "noread",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read"},
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 	}
 	token := testutil.MintTestJWT(t, claims)
 
@@ -812,7 +812,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 		Username:    "staffread",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read"},
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 	}
 	token := testutil.MintTestJWT(t, claims)
 

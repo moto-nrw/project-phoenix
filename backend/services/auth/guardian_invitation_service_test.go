@@ -46,7 +46,6 @@ func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels
 func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.GuardianInvitationServiceConfig)) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
@@ -130,7 +129,7 @@ func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -160,7 +159,7 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 		PreferredContactMethod: "phone",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(1)
+	profile.SetTenantID(testpkg.Tenant(t))
 	_, err := env.db.NewInsert().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles`).
@@ -176,7 +175,7 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err = env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -191,7 +190,7 @@ func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "validate-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -222,7 +221,7 @@ func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testin
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "expired-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -249,7 +248,7 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "accept-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -292,12 +291,12 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, updatedProfile.HasAccount, "guardian_profile.has_account should flip true")
 
 	// Account-tenant mapping must exist + be active.
-	exists, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, 1)
+	exists, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "account_tenant mapping should be created on accept")
 
 	// Account must have the guardian role assigned.
-	roles, err := env.repos.Role.FindByAccountID(testpkg.TenantContext(1), account.ID)
+	roles, err := env.repos.Role.FindByAccountID(testpkg.Ctx(t), account.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, roles, "account should have at least one role")
 	hasGuardian := false
@@ -313,7 +312,7 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	creatorID := env.inviterAccountID(t)
 	statuses := []string{
 		authModels.GuardianInvitationApprovalPending,
@@ -329,7 +328,7 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 				ExpiresAt:         time.Now().Add(time.Hour),
 				ApprovalStatus:    status,
 			}
-			invitation.SetTenantID(1)
+			invitation.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
 			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
@@ -361,7 +360,7 @@ func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordCh
 		_, _ = env.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	})
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -393,7 +392,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	deactivatedAt := time.Now().Add(-time.Hour)
 	require.NoError(t, env.repos.AccountTenant.Create(context.Background(), &authModels.AccountTenant{
 		AccountID:     account.ID,
-		TenantID:      1,
+		TenantID:      testpkg.Tenant(t),
 		Status:        authModels.AccountTenantStatusInactive,
 		DeactivatedAt: &deactivatedAt,
 	}))
@@ -403,7 +402,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 		_, _ = env.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	})
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -422,7 +421,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 		Model(&mapping).
 		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
 		Where(`"account_tenant".account_id = ?`, account.ID).
-		Where(`"account_tenant".tenant_id = ?`, 1).
+		Where(`"account_tenant".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
@@ -437,7 +436,7 @@ func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "mismatch-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -459,7 +458,7 @@ func TestGuardianInvitationService_Accept_WeakPassword(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "weak-pw-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -481,7 +480,7 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "double-accept-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -530,7 +529,7 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "resend-test")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -579,7 +578,6 @@ func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, 
 func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.EnrollmentBackfiller) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
@@ -631,7 +629,7 @@ func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-call")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -659,7 +657,7 @@ func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testin
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-mismatch")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -683,7 +681,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-error")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -721,7 +719,7 @@ func TestGuardianInvitationService_Accept_NilBackfillerIsSafe(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-nil")
 	creatorID := env.inviterAccountID(t)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,

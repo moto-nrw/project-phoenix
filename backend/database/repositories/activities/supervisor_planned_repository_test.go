@@ -19,13 +19,13 @@ import (
 func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimary bool) *activities.SupervisorPlanned {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	supervisor := &activities.SupervisorPlanned{
 		StaffID:   staffID,
 		GroupID:   groupID,
 		IsPrimary: isPrimary,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -44,7 +44,7 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates supervisor with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
@@ -89,7 +89,7 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -102,7 +102,7 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "Test")
@@ -129,7 +129,7 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisor primary status", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
@@ -154,7 +154,7 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -167,7 +167,7 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
@@ -189,7 +189,7 @@ func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Supervisor")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Supervisor")
@@ -229,7 +229,7 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all supervisors", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
@@ -252,7 +252,7 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by staff ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Staff", "MultiGroup")
@@ -294,7 +294,7 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by group ID with loaded relations", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
@@ -348,7 +348,7 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors for multiple groups", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff")
@@ -399,7 +399,7 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "SetPrimary", "Test")
@@ -427,7 +427,7 @@ func TestSupervisorPlannedRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent supervisor", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

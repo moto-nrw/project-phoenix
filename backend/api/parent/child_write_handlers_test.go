@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -54,25 +53,12 @@ func (excusedApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64
 // tokens these tests mint.
 const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 
-// init pins the JWT config before the testpkg token-auth singleton is
-// lazily created, so minted tokens are signed with the matching secret
-// and carry a real lifetime.
-func init() {
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
-}
-
 func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	return newWriteRouterWithSettings(t, db, alwaysOnSettings{})
 }
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
-	// Align the Router's MustNewTokenAuth with the secret testpkg signs
-	// with, and give minted tokens a real (non-zero) lifetime so the real
-	// Verifier doesn't treat them as already-expired.
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
@@ -219,8 +205,6 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
