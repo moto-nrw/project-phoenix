@@ -13,6 +13,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Upload } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
@@ -32,6 +33,7 @@ import {
   updateClassListEntry,
   type ClassListEntry,
 } from "~/lib/class-list-entries-api";
+import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -164,6 +166,14 @@ function rowSortKey(row: RosterRow): string {
 
 export default function ClassListEntriesPage() {
   const toast = useToast();
+  const { data: session } = useSession();
+  // Mirror the backend route gates (api/classlistentries): create needs
+  // users:create (der Sammelimport ebenso), edit users:update, delete und
+  // Zuordnen users:delete. Ohne das Recht gibt es keinen Einstieg in den
+  // Dialog — der Backend-403 bleibt Defense-in-Depth, keine UX.
+  const canCreate = hasPermission(session, "users:create");
+  const canUpdate = hasPermission(session, "users:update");
+  const canDelete = hasPermission(session, "users:delete");
   const {
     data: entries,
     error: loadError,
@@ -399,10 +409,11 @@ export default function ClassListEntriesPage() {
             </div>
           );
         }
+        if (!canUpdate && !canDelete) return null;
         const entry = row.entry;
         return (
           <div className="flex items-center justify-end gap-1">
-            {entry.matchingStudentIds.length > 0 && (
+            {canDelete && entry.matchingStudentIds.length > 0 && (
               <Button
                 type="button"
                 variant="ghost"
@@ -420,26 +431,30 @@ export default function ClassListEntriesPage() {
                 Zuordnen
               </Button>
             )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => openEdit(entry)}
-            >
-              Bearbeiten
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              className="text-[#DC2626] hover:text-[#DC2626]"
-              onClick={() => {
-                setModalError(null);
-                setModal({ kind: "delete", entry });
-              }}
-            >
-              Löschen
-            </Button>
+            {canUpdate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => openEdit(entry)}
+              >
+                Bearbeiten
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                className="text-[#DC2626] hover:text-[#DC2626]"
+                onClick={() => {
+                  setModalError(null);
+                  setModal({ kind: "delete", entry });
+                }}
+              >
+                Löschen
+              </Button>
+            )}
           </div>
         );
       },
@@ -467,24 +482,26 @@ export default function ClassListEntriesPage() {
               <span className="font-medium">Sammelimport</span> ergänzt.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/database/students/class-list/import"
-              className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Sammelimport
-            </Link>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="h-9"
-              onClick={openCreate}
-            >
-              Eintrag anlegen
-            </Button>
-          </div>
+          {canCreate && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/database/students/class-list/import"
+                className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                Sammelimport
+              </Link>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="h-9"
+                onClick={openCreate}
+              >
+                Eintrag anlegen
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
@@ -594,14 +611,16 @@ export default function ClassListEntriesPage() {
                 }
                 description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
                 action={
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    Eintrag anlegen
-                  </Button>
+                  canCreate ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="md"
+                      onClick={openCreate}
+                    >
+                      Eintrag anlegen
+                    </Button>
+                  ) : undefined
                 }
               />
             }

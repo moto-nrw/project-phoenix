@@ -19,6 +19,7 @@ import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import { useToast } from "~/contexts/ToastContext";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ClassListImportPage" });
@@ -110,6 +111,10 @@ export default function ClassListImportPage() {
       redirect("/");
     },
   });
+  // Der Import legt Einträge an — dieselbe Hürde wie das Backend
+  // (/api/import/class-list-entries verlangt users:create). Wer sie nicht
+  // nimmt, wird zum Dashboard umgeleitet statt in einen 403 zu laufen.
+  const { isReady } = useRequirePermission("users:create");
 
   const toast = useToast();
 
@@ -339,7 +344,7 @@ export default function ClassListImportPage() {
     errors: (importResult?.ErrorCount ?? 0) - existingCount,
   };
 
-  if (status === "loading") {
+  if (status === "loading" || !isReady) {
     return (
       <SkeletonRegion label="Klassenlisten-Import wird geladen…">
         <FormSkeleton fields={2} />
