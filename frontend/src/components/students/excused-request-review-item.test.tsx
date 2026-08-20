@@ -131,7 +131,7 @@ describe("ExcusedRequestReviewItem", () => {
       />,
     );
 
-    expect(screen.getByText(/Krankmeldung ·/)).toBeInTheDocument();
+    expect(screen.getByText("Krankmeldung")).toBeInTheDocument();
   });
 
   it("surfaces the recovery action on the excused_request_status_conflict 409", async () => {

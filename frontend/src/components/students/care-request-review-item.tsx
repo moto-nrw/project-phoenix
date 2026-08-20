@@ -110,16 +110,15 @@ export function CareRequestReviewItem({
     }
   };
 
-  // In der gemischten Liste muss jede Zeile ihre Anfrageart nennen; die
-  // Detail-Arten (z. B. „Abholzeit + Abholart") bleiben dahinter sichtbar.
+  // Die Anfrageart nennt die Pille der Zeile; hier stehen nur noch die
+  // Detail-Arten (z. B. „Abholzeit + Abholart"), sonst die Art der Änderung.
   const kindLabel =
     row.request_kind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten";
-  const details = careSummary(row.diff);
-  const summary =
-    details && details !== kindLabel ? `${kindLabel} · ${details}` : kindLabel;
+  const summary = careSummary(row.diff) || kindLabel;
 
   return (
     <RequestReviewCard
+      type="care_schedule"
       childName={`${row.first_name} ${row.last_name}`}
       summary={summary}
       submittedAt={row.created_at}

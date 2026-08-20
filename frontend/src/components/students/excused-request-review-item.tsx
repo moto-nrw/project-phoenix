@@ -45,7 +45,8 @@ function isNextDay(prev: string, next: string): boolean {
 // arbitrary date list, so only collapse to a "first – last" range when the days
 // are actually contiguous; otherwise list them so a Mon+Wed request is never
 // shown as "Mon – Wed" (which would wrongly imply Tuesday is included too).
-function datesSummary(dates: StaffExcusedRequest["dates"]): string {
+// Exportiert fuer die Historie, die dieselbe Kurzfassung zeigt.
+export function datesSummary(dates: StaffExcusedRequest["dates"]): string {
   if (dates.length === 0) return "Keine Tage";
   const sorted = [...dates].sort((a, b) => a.localeCompare(b));
   if (sorted.length === 1) return formatDate(sorted[0]!);
@@ -113,8 +114,10 @@ export function ExcusedRequestReviewItem({
 
   return (
     <RequestReviewCard
+      type="excused"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={`${absenceLabel(row)} · ${datesSummary(row.dates)}`}
+      typeLabel={absenceLabel(row)}
+      summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={(value) => {

@@ -13,6 +13,7 @@ import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api
 import type { StaffExcusedRequestHistoryEntry } from "~/lib/excused-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
 import type { StaffOfferingRequestHistoryEntry } from "~/lib/offering-request-review-api";
+import { datesSummary } from "~/components/students/excused-request-review-item";
 import {
   fieldLabel,
   formatValue as formatMasterDataValue,
@@ -27,8 +28,9 @@ function MasterDataHistoryCard({
 }: Readonly<{ row: StaffMasterDataHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
+      summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
       history={{
         status: row.status,
@@ -54,10 +56,9 @@ function CareHistoryCard({
   const entries = showDiff ? (row.diff ?? []) : row.requested;
   return (
     <RequestReviewCard
+      type="care_schedule"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={
-        row.request_kind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten"
-      }
+      summary={row.request_kind === "pickup_change" ? "Abholzeit" : undefined}
       submittedAt={row.created_at}
       history={{
         status: row.status,
@@ -89,8 +90,9 @@ function OfferingHistoryCard({
 }: Readonly<{ row: StaffOfferingRequestHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="offering"
       childName={row.student_name}
-      summary="Betreuungsangebote und AGs"
+      summary={`ab ${formatDate(row.effective_from)}`}
       submittedAt={row.created_at}
       history={{
         status: row.status,
@@ -126,12 +128,14 @@ function ExcusedHistoryCard({
 }: Readonly<{ row: StaffExcusedRequestHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="excused"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={
+      typeLabel={
         row.absence_status === "sick"
           ? "Krankmeldung"
           : "Entschuldigte Abmeldung"
       }
+      summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
       history={{
         status: row.status,
@@ -164,8 +168,8 @@ export function RequestHistoryItem({
       const row = item.data;
       return (
         <RequestReviewCard
+          type="direct_correction"
           childName={row.student_name}
-          summary="Betreuungsangebote und AGs"
           history={{
             kind: "correction",
             decidedAt: row.changed_at,

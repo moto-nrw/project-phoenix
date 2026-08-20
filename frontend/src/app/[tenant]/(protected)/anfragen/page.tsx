@@ -340,6 +340,18 @@ export default function AnfragenPage() {
 
   const staffActive = activeTab === "mitarbeitende";
 
+  const viewSwitcher = (
+    <SegmentedControl
+      items={[
+        { value: "open", label: "Offen" },
+        { value: "history", label: "Historie" },
+      ]}
+      value={view}
+      onChange={staffActive ? setView : handleElternViewChange}
+      ariaLabel="Ansicht wählen"
+    />
+  );
+
   return (
     <div className="-mt-1.5 w-full">
       {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
@@ -379,19 +391,16 @@ export default function AnfragenPage() {
         onClearAllFilters={clearAllFilters}
         filterVariant="quiet"
         activeFilterDisplay="count"
+        // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
+        // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
+        // jeder Breite dort — `actionButton` wandert auf Mobil in die
+        // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
+        tabsRowAction={viewSwitcher}
       />
       {staffActive ? (
-        <MitarbeitendeTab
-          view={view}
-          onViewChange={setView}
-          filters={staffFilters}
-        />
+        <MitarbeitendeTab view={view} filters={staffFilters} />
       ) : (
-        <ElternTab
-          view={view}
-          onViewChange={handleElternViewChange}
-          filters={filters}
-        />
+        <ElternTab view={view} filters={filters} />
       )}
     </div>
   );
@@ -404,31 +413,13 @@ export default function AnfragenPage() {
  */
 function ElternTab({
   view,
-  onViewChange,
   filters,
 }: Readonly<{
   view: "open" | "history";
-  onViewChange: (view: "open" | "history") => void;
   filters: AggregatedRequestFilters;
 }>) {
   return (
     <div className="w-full">
-      <p className="mb-4 max-w-3xl text-sm text-gray-600">
-        {view === "open"
-          ? "Von Eltern eingereichte Änderungen, die eine Freigabe benötigen."
-          : "Bereits entschiedene Anfragen mit Datum, Person und Begründung."}
-      </p>
-      <div className="mb-6">
-        <SegmentedControl
-          items={[
-            { value: "open", label: "Offen" },
-            { value: "history", label: "Historie" },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel="Ansicht wählen"
-        />
-      </div>
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
       <AggregatedRequestList key={view} view={view} filters={filters} />
@@ -443,31 +434,13 @@ function ElternTab({
  */
 function MitarbeitendeTab({
   view,
-  onViewChange,
   filters,
 }: Readonly<{
   view: "open" | "history";
-  onViewChange: (view: "open" | "history") => void;
   filters: StaffAbsenceRequestFilters;
 }>) {
   return (
     <div className="w-full">
-      <p className="mb-4 max-w-3xl text-sm text-gray-600">
-        {view === "open"
-          ? "Urlaub, Krank, Fortbildung und Sonstige, die eine Freigabe brauchen."
-          : "Bereits entschiedene Anträge mit Datum, Person und Begründung."}
-      </p>
-      <div className="mb-6">
-        <SegmentedControl
-          items={[
-            { value: "open", label: "Offen" },
-            { value: "history", label: "Historie" },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel="Ansicht wählen"
-        />
-      </div>
       {/* key={view}: die Liste mountet beim Umschalten frisch. */}
       <StaffAbsenceRequestList key={view} view={view} filters={filters} />
     </div>
