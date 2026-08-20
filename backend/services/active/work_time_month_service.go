@@ -608,7 +608,12 @@ const maxOpenWorkSessionDuration = 12 * time.Hour
 
 func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
 	end := sessionEndUpTo(session, now)
-	if session.Date.Before(today) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+	if session.Date.Before(today.AddDays(-1)) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+			return staleEnd
+		}
+	}
+	if !session.Date.Before(today.AddDays(-1)) && session.Date.Before(today) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
 		if staleEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration); staleEnd.Before(end) {
 			return staleEnd
 		}
