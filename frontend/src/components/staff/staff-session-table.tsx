@@ -14,6 +14,12 @@ import {
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
+import {
+  berlinTodayISO,
+  endOfBerlinDayISO,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffAbsenceRow,
@@ -28,8 +34,14 @@ import {
   resolveTargetForDate,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
-import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
-import { formatDuration } from "~/lib/time-tracking-helpers";
+import type {
+  WorkSessionEdit,
+  WorkSessionHistory,
+} from "~/lib/time-tracking-helpers";
+import {
+  formatDuration,
+  indexWorkSessionMinutesByBerlinDate,
+} from "~/lib/time-tracking-helpers";
 
 import {
   AdminSessionEditModal,
@@ -48,6 +60,80 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // Tooltip der beiden Zeit-Zellen auf einem Mehrblock-Tag (#2402).
 const multiBlockBoundsHint =
   "Tagesgrenzen über alle Blöcke — die Zeit zwischen zwei Blöcken zählt nicht als Arbeitszeit. Die gearbeiteten Zeiten stehen je Block darunter.";
+
+function splitSessionByBerlinDate(
+  session: StaffHistorySession,
+  now: Date,
+): StaffHistorySession[] {
+  const sourceDate = session.date.slice(0, 10);
+  const yesterday = parseISODate(berlinTodayISO(now));
+  yesterday.setDate(yesterday.getDate() - 1);
+  // A genuinely open block can only span last night. Older open rows are
+  // stale data awaiting cleanup; keep their historical table row intact
+  // rather than fabricating one open segment for every intervening day.
+  if (session.check_out_time === null && sourceDate < toISODate(yesterday)) {
+    return [session];
+  }
+  const historySession: WorkSessionHistory = {
+    id: session.id ?? "",
+    staffId: "",
+    date: session.date,
+    status: session.status ?? "present",
+    source: session.source,
+    checkInTime: session.check_in_time,
+    checkOutTime: session.check_out_time,
+    breakMinutes: session.break_minutes,
+    notes: session.notes ?? "",
+    autoCheckedOut: session.auto_checked_out ?? false,
+    createdBy: "",
+    updatedBy: null,
+    createdAt: "",
+    updatedAt: "",
+    netMinutes: session.net_minutes,
+    isOvertime: false,
+    isBreakCompliant: true,
+    restPeriodWarning: null,
+    breaks: (session.breaks ?? []).map((workBreak, index) => ({
+      id: index.toString(),
+      sessionId: session.id ?? "",
+      startedAt: workBreak.started_at,
+      endedAt: workBreak.ended_at,
+      durationMinutes: 0,
+      plannedEndTime: null,
+    })),
+    editCount: session.edit_count ?? 0,
+    auditCount: session.audit_count ?? 0,
+  };
+  const valuesByDate = indexWorkSessionMinutesByBerlinDate(
+    [historySession],
+    now,
+  );
+  const start = new Date(session.check_in_time);
+  const end = new Date(session.check_out_time ?? now);
+
+  return [...valuesByDate.entries()].map(([date, values]) => {
+    const isFirstDay = date === berlinTodayISO(start);
+    const isLastDay = date === berlinTodayISO(end);
+    const previousDay = parseISODate(date);
+    previousDay.setDate(previousDay.getDate() - 1);
+    const segmentStart = isFirstDay
+      ? session.check_in_time
+      : new Date(
+          new Date(endOfBerlinDayISO(previousDay)).getTime() + 1_000,
+        ).toISOString();
+    const segmentEnd = isLastDay
+      ? session.check_out_time
+      : endOfBerlinDayISO(parseISODate(date));
+    return {
+      ...session,
+      date,
+      check_in_time: segmentStart,
+      check_out_time: segmentEnd,
+      net_minutes: values.netMinutes,
+      break_minutes: values.breakMinutes,
+    };
+  });
+}
 
 // Day-row table for the Zeiterfassung tab. Industry-standard layout: one
 // row per calendar day, comparing Check-in, Check-out, Pause, Soll, Ist
@@ -157,16 +243,16 @@ export function StaffSessionTable({
   ) => Promise<WorkSessionEdit[]>;
 }) {
   // A day can carry several work blocks since #2402 (Homeoffice-Vormittag,
-  // OGS-Nachmittag), so the lookup keeps a LIST per day in check-in order.
+  // OGS-Nachmittag), including a part of an overnight block. The lookup keeps
+  // a list per Berlin calendar day in check-in order.
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, StaffHistorySession[]>();
     for (const session of sessions) {
-      // Normalise to YYYY-MM-DD; sessions can come back as either bare dates
-      // or ISO timestamps depending on the backend serializer.
-      const key = session.date.slice(0, 10);
-      const list = map.get(key);
-      if (list) list.push(session);
-      else map.set(key, [session]);
+      for (const segment of splitSessionByBerlinDate(session, new Date())) {
+        const list = map.get(segment.date);
+        if (list) list.push(segment);
+        else map.set(segment.date, [segment]);
+      }
     }
     for (const list of map.values()) {
       list.sort((a, b) =>

@@ -27,4 +27,21 @@ describe("UebersichtTab Nachtblöcke", () => {
       ]),
     );
   });
+
+  it("zieht Legacy-Pausen zuerst vom ersten Tagesanteil ab", () => {
+    const session: StaffHistorySession = {
+      date: "2026-07-20",
+      net_minutes: 210,
+      check_in_time: "2026-07-20T20:00:00.000Z",
+      check_out_time: "2026-07-21T00:00:00.000Z",
+      break_minutes: 30,
+    };
+
+    expect(indexSessionNetMinutesByBerlinDate([session])).toEqual(
+      new Map([
+        ["2026-07-20", 90],
+        ["2026-07-21", 120],
+      ]),
+    );
+  });
 });

@@ -19,6 +19,7 @@ import {
   getWeekNumber,
   getComplianceWarnings,
   calculateNetMinutes,
+  indexWorkSessionMinutesByBerlinDate,
   mapClosingDaysResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
@@ -897,5 +898,38 @@ describe("calculateNetMinutes", () => {
     const result = calculateNetMinutes(checkIn, checkOut, 0);
 
     expect(result).toBe(240); // 4 * 60
+  });
+});
+
+describe("indexWorkSessionMinutesByBerlinDate", () => {
+  it("splits a night block and its pause at the Berlin day boundary", () => {
+    const session: WorkSessionHistory = {
+      id: "1",
+      staffId: "1",
+      date: "2026-07-20",
+      status: "present",
+      checkInTime: "2026-07-20T20:00:00.000Z", // 22:00 CEST
+      checkOutTime: "2026-07-21T00:00:00.000Z", // 02:00 CEST
+      breakMinutes: 30,
+      notes: "",
+      autoCheckedOut: false,
+      createdBy: "1",
+      updatedBy: null,
+      createdAt: "",
+      updatedAt: "",
+      netMinutes: 210,
+      isOvertime: false,
+      isBreakCompliant: true,
+      restPeriodWarning: null,
+      breaks: [],
+      editCount: 0,
+    };
+
+    expect(indexWorkSessionMinutesByBerlinDate([session])).toEqual(
+      new Map([
+        ["2026-07-20", { netMinutes: 90, breakMinutes: 30 }],
+        ["2026-07-21", { netMinutes: 120, breakMinutes: 0 }],
+      ]),
+    );
   });
 });

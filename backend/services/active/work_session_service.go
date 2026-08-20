@@ -1651,29 +1651,37 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int) []WeeklySummary {
 	weekMap := make(map[summaryWeekKey]*WeeklySummary)
 	var weekOrder []summaryWeekKey
+	now := time.Now()
 
 	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
+		end := BalanceSessionEnd(session.WorkSession, now)
+		countedWeeks := make(map[summaryWeekKey]struct{})
+		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, session.Date, timezone.DateFromTime(end)) {
+			year, week := day.UTCMidnight().ISOWeek()
+			key := summaryWeekKey{Year: year, Week: week}
 
-		summary, exists := weekMap[key]
-		if !exists {
-			var targetMinutes *int
-			if target, ok := targetsByWeek[key]; ok {
-				targetCopy := target
-				targetMinutes = &targetCopy
+			summary, exists := weekMap[key]
+			if !exists {
+				var targetMinutes *int
+				if target, ok := targetsByWeek[key]; ok {
+					targetCopy := target
+					targetMinutes = &targetCopy
+				}
+				summary = &WeeklySummary{
+					WeekNumber:    week,
+					Year:          year,
+					TargetMinutes: targetMinutes,
+				}
+				weekMap[key] = summary
+				weekOrder = append(weekOrder, key)
 			}
-			summary = &WeeklySummary{
-				WeekNumber:    week,
-				Year:          year,
-				TargetMinutes: targetMinutes,
+
+			summary.TotalNetMinutes += minutes
+			if _, counted := countedWeeks[key]; !counted {
+				summary.SessionCount++
+				countedWeeks[key] = struct{}{}
 			}
-			weekMap[key] = summary
-			weekOrder = append(weekOrder, key)
 		}
-
-		summary.TotalNetMinutes += session.NetMinutes
-		summary.SessionCount++
 	}
 
 	// Convert to sorted slice and compute derived fields

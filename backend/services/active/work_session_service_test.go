@@ -1902,6 +1902,30 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		"the displayed pause must include the running break")
 }
 
+func TestBuildWeeklySummaries_SplitsOvernightBlockAcrossISOWeeks(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         sunday,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+	}}, nil)
+
+	require.Len(t, summaries, 2)
+	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
+	assert.Equal(t, 120, summaries[1].TotalNetMinutes)
+	assert.Equal(t, 1, summaries[0].SessionCount)
+	assert.Equal(t, 1, summaries[1].SessionCount)
+	assert.NotEqual(t, summaries[0].WeekNumber, summaries[1].WeekNumber)
+}
+
 // The pause total is what the day row prints, so it has to survive JSON: the
 // response embeds *WorkSession, whose own break_minutes tag would win if the
 // shadowing field were ever removed — and the row would silently fall back to
@@ -1991,8 +2015,8 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	staffID := int64(100)
 	wednesdayWeekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	mondayWeekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
-	checkOutWeekZero := wednesdayWeekZero.Add(20 * time.Hour)
-	checkOutWeekOne := mondayWeekOne.Add(30 * time.Hour)
+	checkOutWeekZero := wednesdayWeekZero.Add(6 * time.Hour)
+	checkOutWeekOne := mondayWeekOne.Add(7 * time.Hour)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
 		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
@@ -2006,7 +2030,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  20 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      validFrom,
 				},
 				{
@@ -2014,7 +2038,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					WeekIndex:      1,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  30 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      validFrom,
 				},
 			}, nil
@@ -2060,9 +2084,9 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
@@ -2072,8 +2096,8 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	staffID := int64(100)
 	oldWeek := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	newWeek := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
-	checkOutOldWeek := oldWeek.Add(20 * time.Hour)
-	checkOutNewWeek := newWeek.Add(30 * time.Hour)
+	checkOutOldWeek := oldWeek.Add(6 * time.Hour)
+	checkOutNewWeek := newWeek.Add(7 * time.Hour)
 	changeDate := timezone.NewDate(2026, 6, 8)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -2091,7 +2115,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
-					TargetMinutes:  20 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      timezone.NewDate(2026, 1, 1),
 					ValidUntil:     &changeDate,
 				},
@@ -2100,7 +2124,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
-					TargetMinutes:  30 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      changeDate,
 				},
 			}, nil
@@ -2143,9 +2167,9 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
@@ -2157,8 +2181,8 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	anchor := timezone.NewDate(2026, 6, 1)
 	weekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	weekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
-	checkOutWeekZero := weekZero.Add(25 * time.Hour)
-	checkOutWeekOne := weekOne.Add(35 * time.Hour)
+	checkOutWeekZero := weekZero.Add(6 * time.Hour)
+	checkOutWeekOne := weekOne.Add(7 * time.Hour)
 
 	svc.staffRepo = &testpkg.StaffRepoMock{
 		FindByIDFn: func(_ context.Context, _ any) (*userModels.Staff, error) {
@@ -2182,14 +2206,14 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  25 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      anchor,
 				},
 				{
 					WeekIndex:      1,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  35 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      anchor,
 				},
 			}, nil
@@ -2231,9 +2255,9 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 25*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 35*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 

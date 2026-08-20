@@ -107,6 +107,7 @@ import {
   getWeekDays,
   getWeekNumber,
   calculateNetMinutes,
+  indexWorkSessionMinutesByBerlinDate,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
 import { createLogger } from "~/lib/logger";
@@ -126,14 +127,6 @@ function formatDateShort(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${day}.${month}`;
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
 }
 
 // Extracts error message string from unknown error types
@@ -1983,11 +1976,9 @@ const weekChartConfig = {
 
 function WeekChart({
   history,
-  currentSession,
   weekOffset,
 }: {
   readonly history: WorkSessionHistory[];
-  readonly currentSession: WorkSession | null;
   readonly weekOffset: number;
 }) {
   const [isMobile, setIsMobile] = useState(false);
@@ -2016,14 +2007,7 @@ function WeekChart({
       d.setDate(d.getDate() - 1);
     }
 
-    // A day can carry several work blocks (#2402) — sum them instead of
-    // letting the last block win.
-    const sessionMap = new Map<string, WorkSessionHistory[]>();
-    for (const session of history) {
-      const list = sessionMap.get(session.date);
-      if (list) list.push(session);
-      else sessionMap.set(session.date, [session]);
-    }
+    const minutesByDate = indexWorkSessionMinutesByBerlinDate(history);
 
     return allDays.map((day) => {
       if (!day) {
@@ -2037,31 +2021,8 @@ function WeekChart({
       }
 
       const dateKey = toISODate(day);
-      const daySessions = sessionMap.get(dateKey) ?? [];
+      const dayMinutes = minutesByDate.get(dateKey);
       const dayIndex = (day.getDay() + 6) % 7; // Mon=0..Sun=6
-
-      let netMins = 0;
-      let breakMins = 0;
-
-      for (const session of daySessions) {
-        if (session.checkOutTime) {
-          netMins += session.netMinutes;
-        } else if (
-          currentSession &&
-          !currentSession.checkOutTime &&
-          (currentSession.id === session.id || isSameDay(day, today))
-        ) {
-          // The running block counts on the bar of the day it is filed on —
-          // which is yesterday's once it was opened before Berlin midnight.
-          // Matching it by id keeps its elapsed time visible there instead of
-          // dropping to zero while the clock card still says "eingestempelt".
-          const elapsed = Math.floor(
-            (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
-          );
-          netMins += Math.max(0, elapsed - session.breakMinutes);
-        }
-        breakMins += session.breakMinutes;
-      }
 
       const dayShort = DAY_NAMES[dayIndex] ?? "";
       return {
@@ -2071,12 +2032,12 @@ function WeekChart({
         dayKey: dateKey,
         dayShort,
         label: `${dayShort} ${formatDateShort(day)}`,
-        netMinutes: netMins,
-        breakMinutes: breakMins,
+        netMinutes: dayMinutes?.netMinutes ?? 0,
+        breakMinutes: dayMinutes?.breakMinutes ?? 0,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history, currentSession, weekOffset]);
+  }, [history, weekOffset]);
 
   const tooltipLabelFormatter = useCallback(
     (
@@ -3765,11 +3726,7 @@ function TimeTrackingContent() {
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />
-        <WeekChart
-          history={history}
-          currentSession={currentSession ?? null}
-          weekOffset={weekOffset}
-        />
+        <WeekChart history={history} weekOffset={weekOffset} />
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,

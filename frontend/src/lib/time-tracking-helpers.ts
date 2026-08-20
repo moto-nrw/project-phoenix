@@ -1,6 +1,11 @@
 // Helper functions for time tracking data transformation and calculations
 
 import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
+import {
+  berlinTodayISO,
+  endOfBerlinDayISO,
+  parseISODate,
+} from "~/lib/date-helpers";
 
 // Backend response types (snake_case, numbers for IDs)
 export interface BackendWorkSession {
@@ -200,6 +205,114 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+}
+
+export interface WorkSessionDayMinutes {
+  netMinutes: number;
+  breakMinutes: number;
+}
+
+// Splits the values shown on charts at Berlin calendar boundaries. The backend
+// uses the same rule for the monthly balance; keeping it here avoids filing a
+// complete night block under its check-in date in the client.
+export function indexWorkSessionMinutesByBerlinDate(
+  sessions: readonly WorkSessionHistory[],
+  now: Date = new Date(),
+): Map<string, WorkSessionDayMinutes> {
+  const result = new Map<string, WorkSessionDayMinutes>();
+
+  for (const session of sessions) {
+    const start = new Date(session.checkInTime);
+    const end = new Date(session.checkOutTime ?? now);
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
+      continue;
+    }
+
+    const grossByDate = new Map<string, number>();
+    for (let cursor = start; cursor < end;) {
+      const date = berlinTodayISO(cursor);
+      const nextMidnight =
+        new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+      const segmentEnd = Math.min(end.getTime(), nextMidnight);
+      const minutes = Math.floor((segmentEnd - cursor.getTime()) / 60_000);
+      if (minutes > 0) grossByDate.set(date, minutes);
+      cursor = new Date(segmentEnd);
+    }
+
+    if (grossByDate.size === 0) continue;
+
+    const breakByDate = new Map<string, number>();
+    for (const workBreak of session.breaks) {
+      const breakStart = new Date(workBreak.startedAt);
+      const breakEnd = new Date(workBreak.endedAt ?? now);
+      const clippedStart = Math.max(start.getTime(), breakStart.getTime());
+      const clippedEnd = Math.min(end.getTime(), breakEnd.getTime());
+      for (let cursor = clippedStart; cursor < clippedEnd;) {
+        const date = berlinTodayISO(new Date(cursor));
+        const nextMidnight =
+          new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+        const segmentEnd = Math.min(clippedEnd, nextMidnight);
+        const minutes = Math.floor((segmentEnd - cursor) / 60_000);
+        if (minutes > 0) {
+          breakByDate.set(date, (breakByDate.get(date) ?? 0) + minutes);
+        }
+        cursor = segmentEnd;
+      }
+    }
+
+    // Legacy rows only retain the total. The server assigns it to the earliest
+    // Berlin-day segment before distributing the remaining net time.
+    if (session.breaks.length === 0 && session.breakMinutes > 0) {
+      let remaining = session.breakMinutes;
+      for (const [date, gross] of grossByDate) {
+        const deducted = Math.min(gross, remaining);
+        breakByDate.set(date, deducted);
+        remaining -= deducted;
+        if (remaining === 0) break;
+      }
+    }
+
+    const netTotal = session.checkOutTime
+      ? session.netMinutes
+      : Math.max(
+          0,
+          Math.floor((end.getTime() - start.getTime()) / 60_000) -
+            session.breakMinutes,
+        );
+    const grossTotal = [...grossByDate.values()].reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    let allocated = 0;
+    const portions = [...grossByDate.entries()].map(([date, gross]) => {
+      const net = Math.floor(
+        (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
+          Math.max(
+            1,
+            grossTotal -
+              [...breakByDate.values()].reduce((sum, value) => sum + value, 0),
+          ),
+      );
+      allocated += net;
+      return { date, net, gross };
+    });
+    // Keep integer totals exact; the final minute belongs to the latest segment.
+    if (portions.length > 0)
+      portions[portions.length - 1]!.net += netTotal - allocated;
+
+    for (const { date, net } of portions) {
+      const existing = result.get(date) ?? { netMinutes: 0, breakMinutes: 0 };
+      existing.netMinutes += net;
+      existing.breakMinutes += breakByDate.get(date) ?? 0;
+      result.set(date, existing);
+    }
+  }
+
+  return result;
 }
 
 export interface WeeklySummary {

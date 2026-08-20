@@ -938,6 +938,17 @@ function splitSessionNetMinutesByBerlinDate(
   }
 
   const rawNetByDate = new Map<string, number>();
+  if ((session.breaks?.length ?? 0) === 0 && session.break_minutes > 0) {
+    // Legacy rows have only the cached aggregate. Mirror netMinutesByDate:
+    // consume it from the earliest Berlin segment instead of smearing a pause
+    // across days whose actual pause time is unknown.
+    let remainingBreakMinutes = session.break_minutes;
+    for (const [date, grossMinutes] of grossByDate) {
+      const deducted = Math.min(grossMinutes, remainingBreakMinutes);
+      breakByDate.set(date, deducted);
+      remainingBreakMinutes -= deducted;
+    }
+  }
   let totalRawNet = 0;
   for (const [date, grossMinutes] of grossByDate) {
     const netMinutes = Math.max(0, grossMinutes - (breakByDate.get(date) ?? 0));
