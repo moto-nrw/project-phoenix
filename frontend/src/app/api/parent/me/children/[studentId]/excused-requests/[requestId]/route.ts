@@ -6,6 +6,7 @@ import {
 interface BackendExcusedRequest {
   id: string;
   student_id: string;
+  absence_status: string;
   status: string;
   dates: string[];
   note: string;
@@ -17,9 +18,10 @@ interface BackendExcusedRequest {
 
 /**
  * DELETE /api/parent/me/children/{studentId}/excused-requests/{requestId} →
- * backend. Withdraws the guardian's own still-pending excused request and
- * returns the updated request (now `withdrawn`). The backend rejects a withdraw
- * once the OGS has decided the request, and verifies guardianship from the JWT.
+ * backend. Withdraws the guardian's own still-pending sick or excused absence
+ * request and returns the updated request (now `withdrawn`). The route retains
+ * its legacy excused-only name. The backend rejects a withdraw once the OGS has
+ * decided the request, and verifies guardianship from the JWT.
  */
 export const DELETE = createParentDeleteHandler<BackendExcusedRequest>(
   async (_request, token, params) => {

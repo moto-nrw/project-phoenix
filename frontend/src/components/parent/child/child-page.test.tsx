@@ -76,6 +76,7 @@ function buildCare(
     loading: false,
     features: {
       sick_note_enabled: true,
+      sick_requires_approval: false,
       pickup_change_enabled: true,
       pickup_manage_allowed: true,
       notes_enabled: true,

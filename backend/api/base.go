@@ -392,6 +392,15 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return "read"
+		default:
+			return "write"
+		}
+	})
+	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
 		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	}

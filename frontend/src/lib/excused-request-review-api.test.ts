@@ -33,6 +33,7 @@ function mkRequest(
     student_id: "42",
     first_name: "Max",
     last_name: "M.",
+    absence_status: "excused",
     status: "pending",
     dates: ["2026-07-10", "2026-07-11"],
     note: "Familienfeier",

@@ -130,6 +130,11 @@ function ExcusedHistoryCard({
     <RequestReviewCard
       type="excused"
       childName={`${row.first_name} ${row.last_name}`}
+      typeLabel={
+        row.absence_status === "sick"
+          ? "Krankmeldung"
+          : "Entschuldigte Abmeldung"
+      }
       summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
       history={{

@@ -566,7 +566,7 @@ func (s *service) registerCheckoutBroadcast(
 		return
 	}
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+	studentRec := s.getStudentForSSE(ctx, studentID)
 
 	tenant.RegisterAfterCommit(ctx, func() {
 		if endedVisit != nil {
@@ -576,10 +576,10 @@ func (s *service) registerCheckoutBroadcast(
 			if checkoutType == checkoutTypeDaily {
 				source = dailyCheckoutSource
 			}
-			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, source)
+			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, source)
 			return
 		}
-		s.emitRoomlessCheckout(ctx, studentID, studentName, studentRec, checkoutSourceLabel(checkoutType))
+		s.emitRoomlessCheckout(ctx, studentID, studentRec, checkoutSourceLabel(checkoutType))
 	})
 }
 
@@ -607,10 +607,10 @@ func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64,
 		return
 	}
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+	studentRec := s.getStudentForSSE(ctx, studentID)
 
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitRoomlessCheckin(ctx, studentID, studentName, studentRec, checkinType)
+		s.emitRoomlessCheckin(ctx, studentID, studentRec, checkinType)
 	})
 }
 
@@ -697,11 +697,10 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 func (s *service) emitRoomlessCheckout(
 	ctx context.Context,
 	studentID int64,
-	studentName string,
 	studentRec *userModels.Student,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, studentName, studentRec, source)
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, studentRec, source)
 }
 
 // emitRoomlessCheckin publishes a check-in that has no room context: attendance
@@ -713,11 +712,10 @@ func (s *service) emitRoomlessCheckout(
 func (s *service) emitRoomlessCheckin(
 	ctx context.Context,
 	studentID int64,
-	studentName string,
 	studentRec *userModels.Student,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, studentName, studentRec, source)
+	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, studentRec, source)
 }
 
 // emitRoomlessAttendanceChange publishes an attendance change with no room
@@ -731,7 +729,6 @@ func (s *service) emitRoomlessAttendanceChange(
 	ctx context.Context,
 	eventType realtime.EventType,
 	studentID int64,
-	studentName string,
 	studentRec *userModels.Student,
 	source string,
 ) {
@@ -743,9 +740,8 @@ func (s *service) emitRoomlessAttendanceChange(
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
-		StudentID:   &studentIDStr,
-		StudentName: &studentName,
-		Source:      &source,
+		StudentID: &studentIDStr,
+		Source:    &source,
 	}
 	if len(eduGroupIDs) > 0 {
 		data.GroupIDs = &eduGroupIDs

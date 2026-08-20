@@ -20,6 +20,9 @@ type captureBroadcaster struct {
 func (c *captureBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
 	return nil
 }
+func (c *captureBroadcaster) BroadcastToGroups(_ int64, _ []string, _ realtime.Event) error {
+	return nil
+}
 
 func (c *captureBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
 func (c *captureBroadcaster) BroadcastToGuardian(_, _ int64, _ realtime.Event) error    { return nil }

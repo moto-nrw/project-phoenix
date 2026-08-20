@@ -21,7 +21,15 @@ export type MessageKind = "message" | "event" | "request";
  * the permanent weekly plan, `pickup_change` a single day's pickup time — two
  * different promises to the parent, so they never share a label.
  */
-type RequestType = "care_schedule" | "pickup_change";
+type StructuredRequestType = "care_schedule" | "pickup_change";
+
+/** Every request_type token emitted on the shared message/event wire. */
+type WireRequestType =
+  | StructuredRequestType
+  | "master_data"
+  | "excused_absence"
+  | "sick_absence"
+  | "care_offering";
 
 /** The lifecycle status of a parent-OGS change request. */
 type RequestStatus = "offen" | "erledigt" | "abgelehnt" | "zurueckgezogen";
@@ -69,7 +77,7 @@ export interface ChatMessage {
   // older payload still renders as a bubble.
   readonly kind?: MessageKind;
   readonly event_type?: string;
-  readonly request_type?: RequestType;
+  readonly request_type?: WireRequestType;
   readonly request_status?: RequestStatus;
   // Deep-link reference to the underlying request row (e.g.
   // "users.student_data_change_requests" / "schedule.care_schedule_change_requests"
@@ -103,7 +111,7 @@ const PARENT_STATUS_I18N_KEYS: Record<RequestStatus, string> = {
   zurueckgezogen: "statusWithdrawn",
 };
 
-const PARENT_REQUEST_TYPE_I18N_KEYS: Record<RequestType, string> = {
+const PARENT_REQUEST_TYPE_I18N_KEYS: Record<StructuredRequestType, string> = {
   care_schedule: "requestTypeCareSchedule",
   pickup_change: "requestTypePickupChange",
 };
@@ -133,7 +141,7 @@ export function parentRequestStatusI18nKey(status?: string): string {
  */
 export function parentRequestTypeI18nKey(requestType?: string): string {
   return (
-    PARENT_REQUEST_TYPE_I18N_KEYS[requestType as RequestType] ??
+    PARENT_REQUEST_TYPE_I18N_KEYS[requestType as StructuredRequestType] ??
     "requestTitleFallback"
   );
 }
@@ -143,6 +151,7 @@ const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
   pickup_change: "eventRequestCreatedPickupChange",
   master_data: "eventRequestCreatedMasterData",
   excused_absence: "eventRequestCreatedExcusedAbsence",
+  sick_absence: "eventRequestCreatedSickAbsence",
   care_offering: "eventRequestCreatedCareOffering",
 };
 
@@ -151,6 +160,7 @@ const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
   pickup_change: "eventRequestConfirmedPickupChange",
   master_data: "eventRequestConfirmedMasterData",
   excused_absence: "eventRequestConfirmedExcusedAbsence",
+  sick_absence: "eventRequestConfirmedSickAbsence",
   care_offering: "eventRequestConfirmedCareOffering",
 };
 

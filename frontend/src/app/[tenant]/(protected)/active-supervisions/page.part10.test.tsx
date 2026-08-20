@@ -1131,6 +1131,64 @@ describe("Aggregate fetcher error contract", () => {
   });
 });
 
+const requestBudgetDashboardData = {
+  supervisedGroups: [
+    { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+  ],
+  unclaimedGroups: [],
+  currentStaff: { id: "1" },
+  educationalGroups: [],
+  firstRoomVisits: [],
+  firstRoomId: "1",
+  selectedGroupId: "1",
+  capabilities: { webSpontaneousActivitiesEnabled: true },
+  schulhofStatus: null,
+};
+
+function capturePageLoadFetchers(
+  fetchers: Map<string, () => Promise<unknown>>,
+) {
+  vi.mocked(useSWRAuth).mockImplementation(((
+    key: string | null,
+    fetcher: (() => Promise<unknown>) | undefined,
+  ) => {
+    if (typeof key === "string" && fetcher) fetchers.set(key, fetcher);
+    return {
+      data:
+        typeof key === "string" &&
+        key.startsWith("active-supervision-dashboard-")
+          ? requestBudgetDashboardData
+          : null,
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never;
+  }) as never);
+}
+
+describe("Page-load request budget", () => {
+  it("uses one aggregate request plus one selected-session roster request", async () => {
+    const fetchers = new Map<string, () => Promise<unknown>>();
+    capturePageLoadFetchers(fetchers);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(fetchers.size).toBe(2));
+    await Promise.allSettled(
+      [...fetchers.values()].map((fetcher) => fetcher()),
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(global.fetch).mock.calls.map(([url]) => String(url)),
+    ).toEqual([
+      "/api/active-supervision-dashboard?group_id=1",
+      "/api/timetable/operations/active-groups/1/roster",
+    ]);
+  });
+});
+
 describe("Tracking indicators rendering", () => {
   const mockMutate = vi.fn();
 

@@ -266,6 +266,40 @@ func TestUserContextService_GetMyGroups(t *testing.T) {
 	})
 }
 
+func TestUserContextService_GetNavigationContext(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupUserContextService(t, db)
+
+	t.Run("returns one complete navigation projection", func(t *testing.T) {
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Navigation", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "Navigation Group")
+		today := timezone.TodayDate()
+		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID, today, today.AddDays(1))
+
+		result, err := service.GetNavigationContext(contextWithClaims(t, int(account.ID)))
+
+		require.NoError(t, err)
+		require.NotNil(t, result.CurrentStaff)
+		assert.Equal(t, staff.ID, result.CurrentStaff.ID)
+		require.Len(t, result.EducationalGroups, 1)
+		assert.Equal(t, group.ID, result.EducationalGroups[0].ID)
+		assert.True(t, result.EducationalGroups[0].ViaSubstitution)
+		assert.Empty(t, result.SupervisedGroups)
+	})
+
+	t.Run("keeps current staff null for a non-staff account", func(t *testing.T) {
+		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Navigation", "NonStaff")
+
+		result, err := service.GetNavigationContext(contextWithClaims(t, int(account.ID)))
+
+		require.NoError(t, err)
+		assert.Nil(t, result.CurrentStaff)
+		assert.Empty(t, result.EducationalGroups)
+		assert.Empty(t, result.SupervisedGroups)
+	})
+}
+
 func TestUserContextService_GetMyActivityGroups(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

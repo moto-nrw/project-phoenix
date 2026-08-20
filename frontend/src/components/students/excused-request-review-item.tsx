@@ -47,7 +47,7 @@ function isNextDay(prev: string, next: string): boolean {
 // shown as "Mon – Wed" (which would wrongly imply Tuesday is included too).
 // Exportiert fuer die Historie, die dieselbe Kurzfassung zeigt.
 export function datesSummary(dates: StaffExcusedRequest["dates"]): string {
-  if (dates.length === 0) return "Entschuldigung";
+  if (dates.length === 0) return "Keine Tage";
   const sorted = [...dates].sort((a, b) => a.localeCompare(b));
   if (sorted.length === 1) return formatDate(sorted[0]!);
   const contiguous = sorted.every(
@@ -59,8 +59,14 @@ export function datesSummary(dates: StaffExcusedRequest["dates"]): string {
   return sorted.map((d) => formatDate(d)).join(", ");
 }
 
+function absenceLabel(row: StaffExcusedRequest): string {
+  return row.absence_status === "sick"
+    ? "Krankmeldung"
+    : "Entschuldigte Abmeldung";
+}
+
 /**
- * Eine offene Entschuldigungs-Anfrage als entscheidbare Karte. Ablehnen
+ * Eine offene Abwesenheits-Anfrage als entscheidbare Karte. Ablehnen
  * verlangt eine Begründung; nach der Entscheidung meldet onDecided den
  * Hinweistext und der Aufrufer entfernt die Zeile aus der Liste (#2432).
  */
@@ -89,7 +95,9 @@ export function ExcusedRequestReviewItem({
     try {
       await decideExcusedAbsenceRequest(row.id, approve, trimmed || undefined);
       onDecided(
-        approve ? "Abmeldung bestätigt" : "Entschuldigungs-Anfrage abgelehnt",
+        approve
+          ? `${absenceLabel(row)} bestätigt`
+          : `${absenceLabel(row)} abgelehnt`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -108,6 +116,7 @@ export function ExcusedRequestReviewItem({
     <RequestReviewCard
       type="excused"
       childName={`${row.first_name} ${row.last_name}`}
+      typeLabel={absenceLabel(row)}
       summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
       reason={reason}

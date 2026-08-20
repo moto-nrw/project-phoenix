@@ -13,6 +13,8 @@ import (
 )
 
 func TestNoDuplicateMigrationVersions(t *testing.T) {
+	t.Parallel()
+
 	// This test scans migration source files to detect version collisions.
 	// MigrationRegistry is a map[string]*Migration — if two init() functions
 	// register the same version key, the second silently overwrites the first.

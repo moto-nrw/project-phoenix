@@ -91,15 +91,14 @@ var (
 	// on the unique index (e.g. a double-click); the change was not saved and
 	// the caller should reload and retry.
 	ErrCareExceptionRaced = errors.New("parent: this day was just changed, please reload and try again")
-	// ErrExcusedRequestNotFound means the excused-absence request id does not
-	// belong to a request the caller submitted for this child (#1845).
+	// ErrExcusedRequestNotFound is the legacy-named error for an absence request
+	// the caller did not submit for this child.
 	ErrExcusedRequestNotFound = errors.New("parent: excused absence request not found")
-	// ErrExcusedRequestNotPending means the excused-absence request was already
-	// decided or withdrawn, so it can no longer be withdrawn.
+	// ErrExcusedRequestNotPending means the legacy-named absence request was
+	// already decided or withdrawn, so it can no longer be withdrawn.
 	ErrExcusedRequestNotPending = errors.New("parent: excused absence request is not pending")
-	// ErrExcusedRequestOverlap means a different pending excused request already
-	// covers one of the submitted dates (#1845). An identical resubmit is handled
-	// idempotently by the request service and never reaches this error.
+	// ErrExcusedRequestOverlap means a different pending absence request already
+	// covers one of the submitted dates. An identical resubmit is idempotent.
 	ErrExcusedRequestOverlap = errors.New("parent: excused absence request overlaps an existing pending request")
 )
 
@@ -176,9 +175,8 @@ func (c *parentChild) hasPermission(permission string) bool {
 }
 
 // SickNoteResult is the outcome of a parent absence submission. Exactly one of
-// its fields is populated: StatusDays for a direct write (sick, or excused when
-// the approval gate is off), PendingRequest when an excused report was turned
-// into a pending office-approval request (#1845).
+// its fields is populated: StatusDays for a direct write, PendingRequest when
+// the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*activeModels.StudentStatusDay
 	PendingRequest *activeModels.ExcusedAbsenceRequest
@@ -190,11 +188,9 @@ type SickNoteResult struct {
 // "entschuldigte Abmeldung": stored with NO live flag, per issue #1735). A note
 // is mandatory for both absence types.
 //
-// When operations.parent_excused_requires_approval is on for the child's tenant,
-// an excused report does NOT write a status day; it creates a PENDING request
-// (#1845) that staff must confirm, and the result carries PendingRequest. Sick
-// reports, and excused reports while the gate is off, are written directly and
-// the result carries StatusDays.
+// Each absence type has an independent approval setting. When its gate is on,
+// the report creates a PENDING request and writes no status day until staff
+// approve it. With the gate off, the report is applied directly.
 func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error) {
 	if len(dates) == 0 {
 		return nil, ErrNoDates
@@ -226,17 +222,16 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, ErrEmptyNote
 	}
 
-	// Optional office-approval gate for excused absences (#1845). When on, the
-	// report becomes a pending request instead of a direct status-day write, so
-	// the child stays "expected" until staff decide.
+	approvalKey := configModels.KeyParentSickRequiresApproval
 	if status == activeModels.StudentStatusDayExcused {
-		requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentExcusedRequiresApproval)
-		if err != nil {
-			return nil, fmt.Errorf("parent: resolve excused-approval setting: %w", err)
-		}
-		if requiresApproval {
-			return s.submitExcusedRequest(ctx, child, accountID, studentID, dates, trimmedNote)
-		}
+		approvalKey = configModels.KeyParentExcusedRequiresApproval
+	}
+	requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, approvalKey)
+	if err != nil {
+		return nil, fmt.Errorf("parent: resolve absence-approval setting %s: %w", approvalKey, err)
+	}
+	if requiresApproval {
+		return s.submitAbsenceRequest(ctx, child, accountID, studentID, dates, trimmedNote, status)
 	}
 
 	now := time.Now()
@@ -406,18 +401,22 @@ func isNewParentReportableAbsence(student *usersModels.Student, status string) b
 	}
 }
 
-// submitExcusedRequest turns an excused report into a pending office-approval
-// request (#1845) inside the child's tenant transaction, then returns it as the
-// submission result. The note was already validated as non-empty and within the
-// length bound by the caller. Errors from the request service map onto the
-// parent sentinels so the handler renders stable status codes.
-func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, accountID, studentID int64, dates []timezone.Date, note string) (*SickNoteResult, error) {
+// submitAbsenceRequest turns a sick or excused report into a pending office
+// request inside the child's tenant transaction.
+func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, accountID, studentID int64, dates []timezone.Date, note, status string) (*SickNoteResult, error) {
 	if s.ExcusedRequests == nil {
-		return nil, fmt.Errorf("parent: excused request service not configured")
+		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
 	var req *activeModels.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		created, err := s.ExcusedRequests.CreateRequest(txCtx, studentID, accountID, dates, note)
+		var created *activeModels.ExcusedAbsenceRequest
+		var err error
+		if status == activeModels.StudentStatusDayExcused {
+			// Keep the original interface entry point for existing callers and fakes.
+			created, err = s.ExcusedRequests.CreateRequest(txCtx, studentID, accountID, dates, note)
+		} else {
+			created, err = s.ExcusedRequests.CreateRequestForStatus(txCtx, studentID, accountID, dates, note, status)
+		}
 		if err != nil {
 			return err
 		}
@@ -441,22 +440,23 @@ func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, 
 		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
 			return nil, ErrCareExceptionConflict
 		default:
-			return nil, fmt.Errorf("parent: submit excused request: %w", txErr)
+			return nil, fmt.Errorf("parent: submit absence request: %w", txErr)
 		}
 	}
-	s.Logger.Info("parent submitted excused absence request",
+	s.Logger.Info("parent submitted absence request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
 		slog.Int64("request_id", req.ID),
+		slog.String("status", status),
 		slog.Int("days", len(dates)),
 	)
 	return &SickNoteResult{PendingRequest: req}, nil
 }
 
-// ListExcusedRequests returns the child's pending excused-absence requests plus
-// any decided in the recent window, newest-first (#1845). Read-only: a linked
-// guardian with portal access may see them.
+// ListExcusedRequests is the legacy-named read path for the child's pending and
+// recently decided absence requests. A linked guardian with portal access may
+// see both sick and excused requests.
 func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -531,6 +531,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	keys := []string{
 		configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval,
 		configModels.KeyParentNotesEnabled,
 		configModels.KeyParentPickupChangeEnabled,
@@ -567,6 +568,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	sick, err := resolveBool(configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-note setting: %w", err)
+	}
+	sickApproval, err := resolveBool(configModels.KeyParentSickRequiresApproval)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-approval setting: %w", err)
 	}
 	excusedApproval, err := resolveBool(configModels.KeyParentExcusedRequiresApproval)
 	if err != nil {
@@ -614,6 +619,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		SickRequiresApproval:         sickApproval,
 		ExcusedRequiresApproval:      excusedApproval,
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),

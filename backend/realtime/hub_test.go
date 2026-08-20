@@ -112,6 +112,37 @@ func TestHubRegisterMultipleClients(t *testing.T) {
 	}
 }
 
+func TestBroadcastToGroupsDeduplicatesOverlappingSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	hub := NewHub(slog.Default())
+	overlap := &Client{Channel: make(chan Event, 2), UserID: 1, SubscribedGroups: make(map[string]bool)}
+	oneTopic := &Client{Channel: make(chan Event, 2), UserID: 2, SubscribedGroups: make(map[string]bool)}
+	hub.Register(overlap, 42, []string{"active:7", "edu:9"})
+	hub.Register(oneTopic, 42, []string{"edu:9"})
+
+	event := Event{Type: EventStudentCheckIn}
+	if err := hub.BroadcastToGroups(42, []string{"active:7", "edu:9", "edu:9"}, event); err != nil {
+		t.Fatalf("BroadcastToGroups() error = %v", err)
+	}
+
+	for name, client := range map[string]*Client{"overlap": overlap, "one topic": oneTopic} {
+		select {
+		case got := <-client.Channel:
+			if got.Type != event.Type {
+				t.Errorf("%s event type = %q, want %q", name, got.Type, event.Type)
+			}
+		default:
+			t.Errorf("%s received no event", name)
+		}
+		select {
+		case duplicate := <-client.Channel:
+			t.Errorf("%s received duplicate event: %#v", name, duplicate)
+		default:
+		}
+	}
+}
+
 // TestHubUnregister verifies client unregistration and cleanup
 func TestHubUnregister(t *testing.T) {
 	t.Parallel()
@@ -250,8 +281,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 	hub.Register(client, int64(42), []string{"group_1"})
 
 	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
-		StudentID:   strPtr("123"),
-		StudentName: strPtr("Test Student"),
+		StudentID: strPtr("123"),
 	})
 
 	// Broadcast event

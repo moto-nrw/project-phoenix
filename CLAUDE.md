@@ -116,6 +116,10 @@ Layer discipline, repository generics, model conventions, and the CI ratchet tes
 
 Build all new UI from `frontend/src/components/ui/`; brand colors come only from `LOCATION_COLORS` in `frontend/src/lib/location-helper.ts` — never generic Tailwind hues. Full component map, hex table, and design checklist: `.claude/rules/frontend-ui-kit.md`.
 
+### 0b. Verständlichkeit: Build for the Worst Plausible Reading (MANDATORY)
+
+**RULE: Every user-visible change (tenant portal, parents portal, kiosk, e-mails, help guide) runs the Verständlichkeit checklist before it is done, and the PR description records the result.** What can be misunderstood will be misunderstood: read-only blocks must not look clickable, functions with a precondition state it in the product, and two headings sharing a word stem need a visible boundary. Binding text standard: the `moto-einfache-sprache` skill. Checklist, negative patterns from the school feedback, and the fix hierarchy: `.claude/rules/verstaendlichkeit.md`.
+
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
 ```go
 ModelTableExpr(`education.groups AS "group"`)   // CORRECT — quoted
@@ -312,6 +316,10 @@ prescribed by the `responsive-screenshots` skill. One branch per PR, named
 **RULE: When you add a user-facing feature flow, or substantially change a flow the guide documents, update `frontend/src/components/help/guide-data.ts` (and changed screenshots) in the SAME PR.** Backend-only, operator/parents-only, and pure-styling changes are exempt. File map, data model, and PDF-render caveat: `.claude/rules/help-guide-sync.md`.
 
 ## Agent skills
+
+### User-facing German copy
+
+`moto-einfache-sprache` (`.claude/skills/moto-einfache-sprache/SKILL.md`) is the binding text standard for every string a school user reads (both portals, kiosk, e-mails, help guide). Load it before writing or changing labels, buttons, error messages, empty states, or hints; it pairs with `.claude/rules/verstaendlichkeit.md`, which decides whether the block should exist at all.
 
 ### Issue tracker
 

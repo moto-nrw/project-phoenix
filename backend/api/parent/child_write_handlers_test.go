@@ -27,24 +27,22 @@ import (
 )
 
 // alwaysOnSettings enables the parent-portal features for the handler E2E
-// tests; only ResolveBoolForTenant is exercised. The excused-approval gate
-// (#1845) is deliberately kept OFF here so the existing excused tests keep
-// exercising the direct status-day write they were written for (issue #1735);
-// the approval path has its own test that flips it on explicitly.
+// tests; only ResolveBoolForTenant is exercised. Both absence-approval gates
+// are deliberately kept OFF here so direct-write compatibility remains covered;
+// the approval paths have focused tests that turn them on explicitly.
 type alwaysOnSettings struct{ configService.SettingsService }
 
 func (alwaysOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentExcusedRequiresApproval {
+	if key == configModels.KeyParentExcusedRequiresApproval || key == configModels.KeyParentSickRequiresApproval {
 		return false, nil
 	}
 	return true, nil
 }
 
-// excusedApprovalOnSettings is alwaysOnSettings with the excused-approval gate
-// turned ON, for the handler-level approval-path test.
-type excusedApprovalOnSettings struct{ configService.SettingsService }
+// absenceApprovalOnSettings turns both approval gates on for handler-level tests.
+type absenceApprovalOnSettings struct{ configService.SettingsService }
 
-func (excusedApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
+func (absenceApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
 	return true, nil
 }
 
@@ -310,7 +308,7 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
+	router := newWriteRouterWithSettings(t, db, absenceApprovalOnSettings{})
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
 
@@ -339,7 +337,37 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	require.NoError(t, json.Unmarshal(env.Data, &reqs))
 	require.Len(t, reqs, 1)
 	assert.Equal(t, "pending", reqs[0]["status"])
+	assert.Equal(t, "excused", reqs[0]["absence_status"])
 	assert.Equal(t, true, reqs[0]["is_self"], "the calling guardian sees their own request as is_self")
+}
+
+func TestSickNoteEndpoint_SickApprovalPending(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	router := newWriteRouterWithSettings(t, db, absenceApprovalOnSettings{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{futureISO(3)}, "reason": "Fieber", "status": "sick"})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var env envelope
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
+	assert.Empty(t, days, "no status day is written while the sickness request is pending")
+
+	rr = doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/excused-requests", token, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var requests []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &requests))
+	require.Len(t, requests, 1)
+	assert.Equal(t, "pending", requests[0]["status"])
+	assert.Equal(t, "sick", requests[0]["absence_status"])
 }
 
 // TestSickNoteEndpoint_ExcusedRequiresNote covers AC2 at the HTTP boundary: an

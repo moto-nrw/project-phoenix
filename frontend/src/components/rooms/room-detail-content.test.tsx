@@ -218,6 +218,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Schmetterlingsraum")[0]).toBeInTheDocument(),
     );
+    expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(screen.getAllByText(/Hauptgebäude/).length).toBeGreaterThan(0);
     // The activity name renders inside the aggregated history card.
     expect(screen.getByText("Freispiel")).toBeInTheDocument();
