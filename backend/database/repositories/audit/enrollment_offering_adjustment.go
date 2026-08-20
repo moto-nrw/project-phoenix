@@ -58,6 +58,7 @@ func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 		Model(&rows).
 		ModelTableExpr(enrollmentOfferingAdjustmentTableExpr).
 		Where(`"enrollment_offering_adjustment".source = ?`, audit.OfferingAdjustmentSourceDirect)
+	query = base.WithTenantFilter(ctx, query, "enrollment_offering_adjustment")
 	if !beforeChangedAt.IsZero() {
 		query = query.Where(
 			`("enrollment_offering_adjustment".changed_at, "enrollment_offering_adjustment".id) < (?, ?)`,

@@ -227,6 +227,12 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 		assert.NotEqual(t, unknown.ID, row.ID, "unknown legacy rows never appear")
 	}
 
+	// The explicit repository predicate protects non-HTTP callers whose
+	// database connection bypasses RLS.
+	otherTenantRows, err := repo.ListDirectForTenant(testpkg.TenantContext(2), time.Time{}, 0, 2)
+	require.NoError(t, err)
+	assert.Empty(t, otherTenantRows)
+
 	// A non-positive limit asks for nothing and hits no database at all.
 	none, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 0)
 	require.NoError(t, err)
