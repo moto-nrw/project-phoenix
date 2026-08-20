@@ -290,9 +290,11 @@ export function AggregatedRequestList({
     );
   }
 
+  // filters.studentId zählt bewusst NICHT als aktiver Filter: im
+  // Änderungsprotokoll eines Kindes ist es der Kontext, kein Suchkriterium.
+  // "Keine Treffer für Suche und Filter" wäre dort nur verwirrend.
   const hasActiveFilters =
     filters.search.trim() !== "" ||
-    Boolean(filters.studentId) ||
     filters.types.length > 0 ||
     filters.statuses.length > 0 ||
     Boolean(filters.from) ||
@@ -306,7 +308,7 @@ export function AggregatedRequestList({
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}
           // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
-          // noch ältere Seiten da, wäre „noch nichts entschieden" schlicht
+          // noch ältere Seiten da, wäre „noch nichts entschieden“ schlicht
           // falsch — dann sagt der Text, dass weitergesucht werden kann.
           title={
             hasMore
