@@ -42,21 +42,23 @@ type reviewListEnv struct {
 
 func setupReviewListTest(t *testing.T) *reviewListEnv {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
-	// CreateTestTenant, not UniqueTestTenantID: the claims travel through a real
-	// JWT here, and an ID above 2^53 comes back corrupted from the JSON round
-	// trip — the handler would then look at a tenant that never existed.
-	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	ctx := testpkg.TenantContext(tenantID)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	settings := stubTakeoverSettings{}
 
-	account := testpkg.CreateTestAccount(t, db, "review-list")
+	var accountID int64
+	require.NoError(t, db.NewSelect().
+		TableExpr("auth.accounts").
+		ColumnExpr("id").
+		OrderExpr("id").
+		Limit(1).
+		Scan(ctx, &accountID))
 	reviewer := &usersModels.Person{
 		FirstName: "Rita",
 		LastName:  "Ruecksicht",
-		AccountID: &account.ID,
+		AccountID: &accountID,
 	}
 	reviewer.SetTenantID(tenantID)
 	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Scan(ctx))
@@ -67,7 +69,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
-	}, account.ID)
+	}, accountID)
 	require.NoError(t, err)
 
 	phase := &enrollmentModels.Phase{
@@ -165,10 +167,10 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		tenantID:  tenantID,
 		requestID: submitted.Request.ID,
 		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
-		accountID: account.ID,
+		accountID: accountID,
 	}
 	claims := jwt.AppClaims{
-		ID:          int(account.ID),
+		ID:          int(accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",
 		FirstName:   "Rita",
@@ -179,18 +181,6 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	}
 	env.token = testutil.MintTestJWT(t, claims)
 
-	t.Cleanup(func() {
-		bg := t.Context()
-		_, _ = db.NewDelete().TableExpr("enrollment.change_requests").Where("request_id = ?", env.requestID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.submission_rate_limits").Where("tenant_id = ?", tenantID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.requests").Where("phase_id = ?", phase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", reviewer.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-		_ = db.Close()
-	})
 	return env
 }
 
@@ -294,6 +284,8 @@ func idOf(row *enrollmentModels.ChangeRequest) string {
 }
 
 func TestChangeRequestReviewList_OpenShowsUndecidedNewestFirst(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
@@ -316,6 +308,8 @@ func TestChangeRequestReviewList_OpenShowsUndecidedNewestFirst(t *testing.T) {
 }
 
 func TestChangeRequestReviewList_HistoryCarriesDecisionAndCursor(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
@@ -337,6 +331,8 @@ func TestChangeRequestReviewList_HistoryCarriesDecisionAndCursor(t *testing.T) {
 }
 
 func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
@@ -363,6 +359,8 @@ func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *
 }
 
 func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
@@ -394,6 +392,8 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 }
 
 func TestChangeRequestReviewList_EscapesNameSearchWildcards(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
@@ -421,6 +421,8 @@ func TestChangeRequestReviewList_EscapesNameSearchWildcards(t *testing.T) {
 // nicht die Länge einer Seite — sonst stünde ab der Seitengröße dauerhaft
 // dieselbe Zahl dort.
 func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-3 * time.Hour)
 
@@ -458,6 +460,8 @@ func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
 }
 
 func TestChangeRequestReviewList_RefusesBadQueryAndMissingPermission(t *testing.T) {
+	t.Parallel()
+
 	env := setupReviewListTest(t)
 
 	for _, query := range []string{
