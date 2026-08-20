@@ -89,11 +89,14 @@ type AggregatedChangeRequestPage struct {
 }
 
 // aggregatedCursor maps request types to their keyset position — the last DB
-// row of that type the client has consumed. Types absent from the map start
-// from the top. Opaque on the wire (base64url JSON), like the per-type
-// history cursor. On the open view the position instant is the row's
-// created_at; the payload field name (u) just follows the shared wire shape.
-type aggregatedCursor map[string]historyCursorPayload
+// row of that type the client has consumed. A present nil position means that
+// the source had buffered rows but none had been consumed yet, so it resumes
+// from the top without repeating rows emitted by another source. Types absent
+// from the map start from the top. Opaque on the wire (base64url JSON), like
+// the per-type history cursor. On the open view the position instant is the
+// row's created_at; the payload field name (u) just follows the shared wire
+// shape.
+type aggregatedCursor map[string]*historyCursorPayload
 
 func encodeAggregatedCursor(cursor aggregatedCursor) string {
 	if len(cursor) == 0 {
@@ -116,7 +119,7 @@ func decodeAggregatedCursor(raw string) (aggregatedCursor, error) {
 		return nil, errInvalidAggregatedQuery
 	}
 	for typ, pos := range cursor {
-		if !isAggregatedRequestType(typ) || pos.UpdatedAt.IsZero() || pos.ID <= 0 {
+		if !isAggregatedRequestType(typ) || (pos != nil && (pos.UpdatedAt.IsZero() || pos.ID <= 0)) {
 			return nil, errInvalidAggregatedQuery
 		}
 	}
@@ -516,21 +519,26 @@ func (s *aggregatedSource) hasMore() bool {
 }
 
 // cursorPosition is the keyset position the response cursor reports for this
-// type. Preference order: last consumed row (exact resume point); the
-// incoming position while unconsumed rows sit in the buffer (never skip
-// them); otherwise the scan frontier, so a page whose rows were ALL filtered
-// still makes progress instead of looping the client forever.
-func (s *aggregatedSource) cursorPosition() *historyCursorPayload {
+// type. The bool distinguishes an omitted source from an explicit nil start
+// position: the latter preserves a source with prefetched but unconsumed rows.
+// Preference order: last consumed row (exact resume point); the incoming
+// position while unconsumed rows sit in the buffer (never skip them); otherwise
+// the scan frontier, so a page whose rows were ALL filtered still makes progress
+// instead of looping the client forever.
+func (s *aggregatedSource) cursorPosition() (*historyCursorPayload, bool) {
 	if s.consumed != nil {
-		return s.consumed
+		return s.consumed, true
 	}
 	if len(s.buf) > 0 {
-		return s.incoming
+		return s.incoming, true
 	}
 	if !s.done && s.scan != nil {
-		return s.scan
+		return s.scan, true
 	}
-	return s.incoming
+	if s.incoming != nil {
+		return s.incoming, true
+	}
+	return nil, false
 }
 
 // aggregatedPage merges the requested types into one keyset page. Open list
@@ -540,8 +548,8 @@ func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) 
 	sources := make([]*aggregatedSource, 0, len(q.types))
 	for _, typ := range q.types {
 		source := rs.sourceFor(typ, q.history)
-		if pos, ok := q.cursor[typ]; ok {
-			pin := pos
+		if pos, ok := q.cursor[typ]; ok && pos != nil {
+			pin := *pos
 			source.incoming = &pin
 			source.scan = &pin
 		}
@@ -590,8 +598,8 @@ func aggregatedNextCursor(sources []*aggregatedSource) string {
 		if source.hasMore() {
 			hasMore = true
 		}
-		if pos := source.cursorPosition(); pos != nil {
-			next[source.typ] = *pos
+		if pos, ok := source.cursorPosition(); ok {
+			next[source.typ] = pos
 		}
 	}
 	if !hasMore {

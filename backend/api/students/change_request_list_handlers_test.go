@@ -442,6 +442,37 @@ func TestAggregatedChangeRequests_OpenCursorPagination(t *testing.T) {
 	assert.Empty(t, page.NextCursor)
 }
 
+// A source can be prefetched to compare its head with the other queues yet
+// contribute no row to this page. Its cursor must preserve that explicit
+// start position; otherwise the next request loses the buffered state and
+// later repeats the rows already returned by the winning source.
+func TestAggregatedChangeRequests_CursorPreservesUnconsumedPrefetchedSource(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	fakes.master.pending = []*userService.MasterDataReviewItem{
+		aggMasterPending(1, "Anna", "Alt", aggBase.Add(2*time.Hour)),
+		aggMasterPending(2, "Ben", "Berg", aggBase.Add(time.Hour)),
+	}
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{
+		aggExcusedPending(3, "Cem", "Can", aggBase.Add(3*time.Hour)),
+	}
+
+	rr, page := execAggregated(t, rs, "limit=1", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, []string{"excused"}, aggTypes(page))
+	require.NotEmpty(t, page.NextCursor)
+
+	rr, page = execAggregated(t, rs, "limit=1&cursor="+url.QueryEscape(page.NextCursor), aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []string{"master_data"}, aggTypes(page))
+
+	rr, page = execAggregated(t, rs, "limit=1&cursor="+url.QueryEscape(page.NextCursor), aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []string{"master_data"}, aggTypes(page))
+	assert.Empty(t, page.NextCursor)
+}
+
 func TestAggregatedChangeRequests_AbsenceOnlySeesOnlyExcused(t *testing.T) {
 	t.Parallel()
 

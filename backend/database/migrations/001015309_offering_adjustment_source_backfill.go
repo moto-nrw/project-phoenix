@@ -72,6 +72,7 @@ func offeringAdjustmentSourceBackfillUp(ctx context.Context, db *bun.DB) error {
 		         FROM enrollment.change_requests cr
 		        WHERE cr.tenant_id = a.tenant_id
 		          AND cr.request_id = a.request_id
+		          AND cr.request_child_id = a.request_child_id
 		          AND cr.status = 'approved'
 		          AND cr.reviewed_at IS NOT NULL
 		          AND cr.reviewed_by_account_id = a.actor_account_id

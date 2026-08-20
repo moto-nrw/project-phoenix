@@ -1143,8 +1143,8 @@ var serialTestBaseline = map[string]int{
 	"cmd":                  190,
 	"database":             8,
 	// Serial by package design (schema mutation on the shared clone), so every
-	// new migration test necessarily adds one — 89 since 1.15.309.
-	"database/migrations":              89,
+	// new migration test necessarily adds one — 90 since 1.15.309.
+	"database/migrations":              90,
 	"database/repositories/audit":      2,
 	"database/repositories/auth":       4,
 	"database/repositories/enrollment": 3,

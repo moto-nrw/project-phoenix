@@ -131,7 +131,7 @@ func TestOfferingAdjustmentSourceBackfill(t *testing.T) {
 		db, "Elternanfrage #4712 freigegeben (gültig ab 01.09.2026)",
 		auditModels.OfferingAdjustmentSourceUnknown, decidedAt)
 
-	const note = "Angaben nach Rücksprache berichtigt"
+	note := "Angaben nach Rücksprache berichtigt"
 	f.insertApprovedChangeRequest(t, db, note, decidedAt.Add(200*time.Millisecond))
 	correlated := f.insertAdjustment(t, db, note, auditModels.OfferingAdjustmentSourceUnknown, decidedAt)
 
@@ -170,4 +170,44 @@ func TestOfferingAdjustmentSourceBackfill(t *testing.T) {
 	// The rollback is deliberately a no-op: the classification cannot be undone.
 	require.NoError(t, offeringAdjustmentSourceBackfillDown(context.Background(), db))
 	assert.Equal(t, auditModels.OfferingAdjustmentSourceDirect, sourceOf(t, db, correction))
+}
+
+func TestOfferingAdjustmentSourceBackfill_DoesNotCorrelateAnotherChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	f := newBackfillFixture(t, db)
+	decidedAt := time.Now().UTC().Add(-72 * time.Hour)
+	note := "Angaben nach Rücksprache berichtigt"
+
+	otherStudent := testpkg.CreateTestStudent(t, db, "Zbackfill", "Geschwister", "4c")
+	otherChild := &enrollmentModels.RequestChild{
+		RequestID:        f.requestID,
+		FirstName:        "Zbackfill",
+		LastName:         "Geschwister",
+		DateOfBirth:      timezone.TodayDate().AddDays(-2500),
+		Status:           enrollmentModels.ChildStatusApproved,
+		CreatedStudentID: &otherStudent.ID,
+	}
+	otherChild.TenantID = f.tenantID
+	_, err := db.NewInsert().Model(otherChild).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(context.Background())
+	require.NoError(t, err)
+
+	request := &enrollmentModels.ChangeRequest{
+		RequestID:           f.requestID,
+		RequestChildID:      &otherChild.ID,
+		Origin:              enrollmentModels.ChangeRequestOriginParent,
+		Status:              enrollmentModels.ChangeRequestStatusApproved,
+		AdminDecisionNote:   &note,
+		BaseSnapshot:        map[string]any{},
+		ProposedSnapshot:    map[string]any{},
+		Diff:                map[string]any{},
+		ReviewedByAccountID: &f.actorID,
+		ReviewedAt:          &decidedAt,
+	}
+	request.TenantID = f.tenantID
+	_, err = db.NewInsert().Model(request).ModelTableExpr(`enrollment.change_requests AS "change_request"`).Exec(context.Background())
+	require.NoError(t, err)
+
+	adjustment := f.insertAdjustment(t, db, note, auditModels.OfferingAdjustmentSourceUnknown, decidedAt)
+	require.NoError(t, offeringAdjustmentSourceBackfillUp(context.Background(), db))
+	assert.Equal(t, auditModels.OfferingAdjustmentSourceDirect, sourceOf(t, db, adjustment))
 }
