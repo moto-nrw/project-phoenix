@@ -66,6 +66,9 @@ func newGoldenAPI(t *testing.T) *API {
 	// same viper key, so the whole router builds against the clone.
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
+	password := strings.ReplaceAll(os.Getenv("PHOENIX_AUTH_PASSWORD"), "'", "''")
+	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
+	require.NoError(t, err, "sync phoenix_auth password for the API test database")
 
 	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
 

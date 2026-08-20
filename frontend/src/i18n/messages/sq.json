@@ -921,6 +921,15 @@
       "home": "Privat",
       "work": "Punë",
       "other": "Tjetër"
+    },
+    "locked": {
+      "badge": "Tashmë në kujdes",
+      "birthday": "Data e lindjes",
+      "grade": "Klasa",
+      "care": "Ofertat e rezervuara",
+      "noCare": "Asnjë ofertë e rezervuar.",
+      "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
+      "noAccess": "Nuk keni ende akses në aplikacionin për prindër? OGS-ja mund t’ju ftojë."
     }
   },
   "enrollmentStatus": {
@@ -1104,7 +1113,12 @@
     "renewalAdjustHint": "Mund ta vazhdoni kujdesin pa ndryshime, të përshtatni vetëm ofertat ose ditët e javës, ose ta përfundoni kujdesin në fund të periudhës aktuale. Të gjitha të dhënat e tjera mbeten të pandryshuara.",
     "adjustTitle": "Përshtat ofertat dhe ditët e javës",
     "adjustDescription": "Përshtatni vetëm ofertat e kujdesit dhe ditët e javës të rezervuara. Të gjitha të dhënat e tjera mbeten të pandryshuara dhe nuk kërkohen përsëri.",
-    "adjustSubmit": "Dërgo përshtatjen"
+    "adjustSubmit": "Dërgo përshtatjen",
+    "lockedChildHint": "Ndryshimet për këtë fëmijë bëhen përmes aplikacionit për prindër.",
+    "lockedAllTitle": "Ndryshimet bëhen përmes aplikacionit për prindër",
+    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllAction": "Te aplikacioni për prindër"
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",

@@ -912,8 +912,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im selben Dialog stehen zusätzlich die Formate `DATEV LODAS` und `DATEV Lohn und Gehalt` bereit: Bewegungsdaten für die Lohnabrechnung, immer ein einzelner Monat pro Datei, mit einer Zeile je Person und Lohnart. Voraussetzung ist die vollständige Konfiguration unter `Abrechnung` (Lohnarten, für LODAS auch Berater- und Mandantennummer) sowie Personalnummern an allen Personen. Vor dem Download zeigt der Dialog einen Bericht: wie viele Buchungszeilen entstehen, bei wem eine Personalnummer fehlt und ob der Monat noch offen ist. Fehlende Personalnummern sperren den Export, bis sie im Mitarbeiterprofil ergänzt wurden. Die erste Datei vor dem Echtlauf mit der Lohnbuchhaltung abstimmen; bei Lohn und Gehalt legt das Lohnbüro die Importbeschreibung selbst an.",
           "Über `Monat abschließen` wird ein vergangener Monat für alle Mitarbeitenden festgeschrieben (Begründung erforderlich, zum Beispiel für die Lohnabrechnung). Der Saldo zum Monatsende wird eingefroren und alle Folgemonate rechnen mit diesem Übertrag weiter, auch wenn später noch Zeiten im abgeschlossenen Monat geändert werden. Der laufende Monat lässt sich erst ab dem 1. des Folgemonats abschließen. Ein abgeschlossener Monat trägt das Schloss-Symbol mit Datum neben dem Monatsnamen.",
           "Der Reiter `Änderungsprotokoll` (ebenfalls nur mit `time_tracking:manage`) zeigt alle Änderungen an Arbeitszeiten über alle Mitarbeitenden hinweg: korrigierte Zeiterfassungen, entschiedene Abwesenheiten, Stundenkonto-Buchungen, Monatsabschlüsse und -öffnungen sowie gelöschte Einträge — jeweils mit Zeitpunkt, betroffener Person, bearbeitender Person und Begründung. Filtern lässt sich nach Mitarbeiter:in, bearbeitender Person, Bereich und Zeitraum; `Weitere Einträge laden` blättert weiter zurück. Einträge zur Zeiterfassung, die älter als die eingestellte Aufbewahrungsfrist sind, wurden bereits gelöscht; Buchungen und Monatsabschlüsse bleiben vollständig.",
-          "Mit Genehmigungsrecht erscheinen offene Urlaubs- und Abwesenheitsanträge oben im Bereich `Eingehende Anfragen`: pro Antrag Person, Art, Zeitraum, Tage und Notiz prüfen und direkt `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen. Die Tabs filtern nach Art (`Alle`, `Urlaub`, `Krank`, `Fortbildung`, `Sonstige`).",
-          "Offene Anträge sind zusätzlich sichtbar als Zähler am Menüpunkt `Mitarbeiter` in der Seitenleiste und als kleines `Anfragen`-Badge auf der Karte der jeweiligen Person.",
+          "Mit Genehmigungsrecht steht oben auf der Seite ein Verweis `Anträge von Mitarbeitenden` mit der Zahl der offenen Anträge. Entschieden wird in der Seitenleiste unter `Anfragen` im Reiter `Mitarbeitende`: Urlaub, Krank, Fortbildung und Sonstige, offen wie Historie, mit Suche nach dem Namen und Filter nach Art. Pro Antrag lässt sich `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen; die Historie zeigt zusätzlich, wer wann mit welcher Begründung entschieden hat.",
+          "Offene Anträge sind zusätzlich sichtbar als Zähler am Menüpunkt `Anfragen` in der Seitenleiste und als kleines `Anfragen`-Badge auf der Karte der jeweiligen Person.",
           "Nach Name suchen.",
           "Nach Status filtern, zum Beispiel `Anwesend`, `Abwesend`, `Im Raum`, `Homeoffice` oder `Krank/Urlaub`.",
           "Bei Karten mit Raumangabe die aktuelle Aufsicht direkt in der Liste prüfen.",
@@ -1669,10 +1669,11 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste `Anfragen` öffnen; der Reiter `Eltern` ist voreingestellt. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten`, `Betreuungszeiten` und `Betreuungsangebote`, jeweils mit dem Vergleich `aktuell -> gewünscht`. Der Bereich `Betreuungszeiten` bekommt keine neuen Anfragen mehr; noch offene Altfälle lassen sich dort weiterhin entscheiden.",
+          "In der Seitenleiste `Anfragen` öffnen; der Reiter `Eltern` ist voreingestellt. Alle offenen Anfragen stehen in einer gemeinsamen Liste, jeweils mit dem Vergleich `aktuell -> gewünscht`. Über das Suchfeld nach dem Namen eines Kindes suchen, über den Filter `Anfrageart` gezielt eine Sorte anzeigen (`Stammdaten`, `Betreuungszeiten`, `Angebote und AGs`, `Entschuldigungen`). Für Betreuungszeiten kommen keine neuen Anfragen mehr; noch offene Altfälle lassen sich weiterhin entscheiden.",
           "Mit `Freigeben` wird die Änderung übernommen: Bei Betreuungszeiten wird der Wochenplan des Kindes direkt aktualisiert.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
           "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
+          "Über den Schalter `Historie` stehen alle bereits entschiedenen Anfragen in derselben Liste, jeweils mit Datum, entscheidender Person und Begründung. Dort lässt sich zusätzlich nach `Status` (Angenommen, Abgelehnt, Zurückgezogen) und nach `Zeitraum` filtern.",
         ],
         callout: {
           title: "Wer darf entscheiden",
@@ -1680,7 +1681,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Seite Anfragen, Reiter Eltern, Bereich Betreuungszeiten: Wochenplan-Vergleich aktuell zu gewünscht mit den Schaltflächen Freigeben und Ablehnen.",
+          "Seite Anfragen, Reiter Eltern: gemeinsame Liste der offenen Anfragen aller Arten mit Suchfeld, Filter und den Schaltflächen Freigeben und Ablehnen.",
         image: "/help/screens/offene-anfragen.webp",
       },
       {

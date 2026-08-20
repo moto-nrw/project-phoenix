@@ -13,13 +13,22 @@ import {
   formatDayCount,
 } from "~/lib/absence-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import type { StaffAbsenceRow } from "~/lib/staff-api";
+import type { StaffAbsenceRequestRow, StaffAbsenceRow } from "~/lib/staff-api";
+
+type AbsenceRequestRowData = Omit<
+  StaffAbsenceRow,
+  "id" | "staff_id" | "approved_by"
+> & {
+  id: string | number;
+};
 
 // One pending-request row shared by the /staff inbox and the per-staff
 // Abwesenheiten tab (#1419). Rendered inside a `divide-y divide-gray-100`
 // list. `staffName` adds the avatar + name block (tenant-wide inbox); the
 // per-staff tab omits it.
-export function AbsenceRequestRow({
+export function AbsenceRequestRow<
+  T extends AbsenceRequestRowData | StaffAbsenceRequestRow,
+>({
   row,
   staffName,
   isBusy,
@@ -28,13 +37,13 @@ export function AbsenceRequestRow({
   onDeny,
   onQuestion,
 }: {
-  readonly row: StaffAbsenceRow;
+  readonly row: T;
   readonly staffName?: string;
   readonly isBusy: boolean;
   readonly showActions: boolean;
-  readonly onApprove: (row: StaffAbsenceRow) => void;
-  readonly onDeny: (row: StaffAbsenceRow) => void;
-  readonly onQuestion: (row: StaffAbsenceRow) => void;
+  readonly onApprove: (row: T) => void;
+  readonly onDeny: (row: T) => void;
+  readonly onQuestion: (row: T) => void;
 }) {
   const isQuestioned = row.status === "question";
   const statusMeta = absenceStatusMeta(row.status);

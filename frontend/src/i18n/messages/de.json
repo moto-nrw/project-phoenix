@@ -921,6 +921,15 @@
       "home": "Privat",
       "work": "Arbeit",
       "other": "Sonstige"
+    },
+    "locked": {
+      "badge": "Schon in der Betreuung",
+      "birthday": "Geburtsdatum",
+      "grade": "Klassenstufe",
+      "care": "Gebuchte Angebote",
+      "noCare": "Keine Angebote gebucht.",
+      "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
+      "noAccess": "Sie haben noch keinen Zugang zur Eltern-App? Die OGS kann Sie einladen."
     }
   },
   "enrollmentStatus": {
@@ -1104,7 +1113,12 @@
     "renewalAdjustHint": "Sie können die Betreuung unverändert fortführen, nur Angebote oder Wochentage anpassen oder die Betreuung zum Ende des aktuellen Zeitraums beenden. Alle übrigen Daten bleiben unverändert.",
     "adjustTitle": "Angebote und Wochentage anpassen",
     "adjustDescription": "Passen Sie nur die Betreuungsangebote und gebuchten Wochentage an. Alle übrigen Daten bleiben unverändert und werden nicht erneut abgefragt.",
-    "adjustSubmit": "Anpassung senden"
+    "adjustSubmit": "Anpassung senden",
+    "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
+    "lockedAllTitle": "Änderungen laufen über die Eltern-App",
+    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllAction": "Zur Eltern-App"
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",

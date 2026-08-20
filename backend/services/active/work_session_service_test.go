@@ -496,6 +496,10 @@ func (m *wsMockStaffAbsenceRepository) ListByStatuses(_ context.Context, _ []str
 	return nil, nil
 }
 
+func (m *wsMockStaffAbsenceRepository) ListRequests(_ context.Context, _ activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+	return nil, nil
+}
+
 // ============================================================================
 // Mock for GroupSupervisorRepository (prefixed with ws)
 // ============================================================================

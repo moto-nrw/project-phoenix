@@ -2220,36 +2220,48 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := db.ExecContext(ctx, `
+	require.NoError(tb, ensureTestTenant(ctx, db, tenantID), "Failed to ensure test tenant")
+}
+
+// ensureTestTenant is the error-returning core of EnsureTestTenant, shared
+// with the process-once clone bootstrap in db_clone.go.
+func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
+	if _, err := db.ExecContext(ctx, `
 		INSERT INTO platform.organizations (id, name, slug, active)
 		VALUES (?, ?, ?, true)
 		ON CONFLICT (id) DO NOTHING`,
-		tenantID, fmt.Sprintf("Test Org %d", tenantID), fmt.Sprintf("test-org-%d", tenantID))
-	require.NoError(tb, err, "Failed to ensure test organization")
+		tenantID, fmt.Sprintf("Test Org %d", tenantID), fmt.Sprintf("test-org-%d", tenantID)); err != nil {
+		return fmt.Errorf("ensure test organization: %w", err)
+	}
 
-	_, err = db.ExecContext(ctx, `
+	if _, err := db.ExecContext(ctx, `
 		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
 		VALUES (?, ?, ?, ?, ?, true)
 		ON CONFLICT (id) DO NOTHING`,
 		tenantID, tenantID,
 		fmt.Sprintf("Test School %d", tenantID),
 		fmt.Sprintf("test-school-%d", tenantID),
-		fmt.Sprintf("t%d", tenantID))
-	require.NoError(tb, err, "Failed to ensure test school")
+		fmt.Sprintf("t%d", tenantID)); err != nil {
+		return fmt.Errorf("ensure test school: %w", err)
+	}
 
-	// Advance sequences past the explicitly inserted ID so that concurrent
-	// packages using auto-generated IDs (nextval) don't collide.
-	_, err = db.ExecContext(ctx, `
+	// Advance sequences past the explicitly inserted ID so that tests using
+	// auto-generated IDs (nextval) don't collide.
+	if _, err := db.ExecContext(ctx, `
 		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
 			GREATEST((SELECT last_value FROM platform.organizations_id_seq), ?))`,
-		tenantID)
-	require.NoError(tb, err, "Failed to advance org sequence past explicit tenant ID")
+		tenantID); err != nil {
+		return fmt.Errorf("advance org sequence past explicit tenant ID: %w", err)
+	}
 
-	_, err = db.ExecContext(ctx, `
+	if _, err := db.ExecContext(ctx, `
 		SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
 			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
-		tenantID)
-	require.NoError(tb, err, "Failed to advance school sequence past explicit tenant ID")
+		tenantID); err != nil {
+		return fmt.Errorf("advance school sequence past explicit tenant ID: %w", err)
+	}
+
+	return nil
 }
 
 // CreateTestTenant creates an organization + school pair that nobody else
@@ -3421,6 +3433,10 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 	exec(`DELETE FROM users.parent_message_reads WHERE thread_id IN (SELECT id FROM users.parent_message_threads WHERE student_id = ?)`, c.StudentID)
 	exec(`DELETE FROM users.parent_messages WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
+	// Parent announcements reference their creator account. Tests often register
+	// announcement cleanup with t.Cleanup while this fixture is deferred, so
+	// clear them here as well before deleting the account.
+	exec(`DELETE FROM users.parent_announcements WHERE created_by = ?`, c.AccountID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)

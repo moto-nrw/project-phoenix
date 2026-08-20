@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -95,6 +96,21 @@ type MasterDataChangeRequestHistoryResponse struct {
 	ReviewReason  *string   `json:"review_reason,omitempty"`
 }
 
+// toMasterDataHistoryResponse maps one decided Stammdaten request (shared by
+// the per-type history route and the aggregated list, #2432).
+func toMasterDataHistoryResponse(item *userService.MasterDataHistoryItem) MasterDataChangeRequestHistoryResponse {
+	return MasterDataChangeRequestHistoryResponse{
+		MasterDataChangeRequestResponse: toMasterDataChangeRequestResponse(&userService.MasterDataReviewItem{
+			Request:   item.Request,
+			FirstName: item.FirstName,
+			LastName:  item.LastName,
+		}),
+		DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedByName: item.ReviewerName,
+		ReviewReason:  item.Request.ReviewReason,
+	}
+}
+
 // listMasterDataChangeRequestHistory returns the tenant's decided parent
 // Stammdaten change requests, newest decision first, cursor-paginated.
 func (rs *Resource) listMasterDataChangeRequestHistory(w http.ResponseWriter, r *http.Request) {
@@ -117,24 +133,16 @@ func (rs *Resource) listMasterDataChangeRequestHistory(w http.ResponseWriter, r 
 		NextCursor: encodeHistoryCursor(next),
 	}
 	for _, item := range items {
-		out.Items = append(out.Items, MasterDataChangeRequestHistoryResponse{
-			MasterDataChangeRequestResponse: toMasterDataChangeRequestResponse(&userService.MasterDataReviewItem{
-				Request:   item.Request,
-				FirstName: item.FirstName,
-				LastName:  item.LastName,
-			}),
-			DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
-			DecidedByName: item.ReviewerName,
-			ReviewReason:  item.Request.ReviewReason,
-		})
+		out.Items = append(out.Items, toMasterDataHistoryResponse(item))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Change request history retrieved")
 }
 
-// CareRequestHistoryResponse is one decided care-schedule request. Unlike the
-// queue projection it carries no "current → requested" diff — current data has
-// moved on since the decision — only the payload-derived requested summary
-// (each entry's old side is empty).
+// CareRequestHistoryResponse is one decided care-schedule request. It never
+// carries a recomputed live diff — current data has moved on since the
+// decision. Diff replays the frozen decision snapshot (ADR 0002, #2430);
+// rows without one (withdrawn, pre-snapshot) fall back to the payload-derived
+// requested summary (each entry's old side is empty).
 type CareRequestHistoryResponse struct {
 	ID             string                    `json:"id"`
 	StudentID      string                    `json:"student_id"`
@@ -143,10 +151,36 @@ type CareRequestHistoryResponse struct {
 	Status         string                    `json:"status"`
 	RequestKind    string                    `json:"request_kind"`
 	Requested      []CareRequestDiffResponse `json:"requested"`
+	Diff           []CareRequestDiffResponse `json:"diff,omitempty"`
 	DecisionReason *string                   `json:"decision_reason,omitempty"`
 	CreatedAt      time.Time                 `json:"created_at"`
 	DecidedAt      time.Time                 `json:"decided_at"`
 	DecidedByName  string                    `json:"decided_by_name,omitempty"`
+}
+
+// toCareRequestHistoryResponse maps one decided care-schedule request (shared
+// by the per-type history route and the aggregated list, #2432).
+func toCareRequestHistoryResponse(item *scheduleService.CareRequestHistoryItem) CareRequestHistoryResponse {
+	req := item.Request
+	requested := toCareRequestDiffResponses(item.Requested)
+	var diff []CareRequestDiffResponse
+	if len(item.Diff) > 0 {
+		diff = toCareRequestDiffResponses(item.Diff)
+	}
+	return CareRequestHistoryResponse{
+		ID:             strconv.FormatInt(req.ID, 10),
+		StudentID:      strconv.FormatInt(req.StudentID, 10),
+		FirstName:      item.FirstName,
+		LastName:       item.LastName,
+		Status:         req.Status,
+		RequestKind:    req.RequestKind,
+		Requested:      requested,
+		Diff:           diff,
+		DecisionReason: req.DecisionReason,
+		CreatedAt:      req.CreatedAt,
+		DecidedAt:      historyDecidedAt(req.ReviewedAt, req.UpdatedAt),
+		DecidedByName:  item.ReviewerName,
+	}
 }
 
 // listCareScheduleChangeRequestHistory returns the tenant's decided
@@ -171,30 +205,7 @@ func (rs *Resource) listCareScheduleChangeRequestHistory(w http.ResponseWriter, 
 		NextCursor: encodeHistoryCursor(next),
 	}
 	for _, item := range items {
-		req := item.Request
-		requested := make([]CareRequestDiffResponse, 0, len(item.Requested))
-		for _, e := range item.Requested {
-			requested = append(requested, CareRequestDiffResponse{
-				Label:    e.Label,
-				New:      e.New,
-				Weekday:  e.Weekday,
-				CareKind: e.CareKind,
-				NewMode:  e.NewMode,
-			})
-		}
-		out.Items = append(out.Items, CareRequestHistoryResponse{
-			ID:             strconv.FormatInt(req.ID, 10),
-			StudentID:      strconv.FormatInt(req.StudentID, 10),
-			FirstName:      item.FirstName,
-			LastName:       item.LastName,
-			Status:         req.Status,
-			RequestKind:    req.RequestKind,
-			Requested:      requested,
-			DecisionReason: req.DecisionReason,
-			CreatedAt:      req.CreatedAt,
-			DecidedAt:      historyDecidedAt(req.ReviewedAt, req.UpdatedAt),
-			DecidedByName:  item.ReviewerName,
-		})
+		out.Items = append(out.Items, toCareRequestHistoryResponse(item))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Care schedule change request history retrieved")
 }
@@ -214,6 +225,29 @@ type OfferingRequestRequestedResponse struct {
 	OfferingID string `json:"offering_id"`
 	Label      string `json:"label"`
 	New        string `json:"new"`
+}
+
+// toOfferingRequestHistoryResponse maps one decided offering request (shared
+// by the per-type history route and the aggregated list, #2432).
+func toOfferingRequestHistoryResponse(item *enrollmentService.OfferingChangeHistoryItem) OfferingRequestHistoryResponse {
+	requested := make([]OfferingRequestRequestedResponse, 0, len(item.Requested))
+	for _, entry := range item.Requested {
+		requested = append(requested, OfferingRequestRequestedResponse{
+			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
+			Label:      entry.Name,
+			New:        germanOfferingDiffLabel("booked", entry.Days),
+		})
+	}
+	return OfferingRequestHistoryResponse{
+		OfferingRequestResponse: toOfferingRequestResponse(&enrollmentService.OfferingChangeView{
+			Request:     item.Request,
+			StudentName: item.StudentName,
+			Diff:        item.Diff,
+		}),
+		DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedByName: item.ReviewerName,
+		Requested:     requested,
+	}
 }
 
 // listOfferingChangeRequestHistory returns the tenant's decided offering
@@ -238,24 +272,7 @@ func (rs *Resource) listOfferingChangeRequestHistory(w http.ResponseWriter, r *h
 		NextCursor: encodeHistoryCursor(next),
 	}
 	for _, item := range items {
-		requested := make([]OfferingRequestRequestedResponse, 0, len(item.Requested))
-		for _, entry := range item.Requested {
-			requested = append(requested, OfferingRequestRequestedResponse{
-				OfferingID: strconv.FormatInt(entry.OfferingID, 10),
-				Label:      entry.Name,
-				New:        germanOfferingDiffLabel("booked", entry.Days),
-			})
-		}
-		out.Items = append(out.Items, OfferingRequestHistoryResponse{
-			OfferingRequestResponse: toOfferingRequestResponse(&enrollmentService.OfferingChangeView{
-				Request:     item.Request,
-				StudentName: item.StudentName,
-				Diff:        item.Diff,
-			}),
-			DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
-			DecidedByName: item.ReviewerName,
-			Requested:     requested,
-		})
+		out.Items = append(out.Items, toOfferingRequestHistoryResponse(item))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Offering change request history retrieved")
 }
@@ -266,6 +283,20 @@ type StaffExcusedRequestHistoryResponse struct {
 	StaffExcusedRequestResponse
 	DecidedAt     time.Time `json:"decided_at"`
 	DecidedByName string    `json:"decided_by_name,omitempty"`
+}
+
+// toStaffExcusedHistoryResponse maps one decided excused-absence request
+// (shared by the per-type history route and the aggregated list, #2432).
+func toStaffExcusedHistoryResponse(item *absenceService.ExcusedRequestHistoryItem) StaffExcusedRequestHistoryResponse {
+	return StaffExcusedRequestHistoryResponse{
+		StaffExcusedRequestResponse: toStaffExcusedRequestResponse(&absenceService.ExcusedRequestReviewItem{
+			Request:   item.Request,
+			FirstName: item.FirstName,
+			LastName:  item.LastName,
+		}),
+		DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedByName: item.ReviewerName,
+	}
 }
 
 // listExcusedAbsenceRequestHistory returns the tenant's decided
@@ -290,15 +321,7 @@ func (rs *Resource) listExcusedAbsenceRequestHistory(w http.ResponseWriter, r *h
 		NextCursor: encodeHistoryCursor(next),
 	}
 	for _, item := range items {
-		out.Items = append(out.Items, StaffExcusedRequestHistoryResponse{
-			StaffExcusedRequestResponse: toStaffExcusedRequestResponse(&absenceService.ExcusedRequestReviewItem{
-				Request:   item.Request,
-				FirstName: item.FirstName,
-				LastName:  item.LastName,
-			}),
-			DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
-			DecidedByName: item.ReviewerName,
-		})
+		out.Items = append(out.Items, toStaffExcusedHistoryResponse(item))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Excused absence request history retrieved")
 }
