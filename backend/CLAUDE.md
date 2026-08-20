@@ -220,6 +220,30 @@ func TestExample(t *testing.T) {
 - Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
 - Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.
 
+## Seed Coverage (MANDATORY)
+
+The demo seeder (`seed/api`) plus `simulate full-day` are the widest end-to-end
+path in this repo, roughly a hundred real API calls across every module, and
+the only source of dev and demo data. Two rules follow from that:
+
+1. **A user-facing feature ships with seed data in the same PR.** A screen that
+   is empty on every dev machine is a screen nobody reviews.
+2. **The coverage ratchet is not optional.** `TestSeedCoverageRatchet`
+   (`seed/api/coverage_ratchet_test.go`) fails when a table ends up with no
+   seeded rows and is not allowlisted, and just as loudly when an allowlisted
+   table starts holding data (then delete the entry). The `seed-smoke` CI job
+   runs it, and by running the seeder at all it also proves every API contract
+   the seeder drives still holds.
+
+Allowlist entries reading `GAP: prod has N rows` are the measured backlog: 58
+tables that production tenants fill and the seeder does not. Shrink that list,
+never grow it.
+
+```bash
+# Against a seeded local stack
+docker compose exec server sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test ./seed/api/ -run TestSeedCoverageRatchet -v'
+```
+
 ## Logging: slog Only (MANDATORY)
 
 All backend code uses `log/slog` via injected loggers — never logrus or `log.Printf`. `sloglint` enforces key-value style (`no-mixed-args`, `key-naming-case: snake`, `args-on-sep-lines`). Use the `backend-structured-logging` skill for detailed patterns.
