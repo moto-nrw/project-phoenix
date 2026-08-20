@@ -68,21 +68,37 @@ func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.Work
 //
 // `breaksBySession` carries each block's break rows keyed by session ID;
 // blocks must be passed in check-in order (the repository guarantees it).
-func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time, days ...timezone.Date) LaborTimeEvaluation {
+	day := timezone.DateFromTime(now)
+	if len(days) > 0 {
+		day = days[0]
+	}
+	dayStart := day.BerlinMidnight()
+	dayEnd := day.AddDays(1).BerlinMidnight()
 	var net, taken, gaps int
 	var prevEnd *time.Time
 	for _, ws := range sessions {
 		breaks := breaksBySession[ws.ID]
-		net += netMinutesWithBreaks(ws, breaks, now)
-		taken += totalBreakMinutes(ws, breaks, now)
-		if prevEnd != nil && ws.CheckInTime.After(*prevEnd) {
-			gaps += int(ws.CheckInTime.Sub(*prevEnd).Minutes())
+		end := sessionEndUpTo(ws, now)
+		if !end.After(dayStart) || !ws.CheckInTime.Before(dayEnd) {
+			continue
 		}
-		if ws.CheckOutTime != nil {
-			end := *ws.CheckOutTime
-			if prevEnd == nil || end.After(*prevEnd) {
-				prevEnd = &end
-			}
+		start := ws.CheckInTime
+		if start.Before(dayStart) {
+			start = dayStart
+		}
+		if end.After(dayEnd) {
+			end = dayEnd
+		}
+		gross := int(end.Sub(start).Minutes())
+		worked := netMinutesByDate(ws, breaks, end, day, day)[day]
+		net += worked
+		taken += gross - worked
+		if prevEnd != nil && start.After(*prevEnd) {
+			gaps += int(start.Sub(*prevEnd).Minutes())
+		}
+		if prevEnd == nil || end.After(*prevEnd) {
+			prevEnd = &end
 		}
 	}
 	required := 0

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/stretchr/testify/assert"
 )
@@ -319,5 +320,17 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 		day := EvaluateDayLaborTime([]*activeModels.WorkSession{ws}, nil, fixedNow)
 		single := EvaluateLaborTime(ws, nil, fixedNow)
 		assert.Equal(t, single, day)
+	})
+
+	t.Run("clips an overnight block to the requested day", func(t *testing.T) {
+		day := timezone.NewDate(2026, time.August, 18)
+		now := day.BerlinMidnight().Add(15 * time.Hour)
+		previousEnd := day.BerlinMidnight().Add(time.Hour)
+		overnight := &activeModels.WorkSession{CheckInTime: day.AddDays(-1).BerlinMidnight().Add(22 * time.Hour), CheckOutTime: &previousEnd}
+		dayEnd := day.BerlinMidnight().Add(14 * time.Hour)
+		dayBlock := &activeModels.WorkSession{CheckInTime: day.BerlinMidnight().Add(10 * time.Hour), CheckOutTime: &dayEnd}
+
+		eval := EvaluateDayLaborTime([]*activeModels.WorkSession{overnight, dayBlock}, nil, now, day)
+		assert.Equal(t, 300, eval.NetMinutes, "only the hour after midnight belongs to this day")
 	})
 }

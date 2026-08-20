@@ -362,26 +362,6 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		assert.GreaterOrEqual(t, len(history), 2)
 	})
 
-	t.Run("includes a block that started before the requested day", func(t *testing.T) {
-		today := timezone.TodayDate()
-		checkIn := today.AddDays(-1).BerlinMidnight().Add(22 * time.Hour)
-		checkOut := today.BerlinMidnight().Add(2 * time.Hour)
-		overnight := &active.WorkSession{
-			StaffID:      staff.ID,
-			Date:         today.AddDays(-1),
-			Status:       active.WorkSessionStatusPresent,
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			CreatedBy:    staff.ID,
-		}
-		require.NoError(t, repo.Create(ctx, overnight))
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", overnight.ID)
-
-		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, today, today)
-		require.NoError(t, err)
-		assert.Contains(t, history, overnight)
-	})
-
 	t.Run("returns empty for date range with no sessions", func(t *testing.T) {
 		futureDate := timezone.TodayDate().AddDays(365)
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, futureDate, futureDate)

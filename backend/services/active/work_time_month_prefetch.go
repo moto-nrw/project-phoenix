@@ -108,7 +108,7 @@ func (r prefetchedStaffReader) FindByID(_ context.Context, id any) (*userModels.
 
 type prefetchedSessionReader struct{ p *monthPrefetch }
 
-func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	sessions := r.p.sessions[staffID]
 	result := make([]*activeModels.WorkSession, 0, len(sessions))
 	for _, session := range sessions {
@@ -116,7 +116,7 @@ func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID 
 		if session.CheckOutTime != nil {
 			end = *session.CheckOutTime
 		}
-		if !session.CheckInTime.Before(to.AddDays(1).BerlinMidnight()) || !end.After(from.BerlinMidnight()) {
+		if !end.After(from) || to != nil && !session.CheckInTime.Before(*to) {
 			continue
 		}
 		result = append(result, session)

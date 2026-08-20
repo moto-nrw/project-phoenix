@@ -24,18 +24,16 @@ type wtmMockSessionReader struct {
 	lastFrom timezone.Date
 }
 
-func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	m.calls++
-	m.lastFrom = from
+	m.lastFrom = timezone.DateFromTime(from)
 	var result []*activeModels.WorkSession
-	rangeStart := from.BerlinMidnight()
-	rangeEnd := to.AddDays(1).BerlinMidnight()
 	for _, s := range m.sessions {
 		end := time.Now()
 		if s.CheckOutTime != nil {
 			end = *s.CheckOutTime
 		}
-		if s.CheckInTime.Before(rangeEnd) && end.After(rangeStart) {
+		if end.After(from) && (to == nil || s.CheckInTime.Before(*to)) {
 			result = append(result, s)
 		}
 	}

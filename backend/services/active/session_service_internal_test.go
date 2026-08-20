@@ -145,6 +145,10 @@ func (w *workSessionServiceForSessionUnitTest) GetLatestOpenSession(context.Cont
 func (w *workSessionServiceForSessionUnitTest) GetHistory(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {
 	return nil, nil
 }
+
+func (w *workSessionServiceForSessionUnitTest) GetHistoryIntersecting(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {
+	return nil, nil
+}
 func (w *workSessionServiceForSessionUnitTest) GetSessionEdits(context.Context, int64, int64) ([]*WorkSessionEditView, error) {
 	return nil, nil
 }

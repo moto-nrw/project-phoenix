@@ -141,6 +141,10 @@ func (s *stubWorkSessions) GetHistory(_ context.Context, _ int64, from, _ timezo
 	return &activeSvc.HistoryResponse{}, nil
 }
 
+func (s *stubWorkSessions) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+	return s.GetHistory(ctx, staffID, from, to)
+}
+
 func newRacedService(checkInErr error) (*Service, *stubWorkSessions) {
 	person := &userModels.Person{FirstName: "Nora", LastName: "Kiosk"}
 	person.ID = 42

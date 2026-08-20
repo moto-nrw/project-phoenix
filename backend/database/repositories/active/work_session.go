@@ -177,8 +177,8 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".check_in_time < ?`, to.AddDays(1).BerlinMidnight()).
-		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from.BerlinMidnight()).
+		Where(`"work_session".date >= ?`, from).
+		Where(`"work_session".date <= ?`, to).
 		OrderExpr(`"work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")

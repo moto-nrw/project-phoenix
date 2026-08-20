@@ -172,7 +172,7 @@ type monthShiftReader interface {
 
 // monthSessionReader is implemented by active.WorkSessionRepository.
 type monthSessionReader interface {
-	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
 }
 
 // monthBreakReader is implemented by active.WorkSessionBreakRepository.
@@ -568,20 +568,14 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 // run past midnight; counting it only in that filing month would lose the
 // after-midnight part from the following day's balance.
 func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, first, last)
+	end := last.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, first.BerlinMidnight(), &end)
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
 	now := time.Now()
 	for _, session := range sessions {
-		end := sessionEndUpTo(session, now)
-		// Yesterday's open block may be a legitimate night shift. Older open
-		// blocks are stale and remain bounded until cleanup closes them.
-		if session.Date.Before(today.AddDays(-1)) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
-			if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
-				end = staleEnd
-			}
-		}
+		end := balanceSessionEnd(session, now, today)
 		if !end.After(session.CheckInTime) {
 			continue
 		}
@@ -606,6 +600,16 @@ func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time 
 	end := now
 	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
 		end = *session.CheckOutTime
+	}
+	return end
+}
+
+func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
+	end := sessionEndUpTo(session, now)
+	if session.Date.Before(today.AddDays(-1)) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+			return staleEnd
+		}
 	}
 	return end
 }
@@ -1262,7 +1266,8 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	staffID int64,
 	from, to timezone.Date,
 ) (map[timezone.Date]int, error) {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, from, to)
+	end := to.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
@@ -1273,7 +1278,7 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 		if err != nil {
 			return nil, fmt.Errorf("failed to load breaks for work session %d: %w", session.ID, err)
 		}
-		for day, minutes := range netMinutesByDate(session, breaks, sessionEndUpTo(session, now), from, to) {
+		for day, minutes := range netMinutesByDate(session, breaks, balanceSessionEnd(session, now, timezone.TodayDate()), from, to) {
 			actualByDate[day] += minutes
 		}
 	}

@@ -62,6 +62,7 @@ type workSessionService interface {
 	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
 	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
+	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 }
 
 // Service owns the pure NFC stamp workflow. It deliberately accepts narrow
@@ -363,7 +364,7 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 	// with a Homeoffice morning and an OGS afternoon (#2402) the kiosk must
 	// show the summed work time, and §4 ArbZG judges the day as a whole (the
 	// gap between blocks counts as break for the compliance check).
-	evaluation := activeSvc.EvaluateDayLaborTime(sessions, breaksBySession, now)
+	evaluation := activeSvc.EvaluateDayLaborTime(sessions, breaksBySession, now, day)
 	result.NetMinutes = evaluation.NetMinutes
 	result.BreakMinutes = evaluation.BreakMinutes
 	result.RequiredBreakMinutes = evaluation.RequiredBreakMinutes
@@ -380,7 +381,7 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 // rows whether they are still open or already closed, so open and closed state
 // are derived from check_out_time rather than from which read happened to hit.
 func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date) ([]*activeModels.WorkSession, map[int64][]*activeModels.WorkSessionBreak, error) {
-	history, err := s.workSessions.GetHistory(ctx, staffID, day, day)
+	history, err := s.workSessions.GetHistoryIntersecting(ctx, staffID, day, day)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load work sessions of the day: %w", err)
 	}

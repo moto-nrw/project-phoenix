@@ -265,6 +265,7 @@ type WorkSessionService interface {
 	// earlier calendar day.
 	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
+	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
@@ -1574,6 +1575,22 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
+	return s.historyResponse(ctx, staffID, sessions)
+}
+
+// GetHistoryIntersecting returns blocks that overlap a calendar range. It is
+// reserved for live day state (kiosk and balances); the public history keeps
+// its start-date contract through GetHistory.
+func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
+	end := to.AddDays(1).BerlinMidnight()
+	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get intersecting session history: %w", err)
+	}
+	return s.historyResponse(ctx, staffID, sessions)
+}
+
+func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*activeModels.WorkSession) (*HistoryResponse, error) {
 
 	// Collect session IDs for batch edit count query
 	sessionIDs := make([]int64, len(sessions))
