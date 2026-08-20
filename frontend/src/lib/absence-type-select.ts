@@ -40,12 +40,12 @@ export function selectValueFor(
  */
 export function absenceRequestFor(selectValue: string): {
   absence_type: string;
-  absence_type_id: number | null;
+  absence_type_id: string | null;
 } {
   if (selectValue.startsWith(CUSTOM_PREFIX)) {
     return {
       absence_type: "other",
-      absence_type_id: Number(selectValue.slice(CUSTOM_PREFIX.length)),
+      absence_type_id: selectValue.slice(CUSTOM_PREFIX.length),
     };
   }
   return { absence_type: selectValue, absence_type_id: null };

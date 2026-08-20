@@ -73,7 +73,7 @@ export interface CreateAbsenceRequest {
    * School-defined Abwesenheitsart (#2403). When set, the backend takes the
    * canonical absence_type from the art itself, so the pair can never disagree.
    */
-  absence_type_id?: number | null;
+  absence_type_id?: string | null;
   date_start: string;
   date_end: string;
   half_day?: boolean;
@@ -86,7 +86,7 @@ export interface CreateAbsenceRequest {
 export interface UpdateAbsenceRequest {
   absence_type?: string;
   /** Re-points the school-defined Abwesenheitsart; `null` clears it (#2403). */
-  absence_type_id?: number | null;
+  absence_type_id?: string | null;
   date_start?: string;
   date_end?: string;
   half_day?: boolean;

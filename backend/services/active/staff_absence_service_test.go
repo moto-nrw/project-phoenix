@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"testing"
@@ -19,6 +20,55 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
+	const id = "9007199254740993"
+
+	var create CreateAbsenceRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"absence_type":"other","absence_type_id":"`+id+`"}`), &create))
+	require.NotNil(t, create.AbsenceTypeID)
+	assert.Equal(t, int64(9007199254740993), *create.AbsenceTypeID)
+
+	var update UpdateAbsenceRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"absence_type":"sick","absence_type_id":null}`), &update))
+	assert.True(t, update.AbsenceTypeIDSet)
+	assert.Nil(t, update.AbsenceTypeID)
+}
+
+func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
+	id := int64(9007199254740993)
+	payload, err := json.Marshal(StaffAbsenceResponse{StaffAbsence: &activeModels.StaffAbsence{AbsenceTypeID: &id}})
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"absence_type_id":"9007199254740993"`)
+}
+
+func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceTypeTraining, got.AbsenceType)
+		assert.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	standard := activeModels.AbsenceTypeTraining
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType:      &standard,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+}
 
 // ============================================================================
 // Mocks for StaffAbsenceRepository (prefixed with abs)

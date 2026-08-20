@@ -29,7 +29,7 @@ describe("absenceRequestFor", () => {
   it("sends the art's id and the base type it inherits", () => {
     expect(absenceRequestFor(customOptionValue("12"))).toEqual({
       absence_type: "other",
-      absence_type_id: 12,
+      absence_type_id: "12",
     });
   });
 
@@ -38,7 +38,7 @@ describe("absenceRequestFor", () => {
     const value = selectValueFor(stored.absenceType, stored.absenceTypeId);
     expect(absenceRequestFor(value)).toEqual({
       absence_type: "other",
-      absence_type_id: 12,
+      absence_type_id: "12",
     });
   });
 });

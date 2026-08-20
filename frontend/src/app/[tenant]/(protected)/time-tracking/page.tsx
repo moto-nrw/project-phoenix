@@ -2427,7 +2427,7 @@ function EditSessionModal({
     id: string,
     req: {
       absence_type?: string;
-      absence_type_id?: number | null;
+      absence_type_id?: string | null;
       date_start?: string;
       date_end?: string;
       half_day?: boolean;
@@ -3051,7 +3051,7 @@ function CreateAbsenceModal({
   readonly onClose: () => void;
   readonly onSave: (req: {
     absence_type: string;
-    absence_type_id: number | null;
+    absence_type_id: string | null;
     date_start: string;
     date_end: string;
     half_day?: boolean;
@@ -3819,7 +3819,7 @@ function TimeTrackingContent() {
   const handleCreateAbsence = useCallback(
     async (req: {
       absence_type: string;
-      absence_type_id: number | null;
+      absence_type_id: string | null;
       date_start: string;
       date_end: string;
       half_day?: boolean;
@@ -3871,7 +3871,7 @@ function TimeTrackingContent() {
       id: string,
       req: {
         absence_type?: string;
-        absence_type_id?: number | null;
+        absence_type_id?: string | null;
         date_start?: string;
         date_end?: string;
         half_day?: boolean;

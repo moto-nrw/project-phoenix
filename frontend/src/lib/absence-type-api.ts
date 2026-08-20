@@ -13,7 +13,7 @@
 import { sessionFetch } from "./session-cache";
 
 interface BackendAbsenceType {
-  id: number;
+  id: string;
   name: string;
   base_type: string;
   is_active: boolean;
@@ -30,7 +30,7 @@ export interface AbsenceType {
 
 function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
   return {
-    id: data.id.toString(),
+    id: data.id,
     name: data.name,
     baseType: data.base_type,
     isActive: data.is_active,

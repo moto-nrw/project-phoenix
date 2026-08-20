@@ -81,7 +81,7 @@ export interface BackendStaffAbsence {
   staff_id: number;
   absence_type: string;
   /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
-  absence_type_id?: number | null;
+  absence_type_id?: string | null;
   /** The school's own wording; empty for the standard types. */
   absence_type_label?: string;
   date_start: string;
@@ -172,7 +172,7 @@ export function mapStaffAbsenceResponse(
     id: data.id.toString(),
     staffId: data.staff_id.toString(),
     absenceType: data.absence_type as AbsenceType,
-    absenceTypeId: data.absence_type_id?.toString() ?? null,
+    absenceTypeId: data.absence_type_id ?? null,
     absenceTypeLabel: data.absence_type_label ?? "",
     dateStart: data.date_start.split("T")[0] ?? data.date_start,
     dateEnd: data.date_end.split("T")[0] ?? data.date_end,

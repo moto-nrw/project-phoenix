@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,16 +45,85 @@ type CreateAbsenceRequest struct {
 	Note          string `json:"note"`
 }
 
+// UnmarshalJSON accepts decimal strings for int64 identifiers. JavaScript
+// cannot represent every database BIGINT as a number, so browser clients send
+// custom absence IDs as strings.
+func (r *CreateAbsenceRequest) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		AbsenceType   string          `json:"absence_type"`
+		AbsenceTypeID json.RawMessage `json:"absence_type_id"`
+		DateStart     string          `json:"date_start"`
+		DateEnd       string          `json:"date_end"`
+		HalfDay       bool            `json:"half_day"`
+		Note          string          `json:"note"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AbsenceType, r.DateStart, r.DateEnd, r.HalfDay, r.Note = raw.AbsenceType, raw.DateStart, raw.DateEnd, raw.HalfDay, raw.Note
+	if len(raw.AbsenceTypeID) != 0 {
+		id, err := parseAbsenceTypeID(raw.AbsenceTypeID)
+		if err != nil {
+			return err
+		}
+		r.AbsenceTypeID = id
+	}
+	return nil
+}
+
 // UpdateAbsenceRequest defines the request for updating an absence
 type UpdateAbsenceRequest struct {
 	AbsenceType *string `json:"absence_type"`
 	// AbsenceTypeID re-points the named art. A present pointer to 0 clears it
 	// back to the plain standard type; omitted (nil) leaves it untouched.
-	AbsenceTypeID *int64  `json:"absence_type_id"`
-	DateStart     *string `json:"date_start"`
-	DateEnd       *string `json:"date_end"`
-	HalfDay       *bool   `json:"half_day"`
-	Note          *string `json:"note"`
+	AbsenceTypeID *int64 `json:"absence_type_id"`
+	// AbsenceTypeIDSet distinguishes an omitted field from JSON null, which
+	// explicitly clears a previously selected school-defined art.
+	AbsenceTypeIDSet bool    `json:"-"`
+	DateStart        *string `json:"date_start"`
+	DateEnd          *string `json:"date_end"`
+	HalfDay          *bool   `json:"half_day"`
+	Note             *string `json:"note"`
+}
+
+func (r *UpdateAbsenceRequest) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		AbsenceType   *string         `json:"absence_type"`
+		AbsenceTypeID json.RawMessage `json:"absence_type_id"`
+		DateStart     *string         `json:"date_start"`
+		DateEnd       *string         `json:"date_end"`
+		HalfDay       *bool           `json:"half_day"`
+		Note          *string         `json:"note"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AbsenceType, r.DateStart, r.DateEnd, r.HalfDay, r.Note = raw.AbsenceType, raw.DateStart, raw.DateEnd, raw.HalfDay, raw.Note
+	if len(raw.AbsenceTypeID) == 0 {
+		return nil
+	}
+	r.AbsenceTypeIDSet = true
+	id, err := parseAbsenceTypeID(raw.AbsenceTypeID)
+	if err != nil {
+		return err
+	}
+	r.AbsenceTypeID = id
+	return nil
+}
+
+func parseAbsenceTypeID(raw json.RawMessage) (*int64, error) {
+	if string(raw) == "null" {
+		return nil, nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		value = string(raw)
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid absence_type_id: %w", err)
+	}
+	return &id, nil
 }
 
 // maxSickAbsenceRangeDays bounds the synchronous plan cascade. Sick reports
@@ -66,6 +136,20 @@ const maxSickAbsenceRangeDays = 366
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
 	DurationDays int `json:"duration_days"`
+}
+
+// MarshalJSON keeps custom absence IDs lossless for JavaScript consumers.
+func (r StaffAbsenceResponse) MarshalJSON() ([]byte, error) {
+	type responseAlias StaffAbsenceResponse
+	var absenceTypeID *string
+	if r.StaffAbsence != nil && r.StaffAbsence.AbsenceTypeID != nil {
+		value := strconv.FormatInt(*r.StaffAbsence.AbsenceTypeID, 10)
+		absenceTypeID = &value
+	}
+	return json.Marshal(struct {
+		*responseAlias
+		AbsenceTypeID *string `json:"absence_type_id,omitempty"`
+	}{responseAlias: (*responseAlias)(&r), AbsenceTypeID: absenceTypeID})
 }
 
 // StaffAbsenceRequestItem is one absence request in the Anfragen module's
@@ -850,7 +934,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	}
 	// A re-pointed Abwesenheitsart (#2403) also re-pins the canonical type, so
 	// the name and the arithmetic can never drift apart on an edit either.
-	if req.AbsenceTypeID != nil {
+	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
 		typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
 		if err != nil {
 			return nil, err
@@ -1063,6 +1147,7 @@ func (s *staffAbsenceService) writeAbsenceDeletionAudit(ctx context.Context, abs
 	if s.deletionRepo == nil {
 		return fmt.Errorf("time tracking deletion audit repository is not configured")
 	}
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
 	payload, err := json.Marshal(absence)
 	if err != nil {
 		return fmt.Errorf("failed to snapshot absence for deletion audit: %w", err)

@@ -8,7 +8,7 @@
 // value↔request mapping stays in ~/lib/absence-type-select, which nothing in
 // the UI layer needs to know about.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { CreatableSelectOption } from "~/components/ui/creatable-select";
 import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
@@ -17,6 +17,7 @@ import {
   customOptionValue,
 } from "~/lib/absence-type-select";
 import { createLogger } from "~/lib/logger";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "AbsenceTypeOptions" });
 
@@ -52,24 +53,19 @@ export function useAbsenceTypeOptions(
   canManage: boolean,
   standardOptions: readonly CreatableSelectOption[] = STANDARD_ABSENCE_OPTIONS,
 ): UseAbsenceTypeOptionsResult {
-  const [custom, setCustom] = useState<AbsenceType[]>([]);
-
-  const load = useCallback(async () => {
-    try {
-      setCustom(await absenceTypeService.getAbsenceTypes());
-    } catch (err) {
-      // A failing list must not block entering a plain absence: the standard
-      // types stay available and the dropdown simply shows nothing extra.
-      logger.warn("absence_types_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setCustom([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data: custom = [], mutate } = useSWRAuth<AbsenceType[]>(
+    "staff-absence-types",
+    absenceTypeService.getAbsenceTypes.bind(absenceTypeService),
+    {
+      onError: (err) => {
+        // A failing list must not block entering a plain absence: the standard
+        // types stay available and the dropdown simply shows nothing extra.
+        logger.warn("absence_types_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      },
+    },
+  );
 
   const options = useMemo<CreatableSelectOption[]>(
     () => [
@@ -83,31 +79,44 @@ export function useAbsenceTypeOptions(
     [standardOptions, custom],
   );
 
-  const create = useCallback(async (name: string) => {
-    const created = await absenceTypeService.createAbsenceType(name);
-    setCustom((previous) => [...previous, created]);
-    return customOptionValue(created.id);
-  }, []);
+  const create = useCallback(
+    async (name: string) => {
+      const created = await absenceTypeService.createAbsenceType(name);
+      await mutate((previous = []) => [...previous, created], false);
+      return customOptionValue(created.id);
+    },
+    [mutate],
+  );
 
-  const rename = useCallback(async (value: string, name: string) => {
-    const updated = await absenceTypeService.updateAbsenceType(
-      customIdFromOptionValue(value),
-      { name },
-    );
-    setCustom((previous) =>
-      previous.map((type) => (type.id === updated.id ? updated : type)),
-    );
-  }, []);
+  const rename = useCallback(
+    async (value: string, name: string) => {
+      const updated = await absenceTypeService.updateAbsenceType(
+        customIdFromOptionValue(value),
+        { name },
+      );
+      await mutate(
+        (previous = []) =>
+          previous.map((type) => (type.id === updated.id ? updated : type)),
+        false,
+      );
+    },
+    [mutate],
+  );
 
-  const setActive = useCallback(async (value: string, isActive: boolean) => {
-    const updated = await absenceTypeService.updateAbsenceType(
-      customIdFromOptionValue(value),
-      { isActive },
-    );
-    setCustom((previous) =>
-      previous.map((type) => (type.id === updated.id ? updated : type)),
-    );
-  }, []);
+  const setActive = useCallback(
+    async (value: string, isActive: boolean) => {
+      const updated = await absenceTypeService.updateAbsenceType(
+        customIdFromOptionValue(value),
+        { isActive },
+      );
+      await mutate(
+        (previous = []) =>
+          previous.map((type) => (type.id === updated.id ? updated : type)),
+        false,
+      );
+    },
+    [mutate],
+  );
 
   return canManage ? { options, create, rename, setActive } : { options };
 }

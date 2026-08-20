@@ -14,6 +14,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -46,7 +47,7 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 		// Reading is open to anyone who may decide absences too, so the
 		// Leitung's approval views can render the school's own wording.
-		read := authorize.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.VacationApprove)
+		read := authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage, permissions.VacationApprove)
 		manage := authorize.RequiresPermission(permissions.TimeTrackingManage)
 		r.With(read, withTx).Get("/", rs.list)
 		r.With(manage, withTx).Post("/", rs.create)
@@ -73,7 +74,7 @@ type UpdateAbsenceTypeRequest struct {
 // the client which standard type's calculation this art inherits, so the UI can
 // say so instead of leaving the school guessing.
 type AbsenceTypeResponse struct {
-	ID       int64  `json:"id"`
+	ID       string `json:"id"`
 	Name     string `json:"name"`
 	BaseType string `json:"base_type"`
 	IsActive bool   `json:"is_active"`
@@ -81,7 +82,7 @@ type AbsenceTypeResponse struct {
 
 func toAbsenceTypeResponse(t *activeModels.StaffAbsenceType) AbsenceTypeResponse {
 	return AbsenceTypeResponse{
-		ID:       t.ID,
+		ID:       strconv.FormatInt(t.ID, 10),
 		Name:     t.Name,
 		BaseType: t.BaseType,
 		IsActive: t.IsActive,
