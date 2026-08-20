@@ -61,6 +61,7 @@ function staffLabel(row: StaffAbsenceRequestRow): string {
 // inzwischen gelöscht, steht dort "Unbekannt"; ein zurückgezogener Antrag
 // bekommt gar keinen Namen.
 function decidedByLabel(row: StaffAbsenceRequestRow): string | undefined {
+  if (row.status === "canceled") return undefined;
   if (!row.approved_by) return undefined;
   return row.decided_by_name?.trim() || "Unbekannt";
 }
@@ -77,7 +78,7 @@ export function StaffAbsenceRequestList({
   const [rows, setRows] = useState<StaffAbsenceRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRequestRow | null>(
     null,
   );
@@ -199,9 +200,10 @@ export function StaffAbsenceRequestList({
             submittedAt={row.requested_at}
             history={{
               status: HISTORY_STATUS[row.status] ?? row.status,
-              // Zurückgezogene Anträge haben keinen Entscheidungszeitpunkt;
-              // dort steht die letzte Änderung für die Rücknahme.
-              decidedAt: row.approved_at ?? row.updated_at ?? "",
+              decidedAt:
+                row.status === "canceled"
+                  ? (row.updated_at ?? "")
+                  : (row.approved_at ?? ""),
               decidedByName: decidedByLabel(row),
               reason: row.decision_note,
             }}

@@ -21,8 +21,8 @@ vi.mock("~/contexts/ToastContext", () => ({
 
 function openRow(): StaffAbsenceRequestRow {
   return {
-    id: 17,
-    staff_id: 42,
+    id: "17",
+    staff_id: "42",
     staff_name: "Mira Muster",
     absence_type: "vacation",
     date_start: "2027-07-10",
@@ -38,10 +38,10 @@ function openRow(): StaffAbsenceRequestRow {
 function decidedRow(): StaffAbsenceRequestRow {
   return {
     ...openRow(),
-    id: 18,
+    id: "18",
     status: "declined",
     decision_note: "Zu viele Abwesenheiten in der Woche",
-    approved_by: 2,
+    approved_by: "2",
     approved_at: "2027-06-03T09:00:00Z",
     decided_by_name: "Lea Leitung",
   };
@@ -126,7 +126,7 @@ describe("StaffAbsenceRequestList", () => {
     await screen.findByText("Mira Muster");
     await userEvent.click(screen.getByRole("button", { name: "Genehmigen" }));
 
-    await waitFor(() => expect(approve).toHaveBeenCalledWith(17));
+    await waitFor(() => expect(approve).toHaveBeenCalledWith("17"));
     expect(
       await screen.findByText("Keine offenen Anträge."),
     ).toBeInTheDocument();
@@ -134,14 +134,14 @@ describe("StaffAbsenceRequestList", () => {
 
   it("nennt eine gelöschte Entscheiderin Unbekannt, eine Rücknahme niemanden", async () => {
     listRequests.mockResolvedValue([
-      { ...decidedRow(), approved_by: 9, decided_by_name: "" },
+      { ...decidedRow(), approved_by: "9", decided_by_name: "" },
       {
         ...decidedRow(),
-        id: 19,
+        id: "19",
         status: "canceled",
-        approved_by: null,
+        approved_by: "9",
         decided_by_name: "",
-        approved_at: null,
+        approved_at: "2027-06-03T09:00:00Z",
         updated_at: "2027-06-04T09:00:00Z",
       },
     ]);
@@ -154,8 +154,13 @@ describe("StaffAbsenceRequestList", () => {
     );
 
     expect(await screen.findByText(/von Unbekannt/)).toBeInTheDocument();
-    expect(screen.getByText("Zurückgezogen")).toBeInTheDocument();
+    const canceledCard = screen
+      .getByText("Zurückgezogen")
+      .closest(".moto-content-surface");
+    expect(canceledCard).toBeInTheDocument();
     expect(screen.getAllByText(/von /)).toHaveLength(1);
+    expect(canceledCard).toHaveTextContent("Entschieden am 04.06.2027");
+    expect(canceledCard).not.toHaveTextContent("Entschieden am 03.06.2027");
   });
 
   it("nennt einen leeren Namen Unbekannt", async () => {

@@ -790,12 +790,39 @@ export interface StaffAbsenceRow {
 
 // Eine Zeile des Anfragen-Moduls (#2433): der Antrag plus die Namen, die die
 // Liste anzeigt. Leere Namen heißen "Unbekannt" (gelöschtes Konto).
-export interface StaffAbsenceRequestRow extends StaffAbsenceRow {
+export interface StaffAbsenceRequestRow extends Omit<
+  StaffAbsenceRow,
+  "id" | "staff_id" | "approved_by"
+> {
+  id: string;
+  staff_id: string;
+  approved_by?: string | null;
   staff_name: string;
   decided_by_name?: string;
   /** Zeitpunkt der letzten Änderung; trägt bei zurückgezogenen Anträgen das
    *  Rücknahme-Datum, für das es kein eigenes Feld gibt. */
   updated_at?: string;
+}
+
+interface BackendStaffAbsenceRequestRow extends Omit<
+  StaffAbsenceRequestRow,
+  "id" | "staff_id" | "approved_by"
+> {
+  id: number;
+  staff_id: number;
+  approved_by?: number | null;
+}
+
+function mapStaffAbsenceRequestRow(
+  data: BackendStaffAbsenceRequestRow,
+): StaffAbsenceRequestRow {
+  return {
+    ...data,
+    id: data.id.toString(),
+    staff_id: data.staff_id.toString(),
+    approved_by:
+      data.approved_by == null ? data.approved_by : data.approved_by.toString(),
+  };
 }
 
 // Vacation takeover at the moto introduction (#2132): days already taken
@@ -994,7 +1021,10 @@ class StaffAbsenceService {
     }
   }
 
-  async approve(absenceId: number, decisionNote?: string): Promise<void> {
+  async approve(
+    absenceId: number | string,
+    decisionNote?: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/approve`,
       {
@@ -1043,14 +1073,17 @@ class StaffAbsenceService {
       );
     }
     const json = (await response.json()) as {
-      data: StaffAbsenceRequestRow[] | null;
+      data: BackendStaffAbsenceRequestRow[] | null;
     };
-    return json.data ?? [];
+    return (json.data ?? []).map(mapStaffAbsenceRequestRow);
   }
 
   // Rückfrage: moves a requested absence into status "question" with a
   // mandatory note from the Leitung (#1419).
-  async question(absenceId: number, decisionNote: string): Promise<void> {
+  async question(
+    absenceId: number | string,
+    decisionNote: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/question`,
       {
@@ -1065,7 +1098,7 @@ class StaffAbsenceService {
     }
   }
 
-  async deny(absenceId: number, decisionNote: string): Promise<void> {
+  async deny(absenceId: number | string, decisionNote: string): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/deny`,
       {

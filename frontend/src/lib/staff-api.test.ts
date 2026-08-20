@@ -1747,7 +1747,15 @@ describe("staff-api", () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            data: [{ id: 7, staff_name: "Mira Muster", status: "requested" }],
+            data: [
+              {
+                id: 9007199254740992,
+                staff_id: 9007199254740992,
+                approved_by: 9007199254740992,
+                staff_name: "Mira Muster",
+                status: "requested",
+              },
+            ],
           }),
       } as Response);
 
@@ -1762,6 +1770,11 @@ describe("staff-api", () => {
       );
       expect(result).toHaveLength(1);
       expect(result[0]?.staff_name).toBe("Mira Muster");
+      expect(result[0]).toMatchObject({
+        id: "9007199254740992",
+        staff_id: "9007199254740992",
+        approved_by: "9007199254740992",
+      });
     });
 
     it("lässt leere Suche und leeren Art-Filter aus der Abfrage weg", async () => {

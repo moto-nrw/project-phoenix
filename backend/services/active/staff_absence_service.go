@@ -78,12 +78,6 @@ type AbsenceRequestListQuery struct {
 	Search  string
 }
 
-// absenceHistoryLimit caps the decided-requests list. Known ceiling: a school
-// with more decided requests than this sees only the newest ones; search and
-// type filter still run server-side over all of them. Upgrade path when that
-// bites: keyset pagination like the aggregated parent list (#2432).
-const absenceHistoryLimit = 200
-
 // StaffAbsenceListFilter selects a staff member's absences by overlapping date
 // range, status, or both. From and To must either both be set or both be nil.
 type StaffAbsenceListFilter struct {
@@ -1546,7 +1540,6 @@ func (s *staffAbsenceService) ListAbsenceRequests(ctx context.Context, req Absen
 			activeModels.AbsenceStatusDeclined,
 			activeModels.AbsenceStatusCanceled,
 		}
-		filter.Limit = absenceHistoryLimit
 	} else {
 		filter.Statuses = []string{
 			activeModels.AbsenceStatusRequested,
