@@ -10,6 +10,7 @@ function masterDataItem(
 ): AggregatedHistoryRequest {
   return {
     request_type: "master_data",
+    occurred_at: "2026-08-20T10:00:00Z",
     data: {
       id: "1",
       student_id: "42",
@@ -62,6 +63,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt die Abholzeit einer entschiedenen Abholzeit-Anfrage", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "care_schedule",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "pickup-1",
         student_id: "42",
@@ -95,6 +97,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt bei Betreuungszeiten den eingefrorenen alt → neu Diff statt der Beantragt-Liste", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "care_schedule",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "care-1",
         student_id: "42",
@@ -136,6 +139,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt bei einer zurückgezogenen Angebots-Anfrage die gespeicherten Angebote", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "offering",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "offering-1",
         student_id: "42",
@@ -159,6 +163,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt ohne Diff und beantragte Angebote keine leere Beantragt-Fläche", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "offering",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "offering-empty",
         student_id: "42",
@@ -180,6 +185,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt bei einer entschuldigten Abmeldung Daten und Notiz", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "excused",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "excused-1",
         student_id: "42",
@@ -205,6 +211,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt eine Direkt-Korrektur als eigene Zeilen-Art mit vorher → nachher", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "direct_correction",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "9",
         student_id: "42",
@@ -242,6 +249,7 @@ describe("RequestHistoryItem", () => {
     // automatisch übernommene Tage) und die gebuchten Tage gleich bleiben.
     const item: AggregatedHistoryRequest = {
       request_type: "direct_correction",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "10",
         student_id: "42",

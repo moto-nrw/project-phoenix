@@ -40,6 +40,30 @@ export function canReviewChangeRequests(session: Session | null): boolean {
 }
 
 /**
+ * Darf die Person Anmeldungsänderungen entscheiden? Das ist config:manage —
+ * dasselbe Recht, das die Detailansicht und ihre Freigabe verlangen. Es hängt
+ * an der Anmeldungs-Verwaltung, nicht an den Kinderdaten, deshalb hat die Art
+ * einen eigenen Endpunkt und einen eigenen Gate (#2435).
+ */
+export function canReviewEnrollmentChangeRequests(
+  session: Session | null,
+): boolean {
+  return isAdmin(session) || hasPermission(session, "config:manage");
+}
+
+/**
+ * Darf die Person den Eltern-Reiter sehen? Er zeigt die vier Kinderdaten-Arten
+ * und die Anmeldungsänderungen; wer eines von beiden entscheiden darf, sieht
+ * ihn — mit genau den Arten, die zur eigenen Berechtigung passen.
+ */
+export function canOpenParentRequestsTab(session: Session | null): boolean {
+  return (
+    canReviewChangeRequests(session) ||
+    canReviewEnrollmentChangeRequests(session)
+  );
+}
+
+/**
  * Darf die Person Abwesenheitsanträge von Mitarbeitenden entscheiden? Dasselbe
  * vacation:approve, das die Abwesenheits-Inbox und ihr Badge (#1419) tragen —
  * es schaltet im Anfragen-Modul den Reiter "Mitarbeitende" frei.
@@ -57,6 +81,6 @@ export function canReviewStaffAbsenceRequests(
  */
 export function canOpenRequestsPage(session: Session | null): boolean {
   return (
-    canReviewChangeRequests(session) || canReviewStaffAbsenceRequests(session)
+    canOpenParentRequestsTab(session) || canReviewStaffAbsenceRequests(session)
   );
 }

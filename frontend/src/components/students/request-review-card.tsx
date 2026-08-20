@@ -32,16 +32,28 @@ type RequestReviewCardHistoryBase = {
 };
 
 /**
- * Eine entschiedene Anfrage (mit Status) oder eine Direkt-Korrektur der
- * Verwaltung (ohne). Als Union, damit einer Anfrage-Karte der Status nicht
- * fehlen kann.
+ * Eine entschiedene Anfrage (mit Status), eine Direkt-Korrektur der Verwaltung
+ * (ohne) oder eine Anfrage, über die woanders entschieden wird. Als Union,
+ * damit einer Anfrage-Karte der Status nicht fehlen kann.
  */
 type RequestReviewCardHistory =
   | (RequestReviewCardHistoryBase & {
       readonly kind?: "decision";
       readonly status: string;
     })
-  | (RequestReviewCardHistoryBase & { readonly kind: "correction" });
+  | (RequestReviewCardHistoryBase & { readonly kind: "correction" })
+  // Eine Anfrage, die diese Karte nur anzeigt: entschieden wird sie auf einer
+  // eigenen Seite (#2435). Sie bringt ihre eigene Status-Beschriftung mit,
+  // weil ihr Statuswortschatz nicht der der vier Warteschlangen ist, und sie
+  // hat noch keine Entscheidung, solange sie offen ist.
+  | {
+      readonly kind: "readonly";
+      readonly label: string;
+      readonly tone: StatusBadgeTone;
+      readonly decidedAt?: string;
+      readonly decidedByName?: string;
+      readonly reason?: string;
+    };
 
 /**
  * One pending parent change request in the staff Änderungsanfragen queue, in the
@@ -57,8 +69,10 @@ export function RequestReviewCard({
   summary,
   badge,
   submittedAt,
+  submittedByName,
   children,
   history,
+  action,
   reason,
   onReasonChange,
   reasonPlaceholder,
@@ -76,7 +90,15 @@ export function RequestReviewCard({
   badge?: ReactNode;
   /** Einreichungszeitpunkt (ISO); rendert „Eingereicht am …" (#2432). */
   submittedAt?: string;
+  /** Wer eingereicht hat; ergänzt die Zeile um „von …" (#2435). */
+  submittedByName?: string;
   children?: ReactNode;
+  /**
+   * Aktion am Fuß der Lese-Karte, etwa der Weg zur Seite, auf der entschieden
+   * wird. Nur zusammen mit `history` — die aufklappbare Entscheiden-Karte
+   * trägt ihre eigenen Schaltflächen.
+   */
+  action?: ReactNode;
   history?: RequestReviewCardHistory;
   reason?: string;
   onReasonChange?: (value: string) => void;
@@ -88,13 +110,7 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   if (history) {
-    const meta =
-      history.kind === "correction"
-        ? CORRECTION_META
-        : (HISTORY_STATUS_META[history.status] ?? {
-            label: history.status,
-            tone: "gray" as const,
-          });
+    const meta = readOnlyCardMeta(history);
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -105,10 +121,17 @@ export function RequestReviewCard({
           <StatusBadge label={meta.label} tone={meta.tone} />
         </div>
         <p className="mt-1 text-xs text-gray-500">
-          {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
-          {history.kind === "correction" ? "Geändert am " : "Entschieden am "}
-          {formatDate(history.decidedAt)}
-          {history.decidedByName ? ` von ${history.decidedByName}` : ""}
+          {submittedAt
+            ? `Eingereicht am ${formatDate(submittedAt)}${
+                submittedByName ? ` von ${submittedByName}` : ""
+              }`
+            : ""}
+          {submittedAt && history.decidedAt ? " · " : ""}
+          {history.decidedAt
+            ? `${history.kind === "correction" ? "Geändert am " : "Entschieden am "}${formatDate(history.decidedAt)}${
+                history.decidedByName ? ` von ${history.decidedByName}` : ""
+              }`
+            : ""}
         </p>
         {history.reason && (
           <p className="mt-1 text-sm text-gray-600 italic">
@@ -116,6 +139,7 @@ export function RequestReviewCard({
           </p>
         )}
         {children && <div className="mt-2">{children}</div>}
+        {action && <div className="mt-3">{action}</div>}
       </div>
     );
   }
@@ -183,6 +207,23 @@ export function RequestReviewCard({
         </div>
       )}
     </div>
+  );
+}
+
+/** Beschriftung und Farbe der Lese-Karte, je nach Art der Zeile. */
+function readOnlyCardMeta(history: RequestReviewCardHistory): {
+  label: string;
+  tone: StatusBadgeTone;
+} {
+  if (history.kind === "correction") return CORRECTION_META;
+  if (history.kind === "readonly") {
+    return { label: history.label, tone: history.tone };
+  }
+  return (
+    HISTORY_STATUS_META[history.status] ?? {
+      label: history.status,
+      tone: "gray",
+    }
   );
 }
 

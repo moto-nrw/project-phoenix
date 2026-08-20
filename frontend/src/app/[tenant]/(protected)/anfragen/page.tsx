@@ -22,8 +22,10 @@ import type {
   AggregatedRequestType,
 } from "~/lib/change-request-list-api";
 import {
+  canOpenParentRequestsTab,
   canOpenRequestsPage,
   canReviewChangeRequests,
+  canReviewEnrollmentChangeRequests,
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
 } from "~/lib/change-request-access";
@@ -42,6 +44,12 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "offering", label: "Angebote und AGs" },
   { value: "excused", label: "Entschuldigungen" },
 ];
+
+// Anmeldungsänderungen sieht nur, wer sie auch entscheiden darf (#2435).
+const ENROLLMENT_TYPE_OPTION: {
+  value: AggregatedRequestType;
+  label: string;
+} = { value: "enrollment", label: "Anmeldung" };
 
 // Direkt-Korrekturen sind keine Anfragen: sie gibt es nur in der Historie,
 // also auch den Filter nur dort (#2436).
@@ -84,12 +92,19 @@ export default function AnfragenPage() {
   const { isReady } = useRequirePermission(canOpenRequestsPage);
   const { data: session } = useSession();
 
-  const showElternTab = canReviewChangeRequests(session);
+  const showElternTab = canOpenParentRequestsTab(session);
+  // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
+  // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
+  const showEnrollmentRequests = canReviewEnrollmentChangeRequests(session);
   const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
-  // Nur die Entschuldigungs-Warteschlange akzeptiert users:absence. Wer nur
-  // das hält, sieht ohnehin nur diese Art — der Art-Filter wäre eine Liste
-  // aus drei toten Optionen (#2232).
-  const showTypeFilter = canReviewStudentDataRequests(session);
+  // Der Aggregator über die vier Kinderdaten-Arten verlangt users:update oder
+  // users:absence — ohne eines von beiden darf die Quelle gar nicht angefragt
+  // werden.
+  const showAggregatedRequests = canReviewChangeRequests(session);
+  const showStudentDataRequests = canReviewStudentDataRequests(session);
+  // Wer nur die Entschuldigungs-Warteschlange hält, sieht ohnehin nur diese
+  // eine Art — der Art-Filter wäre eine Liste toter Optionen (#2232).
+  const showTypeFilter = showStudentDataRequests || showEnrollmentRequests;
 
   // Reiter erscheinen nur mit passender Berechtigung; wer nur einen sehen
   // darf, bekommt keine Reiterleiste mit einem einzelnen Eintrag.
@@ -124,6 +139,8 @@ export default function AnfragenPage() {
   const filters: AggregatedRequestFilters = useMemo(
     () => ({
       search: deferredSearch,
+      includeAggregated: showAggregatedRequests,
+      includeEnrollment: showEnrollmentRequests,
       types:
         view === "history"
           ? typeFilter
@@ -138,7 +155,15 @@ export default function AnfragenPage() {
           ? toISODate(dateRange.to)
           : undefined,
     }),
-    [deferredSearch, typeFilter, statusFilter, dateRange, view],
+    [
+      deferredSearch,
+      showAggregatedRequests,
+      showEnrollmentRequests,
+      typeFilter,
+      statusFilter,
+      dateRange,
+      view,
+    ],
   );
 
   const staffFilters: StaffAbsenceRequestFilters = useMemo(
@@ -150,10 +175,13 @@ export default function AnfragenPage() {
   // für Filterknöpfe UND Filter-Chips: was hier fehlt, ist auch als Chip weg.
   const typeOptions = useMemo(
     () => [
-      ...REQUEST_TYPE_OPTIONS,
-      ...(view === "history" ? HISTORY_ONLY_TYPE_OPTIONS : []),
+      ...(showStudentDataRequests ? REQUEST_TYPE_OPTIONS : []),
+      ...(showEnrollmentRequests ? [ENROLLMENT_TYPE_OPTION] : []),
+      ...(view === "history" && showStudentDataRequests
+        ? HISTORY_ONLY_TYPE_OPTIONS
+        : []),
     ],
-    [view],
+    [showStudentDataRequests, showEnrollmentRequests, view],
   );
 
   const filterConfigs = useMemo(() => {

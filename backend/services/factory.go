@@ -1827,6 +1827,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SchoolRepo:               repos.School,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,
 		GuardianAuthorizer:       repos.StudentGuardian,
 		DecisionService:          enrollmentDecisionApplier,
