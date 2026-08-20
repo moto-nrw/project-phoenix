@@ -86,6 +86,7 @@ function TypePill({
       <StatusDotBadge
         label={label ?? TYPE_LABEL[type]}
         color={TYPE_COLOR[type]}
+        showDot={false}
       />
     </span>
   );
@@ -218,11 +219,15 @@ export function RequestReviewCard({
               <span className="truncate text-sm text-gray-600">{summary}</span>
             )}
             {!decided && meta && (
-              <StatusBadge label={meta.label} tone={meta.tone} />
+              <StatusBadge
+                label={meta.label}
+                tone={meta.tone}
+                showDot={false}
+              />
             )}
           </span>
           {decided && meta ? (
-            <StatusBadge label={meta.label} tone={meta.tone} />
+            <StatusBadge label={meta.label} tone={meta.tone} showDot={false} />
           ) : (
             <span />
           )}
