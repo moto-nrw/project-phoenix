@@ -43,9 +43,7 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkin", "Target", "1a")
 	// Full chain: caller must have a resolvable account → person → staff
 	// because the handler resolves the JWT claims through PersonService.
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkin", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkin", "Caller")
 
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
 	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
@@ -77,9 +75,7 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Idem", "Target", "1a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Idem", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Idem", "Caller")
 
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
 
@@ -113,9 +109,7 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkout", "Target", "2b")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkout", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkout", "Caller")
 
 	// Check in first.
 	bodyIn, _ := json.Marshal(map[string]string{"action": "in"})
@@ -160,8 +154,6 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Cleanup", "2c")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Visit", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
 	// Activity infrastructure for the visit. The kiosk path writes
 	// active.visits directly via CreateVisit; we shortcut with the test
@@ -169,18 +161,14 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "School Visit Cleanup")
 	room := testpkg.CreateTestRoom(t, tc.db, "Visit Cleanup Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.ID, room.ID, activeGroup.ID)
 
 	// Open visit + open attendance — same student, both still active.
 	entryTime := time.Now().Add(-30 * time.Minute)
 	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.visits", visit.ID)
 
 	device := testpkg.CreateTestDevice(t, tc.db, "school-checkin-visit-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID)
 	checkInTime := time.Now().Add(-30 * time.Minute)
-	att := testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkInTime, nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", att.ID)
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
 	// Web checkout — must close attendance AND end the open visit.
 	body, _ := json.Marshal(map[string]string{"action": "out"})
@@ -210,9 +198,7 @@ func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Allowed", "Target", "3c")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Allowed", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Allowed", "Caller")
 
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
 	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
@@ -240,8 +226,6 @@ func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Denied", "Target", "3d")
 	guest := testpkg.CreateTestAccount(t, tc.db, "school-checkin-guest@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-	defer testpkg.CleanupAccount(t, tc.db, guest.ID)
 
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
 	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
@@ -263,9 +247,7 @@ func TestSchoolCheckin_InvalidAction_Rejects(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Invalid", "Target", "4d")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Invalid", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Invalid", "Caller")
 
 	bodyBytes, _ := json.Marshal(map[string]string{"action": "toggle"}) // not in | out
 	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))

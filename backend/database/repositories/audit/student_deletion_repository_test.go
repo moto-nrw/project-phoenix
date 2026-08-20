@@ -24,9 +24,6 @@ func TestStudentDeletionRepository_Create(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	expectedTenantID := tenant.FromContext(ctx)
 	require.NoError(t, repo.Create(ctx, event))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "audit.student_deletions", event.ID)
-	})
 	assert.Equal(t, expectedTenantID, event.TenantID)
 	assert.Positive(t, event.ID)
 }

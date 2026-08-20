@@ -58,19 +58,6 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 	return r
 }
 
-func cleanupConversionTest(t *testing.T, s *templateSetup, periodID, instanceID int64) {
-	t.Helper()
-	for _, table := range []string{"schedule.instance_students", "schedule.instance_staff"} {
-		_, err := s.db.NewDelete().Table(table).Where("instance_id = ?", instanceID).Exec(s.ctx)
-		require.NoError(t, err)
-	}
-	_, err := s.db.NewDelete().Table("schedule.activity_instances").Where("id = ?", instanceID).Exec(s.ctx)
-	require.NoError(t, err)
-	_, err = s.db.NewDelete().Table("schedule.calendar_periods").Where("id = ?", periodID).Exec(s.ctx)
-	require.NoError(t, err)
-	s.cleanupFn()
-}
-
 func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +129,6 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Errors-Period")
-	defer testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
 	body := createTemplateBody(s, "Tpl-Convert-Errors")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = "2026-05-04"
@@ -180,7 +166,6 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 		EndHHMM:       "12:50",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { cleanupConversionTest(t, s, period.ID, instance.ID) })
 
 	router := conversionRouter(s.ctx, s.res)
 	body := createTemplateBody(s, "Tpl-Convert-Atomic")
@@ -241,7 +226,6 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		EndHHMM:       "12:50",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { cleanupConversionTest(t, s, period.ID, instance.ID) })
 
 	repoFactory := repositories.NewFactory(s.db)
 	timetableData := testTimetableDataWithOfferingCallbacks(
@@ -317,7 +301,6 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 		EndHHMM:       "12:50",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { cleanupConversionTest(t, s, period.ID, instance.ID) })
 
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
 	repoFactory := repositories.NewFactory(s.db)
@@ -365,7 +348,6 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 		EndHHMM:       "12:50",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { cleanupConversionTest(t, s, period.ID, instance.ID) })
 
 	router := conversionRouterWithOpts(s.ctx, s.res, true)
 	body := createTemplateBody(s, "Tpl-Convert-4xx-Orphan")

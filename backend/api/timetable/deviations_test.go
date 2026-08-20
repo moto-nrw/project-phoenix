@@ -79,10 +79,6 @@ func buildDevSetup(t *testing.T) *devSetup {
 	})
 
 	t.Cleanup(func() {
-		for _, id := range []int64{a.ID, x.ID, y.ID, b.ID} {
-			testpkg.CleanupActivityFixtures(t, db, 0, id, 0, 0, 0)
-		}
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 	})
 
 	return &devSetup{
@@ -146,11 +142,9 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Swap"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"absences":      []map[string]any{{"staff_id": s.staffX}},
@@ -159,7 +153,6 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
 	rows := devInstanceStaff(t, s.db, s.ctx, inst.ID)
-	var newSubIDs []int64
 	sawXAbsent, sawYActive := false, false
 	for _, r := range rows {
 		if r.StaffID == s.staffX {
@@ -168,12 +161,10 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 		}
 		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
 			sawYActive = true
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 	}
 	assert.True(t, sawXAbsent, "X row absent")
 	assert.True(t, sawYActive, "Y active substitute row created")
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // Assigning a substitute who ALREADY covers another of the absent person's
@@ -193,17 +184,13 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 
 	inst1 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Block1", StartHHMM: "08:00", EndHHMM: "09:00"})
 	inst2 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Block2", StartHHMM: "10:00", EndHHMM: "11:00"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
-	})
 
 	// A works both blocks and is present. On block2, Y is already a substitute
 	// (covering B, who is absent there).
-	rowA1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowA2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowB2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffB, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowY2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffY, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA1.ID, rowA2.ID, rowB2.ID, rowY2.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffB, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffY, testpkg.InstanceStaffOpts{IsSubstitute: true})
 
 	w := doDev(t, router, inst1.ID, map[string]any{
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
@@ -211,7 +198,6 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
 	// block1: A absent, Y freshly substituting.
-	var newSubIDs []int64
 	sawA1Absent, sawY1New := false, false
 	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst1.ID) {
 		if r.StaffID == s.staffA {
@@ -219,7 +205,6 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 		}
 		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
 			sawY1New = true
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 	}
 	assert.True(t, sawA1Absent, "A marked absent on block1")
@@ -239,7 +224,6 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 	assert.True(t, sawA2Absent, "A marked absent on block2")
 	assert.Equal(t, 1, yRowCount, "Y must not be inserted twice on block2")
 
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // Under the count-based coverage rule (#1840) a second substitute is accepted
@@ -256,13 +240,11 @@ func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Pooled"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// A absent, X already substituting A (non-absent), B planned & present.
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	// Mark B absent AND assign Y: two open positions (A, B), X covers one, Y fills
 	// the remaining gap — no conflict.
@@ -272,7 +254,6 @@ func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	var newSubIDs []int64
 	sawBAbsent, sawYActive, xStillActive := false, false, false
 	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
 		if r.StaffID == s.staffB {
@@ -283,13 +264,11 @@ func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 		}
 		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
 			sawYActive = true
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 	}
 	assert.True(t, sawBAbsent, "B marked absent")
 	assert.True(t, xStillActive, "X remains an active substitute")
 	assert.True(t, sawYActive, "Y created as an active substitute filling the second gap")
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // A genuine OVERSTAFFING conflict must still 409 and roll back everything in the
@@ -306,16 +285,12 @@ func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
 
 	inst1 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Covered", StartHHMM: "08:00", EndHHMM: "09:00"})
 	inst2 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Other", StartHHMM: "10:00", EndHHMM: "11:00"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
-	})
 
 	// inst1 already fully covered: A absent, X actively substituting (1 absent, 1
 	// active sub). inst2 has B present — the atomicity co-write target.
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
 	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID, rowB.ID) })
 
 	// Add Y as a SECOND substitute to the already-covered inst1 → substitute_conflict.
 	// B's day-wide absence is in the same payload and must not survive the abort.
@@ -341,12 +316,10 @@ func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Acked"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 	setUnderstaffedAckFixture(t, s.db, s.ctx, inst.ID)
 
 	// A already absent → block was legitimately all-absent when acked.
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
@@ -357,13 +330,6 @@ func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 		"adding coverage must clear the stale acknowledgement on this instance")
 
 	// Clean up the new substitute row.
-	var newSubIDs []int64
-	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
-		if r.StaffID == s.staffY {
-			newSubIDs = append(newSubIDs, r.ID)
-		}
-	}
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // Acknowledging a block while non-absent staff remain must be rejected, and
@@ -376,9 +342,7 @@ func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Staffed"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{"understaffed_ack": true})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
@@ -396,7 +360,6 @@ func TestApplyDeviations_Cancel(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Cancelme"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// Cancel now runs through the real InstanceService inside ApplyDeviations
 	// (no mock seam), so the assertions read the persisted cancellation instead
@@ -422,7 +385,6 @@ func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 	past := timezone.TodayDate().AddDays(-1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, past, s.roomID, testpkg.ActivityInstanceOpts{Title: "Past"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"absences": []map[string]any{{"staff_id": s.staffA}},
@@ -444,15 +406,11 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Selected"})
 	other := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Other"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", selected.ID, other.ID)
-	})
 	// The other block was legitimately all-absent when acked.
 	setUnderstaffedAckFixture(t, s.db, s.ctx, other.ID)
 
-	rowSel := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowOther := testpkg.CreateTestInstanceStaff(t, s.db, other.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowSel.ID, rowOther.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, other.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	// Substituting Y for A is day-wide → covers BOTH blocks in one save.
 	w := doDev(t, router, selected.ID, map[string]any{
@@ -466,16 +424,6 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 		"stale ack on the OTHER covered block must be reconciled")
 	assert.False(t, readInstance(t, s.db, s.ctx, selected.ID).UnderstaffedAck,
 		"the selected block was never acked")
-
-	var newSubIDs []int64
-	for _, instID := range []int64{selected.ID, other.ID} {
-		for _, r := range devInstanceStaff(t, s.db, s.ctx, instID) {
-			if r.StaffID == s.staffY {
-				newSubIDs = append(newSubIDs, r.ID)
-			}
-		}
-	}
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // A substitute removed on a prior save is marked absent day-wide; the endpoint
@@ -490,12 +438,10 @@ func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Restore"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// A absent; X is a substitute who was removed earlier → marked absent day-wide.
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID) })
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"presences": []int64{s.staffX},
@@ -519,11 +465,9 @@ func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "TwoSubs"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{
@@ -533,21 +477,17 @@ func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	var newSubIDs []int64
 	sawX, sawY := false, false
 	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
 		if r.StaffID == s.staffX && r.IsSubstitute && !r.IsAbsent {
 			sawX = true
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
 			sawY = true
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 	}
 	assert.True(t, sawX, "X substitute row created for A")
 	assert.True(t, sawY, "Y substitute row created for B")
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // The SAME substitute named for both absent positions on one block must NOT
@@ -561,11 +501,9 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "SameSub"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{
@@ -576,12 +514,10 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
 	xRows := 0
-	var newSubIDs []int64
 	sawAAbsent, sawBAbsent := false, false
 	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
 		if r.StaffID == s.staffX {
 			xRows++
-			newSubIDs = append(newSubIDs, r.ID)
 		}
 		if r.StaffID == s.staffA && r.IsAbsent {
 			sawAAbsent = true
@@ -593,7 +529,6 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 	assert.Equal(t, 1, xRows, "the shared substitute must appear exactly once")
 	assert.True(t, sawAAbsent, "A marked absent")
 	assert.True(t, sawBAbsent, "B marked absent")
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // One substitute covering TWO absent staff on the same block must yield each
@@ -612,7 +547,6 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *tes
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "SameSubWarn", StartHHMM: "14:00", EndHHMM: "15:00",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// A FOREIGN block the same day 14:30-15:30 that X already staffs (non-absent).
 	// It overlaps the target, so covering the target with X raises exactly one
@@ -620,12 +554,10 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *tes
 	foreign := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "ForeignForX", StartHHMM: "14:30", EndHHMM: "15:30",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", foreign.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	rowXForeign := testpkg.CreateTestInstanceStaff(t, s.db, foreign.ID, s.staffX, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID, rowXForeign.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, foreign.ID, s.staffX, testpkg.InstanceStaffOpts{})
 
 	// X covers BOTH absent A and B on the target block in one save.
 	w := doDev(t, router, inst.ID, map[string]any{
@@ -645,13 +577,6 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *tes
 	assert.Equal(t, inst.ID, resp.Data.Warnings[0].InstanceID)
 	assert.Equal(t, foreign.ID, resp.Data.Warnings[0].OtherID)
 
-	var newSubIDs []int64
-	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
-		if r.StaffID == s.staffX {
-			newSubIDs = append(newSubIDs, r.ID)
-		}
-	}
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
 // ackRouter wires the standalone acknowledge-understaffed handler with the same
@@ -694,7 +619,6 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 	past := timezone.TodayDate().AddDays(-1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, past, s.roomID, testpkg.ActivityInstanceOpts{Title: "PastAck"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	w := doAck(t, router, inst.ID, map[string]any{"ack": true})
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())

@@ -26,7 +26,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // createSourceCareOffering creates a phase plus one care offering that is NOT
@@ -73,8 +72,6 @@ func createSourceCareOffering(
 	}))
 
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.care_offerings", created.ID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.phases", phase.ID)
 	}}, s.extraCleanups...)
 	return created
 }
@@ -92,9 +89,6 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 		} {
 			_, err := s.db.NewRaw(stmt, templateID).Exec(s.ctx)
 			assert.NoError(t, err)
-		}
-		if len(timeframeIDs) > 0 {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.timeframes", timeframeIDs...)
 		}
 	}}, s.extraCleanups...)
 }
@@ -134,7 +128,6 @@ func linkApprovedChildToOffering(
 	link.SetTenantID(s.tenantID)
 	require.NoError(t, repositories.NewFactory(s.db).RequestChildOffering.Create(s.ctx, link))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_child_offerings", link.ID)
 	}}, s.extraCleanups...)
 }
 
@@ -921,7 +914,6 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	latePeriod.SetTenantID(s.tenantID)
 	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", latePeriod.ID)
 	}}, s.extraCleanups...)
 
 	_, err = s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
@@ -994,7 +986,6 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	instance.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -1077,7 +1068,6 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	instance.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)

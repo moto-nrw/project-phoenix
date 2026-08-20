@@ -63,27 +63,6 @@ func attachActiveGroup(t *testing.T, db *bun.DB, tenantID, roomID int64) int64 {
 	return id
 }
 
-func cleanupWCAliasMigrationTest(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	stmts := []string{
-		`DELETE FROM active.groups WHERE tenant_id = ?`,
-		`DELETE FROM facilities.rooms WHERE tenant_id = ?`,
-		`DELETE FROM audit.wc_alias_migration_backup WHERE tenant_id = ?`,
-	}
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt, tenantID); err != nil {
-			t.Logf("wc alias migration cleanup: %v", err)
-		}
-	}
-	// Restore the index so subsequent tests in the suite see the
-	// post-migration state SetupTestDB promised them.
-	if err := roomsWCAliasUniqueUp(ctx, db); err != nil {
-		t.Logf("wc alias migration cleanup (index restore): %v", err)
-	}
-}
-
 func countAliasRows(t *testing.T, db *bun.DB, tenantID int64) int {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -113,10 +92,9 @@ func roomNameByID(t *testing.T, db *bun.DB, id int64) string {
 func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9101
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWCAliasMigrationTest(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -134,10 +112,9 @@ func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9102
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWCAliasMigrationTest(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -167,10 +144,9 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9103
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWCAliasMigrationTest(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -189,10 +165,9 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9104
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWCAliasMigrationTest(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -220,10 +195,9 @@ func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9105
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWCAliasMigrationTest(t, db, tenantID)
 
 	// Index already exists from SetupTestDB's prior migration run.
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -244,12 +218,11 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 func TestRoomsWCAliasUniqueUp_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantA, tenantB int64 = 9106, 9107
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	defer testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
-	defer cleanupWCAliasMigrationTest(t, db, tenantA)
-	defer cleanupWCAliasMigrationTest(t, db, tenantB)
 
 	insertWCAliasRoom(t, db, tenantA, "WC")
 	insertWCAliasRoom(t, db, tenantB, "WC")

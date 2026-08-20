@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -9,31 +8,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-// cleanupStudentCompanions removes every companion edge touching the given
-// students. The edges are written by ReplaceForStudent (which does its own
-// delete+insert), so the test never learns their row ids — cleaning up by
-// endpoint is the only reliable way to leave the shared test tenant clean.
-func cleanupStudentCompanions(t *testing.T, db *bun.DB, studentIDs ...int64) {
-	t.Helper()
-	if len(studentIDs) == 0 {
-		return
-	}
-
-	_, err := db.NewDelete().
-		TableExpr("users.student_companions").
-		Where("student_low_id IN (?) OR student_high_id IN (?)", bun.List(studentIDs), bun.List(studentIDs)).
-		Exec(context.Background())
-	if err != nil {
-		t.Logf("Warning: failed to cleanup users.student_companions: %v", err)
-	}
-}
 
 // newCompanionEdge builds a normalized edge or fails the test.
 func newCompanionEdge(t *testing.T, studentID, companionID int64, weekday int) *users.StudentCompanion {
@@ -73,8 +52,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) 
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Symmetric", "1a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Symmetric", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID)
 
 	// ACT — edited from A's card only.
 	err := repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
@@ -110,8 +87,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testin
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekdays", "2a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Weekdays", "2a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID)
 
 	err := repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
@@ -143,8 +118,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) 
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Clear", "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Clear", "3a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID)
 
 	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 2),
@@ -177,8 +150,6 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Unrelated", "4a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Unrelated", "4a")
 	studentC := testpkg.CreateTestStudent(t, db, "CompanionC", "Unrelated", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID, studentC.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID, studentC.ID)
 
 	// A–B (edited later) and B–C (must survive).
 	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
@@ -224,8 +195,6 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekday", "5a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Weekday", "5a")
 	studentC := testpkg.CreateTestStudent(t, db, "CompanionC", "Weekday", "5a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID, studentC.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID, studentC.ID)
 
 	// A–B on Monday, A–C on Tuesday.
 	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
@@ -288,8 +257,6 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 	studentB := testpkg.CreateTestStudent(t, db, "ChainB", "Reach", "5b")
 	studentC := testpkg.CreateTestStudent(t, db, "ChainC", "Reach", "5b")
 	studentD := testpkg.CreateTestStudent(t, db, "ChainD", "Reach", "5b")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID, studentC.ID, studentD.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID, studentC.ID, studentD.ID)
 
 	// A–B, B–C, C–D on Monday.
 	require.NoError(t, repo.ReplaceForStudent(ctx, studentB.ID, []*users.StudentCompanion{
@@ -333,8 +300,6 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 
 	studentA := testpkg.CreateTestStudent(t, db, "LinkSource", "Companion", "6a")
 	studentB := testpkg.CreateTestStudent(t, db, "LinkTarget", "Companion", "6a")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
-	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID)
 
 	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
@@ -353,7 +318,6 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 
 	t.Run("returns an empty list for a child without companions", func(t *testing.T) {
 		lonely := testpkg.CreateTestStudent(t, db, "NoCompanion", "Child", "6b")
-		defer testpkg.CleanupActivityFixtures(t, db, lonely.ID)
 
 		got, err := repo.ListLinksForStudent(ctx, lonely.ID)
 		require.NoError(t, err)
@@ -385,8 +349,6 @@ func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
 	second := testpkg.CreateTestStudent(t, db, "BulkSecond", "Companion", "7a")
 	third := testpkg.CreateTestStudent(t, db, "BulkThird", "Companion", "7a")
 	lonely := testpkg.CreateTestStudent(t, db, "BulkLonely", "Companion", "7a")
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID, third.ID, lonely.ID)
-	defer cleanupStudentCompanions(t, db, first.ID, second.ID, third.ID, lonely.ID)
 
 	// A chain: first-second on Mon+Wed, second-third on Tue. The middle child
 	// therefore carries links to BOTH ends and must not receive the other pair's

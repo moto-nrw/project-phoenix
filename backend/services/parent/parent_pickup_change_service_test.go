@@ -102,7 +102,6 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 
 	svc, db, repos := buildPickupChangeServiceWithRequests(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	date := timezone.TodayDate().AddDays(3)
@@ -141,7 +140,6 @@ func TestPickupChangeRejectsASecondOpenRequestForTheSameDay(t *testing.T) {
 
 	svc, db, _ := buildPickupChangeServiceWithRequests(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	date := timezone.TodayDate().AddDays(4)
@@ -195,7 +193,6 @@ func TestSubmitPickupChangeRequestRejectsForeignChild(t *testing.T) {
 
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pickup := timezone.WallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
@@ -210,7 +207,6 @@ func TestSubmitPickupChangeRequestRespectsSchoolSetting(t *testing.T) {
 
 	svc, db := buildPickupChangeService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pickup := timezone.WallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
@@ -226,7 +222,6 @@ func TestSubmitPickupChangeRequestBoundsTheDate(t *testing.T) {
 
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pickup := timezone.WallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	today := timezone.TodayDate()
@@ -251,7 +246,6 @@ func TestPickupChangeReadAndWithdrawRejectForeignChild(t *testing.T) {
 
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	foreign := chain.StudentID + 999999
 
 	t.Run("list", func(t *testing.T) {
@@ -272,7 +266,6 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.ListPickupChangeRequests(context.Background(), chain.AccountID, chain.StudentID)
 	require.Error(t, err)

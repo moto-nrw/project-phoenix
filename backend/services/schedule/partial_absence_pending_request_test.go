@@ -31,10 +31,6 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Pending")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	day := timezone.TodayDate().AddDays(5)
 	ctx := testpkg.TenantContext(chain.TenantID)

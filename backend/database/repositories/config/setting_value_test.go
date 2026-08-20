@@ -6,7 +6,6 @@ import (
 
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -125,8 +124,8 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	// Use high tenant IDs to avoid sequence collisions: other tests use
 	// auto-increment (BIGSERIAL) for orgs/schools, so low explicit IDs like
 	// 2–20 can collide when the sequence catches up. IDs 9990+ are safe.
-	tenantA := int64(9990)
-	tenantB := int64(9991)
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
@@ -192,5 +191,4 @@ func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
 
 // Ensure tenant import is used
 func init() {
-	_ = tenant.WithTenantID
 }

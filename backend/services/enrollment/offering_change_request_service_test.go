@@ -79,12 +79,6 @@ func setupOfferingChangeFixture(
 	t.Helper()
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeOld"+label)
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeNew"+label)
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, env.db,
-			oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-			newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-		)
-	})
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 201
@@ -129,7 +123,6 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, row.Status)
 	assert.Equal(t, fx.childID, row.RequestChildID)
@@ -169,7 +162,6 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	offerings, ok := row.Payload["offerings"].([]any)
 	require.True(t, ok)
@@ -218,7 +210,6 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	offerings, ok := row.Payload["offerings"].([]any)
 	require.True(t, ok)
@@ -237,7 +228,7 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Second")
 
-	first, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+	_, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -246,7 +237,6 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", first.ID) })
 
 	_, err = svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
@@ -277,7 +267,6 @@ func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *tes
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", first.ID) })
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: first.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
@@ -375,7 +364,6 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -431,7 +419,6 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// The period start moves behind the requested date while the request waits.
 	phaseStart := timezone.TodayDate().AddDays(30)
@@ -470,7 +457,6 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
@@ -503,7 +489,6 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -548,7 +533,6 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// The offering fills up between submission and decision.
 	zeroCapacity := 0
@@ -589,7 +573,6 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// Capacity can be reduced after enrollment. That must never trap an
 	// already-booked child in the now-over-capacity offering.
@@ -627,7 +610,6 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	zeroCapacity := 0
 	fx.oldOffering.Capacity = &zeroCapacity
@@ -660,7 +642,6 @@ func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	_, otherAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Andere", "Bezugsperson")
 	err = svc.Withdraw(ctx, row.ID, otherAccount.ID, fx.studentID)
@@ -733,7 +714,6 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -788,7 +768,6 @@ func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *test
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
 

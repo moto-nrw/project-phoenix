@@ -6,6 +6,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -29,23 +30,24 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 
 	service := setupAuthService(t, db)
 
-	// ARRANGE: Create tenant infrastructure (org + school with subdomain "t42")
-	const tenantID int64 = 42
+	// ARRANGE: Create tenant infrastructure (org + school; EnsureTestTenant
+	// names the subdomain "t<tenantID>")
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	// Register an account in tenant 42's context
+	// Register an account in that tenant's context
 	regCtx := testpkg.TenantContext(tenantID)
 	email, username := uniqueTestCredentials("slug-valid")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	// Ensure the account is mapped to tenant 42
+	// Ensure the account is mapped to that tenant
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
-	// ACT: Login with explicit tenant slug "t42"
+	// ACT: Login with that tenant's explicit slug
 	accessToken, refreshToken, err := service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "t42",
+		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", tenantID),
 	)
 
 	// ASSERT: Should succeed and return valid tokens
@@ -65,7 +67,7 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 	service := setupAuthService(t, db)
 
 	// ARRANGE: Create an account (tenant doesn't matter, we just need valid credentials)
-	const tenantID int64 = 43
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)
@@ -95,10 +97,10 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 
 	service := setupAuthService(t, db)
 
-	// ARRANGE: Create two tenants — account is in tenant 44, but will try to
-	// login to tenant 45.
-	const homeTenantID int64 = 44
-	const otherTenantID int64 = 45
+	// ARRANGE: Create two tenants — the account belongs to the first and tries
+	// to log in to the second.
+	homeTenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, homeTenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
@@ -108,12 +110,13 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	// Map account only to homeTenantID (44), NOT to otherTenantID (45)
+	// Map the account only to homeTenantID, NOT to otherTenantID
 	testpkg.MapAccountToTenant(t, db, account.ID, homeTenantID)
 
-	// ACT: Login with slug "t45" — school exists but account has no access
+	// ACT: Login with the other tenant's slug — school exists but the account
+	// has no access
 	_, _, err = service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "t45",
+		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", otherTenantID),
 	)
 
 	// ASSERT: Should fail with ErrTenantAccessDenied
@@ -133,7 +136,7 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 	service := setupAuthService(t, db)
 
 	// ARRANGE: Create tenant and register an account with a mapping
-	const tenantID int64 = 46
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)
@@ -169,7 +172,7 @@ func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 
 	// ARRANGE: Create a tenant for registration context, but do NOT map the account
 	// to any tenant. Register creates the account but we will remove any auto-mapping.
-	const tenantID int64 = 47
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)

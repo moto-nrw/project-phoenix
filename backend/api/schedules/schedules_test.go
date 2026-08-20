@@ -58,33 +58,6 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// cleanupDateframe cleans up a dateframe by ID
-func cleanupDateframe(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr("schedule.dateframes").
-		Where("id = ?", id).
-		Exec(context.Background())
-}
-
-// cleanupTimeframe cleans up a timeframe by ID
-func cleanupTimeframe(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr("schedule.timeframes").
-		Where("id = ?", id).
-		Exec(context.Background())
-}
-
-// cleanupRecurrenceRule cleans up a recurrence rule by ID
-func cleanupRecurrenceRule(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr("schedule.recurrence_rules").
-		Where("id = ?", id).
-		Exec(context.Background())
-}
-
 // =============================================================================
 // CURRENT DATEFRAME TESTS
 // =============================================================================
@@ -115,7 +88,6 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 		ModelTableExpr("schedule.dateframes").
 		Exec(context.Background())
 	require.NoError(t, err)
-	defer cleanupDateframe(t, ctx.db, dateframe.ID)
 
 	req := testutil.NewRequest("GET", "/current-dateframe", nil)
 
@@ -366,9 +338,6 @@ func TestCreateDateframe_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup
-	if id, ok := data["id"].(float64); ok {
-		cleanupDateframe(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
@@ -605,9 +574,6 @@ func TestCreateTimeframe_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup
-	if id, ok := data["id"].(float64); ok {
-		cleanupTimeframe(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
@@ -821,9 +787,6 @@ func TestCreateRecurrenceRule_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup
-	if id, ok := data["id"].(float64); ok {
-		cleanupRecurrenceRule(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {

@@ -47,26 +47,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 		series: serviceFactory.StaffShiftSeries,
 		shifts: serviceFactory.StaffShifts,
 	}
-	t.Cleanup(func() { env.cleanup(t) })
 	return env
-}
-
-func (e *seriesTestEnv) cleanup(t *testing.T) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := e.db.NewDelete().TableExpr("schedule.staff_shifts").Where("tenant_id = ?", e.scope.TenantID).Exec(ctx)
-	require.NoError(t, err)
-	_, err = e.db.NewDelete().TableExpr("schedule.staff_shift_series_exceptions").Where("tenant_id = ?", e.scope.TenantID).Exec(ctx)
-	require.NoError(t, err)
-	// Successors reference their root; delete children first.
-	_, err = e.db.NewDelete().TableExpr("schedule.staff_shift_series").Where("tenant_id = ? AND series_root_id IS NOT NULL", e.scope.TenantID).Exec(ctx)
-	require.NoError(t, err)
-	_, err = e.db.NewDelete().TableExpr("schedule.staff_shift_series").Where("tenant_id = ?", e.scope.TenantID).Exec(ctx)
-	require.NoError(t, err)
-	_, err = e.db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id = ?", e.scope.TenantID).Exec(ctx)
-	require.NoError(t, err)
-	testpkg.CleanupStaffFixtures(t, e.db, e.staff.ID)
-	testpkg.CleanupTenantTestData(t, e.db, e.scope.TenantID)
 }
 
 // createPeriod inserts a calendar period spanning [start, end] for the test

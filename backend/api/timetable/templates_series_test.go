@@ -59,7 +59,6 @@ func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	split := decodeTemplateData[splitTemplateResponse](t, w)
 
 	period := createTemplateTestPeriod(t, s.db, name+"-Zeitraum")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 
 	return &splitSeriesSetup{
 		templateSetup: s,
@@ -156,10 +155,6 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 
 	suffix := time.Now().UnixNano()
 	latecomer := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("Nachzuegler-%d", suffix), "3a")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.students", latecomer.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", latecomer.PersonID)
-	})
 
 	anchor := timezone.TodayDate().AddDays(3)
 	body := createTemplateBody(s.templateSetup, "Tpl-SeriesRoster-Update")

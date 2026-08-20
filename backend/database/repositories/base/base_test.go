@@ -323,15 +323,6 @@ func setSettingValueCreatedAt(t *testing.T, db *bun.DB, id int64, createdAt time
 	require.NoError(t, err)
 }
 
-// cleanupTenantSettingValues removes every row the test created for a tenant.
-func cleanupTenantSettingValues(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr(baseTestTable).
-		Where("tenant_id = ?", tenantID).
-		Exec(testpkg.TenantContext(tenantID))
-}
-
 func TestRepository_CountWithOptions(t *testing.T) {
 	t.Parallel()
 
@@ -341,8 +332,6 @@ func TestRepository_CountWithOptions(t *testing.T) {
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, otherTenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -384,7 +373,6 @@ func TestRepository_OldestBefore(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -430,8 +418,6 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, otherTenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)

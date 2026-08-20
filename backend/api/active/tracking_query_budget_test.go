@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,11 +38,6 @@ func (c *trackingSettingValuesCounter) BeforeQuery(ctx context.Context, event *b
 
 func (*trackingSettingValuesCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
-// JWT-safe tenant IDs: UniqueTestTenantID values exceed 2^53 and corrupt when
-// the tenant_id claim round-trips through JSON, so JWT-driving tests use a
-// small offset counter (same pattern as api/rooms/system_filter_test.go).
-var trackingBudgetTenantCounter int64 = 890_000 + time.Now().UnixNano()%100_000
-
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
 // way production attaches it) and asserts the four settings the handler reads
@@ -56,7 +50,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
 
-	tenantID := atomic.AddInt64(&trackingBudgetTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		ctx := context.Background()

@@ -161,8 +161,7 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, before)
 
-	fix := setupSummariesFixture(t, db)
-	_ = fix
+	setupSummariesFixture(t, db)
 
 	after, err := repo.Stats(ctx)
 	require.NoError(t, err)

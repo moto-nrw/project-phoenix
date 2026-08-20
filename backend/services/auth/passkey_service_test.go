@@ -577,7 +577,7 @@ func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
 func TestPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	t.Parallel()
 
-	tenantID := int64(55)
+	tenantID := testpkg.UniqueTestTenantID(t)
 
 	tests := []struct {
 		name    string

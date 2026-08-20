@@ -32,7 +32,6 @@ func materializeSingleInstance(t *testing.T, s *scenarioSetup) *scheduleModels.A
 	require.NoError(t, err)
 	rows := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 	require.Len(t, rows, 1)
-	s.registerCleanup("schedule.activity_instances", rows[0].ID)
 	return rows[0]
 }
 
@@ -128,7 +127,6 @@ func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
 
 	room2 := testpkg.CreateTestRoomForTenant(t, s.db, s.tenantID, "Turnraum-1875")
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room2.ID)
 	})
 	setInstanceColumn(t, s, inst.ID, "room_id", room2.ID)
 
@@ -224,7 +222,6 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			}
 			require.NoError(t, s.factory.StudentStatusDays.UpsertReported(s.ctx, statusDay))
 			s.extraCleanups = append(s.extraCleanups, func() {
-				testpkg.CleanupStudentStatusDays(t, s.db, statusDay.ID)
 			})
 
 			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
@@ -242,7 +239,6 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			require.NoError(t, err)
 			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 			require.Len(t, regenerated, 1)
-			s.registerCleanup("schedule.activity_instances", regenerated[0].ID)
 
 			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
 			require.NoError(t, err)
@@ -299,7 +295,6 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 			require.NoError(t, err)
 			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 			require.Len(t, regenerated, 1)
-			s.registerCleanup("schedule.activity_instances", regenerated[0].ID)
 
 			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
 			require.NoError(t, err)
@@ -345,7 +340,6 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 	setInstanceStaffAbsent(t, s, inst.ID, s.staffID)
 	subStaff := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Ersatz", "Kraft-1875")
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, subStaff.ID)
 	})
 	sub := &scheduleModels.InstanceStaff{
 		InstanceID:   inst.ID,
@@ -382,7 +376,6 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 	_, err = s.db.NewDelete().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
@@ -441,7 +434,6 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
 	// Materialize so the occurrence lands at the exception-shifted 13:00 start.
 	materializeSingleInstance(t, s)

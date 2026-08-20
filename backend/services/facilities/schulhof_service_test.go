@@ -592,13 +592,12 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 	categoryID := activityGroup1.CategoryID
 
 	// Delete only the activity group to simulate partial infrastructure
-	_, err = db.NewDelete().
+	// Ignore error — there might be no active groups yet
+	_, _ = db.NewDelete().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id = ?`, activityGroup1.ID).
 		Exec(ctx)
-	// Ignore error — there might be no active groups yet
-	_ = err
 
 	// Delete the activity group itself
 	_, err = db.NewDelete().

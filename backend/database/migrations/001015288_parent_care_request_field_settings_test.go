@@ -24,7 +24,6 @@ func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *tes
 			WHERE tenant_id IN (?, ?)
 				AND setting_key LIKE 'operations.parent_care_%_request_enabled';
 		`, enabledTenant, disabledTenant, enabledTenant, disabledTenant).Exec(context.Background())
-		testpkg.CleanupTestTenant(t, db, enabledTenant, disabledTenant)
 	})
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)

@@ -72,10 +72,7 @@ func newCareFixture(t *testing.T) *careFixture {
 	)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
 
 	return &careFixture{db: db, svc: svc, sf: sf, repos: repos, chain: chain, staffAccount: staffAccount.ID, staffID: staff.ID}
 }
@@ -464,7 +461,6 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	// This test actually writes pills (created + status) from the separate staff
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
 	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 	settings := &toggleSettings{enabled: true}
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
@@ -519,7 +515,6 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	f := newCareFixture(t)
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
@@ -942,7 +937,6 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	ctx := testpkg.TenantContext(f.chain.TenantID)
 
 	partner := testpkg.CreateTestStudent(t, f.db, "Companion", "Partner", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, f.db, partner.ID) })
 	t.Cleanup(func() {
 		_, err := f.db.NewDelete().
 			TableExpr("users.student_companions").
@@ -1026,7 +1020,6 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	f := newCareFixture(t)
 	// The create/withdraw/decide pills reference the staff + guardian accounts
 	// without cascade; clear them LIFO-first, ahead of the auth cleanup.
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(

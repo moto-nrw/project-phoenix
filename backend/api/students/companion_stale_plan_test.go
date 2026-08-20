@@ -64,7 +64,6 @@ func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Subject", "ST1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Partner", "ST1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	// Both children accompany on Monday AND Tuesday, and both keep their own
 	// note — so dropping a link stands or falls on the baseline rule alone.
@@ -154,7 +153,6 @@ func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Subject", "CV1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Partner", "CV1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(nil))
@@ -207,7 +205,6 @@ func TestUpdateStudent_CompanionsWithoutAccompaniedDayRefused(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Subject", "NA1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Partner", "NA1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{

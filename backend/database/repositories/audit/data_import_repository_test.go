@@ -25,7 +25,6 @@ func TestDataImportRepository_Create(t *testing.T) {
 
 	// Create a test account for the imported_by FK
 	account := testpkg.CreateTestAccount(t, db, "import_test@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("creates data import with valid data", func(t *testing.T) {
 		now := time.Now()
@@ -48,7 +47,6 @@ func TestDataImportRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dataImport.ID)
 
-		testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 	})
 
 	t.Run("creates dry run import", func(t *testing.T) {
@@ -71,7 +69,6 @@ func TestDataImportRepository_Create(t *testing.T) {
 		assert.NotZero(t, dataImport.ID)
 		assert.True(t, dataImport.DryRun)
 
-		testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 	})
 
 	t.Run("creates import with metadata", func(t *testing.T) {
@@ -96,7 +93,6 @@ func TestDataImportRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dataImport.ID)
 
-		testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 	})
 }
 
@@ -109,7 +105,6 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_import@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds existing data import", func(t *testing.T) {
 		now := time.Now()
@@ -124,7 +119,6 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, dataImport)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 
 		found, err := repo.FindByID(ctx, dataImport.ID)
 		require.NoError(t, err)
@@ -151,7 +145,6 @@ func TestDataImportRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list_import@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("lists all imports", func(t *testing.T) {
 		now := time.Now()
@@ -166,7 +159,6 @@ func TestDataImportRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, dataImport)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 
 		imports, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -186,7 +178,6 @@ func TestDataImportRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, dataImport)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 
 		filters := map[string]interface{}{
 			"entity_type": "room",
@@ -213,7 +204,6 @@ func TestDataImportRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, dryRunImport)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.data_imports", dryRunImport.ID)
 
 		filters := map[string]interface{}{
 			"dry_run": true,
@@ -239,7 +229,6 @@ func TestDataImportRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, dataImport)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.data_imports", dataImport.ID)
 
 		filters := map[string]interface{}{
 			"imported_by": account.ID,

@@ -21,51 +21,6 @@ type createStudentResponse struct {
 	} `json:"data"`
 }
 
-// cleanupStudentWithGuardians removes a student and every guardian record linked
-// to it, in FK-safe order, so the hermetic test leaves no residue.
-func cleanupStudentWithGuardians(t *testing.T, tc *testContext, studentID, personID int64) {
-	t.Helper()
-	ctx := context.Background()
-
-	var guardianIDs []int64
-	if err := tc.db.NewSelect().
-		Table("users.students_guardians").
-		Column("guardian_profile_id").
-		Where("student_id = ?", studentID).
-		Scan(ctx, &guardianIDs); err != nil {
-		t.Logf("failed to load guardian ids for cleanup: %v", err)
-	}
-
-	if _, err := tc.db.NewDelete().
-		Table("users.students_guardians").
-		Where("student_id = ?", studentID).
-		Exec(ctx); err != nil {
-		t.Logf("failed to delete student_guardians: %v", err)
-	}
-
-	for _, gid := range guardianIDs {
-		if _, err := tc.db.NewDelete().
-			Table("users.guardian_phone_numbers").
-			Where("guardian_profile_id = ?", gid).
-			Exec(ctx); err != nil {
-			t.Logf("failed to delete guardian phone numbers: %v", err)
-		}
-		if _, err := tc.db.NewDelete().
-			Table("users.guardian_profiles").
-			Where("id = ?", gid).
-			Exec(ctx); err != nil {
-			t.Logf("failed to delete guardian profile: %v", err)
-		}
-	}
-
-	if _, err := tc.db.NewDelete().Table("users.students").Where("id = ?", studentID).Exec(ctx); err != nil {
-		t.Logf("failed to delete student: %v", err)
-	}
-	if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", personID).Exec(ctx); err != nil {
-		t.Logf("failed to delete person: %v", err)
-	}
-}
-
 // TestCreateStudent_WithGuardians verifies a student and its guardians (profile,
 // relationship, and phone numbers) are created together in one request.
 func TestCreateStudent_WithGuardians(t *testing.T) {
@@ -102,8 +57,6 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID, "expected a student id in the response")
-
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	ctx := context.Background()
 
@@ -372,8 +325,6 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
 
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
-
 	ctx := context.Background()
 	relCount, err := tc.db.NewSelect().
 		Table("users.students_guardians").
@@ -430,8 +381,6 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	ctx := context.Background()
 

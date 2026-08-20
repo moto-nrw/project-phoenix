@@ -27,7 +27,6 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Count", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CountBadgeGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Count", "Kind", "CB1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -89,7 +88,6 @@ func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "QueueReviewGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Queue", "Kind", "QR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 

@@ -17,7 +17,6 @@ func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Balance", "Lock")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
 
 	adjustments := NewStaffBalanceAdjustmentRepository(db)
 	workSessions := NewWorkSessionRepository(db)

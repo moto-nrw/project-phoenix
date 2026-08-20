@@ -33,7 +33,6 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Supervisor Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// Create supervisor
 		now := timezone.TodayDate()
@@ -45,7 +44,6 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.GetGroupSupervisor(ctx, supervisor.ID)
@@ -94,7 +92,6 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Create Supervisor Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -110,7 +107,6 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, supervisor.ID, int64(0))
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 	})
 
 	t.Run("returns error for nil supervisor", func(t *testing.T) {
@@ -124,7 +120,6 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 	t.Run("returns error for invalid group ID", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -147,7 +142,6 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Ended Supervisor Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Ended", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		_, err := db.NewUpdate().
 			Table("active.groups").
@@ -192,7 +186,6 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Update Supervisor Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -203,7 +196,6 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// Update role
 		supervisor.Role = "primary_supervisor"
@@ -259,7 +251,6 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Delete Supervisor Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -317,7 +308,6 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "List Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -328,7 +318,6 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.ListGroupSupervisors(ctx, nil)
@@ -371,7 +360,6 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Staff Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -382,7 +370,6 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByStaffID(ctx, staff.ID)
@@ -399,7 +386,6 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 	t.Run("returns empty list for staff with no supervisions", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "No", "Supervisions")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByStaffID(ctx, staff.ID)
@@ -428,7 +414,6 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Group Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -439,7 +424,6 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
@@ -458,7 +442,6 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-supervisors")
 		room := testpkg.CreateTestRoom(t, db, "No Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
@@ -489,7 +472,6 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 		group1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room.ID)
 		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, group1.ID, group2.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		sup1 := &activeModels.GroupSupervisor{GroupID: group1.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
@@ -498,7 +480,6 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 		err = service.CreateGroupSupervisor(ctx, sup2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup1.ID, sup2.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByActiveGroupIDs(ctx, []int64{group1.ID, group2.ID})
@@ -536,7 +517,6 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "End Supervision Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -547,7 +527,6 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		err = service.EndSupervision(ctx, supervisor.ID)
@@ -602,7 +581,6 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Active Supervisions Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
@@ -613,7 +591,6 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
@@ -630,7 +607,6 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 	t.Run("returns empty list for staff with no active supervisions", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "No", "Active")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
@@ -660,7 +636,6 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff1.ID, staff2.ID)
 
 		// ACT - set new supervisors
 		result, err := service.UpdateActiveGroupSupervisors(ctx, activeGroup.ID, []int64{staff1.ID, staff2.ID})
@@ -673,7 +648,6 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Update", "NonExistent")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.UpdateActiveGroupSupervisors(ctx, 99999999, []int64{staff.ID})
@@ -688,7 +662,6 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "empty-supervisors")
 		room := testpkg.CreateTestRoom(t, db, "Empty Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT - service requires at least one supervisor
 		result, err := service.UpdateActiveGroupSupervisors(ctx, activeGroup.ID, []int64{})

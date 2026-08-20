@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -84,7 +83,7 @@ func newSchoolPortalFixture(t *testing.T) (service *Service, account *authModels
 	tenantID = testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	unique := time.Now().UnixNano()
+	unique := testpkg.UniqueSuffix()
 	account, err := service.Register(
 		testpkg.TenantContext(tenantID),
 		fmt.Sprintf("school-fail-%d@test.local", unique),
@@ -316,7 +315,7 @@ func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *a
 	service = setupInternalAuthService(t, db)
 
 	tenantID, _ = testpkg.CreateTestTenant(t, db)
-	unique := time.Now().UnixNano()
+	unique := testpkg.UniqueSuffix()
 	account, err := service.Register(
 		testpkg.TenantContext(tenantID),
 		fmt.Sprintf("school-guard-%d@test.local", unique),
@@ -625,7 +624,7 @@ func TestLoadAccountMetadataForTenant_PersonLookupError_Propagates(t *testing.T)
 	// has no person row here", which sent the mint into the cross-school
 	// fallback on the strength of a DB error — and could stamp another
 	// school's name into the token. It has to fail the mint instead.
-	service, db, account, tenantID := newMintGuardFixture(t)
+	service, _, account, tenantID := newMintGuardFixture(t)
 
 	lookupErr := errors.New("person lookup unavailable")
 	service.repos.Person = failingPersonRepo{PersonRepository: service.repos.Person, err: lookupErr}
@@ -635,7 +634,6 @@ func TestLoadAccountMetadataForTenant_PersonLookupError_Propagates(t *testing.T)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, lookupErr, "a failed person lookup must surface, not turn into a nameless token")
 	assert.Nil(t, metadata)
-	_ = db
 }
 
 func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t *testing.T) {
@@ -865,7 +863,7 @@ func TestIssueSchoolTokens_AccountLookupError_IsNotACredentialFailure(t *testing
 	// credentials". Collapsing the two told a Lehrkraft who had just entered a
 	// correct email code that their login was invalid (401) and hid a database
 	// outage from every alert that watches 5xx.
-	service, db, account, tenantID := newMintGuardFixture(t)
+	service, _, account, tenantID := newMintGuardFixture(t)
 	dbErr := errors.New("connection reset")
 	service.repos.Account = failingAccountRepo{AccountRepository: service.repos.Account, err: dbErr}
 
@@ -878,7 +876,6 @@ func TestIssueSchoolTokens_AccountLookupError_IsNotACredentialFailure(t *testing
 	assert.ErrorIs(t, authErr.Err, dbErr)
 	assert.NotErrorIs(t, authErr.Err, ErrAccountNotFound,
 		"a transient DB failure must not be reported as an unknown account")
-	_ = db
 }
 
 func TestIssueSchoolTokens_AccountMissing_ReportsNotFound(t *testing.T) {

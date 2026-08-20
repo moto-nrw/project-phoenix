@@ -76,10 +76,6 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staffA.ID, staffB.ID, admin.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", adminPerson.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", adminAccount.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	// Session + two edit rows from one save action.

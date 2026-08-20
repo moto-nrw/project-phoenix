@@ -28,13 +28,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	// user role) plus a direct vacation:approve grant.
 	approver, approverAccount := testpkg.CreateTestCalendarStaff(t, db, "Lena", "Approver")
 	// Staff without the permission — must not appear.
-	bystander, bystanderAccount := testpkg.CreateTestCalendarStaff(t, db, "Bodo", "Bystander")
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, approver.ID)
-		testpkg.CleanupStaffFixtures(t, db, bystander.ID)
-		testpkg.CleanupAuthFixtures(t, db, approverAccount.ID)
-		testpkg.CleanupAuthFixtures(t, db, bystanderAccount.ID)
-	})
+	bystander, _ := testpkg.CreateTestCalendarStaff(t, db, "Bodo", "Bystander")
 
 	var permissionID int64
 	sqlCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -79,10 +73,6 @@ func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Mila", "Muster")
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-	})
 
 	info, err := repo.GetStaffContactInfo(ctx, staff.ID)
 	require.NoError(t, err)

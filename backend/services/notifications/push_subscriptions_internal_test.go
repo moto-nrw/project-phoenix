@@ -224,14 +224,10 @@ func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "push-parent-mixed-roles")
-	guardianTenantID := account.ID + 4000
-	staffTenantID := account.ID + 4001
+	guardianTenantID := testpkg.UniqueTestTenantID(t)
+	staffTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, guardianTenantID)
 	testpkg.EnsureTestTenant(t, db, staffTenantID)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
-	})
 
 	testpkg.MapAccountToTenant(t, db, account.ID, guardianTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, staffTenantID)

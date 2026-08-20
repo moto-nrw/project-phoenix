@@ -24,7 +24,6 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(40)
@@ -72,7 +71,6 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
-	defer testpkg.CleanupActivityFixtures(t, db, withConflict.ID, clear.ID)
 
 	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(50)
@@ -145,7 +143,6 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkStatusDenied", "Student", "BSD1")
-	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
 	ctx := testpkg.Ctx(t)
 	dates := []timezone.Date{timezone.NewDate(2026, 5, 12)}

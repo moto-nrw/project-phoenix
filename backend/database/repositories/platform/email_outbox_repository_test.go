@@ -372,7 +372,10 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 	defer wipeOutbox(db, tenantID, kind)
 
 	r := makeOutbox(kind)
-	r.NextRetryAt = time.Now().Add(-1 * time.Hour)
+	// Far enough back to sort ahead of every other pending row in the clone:
+	// the claim is tenant-less and takes the 25 oldest due rows, so a row that
+	// is merely "due" competes with whatever other tests left pending (#2419).
+	r.NextRetryAt = time.Now().Add(-365 * 24 * time.Hour)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Create(ctx, r)
 	}))

@@ -33,7 +33,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, rule.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates weekly recurrence rule with weekdays", func(t *testing.T) {
@@ -48,7 +47,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, 3, len(rule.Weekdays))
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates monthly recurrence rule with month days", func(t *testing.T) {
@@ -63,7 +61,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, 3, len(rule.MonthDays))
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates rule with end date", func(t *testing.T) {
@@ -80,7 +77,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.NotNil(t, rule.EndDate)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates rule with count", func(t *testing.T) {
@@ -97,7 +93,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotNil(t, rule.Count)
 		assert.Equal(t, 10, *rule.Count)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("create with nil rule should fail", func(t *testing.T) {

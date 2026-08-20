@@ -6,9 +6,7 @@ package rooms_test
 import (
 	"context"
 	"net/http"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,11 +17,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-var roomFilterTenantCounter int64 = 880_000 + time.Now().UnixNano()%100_000
-
 func newRoomFilterTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
-	tenantID := atomic.AddInt64(&roomFilterTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return tenantID
 }

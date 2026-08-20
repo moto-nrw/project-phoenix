@@ -84,7 +84,6 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testi
 
 	// Reset prior override so the test starts clean.
 	t.Cleanup(func() {
-		_ = ctx.resource // unused but pins the resource ref for clarity
 		_, _ = ctx.db.ExecContext(context.Background(),
 			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
 			testpkg.Tenant(t), configModel.KeyStudentPhotosEnabled)

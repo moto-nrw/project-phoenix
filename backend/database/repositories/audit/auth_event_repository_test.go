@@ -25,7 +25,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 
 	// Create a test account
 	account := testpkg.CreateTestAccount(t, db, "auth_event_test@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("creates auth event with valid data", func(t *testing.T) {
 		event := audit.NewAuthEvent(
@@ -39,7 +38,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
-		testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 	})
 
 	t.Run("creates failed login event", func(t *testing.T) {
@@ -57,7 +55,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		assert.NotZero(t, event.ID)
 		assert.False(t, event.Success)
 
-		testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 	})
 
 	t.Run("creates token refresh event", func(t *testing.T) {
@@ -73,7 +70,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
-		testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 	})
 
 	t.Run("creates password reset event", func(t *testing.T) {
@@ -88,7 +84,6 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
-		testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 	})
 }
 
@@ -101,13 +96,11 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_event@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds existing auth event", func(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogin, true, "192.168.1.1")
 		err := repo.Create(ctx, event)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 
 		found, err := repo.FindByID(ctx, event.ID)
 		require.NoError(t, err)
@@ -135,7 +128,6 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 
 	account1 := testpkg.CreateTestAccount(t, db, "account1@example.com")
 	account2 := testpkg.CreateTestAccount(t, db, "account2@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account1.ID, account2.ID)
 
 	t.Run("finds events by account ID", func(t *testing.T) {
 		event1 := audit.NewAuthEvent(account1.ID, audit.EventTypeLogin, true, "192.168.1.1")
@@ -148,7 +140,6 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, event3)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event1.ID, event2.ID, event3.ID)
 
 		events, err := repo.FindByAccountID(ctx, account1.ID, 10)
 		require.NoError(t, err)
@@ -170,7 +161,6 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, event3)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event1.ID, event2.ID, event3.ID)
 
 		events, err := repo.FindByAccountID(ctx, account1.ID, 2)
 		require.NoError(t, err)
@@ -187,13 +177,11 @@ func TestAuthEventRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("lists all events", func(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogin, true, "192.168.1.1")
 		err := repo.Create(ctx, event)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 
 		events, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -204,7 +192,6 @@ func TestAuthEventRepository_List(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogout, true, "192.168.1.1")
 		err := repo.Create(ctx, event)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 
 		filters := map[string]interface{}{
 			"event_type": audit.EventTypeLogout,
@@ -229,13 +216,11 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "pending_wipe@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
 	event.SetMetadata("reason", "password_reset")
 	event.SetMetadata("pending_account_wide_wipe", true)
 	require.NoError(t, repo.Create(ctx, event))
-	defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 
 	pending, err := repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
 	require.NoError(t, err)
@@ -259,7 +244,6 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "old_pending_wipe@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	createdAt := time.Now().Add(-8 * 24 * time.Hour)
 	_, err := db.NewRaw(`
@@ -290,13 +274,11 @@ func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 	repo := repositories.NewFactory(db).AuthEvent
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "claim_wipe@example.com")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
 	event.SetMetadata("reason", "account_deactivated")
 	event.SetMetadata("pending_account_wide_wipe", true)
 	require.NoError(t, repo.Create(ctx, event))
-	defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
 
 	claimed, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
 	require.NoError(t, err)

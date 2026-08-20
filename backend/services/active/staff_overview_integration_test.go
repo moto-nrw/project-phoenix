@@ -85,12 +85,6 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		ids := make([]int64, 0, len(f.staff))
-		for _, staff := range f.staff {
-			ids = append(ids, staff.ID)
-		}
-		testpkg.CleanupStaffFixtures(t, db, ids...)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	for i := range count {

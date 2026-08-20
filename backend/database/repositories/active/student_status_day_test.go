@@ -24,7 +24,6 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
@@ -89,7 +88,6 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	now := time.Now()
 	firstDate := timezone.DateFromTime(now).AddDays(4)
@@ -139,7 +137,6 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(6)
 	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
@@ -233,8 +230,6 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	studentIDs = append(studentIDs, otherTenantStudent.ID)
 	report(ctxB, otherTenantStudent.ID, active.StudentStatusDayExcused)
 
-	defer testpkg.CleanupActivityFixtures(t, db, studentIDs...)
-
 	counts, err := repo.CountEffectiveDashboardAbsences(ctxA, today)
 	require.NoError(t, err)
 	require.NotNil(t, counts)
@@ -272,7 +267,6 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(5)
 	reason := "Fieber"
@@ -332,7 +326,6 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	repo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// 23:30 UTC on the eve of the 2026 spring DST transition is 00:30 CEST
 	// on March 29 in Berlin — inside the historical failure window.

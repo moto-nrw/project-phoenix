@@ -340,8 +340,6 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 
 	req := validSubmission(t, env.phaseID)
 	student := testpkg.CreateTestStudent(t, env.db, req.Children[0].FirstName, req.Children[0].LastName, "1a")
-	defer testpkg.CleanupTableRecords(t, env.db, "users.persons", student.PersonID)
-	defer testpkg.CleanupTableRecords(t, env.db, "users.students", student.ID)
 	_, err := env.db.NewUpdate().
 		TableExpr(`users.persons`).
 		Set("birthday = ?", req.Children[0].DateOfBirth).
@@ -406,8 +404,6 @@ func withLateInviteRenewalFixture(
 			Where("phase_id = ?", env.phaseID).
 			Exec(context.Background())
 		assert.NoError(t, err)
-		testpkg.CleanupTableRecords(t, env.db, "users.students", student.ID)
-		testpkg.CleanupTableRecords(t, env.db, "users.persons", student.PersonID)
 	}()
 	_, err := env.db.NewUpdate().
 		TableExpr(`users.persons`).
@@ -2109,22 +2105,23 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, enrollmentService.ErrRateLimited))
 
-	// A submission with a different tenant_id must NOT be limited by
-	// tenant 1's counter. Direct repo call asserts the upsert keys on
-	// (tenant_id, key_type, key_value). Tenant 2 needs to exist in
-	// platform.schools to satisfy the FK; EnsureTestTenant is idempotent.
-	testpkg.EnsureTestTenant(t, env.db, 2)
+	// A submission with a different tenant_id must NOT be limited by this
+	// tenant's counter. Direct repo call asserts the upsert keys on
+	// (tenant_id, key_type, key_value). The other tenant needs to exist in
+	// platform.schools to satisfy the FK.
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, env.db, otherTenantID)
 	repoFactory := repositories.NewFactory(env.db)
 	tenantTwoEmail := "anna+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.submission_rate_limits").
-			Where("tenant_id = ?", 2).
+			Where("tenant_id = ?", otherTenantID).
 			Where("key_value = ?", tenantTwoEmail).
 			Exec(context.Background())
 	})
 	state, err := repoFactory.SubmissionRateLimit.IncrementAttempts(
-		ctx, 2, enrollmentModels.SubmissionRateLimitKeyTypeEmail, tenantTwoEmail, 24*time.Hour,
+		ctx, otherTenantID, enrollmentModels.SubmissionRateLimitKeyTypeEmail, tenantTwoEmail, 24*time.Hour,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 1, state.Attempts,

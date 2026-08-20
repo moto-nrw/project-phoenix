@@ -68,13 +68,8 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.AppointmentRepo = &revisingCandidateLock{AppointmentRepository: baseRepo, db: db, on: 2}
 	service := calendarSvc.NewService(cfg)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
@@ -91,7 +86,6 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	notifier.events = nil
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
@@ -130,17 +124,12 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revoked")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revoked")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -153,7 +142,6 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))

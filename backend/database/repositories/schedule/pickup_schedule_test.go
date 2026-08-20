@@ -572,15 +572,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 		staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BulkLookup")
-		exceptionIDs := make([]int64, 0, 2)
-		defer func() {
-			testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, exceptionIDs, nil, nil)
-			testpkg.CleanupActivityFixtures(t, db,
-				student1.ID, student1.PersonID,
-				student2.ID, student2.PersonID,
-				staff.ID, staff.PersonID,
-			)
-		}()
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := timezone.NewDate(2024, 4, 10)
@@ -594,7 +585,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
-			exceptionIDs = append(exceptionIDs, exception.ID)
 		}
 
 		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{student1.ID, student2.ID}, exceptionDate)
@@ -620,11 +610,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "PickupStudent", "BerlinTZ", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BerlinTZ")
-	var exceptionID int64
-	defer func() {
-		testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, []int64{exceptionID}, nil, nil)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID, staff.ID, staff.PersonID)
-	}()
 
 	// timezone.Date binds as a 'YYYY-MM-DD' literal, so the DB session
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
@@ -646,7 +631,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 		if err := repo.Create(txCtx, exception); err != nil {
 			return err
 		}
-		exceptionID = exception.ID
 
 		results, err := repo.FindByStudentIDsAndDate(txCtx, []int64{student.ID}, day)
 		if err != nil {

@@ -56,7 +56,6 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A future in-window date; a fixed clock time is fine (wall-clock only).
 	today := timezone.TodayDate()
@@ -119,7 +118,6 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	date := timezone.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)

@@ -32,7 +32,6 @@ func TestOperatorRepository_Create(t *testing.T) {
 		assert.NotZero(t, operator.ID)
 		assert.NotZero(t, operator.CreatedAt)
 
-		defer cleanupTestOperator(t, db, operator.ID)
 	})
 
 	t.Run("NilOperator", func(t *testing.T) {
@@ -88,7 +87,6 @@ func TestOperatorRepository_FindByID(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "find@example.com", "Find Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		found, err := repo.FindByID(ctx, operator.ID)
 		require.NoError(t, err)
@@ -115,7 +113,6 @@ func TestOperatorRepository_FindByEmail(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "email@example.com", "Email Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		found, err := repo.FindByEmail(ctx, "email@example.com")
 		require.NoError(t, err)
@@ -141,7 +138,6 @@ func TestOperatorRepository_Update(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "update@example.com", "Original Name")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		operator.DisplayName = "Updated Name"
 		operator.Active = false
@@ -164,7 +160,6 @@ func TestOperatorRepository_Update(t *testing.T) {
 
 	t.Run("ValidationError", func(t *testing.T) {
 		operator := createTestOperator(t, db, "validate@example.com", "Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		operator.Email = "invalid-email"
 		err := repo.Update(ctx, operator)
@@ -206,7 +201,6 @@ func TestOperatorRepository_UpdateLastLogin(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "login@example.com", "Login Test")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	// Initially no last login
 	assert.Nil(t, operator.LastLogin)

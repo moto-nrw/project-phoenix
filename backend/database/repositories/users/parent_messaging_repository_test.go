@@ -51,19 +51,15 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	// The staff reader is a DISTINCT account from the guardian — in production the
 	// inbox reader and the guardian sender are never the same account. Unread is
 	// "a message after the cursor the reader did NOT send", so a reader's own
 	// messages are excluded by sender_account_id (notReaderAuthored). Reusing one
 	// id for both sides would hide that rule and the read-cursor arithmetic it
 	// guards.
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	// Messages/reads from staffAccount FK auth.accounts without ON DELETE
 	// CASCADE; clear them before the LIFO-earlier account delete above.
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
@@ -158,18 +154,14 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Distinct staff reader (see TestParentMessaging_ThreadsMessagesAndReadState):
 	// the guardian messages must be sent by an account OTHER than the reader, or
 	// the own-message exclusion (notReaderAuthored) would drop them before the
 	// tie-break is exercised.
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	// The staff reader records reads that FK auth.accounts without ON DELETE
 	// CASCADE; clear them before the LIFO-earlier account delete above.
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
@@ -218,11 +210,7 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
@@ -257,7 +245,6 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentMessageThreadRepository(db)
 	ctx := tenantCtx(t)
@@ -294,7 +281,6 @@ func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentMessageThreadRepository(db)
 	ctx := tenantCtx(t)
@@ -353,12 +339,8 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
@@ -408,7 +390,6 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
@@ -449,7 +430,6 @@ func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	guardians, err := threadRepo.ListGuardiansForStudent(tenantCtx(t), chain.StudentID)
@@ -470,7 +450,6 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := tenantCtx(t)
 	// Second guardian: account-holding, linked to the SAME child, but pickup_only
@@ -521,7 +500,6 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembershi
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := tenantCtx(t)
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
@@ -553,7 +531,6 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := tenantCtx(t)
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
@@ -604,7 +581,6 @@ func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := tenantCtx(t)
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
@@ -649,12 +625,8 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)

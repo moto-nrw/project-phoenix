@@ -13,53 +13,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
-
-// cleanupStaffRecords removes staff members and their persons in proper FK order
-func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
-	t.Helper()
-	if len(staffIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	// Get person IDs before deleting staff
-	var personIDs []int64
-	err := db.NewSelect().
-		TableExpr("users.staff").
-		Column("person_id").
-		Where("id IN (?)", bun.List(staffIDs)).
-		Scan(ctx, &personIDs)
-	if err != nil {
-		t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
-	}
-
-	// Delete staff first
-	_, err = db.NewDelete().
-		TableExpr("users.staff").
-		Where("id IN (?)", bun.List(staffIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup staff: %v", err)
-	}
-
-	// Delete persons
-	if len(personIDs) > 0 {
-		_, err = db.NewDelete().
-			TableExpr("users.persons").
-			Where("id IN (?)", bun.List(personIDs)).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: failed to cleanup persons: %v", err)
-		}
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -75,7 +33,6 @@ func TestStaffRepository_Create(t *testing.T) {
 
 	t.Run("creates staff member with valid data", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Create")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		staff := &users.Staff{
 			PersonID: person.ID,
@@ -92,12 +49,10 @@ func TestStaffRepository_Create(t *testing.T) {
 		assert.Equal(t, person.ID, found.PersonID)
 
 		// Cleanup
-		cleanupStaffRecords(t, db, staff.ID)
 	})
 
 	t.Run("creates staff member with notes", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Notes")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		staff := &users.Staff{
 			PersonID:   person.ID,
@@ -111,7 +66,6 @@ func TestStaffRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Initial staff notes", found.StaffNotes)
 
-		cleanupStaffRecords(t, db, staff.ID)
 	})
 
 	t.Run("fails with nil staff", func(t *testing.T) {
@@ -141,7 +95,6 @@ func TestStaffRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing staff member", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByID", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindByID(ctx, staff.ID)
 		require.NoError(t, err)
@@ -166,7 +119,6 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 
 	t.Run("finds staff by person ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByPerson", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindByPersonID(ctx, staff.PersonID)
 		require.NoError(t, err)
@@ -190,7 +142,6 @@ func TestStaffRepository_Update(t *testing.T) {
 
 	t.Run("updates staff notes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		staff.StaffNotes = "Updated staff notes"
 
@@ -249,8 +200,7 @@ func TestStaffRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all staff with no filters", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
+		testpkg.CreateTestStaff(t, db, "List", "Test")
 
 		staffMembers, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -259,7 +209,6 @@ func TestStaffRepository_List(t *testing.T) {
 
 	t.Run("lists staff with filter", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FilterStaff", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		staffMembers, err := repo.List(ctx, map[string]any{
 			"person_id": staff.PersonID,
@@ -284,7 +233,6 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 
 	t.Run("finds staff with person loaded", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WithPerson", "Loaded")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindWithPerson(ctx, staff.ID)
 		require.NoError(t, err)
@@ -310,7 +258,6 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 	t.Run("leaves person nil for soft-deleted people", func(t *testing.T) {
 		activeStaff := testpkg.CreateTestStaff(t, db, "Visible", "Supervisor")
 		deletedStaff := testpkg.CreateTestStaff(t, db, "Deleted", "Supervisor")
-		defer cleanupStaffRecords(t, db, activeStaff.ID, deletedStaff.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("users.persons").
@@ -351,7 +298,6 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "FindByIDs", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "FindByIDs", "Two")
 		unrequested := testpkg.CreateTestStaff(t, db, "FindByIDs", "Ignored")
-		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID, unrequested.ID)
 
 		found, err := repo.FindByIDs(ctx, []int64{staff1.ID, staff2.ID})
 		require.NoError(t, err)
@@ -390,7 +336,6 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		// Create multiple staff members
 		staff1 := testpkg.CreateTestStaff(t, db, "AllWithPerson1", "Test1")
 		staff2 := testpkg.CreateTestStaff(t, db, "AllWithPerson2", "Test2")
-		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID)
 
 		results, err := repo.ListAllWithPerson(ctx)
 		require.NoError(t, err)
@@ -419,7 +364,6 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 	t.Run("loads work-time model linkage fields", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WorkTime", "Linkage")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		modelRepo := configRepo.NewWorkTimeModelRepository(db)
 		anchor := timezone.NewDate(2026, time.January, 5)
@@ -476,7 +420,6 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 	t.Run("loads all person fields correctly", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "PersonFields", "Check")
-		defer cleanupStaffRecords(t, db, staff.ID)
 
 		results, err := repo.ListAllWithPerson(ctx)
 		require.NoError(t, err)

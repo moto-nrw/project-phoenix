@@ -2765,35 +2765,6 @@ func markRequestAsUsedLateInvite(
 	}
 }
 
-// cleanupExistingStudentApproval removes the guardian/student rows an
-// existing-student approval touches. The rollover env's cleanup is phase-scoped
-// and never sees them, so without this they leak into the shared test DB.
-func cleanupExistingStudentApproval(t *testing.T, env *decisionTestEnv, student *usersModels.Student) {
-	t.Helper()
-	bg := context.Background()
-	exec := func(query string, args ...any) {
-		if _, err := env.db.ExecContext(bg, query, args...); err != nil {
-			t.Logf("cleanup warning: %v", err)
-		}
-	}
-	var profileIDs []int64
-	if err := env.db.NewSelect().
-		ColumnExpr("guardian_profile_id").
-		TableExpr("users.students_guardians").
-		Where("student_id = ?", student.ID).
-		Scan(bg, &profileIDs); err != nil {
-		t.Logf("cleanup warning: %v", err)
-	}
-	exec(`DELETE FROM activities.student_enrollments WHERE student_id = ?`, student.ID)
-	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, student.ID)
-	for _, id := range profileIDs {
-		exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, id)
-		exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, id)
-	}
-	exec(`DELETE FROM users.students WHERE id = ?`, student.ID)
-	exec(`DELETE FROM users.persons WHERE id = ?`, student.PersonID)
-}
-
 // TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent locks in the
 // #1663 fix for consent withdrawal. The re-enrollment form re-asks every
 // configured consent, so a box the guardian leaves unchecked must CLEAR the
@@ -2807,7 +2778,6 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestStudent(t, env.db, "Nele", "Widerruf", "2a")
-	defer cleanupExistingStudentApproval(t, env, existing)
 
 	// Consent recorded by the ORIGINAL enrollment.
 	stamped := time.Now().Add(-24 * time.Hour)
@@ -2862,7 +2832,6 @@ func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing
 
 	// An imported child: enrolled, but with no guardian relationship at all.
 	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
-	defer cleanupExistingStudentApproval(t, env, existing)
 
 	guardianEmail := "reenroll-guardian@example.com"
 	guardianPhone := "015126829060"
@@ -2916,9 +2885,7 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 	ctx := testpkg.Ctx(t)
 
 	unrelatedParent := testpkg.CreateTestParentGuardianChain(t, env.db)
-	defer testpkg.CleanupParentGuardianChain(t, env.db, unrelatedParent)
 	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Nachzuegler", "3b")
-	defer cleanupExistingStudentApproval(t, env, existing)
 
 	invitedEmail := "invited-renewal@example.test"
 	reqID, childID := submitReEnrollment(t, env, "Mara", "Nachzuegler", unrelatedParent.Email, nil,
@@ -2970,7 +2937,6 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestStudent(t, env.db, "Jonte", "Zweitkind", "1a")
-	defer cleanupExistingStudentApproval(t, env, existing)
 
 	// The other parent, primary since the original enrollment.
 	otherParent := testpkg.CreateTestGuardianProfile(t, env.db, "other-parent")
@@ -3081,9 +3047,6 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 			TableExpr("activities.schedules").
 			Where("activity_group_id = ?", group.ID).
 			Exec(ctx)
-		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", room.ID)
 	}()
 
 	offering := &enrollmentModels.CareOffering{
@@ -3161,7 +3124,6 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CalendarPeriod.Create(ctx, period))
-	defer testpkg.CleanupTableRecords(t, env.db, "schedule.calendar_periods", period.ID)
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Split-Series")
 	rootRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Root")
 	successorRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Successor")
@@ -3198,10 +3160,6 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 			Where("activity_group_id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
 		_, _ = env.db.NewDelete().TableExpr("activities.groups").
 			Where("id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, env.db, "schedule.timeframes", timeframe.ID)
-		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", rootRoom.ID)
-		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", successorRoom.ID)
 	}()
 
 	offering := &enrollmentModels.CareOffering{
@@ -3297,10 +3255,6 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	}
 	group.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
-	defer func() {
-		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
-	}()
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
@@ -3382,10 +3336,6 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	}
 	group.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
-	defer func() {
-		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
-	}()
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
@@ -3530,9 +3480,6 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 			TableExpr("activities.schedules").
 			Where("activity_group_id = ?", group.ID).
 			Exec(ctx)
-		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", room.ID)
 	}()
 
 	offering := &enrollmentModels.CareOffering{
@@ -4082,10 +4029,6 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustOldGroup")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustNewGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Gruppe", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 101
@@ -4138,7 +4081,6 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	defer testpkg.CleanupTableRecords(t, env.db, "activities.student_enrollments", manualEnrollment.ID)
 	_, err = env.db.NewRaw(`
 		UPDATE activities.student_enrollments
 		SET created_at = NOW() + INTERVAL '10 minutes',
@@ -4185,10 +4127,6 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyOldGroup")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyNewGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Legacy Gruppe", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 101
@@ -4245,7 +4183,6 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	defer testpkg.CleanupTableRecords(t, env.db, "activities.student_enrollments", manualEnrollment.ID)
 	_, err = env.db.NewRaw(`
 		UPDATE activities.student_enrollments
 		SET created_at = NOW() + INTERVAL '10 minutes',
@@ -4296,7 +4233,6 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "AdjustWindowGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db, group.ID, group.CategoryID, *group.CreatedBy)
 	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Zeitraum", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
 		o.SortOrder = 101
@@ -4380,7 +4316,6 @@ func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "OneDayExclusiveEndGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db, group.ID, group.CategoryID, *group.CreatedBy)
 	offering := createAdjustmentCareOfferingWith(t, env, "Eintagesbetreuung", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
 	})

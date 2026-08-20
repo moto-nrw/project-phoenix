@@ -19,37 +19,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-// cleanupActiveGroupRecords removes active groups directly
-func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
-	t.Helper()
-	if len(groupIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	// First remove any visits
-	_, _ = db.NewDelete().
-		TableExpr("active.visits").
-		Where("active_group_id IN (?)", bun.List(groupIDs)).
-		Exec(ctx)
-
-	// Remove any supervisors
-	_, _ = db.NewDelete().
-		TableExpr("active.group_supervisors").
-		Where("group_id IN (?)", bun.List(groupIDs)).
-		Exec(ctx)
-
-	// Finally remove the groups
-	_, err := db.NewDelete().
-		TableExpr("active.groups").
-		Where("id IN (?)", bun.List(groupIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup active groups: %v", err)
-	}
-}
-
 // ============================================================================
 // CRUD Tests
 // ============================================================================
@@ -66,7 +35,6 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "CreateTest")
 		room := testpkg.CreateTestRoom(t, db, "CreateTestRoom")
 		device := testpkg.CreateTestDevice(t, db, "create-test-device")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -80,14 +48,12 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
 	})
 
 	t.Run("creates active group without device", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoDevice")
 		room := testpkg.CreateTestRoom(t, db, "NoDeviceRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -100,7 +66,6 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
 		assert.Nil(t, group.DeviceID)
 	})
@@ -141,7 +106,6 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 			Where("id = ?", group.ID).
 			Where("tenant_id = ?", tenantID).
 			Exec(context.Background())
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	}()
 
 	sessions, err := repo.FindActiveSessionsOlderThan(context.Background(), time.Now().Add(-5*time.Minute))
@@ -169,7 +133,6 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 	t.Run("finds existing active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByID")
 		room := testpkg.CreateTestRoom(t, db, "FindByIDRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -181,7 +144,6 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
@@ -208,7 +170,6 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 	t.Run("updates active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Update")
 		room := testpkg.CreateTestRoom(t, db, "UpdateRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -220,7 +181,6 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		group.TimeoutMinutes = 60
 		err = repo.Update(ctx, group)
@@ -243,7 +203,6 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 	t.Run("deletes existing active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Delete")
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -279,7 +238,6 @@ func TestActiveGroupRepository_List(t *testing.T) {
 	t.Run("lists all active groups", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "List")
 		room := testpkg.CreateTestRoom(t, db, "ListRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -291,7 +249,6 @@ func TestActiveGroupRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -310,7 +267,6 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 	t.Run("finds only active groups (no end_time)", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveGroups")
 		room := testpkg.CreateTestRoom(t, db, "ActiveRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -322,7 +278,6 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		groups, err := repo.FindActiveGroups(ctx)
 		require.NoError(t, err)
@@ -355,7 +310,6 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	t.Run("finds active groups by room ID", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoom")
 		room := testpkg.CreateTestRoom(t, db, "ByRoomRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -367,7 +321,6 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		groups, err := repo.FindActiveByRoomID(ctx, room.ID)
 		require.NoError(t, err)
@@ -386,7 +339,6 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 
 	t.Run("returns empty for room with no active groups", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "EmptyRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		groups, err := repo.FindActiveByRoomID(ctx, room.ID)
 		require.NoError(t, err)
@@ -406,7 +358,6 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoomDevice")
 		room := testpkg.CreateTestRoom(t, db, "ByRoomDeviceRoom")
 		device := testpkg.CreateTestDevice(t, db, "by-room-device")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -419,7 +370,6 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindActiveByRoomIDAndDeviceID(ctx, room.ID, device.ID)
 		require.NoError(t, err)
@@ -431,7 +381,6 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoomDeviceMissing")
 		room := testpkg.CreateTestRoom(t, db, "ByRoomDeviceMissingRoom")
 		device := testpkg.CreateTestDevice(t, db, "by-room-device-missing")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -443,7 +392,6 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindActiveByRoomIDAndDeviceID(ctx, room.ID, device.ID)
 		require.NoError(t, err)
@@ -462,7 +410,6 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	t.Run("finds active instances of activity group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByGroupID")
 		room := testpkg.CreateTestRoom(t, db, "ByGroupIDRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -474,7 +421,6 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		groups, err := repo.FindActiveByGroupID(ctx, activityGroup.ID)
 		require.NoError(t, err)
@@ -503,8 +449,6 @@ func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 		activity1 := testpkg.CreateTestActivityGroup(t, db, "ByGroupIDsOne")
 		activity2 := testpkg.CreateTestActivityGroup(t, db, "ByGroupIDsTwo")
 		room := testpkg.CreateTestRoom(t, db, "ByGroupIDsRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity1.CategoryID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity2.CategoryID)
 
 		now := time.Now()
 		group1 := &active.Group{
@@ -523,7 +467,6 @@ func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 		}
 		require.NoError(t, repo.Create(ctx, group1))
 		require.NoError(t, repo.Create(ctx, group2))
-		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
 
 		groups, err := repo.FindActiveByGroupIDs(ctx, []int64{activity1.ID, activity2.ID})
 		require.NoError(t, err)
@@ -548,7 +491,6 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 	t.Run("finds groups active during time range", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "TimeRange")
 		room := testpkg.CreateTestRoom(t, db, "TimeRangeRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -560,7 +502,6 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Search for groups active in the last 2 hours
 		start := now.Add(-2 * time.Hour)
@@ -596,7 +537,6 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 	t.Run("ends active session", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession")
 		room := testpkg.CreateTestRoom(t, db, "EndSessionRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -608,7 +548,6 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		err = repo.EndSession(ctx, group.ID)
 		require.NoError(t, err)
@@ -630,7 +569,6 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	t.Run("updates last activity timestamp", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "LastActivity")
 		room := testpkg.CreateTestRoom(t, db, "LastActivityRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		startTime := time.Now().Add(-1 * time.Hour)
 		group := &active.Group{
@@ -642,7 +580,6 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		newLastActivity := time.Now()
 		err = repo.UpdateLastActivity(ctx, group.ID, newLastActivity)
@@ -657,7 +594,6 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	t.Run("returns error for ended session", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndedSession")
 		room := testpkg.CreateTestRoom(t, db, "EndedSessionRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		startTime := time.Now().Add(-1 * time.Hour)
 		group := &active.Group{
@@ -669,7 +605,6 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// End the session
 		err = repo.EndSession(ctx, group.ID)
@@ -697,7 +632,6 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByDeviceID")
 		room := testpkg.CreateTestRoom(t, db, "ByDeviceIDRoom")
 		device := testpkg.CreateTestDevice(t, db, "by-device-test")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -710,7 +644,6 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindActiveByDeviceID(ctx, device.ID)
 		require.NoError(t, err)
@@ -720,7 +653,6 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 
 	t.Run("returns nil for device with no active session", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "no-session-device")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindActiveByDeviceID(ctx, device.ID)
 		require.NoError(t, err)
@@ -744,7 +676,6 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithNames")
 		room := testpkg.CreateTestRoom(t, db, "WithNamesRoom")
 		device := testpkg.CreateTestDevice(t, db, "with-names-device")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -757,7 +688,6 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindActiveByDeviceIDWithNames(ctx, device.ID)
 		require.NoError(t, err)
@@ -774,7 +704,6 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 
 	t.Run("returns nil for device with no active session", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "no-session-names-device")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindActiveByDeviceIDWithNames(ctx, device.ID)
 		require.NoError(t, err)
@@ -795,9 +724,6 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1")
 		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2")
 		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room1.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room2.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room3.ID)
 
 		now := time.Now()
 		// Create active group in room1
@@ -820,7 +746,6 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 		}
 		err = repo.Create(ctx, group2)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
 
 		// Check which rooms are occupied
 		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{room1.ID, room2.ID, room3.ID})
@@ -857,9 +782,6 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 		activityGroup2 := testpkg.CreateTestActivityGroup(t, db, "OccupiedActivity2")
 		activityGroup3 := testpkg.CreateTestActivityGroup(t, db, "FreeActivity3")
 		room := testpkg.CreateTestRoom(t, db, "OccActivityRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup1.CategoryID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup2.CategoryID)
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup3.CategoryID)
 
 		now := time.Now()
 		// Create active session for activity group 1
@@ -882,7 +804,6 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 		}
 		err = repo.Create(ctx, group2)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
 
 		// Check which activity groups are occupied
 		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{activityGroup1.ID, activityGroup2.ID, activityGroup3.ID})
@@ -896,7 +817,6 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 	t.Run("excludes ended sessions", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndedActivity")
 		room := testpkg.CreateTestRoom(t, db, "EndedActivityRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		endTime := now.Add(time.Hour)
@@ -911,7 +831,6 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 		}
 		err := repo.Create(ctx, endedGroup)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, endedGroup.ID)
 
 		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{activityGroup.ID})
 		require.NoError(t, err)
@@ -942,7 +861,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	t.Run("detects room conflict", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "RoomConflict")
 		room := testpkg.CreateTestRoom(t, db, "ConflictRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		// Create first active group in room
 		now := time.Now()
@@ -955,7 +873,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 		}
 		err := repo.Create(ctx, group1)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group1.ID)
 
 		// Check for conflict (excluding no group)
 		hasConflict, conflictingGroup, err := repo.CheckRoomConflict(ctx, room.ID, 0)
@@ -967,7 +884,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 
 	t.Run("no conflict when room is empty", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "EmptyConflictRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		hasConflict, conflictingGroup, err := repo.CheckRoomConflict(ctx, room.ID, 0)
 		require.NoError(t, err)
@@ -978,7 +894,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	t.Run("excludes specified group from conflict check", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ExcludeConflict")
 		room := testpkg.CreateTestRoom(t, db, "ExcludeRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -990,7 +905,6 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Check for conflict excluding our own group (for updates)
 		hasConflict, _, err := repo.CheckRoomConflict(ctx, room.ID, group.ID)
@@ -1015,8 +929,6 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByIDs")
 		room1 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom1")
 		room2 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom2")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room1.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room2.ID)
 
 		now := time.Now()
 		group1 := &active.Group{
@@ -1038,7 +950,6 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, group2)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
 
 		groupMap, err := repo.FindByIDs(ctx, []int64{group1.ID, group2.ID})
 		require.NoError(t, err)
@@ -1070,7 +981,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
 		room := testpkg.CreateTestRoom(t, db, "WithSupervisorsRoom")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -1082,7 +992,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a supervisor for this group using ModelTableExpr
 		groupSup := &active.GroupSupervisor{
@@ -1110,7 +1019,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	t.Run("finds group with no supervisors", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
 		room := testpkg.CreateTestRoom(t, db, "NoSupervisorsRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
 		group := &active.Group{
@@ -1122,7 +1030,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindWithSupervisors(ctx, group.ID)
 		require.NoError(t, err)
@@ -1146,12 +1053,6 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 	staffB := testpkg.CreateTestStaff(t, db, "Bert", "Supervisor")
 	studentA := testpkg.CreateTestStudent(t, db, "Aggregate", "StudentA", "1a")
 	studentB := testpkg.CreateTestStudent(t, db, "Aggregate", "StudentB", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db,
-		studentA.ID, studentB.ID,
-		staffA.ID, staffB.ID,
-		activityGroup.CategoryID,
-		room.ID, otherRoom.ID,
-	)
 
 	baseTime := time.Date(2026, time.May, 16, 10, 0, 0, 0, time.UTC)
 	windowStart := baseTime
@@ -1161,12 +1062,6 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 	running := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 	endedBeforeWindow := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 	otherRoomSession := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, otherRoom.ID)
-	defer cleanupActiveGroupRecords(t, db,
-		overlapping.ID,
-		running.ID,
-		endedBeforeWindow.ID,
-		otherRoomSession.ID,
-	)
 
 	overlapStart := baseTime.Add(-2 * time.Hour)
 	overlapEnd := baseTime.Add(time.Hour)

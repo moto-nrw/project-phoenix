@@ -29,7 +29,6 @@ func TestGuestRepository_Create(t *testing.T) {
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
 			StaffID:           staff.ID,
@@ -41,12 +40,10 @@ func TestGuestRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("creates guest with contact info", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
 			StaffID:           staff.ID,
@@ -59,12 +56,10 @@ func TestGuestRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("creates guest with date range", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Dates")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		startDate := timezone.TodayDate()
 		endDate := startDate.AddDays(90)
@@ -82,7 +77,6 @@ func TestGuestRepository_Create(t *testing.T) {
 		assert.NotNil(t, guest.StartDate)
 		assert.NotNil(t, guest.EndDate)
 
-		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("fails with nil guest", func(t *testing.T) {
@@ -103,7 +97,6 @@ func TestGuestRepository_Create(t *testing.T) {
 
 	t.Run("fails without activity expertise", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
 			StaffID: staff.ID,
@@ -116,7 +109,6 @@ func TestGuestRepository_Create(t *testing.T) {
 
 	t.Run("fails with invalid email", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
 			StaffID:           staff.ID,
@@ -140,8 +132,6 @@ func TestGuestRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByID")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		found, err := repo.FindByID(ctx, guest.ID)
 		require.NoError(t, err)
@@ -165,8 +155,6 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByStaff")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		found, err := repo.FindByStaffID(ctx, guest.StaffID)
 		require.NoError(t, err)
@@ -190,8 +178,6 @@ func TestGuestRepository_Update(t *testing.T) {
 
 	t.Run("updates guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Update")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		guest.ActivityExpertise = "Updated Expertise"
 		guest.Organization = "Updated Org"
@@ -222,7 +208,6 @@ func TestGuestRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Delete")
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		err := repo.Delete(ctx, guest.ID)
 		require.NoError(t, err)
@@ -248,8 +233,6 @@ func TestGuestRepository_FindActive(t *testing.T) {
 
 	t.Run("finds active guests with no date range", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		found, err := repo.FindActive(ctx)
 		require.NoError(t, err)
@@ -280,8 +263,6 @@ func TestGuestRepository_List(t *testing.T) {
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ListOrg")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		guest.Organization = "ListTestOrg"
 		err := repo.Update(ctx, guest)
@@ -296,8 +277,6 @@ func TestGuestRepository_List(t *testing.T) {
 
 	t.Run("lists guests with expertise filter", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ListExp")
-		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		guest.ActivityExpertise = "ListTestExpertise"
 		err := repo.Update(ctx, guest)

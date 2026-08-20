@@ -88,17 +88,12 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Failure")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Failure")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -111,7 +106,6 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)

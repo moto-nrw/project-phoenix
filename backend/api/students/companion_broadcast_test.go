@@ -62,7 +62,6 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Subject", "CE1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Partner", "CE1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	// Both children need an accompanied Monday before a link is legal.
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
@@ -125,7 +124,6 @@ func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Subject", "CD1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Partner", "CD1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{

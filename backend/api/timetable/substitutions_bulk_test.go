@@ -83,13 +83,9 @@ func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 	inst1 := testpkg.CreateTestActivityInstance(t, s.db, d1, s.roomID, testpkg.ActivityInstanceOpts{Title: "Tag1"})
 	inst2 := testpkg.CreateTestActivityInstance(t, s.db, d2, s.roomID, testpkg.ActivityInstanceOpts{Title: "Tag2"})
 	inst3 := testpkg.CreateTestActivityInstance(t, s.db, d3, s.roomID, testpkg.ActivityInstanceOpts{Title: "Tag3-unselected"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID, inst3.ID)
-	})
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	row3 := testpkg.CreateTestInstanceStaff(t, s.db, inst3.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID, row3.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst3.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
 	w := doBulk(t, router, map[string]any{
 		"absent_staff_id":     s.staffA,
@@ -99,15 +95,12 @@ func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	var cleanupIDs []int64
 	for _, instID := range []int64{inst1.ID, inst2.ID} {
-		absentA, subY, extra := bulkStaffState(t, s, instID)
+		absentA, subY, _ := bulkStaffState(t, s, instID)
 		assert.True(t, absentA, "A must be absent on instance %d", instID)
 		require.NotNil(t, subY, "Y substitute row must exist on instance %d", instID)
 		assert.False(t, subY.IsAbsent)
-		cleanupIDs = append(cleanupIDs, extra...)
 	}
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, cleanupIDs...) })
 
 	// The unselected third day stays untouched.
 	absentA3, subY3, _ := bulkStaffState(t, s, inst3.ID)
@@ -136,12 +129,8 @@ func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 
 	inst1 := testpkg.CreateTestActivityInstance(t, s.db, d1, s.roomID, testpkg.ActivityInstanceOpts{Title: "Krank1"})
 	inst2 := testpkg.CreateTestActivityInstance(t, s.db, d2, s.roomID, testpkg.ActivityInstanceOpts{Title: "Krank2"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
-	})
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
 	w := doBulk(t, router, map[string]any{
 		"absent_staff_id": s.staffA,
@@ -169,15 +158,11 @@ func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 
 	inst1 := testpkg.CreateTestActivityInstance(t, s.db, d1, s.roomID, testpkg.ActivityInstanceOpts{Title: "Ok-Tag"})
 	inst2 := testpkg.CreateTestActivityInstance(t, s.db, d2, s.roomID, testpkg.ActivityInstanceOpts{Title: "Konflikt-Tag"})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
-	})
-	rowA1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowA2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
 	// Y is planned on the second day and already marked absent there — Y cannot
 	// cover that day, so the whole save must be rejected.
-	rowY2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffY, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA1.ID, rowA2.ID, rowY2.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffY, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	w := doBulk(t, router, map[string]any{
 		"absent_staff_id":     s.staffA,

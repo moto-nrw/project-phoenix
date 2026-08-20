@@ -733,7 +733,7 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 		},
 	})
 
-	tenantID := int64(42)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	valueRepo := newMockValueRepo()
 	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")] = &config.SettingValue{
 		SettingKey: "attendance.nfc_enabled",

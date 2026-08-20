@@ -174,8 +174,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateTenantsSeparate
 	// Tenant isolation — same key in tenant A and tenant B must NOT
 	// share a counter.
 	db, repo, _ := setupRateLimitTest(t)
-	var tenantA int64 = 91001
-	var tenantB int64 = 91002
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	key := uniqueKeyValue("tenantshare")

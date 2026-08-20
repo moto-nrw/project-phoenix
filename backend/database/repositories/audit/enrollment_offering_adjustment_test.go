@@ -29,9 +29,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 	request := createAuditAdjustmentRequest(t, repoFactory, phase.ID)
 	child := createAuditAdjustmentChild(t, repoFactory, request.ID)
 	otherChild := createAuditAdjustmentChild(t, repoFactory, request.ID)
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
 
 	older := &audit.EnrollmentOfferingAdjustment{
 		RequestID:      request.ID,
@@ -70,7 +67,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 	require.NoError(t, repo.Create(ctx, older))
 	require.NoError(t, repo.Create(ctx, newer))
 	require.NoError(t, repo.Create(ctx, other))
-	defer testpkg.CleanupTableRecords(t, db, "audit.enrollment_offering_adjustments", older.ID, newer.ID, other.ID)
 
 	rows, err := repo.ListByRequestChildID(ctx, child.ID)
 	require.NoError(t, err)

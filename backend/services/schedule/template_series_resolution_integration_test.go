@@ -59,21 +59,18 @@ func makeSeriesChain(t *testing.T, weekdays []int, firstBoundary, secondBoundary
 		row.SetTenantID(s.tenantID)
 		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
 		require.NoError(t, err)
-		s.registerCleanup("activities.schedules", row.ID)
 	}
 
 	middleInput := baseSplitInput(s, firstBoundary, fmt.Sprintf("Chain-Middle-%d", time.Now().UnixNano()))
 	middleInput.Weekdays = weekdays
 	middle, err := s.factory.TemplateSplit.Split(s.ctx, middleInput)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, middle.NewTemplateID)
 
 	livingInput := baseSplitInput(s, secondBoundary, fmt.Sprintf("Chain-Living-%d", time.Now().UnixNano()))
 	livingInput.TemplateID = middle.NewTemplateID
 	livingInput.Weekdays = weekdays
 	living, err := s.factory.TemplateSplit.Split(s.ctx, livingInput)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, living.NewTemplateID)
 
 	chain := &seriesChain{
 		scenarioSetup:  s,

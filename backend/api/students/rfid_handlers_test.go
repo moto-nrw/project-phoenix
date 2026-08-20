@@ -45,7 +45,6 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	// Create test device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-reader")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "TagTest", "RT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("success_assigns_rfid_tag", func(t *testing.T) {
 		// RFID tag must be hexadecimal format (at least 8 chars)
@@ -109,7 +108,6 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 	// Create test device and student with RFID tag
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "UnassignTest", "RU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("error_no_tag_assigned", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
@@ -144,7 +142,6 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body := map[string]interface{}{
 		"rfid_tag": "TESTTAG12345678",
@@ -163,7 +160,6 @@ func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
 
@@ -179,7 +175,6 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	// Create device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign-success")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Unassign", "RUS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	// First assign an RFID tag
 	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())
@@ -207,7 +202,6 @@ func TestRFIDTagValidation(t *testing.T) {
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-validation")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Validation", "RV1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("too_short_tag", func(t *testing.T) {
 		// Tag must be at least 8 characters
@@ -247,7 +241,6 @@ func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-alumnus")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Graduated", "RG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	// Assign while the child is still enrolled, then graduate them.
 	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())

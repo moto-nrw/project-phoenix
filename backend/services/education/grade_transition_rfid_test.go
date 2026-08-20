@@ -47,7 +47,6 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-rfid-release@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4rfid-%s", suffix)
@@ -55,10 +54,8 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 	// The card is created FIRST so its cleanup runs last: deleting a card a
 	// person still points at trips the FK's SET NULL on the composite key.
 	card := testpkg.CreateTestRFIDCard(t, db, "GRADTAG")
-	defer testpkg.CleanupRFIDCards(t, db, card.ID)
 
 	student := testpkg.CreateTestStudent(t, db, "Armband", "Abgang", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	testpkg.LinkRFIDToStudent(t, db, student.PersonID, card.ID)
 
@@ -74,7 +71,6 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -116,17 +112,14 @@ func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-rfid-reissue@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4reissue-%s", suffix)
 
 	card := testpkg.CreateTestRFIDCard(t, db, "REISSUETAG")
-	defer testpkg.CleanupRFIDCards(t, db, card.ID)
 
 	leaver := testpkg.CreateTestStudent(t, db, "Armband", "Weitergabe", gradClass)
 	newcomer := testpkg.CreateTestStudent(t, db, "Armband", "Neu", fmt.Sprintf("1reissue-%s", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, leaver.ID, newcomer.ID)
 
 	testpkg.LinkRFIDToStudent(t, db, leaver.PersonID, card.ID)
 
@@ -142,7 +135,6 @@ func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

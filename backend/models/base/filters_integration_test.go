@@ -261,10 +261,8 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Create fixture accounts to guarantee at least 2 records exist
-	acct1 := testpkg.CreateTestAccount(t, db, "pagination-test-1")
-	acct2 := testpkg.CreateTestAccount(t, db, "pagination-test-2")
-	defer testpkg.CleanupAuthFixtures(t, db, acct1.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, acct2.ID)
+	testpkg.CreateTestAccount(t, db, "pagination-test-1")
+	testpkg.CreateTestAccount(t, db, "pagination-test-2")
 
 	// Test page 1 with size 1
 	pagination := base.NewPagination(1, 1)
@@ -751,7 +749,6 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 	thirteenth := testpkg.CreateTestStudent(t, db, "Grade", "Thirteenth", "13a-"+suffix)
 	labelled := testpkg.CreateTestStudent(t, db, "Grade", "Labelled", "Klasse 3b-"+suffix)
 	named := testpkg.CreateTestStudent(t, db, "Grade", "Named", "Bienen-"+suffix)
-	defer testpkg.CleanupActivityFixtures(t, db, third.ID, thirteenth.ID, labelled.ID, named.ID)
 
 	assertGradeThree := func(t *testing.T, ids []int64) {
 		t.Helper()

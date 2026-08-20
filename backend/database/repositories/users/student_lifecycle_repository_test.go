@@ -52,11 +52,8 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	t.Run("returns pending students with enrolled_from <= asOf", func(t *testing.T) {
 		dueStudent := testpkg.CreateTestStudent(t, db, "PendingDue", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, dueStudent.ID)
 		futureStudent := testpkg.CreateTestStudent(t, db, "PendingFuture", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, futureStudent.ID)
 		activeStudent := testpkg.CreateTestStudent(t, db, "Active", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, activeStudent.ID)
 
 		setLifecycle(t, db, dueStudent.ID, users.StudentStatusPending, &yesterday, nil)
 		setLifecycle(t, db, futureStudent.ID, users.StudentStatusPending, &tomorrow, nil)
@@ -76,7 +73,6 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	t.Run("ignores pending students with NULL enrolled_from", func(t *testing.T) {
 		nullStudent := testpkg.CreateTestStudent(t, db, "PendingNull", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, nullStudent.ID)
 		setLifecycle(t, db, nullStudent.ID, users.StudentStatusPending, nil, nil)
 
 		results, err := repo.FindPendingDueForActivation(ctx, asOf)
@@ -101,11 +97,8 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 
 	t.Run("returns active students with enrolled_until <= asOf", func(t *testing.T) {
 		dueStudent := testpkg.CreateTestStudent(t, db, "ActiveDue", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, dueStudent.ID)
 		futureStudent := testpkg.CreateTestStudent(t, db, "ActiveFuture", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, futureStudent.ID)
 		pendingStudent := testpkg.CreateTestStudent(t, db, "PendingNotInactive", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, pendingStudent.ID)
 
 		setLifecycle(t, db, dueStudent.ID, users.StudentStatusActive, nil, &yesterday)
 		setLifecycle(t, db, futureStudent.ID, users.StudentStatusActive, nil, &tomorrow)
@@ -134,7 +127,6 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		err := repo.UpdateStatus(ctx, student.ID, users.StudentStatusActive)
@@ -159,7 +151,6 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
-	defer cleanupStudentRecords(t, db, student.ID)
 	setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 	applied, err := repo.TransitionStatus(

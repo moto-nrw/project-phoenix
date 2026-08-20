@@ -5,7 +5,6 @@
 package substitutions_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -58,15 +57,6 @@ func setupTestContext(t *testing.T) *testContext {
 		resource: resource,
 		router:   router,
 	}
-}
-
-// cleanupSubstitution cleans up a substitution by ID
-func cleanupSubstitution(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr("education.group_substitution").
-		Where("id = ?", id).
-		Exec(context.Background())
 }
 
 // =============================================================================
@@ -220,9 +210,6 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup
-	if id, ok := data["id"].(float64); ok {
-		cleanupSubstitution(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
@@ -489,7 +476,6 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	createData, ok := createResponse["data"].(map[string]interface{})
 	require.True(t, ok)
 	subID := int64(createData["id"].(float64))
-	defer cleanupSubstitution(t, ctx.db, subID)
 
 	// Step 2: Get
 	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,

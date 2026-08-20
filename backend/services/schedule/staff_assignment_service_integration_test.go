@@ -46,18 +46,10 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 		Status:    scheduleModel.InstanceStatusCancelled,
 	})
 
-	isLernzeit := testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-	isAG := testpkg.CreateTestInstanceStaff(t, db, ag.ID, staff.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	testpkg.CreateTestInstanceStaff(t, db, ag.ID, staff.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
 	// Another person on the same block — must never leak into Anna's list.
-	isOther := testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
-
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, db, isLernzeit.ID, isAG.ID, isOther.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", lernzeit.ID, ag.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID, other.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
+	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
 	repos := repositories.NewFactory(db)
 	service := scheduleSvc.NewStaffAssignmentService(scheduleSvc.StaffAssignmentDependencies{

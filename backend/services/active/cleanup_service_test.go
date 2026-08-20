@@ -97,10 +97,6 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	require.NoError(t, err, "Failed to create stale attendance record")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -166,10 +162,6 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	require.NoError(t, err, "Failed to create stale attendance record")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -216,8 +208,8 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Stats", "Test", "6d")
-	staff := testpkg.CreateTestStaff(t, db, "Stats", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "stats-device-001")
+	testpkg.CreateTestStaff(t, db, "Stats", "Staff")
+	testpkg.CreateTestDevice(t, db, "stats-device-001")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Stats Activity")
 	room := testpkg.CreateTestRoom(t, db, "Stats Room")
 
@@ -261,7 +253,6 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 	require.NoError(t, err, "Failed to create old visit")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer testpkg.CleanupActivityFixtures(t, db, visitID, activeGroup.ID, student.ID, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ACT: Get statistics
 	stats, err := cleanupService.GetRetentionStatistics(ctx)
@@ -335,8 +326,8 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Batch", "Cleanup", "6c")
-	staff := testpkg.CreateTestStaff(t, db, "Batch", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "batch-device-001")
+	testpkg.CreateTestStaff(t, db, "Batch", "Staff")
+	testpkg.CreateTestDevice(t, db, "batch-device-001")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Batch Activity")
 	room := testpkg.CreateTestRoom(t, db, "Batch Room")
 
@@ -380,7 +371,6 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 	require.NoError(t, err, "Failed to create old visit")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer testpkg.CleanupActivityFixtures(t, db, visitID, activeGroup.ID, student.ID, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ACT: Run batch cleanup
 	result, err := cleanupService.CleanupExpiredVisits(ctx)
@@ -544,10 +534,6 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 	require.NoError(t, err, "Failed to create attendance record with late check-in")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -600,11 +586,6 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 		RETURNING id
 	`, student.ID, yesterday, checkInTime, staff.ID, device.ID, testpkg.Tenant(t)).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -695,10 +676,6 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 	require.NoError(t, err, "Failed to create stale supervisor record")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, staff.ID, activityGroup.ID, room.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)

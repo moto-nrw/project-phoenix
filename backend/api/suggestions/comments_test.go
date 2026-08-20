@@ -56,36 +56,6 @@ func createCommentTestPost(t *testing.T, db *bun.DB, accountID int64, title, des
 	return post
 }
 
-func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
-	t.Helper()
-	if len(commentIDs) == 0 {
-		return
-	}
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewDelete().
-		TableExpr("suggestions.comments").
-		Where("id IN (?)", bun.List(commentIDs)).
-		Exec(ctx)
-}
-
-func cleanupCommentPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
-	t.Helper()
-	if len(postIDs) == 0 {
-		return
-	}
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewDelete().
-		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.List(postIDs)).
-		Exec(ctx)
-	_, _ = db.NewDelete().
-		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.List(postIDs)).
-		Exec(ctx)
-}
-
 func newCommentAuthRequest(t *testing.T, method, target string, body any, accountID int64, perms []string) *http.Request {
 	t.Helper()
 	var reader *bytes.Buffer
@@ -127,10 +97,8 @@ func TestListComments_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-comments-list")
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Test comment", suggestions.AuthorTypeUser)
-	defer cleanupComments(t, db, comment.ID)
+	testpkg.CreateTestComment(t, db, post.ID, account.ID, "Test comment", suggestions.AuthorTypeUser)
 
 	req := newCommentAuthRequest(t, "GET", fmt.Sprintf("/suggestions/%d/comments", post.ID), nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -177,7 +145,6 @@ func TestCreateComment_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-comment-create")
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-	defer cleanupCommentPosts(t, db, post.ID)
 
 	body := map[string]string{
 		"content": "This is a new comment",
@@ -256,7 +223,6 @@ func TestDeleteComment_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delete")
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-	defer cleanupCommentPosts(t, db, post.ID)
 
 	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 
@@ -273,10 +239,8 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 	other := testpkg.CreateTestAccount(t, db, "api-comment-other")
 
 	post := createCommentTestPost(t, db, author.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-	defer cleanupCommentPosts(t, db, post.ID)
 
 	comment := testpkg.CreateTestComment(t, db, post.ID, author.ID, "Author's comment", suggestions.AuthorTypeUser)
-	defer cleanupComments(t, db, comment.ID)
 
 	// Try to delete as different user
 	req := newCommentAuthRequest(t, "DELETE", fmt.Sprintf("/suggestions/%d/comments/%d", post.ID, comment.ID), nil, other.ID, commentPerms)
@@ -317,10 +281,8 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-comment-markread")
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Unread comment", suggestions.AuthorTypeUser)
-	defer cleanupComments(t, db, comment.ID)
+	testpkg.CreateTestComment(t, db, post.ID, account.ID, "Unread comment", suggestions.AuthorTypeUser)
 
 	req := newCommentAuthRequest(t, "POST", fmt.Sprintf("/suggestions/%d/comments/read", post.ID), nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)

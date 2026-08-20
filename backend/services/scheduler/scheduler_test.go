@@ -2467,7 +2467,7 @@ func TestWasRunToday_RanYesterday(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	tenantID := int64(100)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	m.Store(tenantID, time.Now().Add(-25*time.Hour))
 	assert.False(t, wasRunToday(&m, tenantID))
 }
@@ -2476,7 +2476,7 @@ func TestWasRunToday_InvalidType(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	tenantID := int64(100)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	m.Store(tenantID, "not a time")
 	assert.False(t, wasRunToday(&m, tenantID))
 }

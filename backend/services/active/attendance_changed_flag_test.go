@@ -25,7 +25,6 @@ func TestCheckInStudent_ChangedFlag(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Changed", "CheckIn", "5d")
 	staff := testpkg.CreateTestStaff(t, db, "Changed", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "changed-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	fresh, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
 	require.NoError(t, err)
@@ -48,7 +47,6 @@ func TestCheckOutStudent_ChangedFlag(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Changed", "CheckOut", "5e")
 	staff := testpkg.CreateTestStaff(t, db, "Changed", "Staff2")
 	device := testpkg.CreateTestDevice(t, db, "changed-device-002")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)

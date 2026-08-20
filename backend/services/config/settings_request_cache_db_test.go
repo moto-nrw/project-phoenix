@@ -30,7 +30,6 @@ func setupRequestCacheDBTest(t *testing.T) (*bun.DB, int64, configService.Settin
 		ctx := context.Background()
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	repository := configRepository.NewSettingValueRepository(db)

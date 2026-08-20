@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +78,6 @@ func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
 		StudentIDs:      []int64{s.student2},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// The child graduates while the planner form is open; the staffer then saves
 	// the roster they loaded before the transition.
@@ -127,7 +125,6 @@ func TestInstance_UpdatePlanned_PastDatedRosterKeepsGraduate(t *testing.T) {
 		StudentIDs:      []int64{s.student1},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	graduate(t, s, s.student1)
 

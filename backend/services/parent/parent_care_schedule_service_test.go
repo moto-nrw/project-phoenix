@@ -96,7 +96,6 @@ func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	view, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
@@ -114,7 +113,6 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Grant chat (notes.write) + visibility but explicitly NOT request.submit.
 	_, err := db.ExecContext(context.Background(), `
@@ -136,7 +134,6 @@ func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, false) // messaging OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	view, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
@@ -148,7 +145,6 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
 		configModels.KeyParentCareArrivalRequestEnabled: true,
@@ -180,7 +176,6 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
 	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
@@ -201,7 +196,6 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 
 	svc, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
@@ -228,7 +222,6 @@ func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
@@ -267,7 +260,6 @@ func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Before any request: the view loads and, with messaging on + request.submit,
 	// invites the guardian to request a change.
@@ -294,7 +286,6 @@ func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Strip every parent_portal permission, including access.
 	_, err := db.ExecContext(context.Background(), `
@@ -318,7 +309,6 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 
@@ -364,7 +354,6 @@ func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// No request yet: the badge is clear, and request/notes features resolve
 	// enabled from the default guardian permissions + messaging on.
@@ -392,7 +381,6 @@ func TestWithdrawCareScheduleRequest_NotFound(t *testing.T) {
 
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)

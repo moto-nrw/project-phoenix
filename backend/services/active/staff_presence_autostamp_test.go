@@ -45,7 +45,6 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "AutoStamp", "Student", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, dev.ID)
 
 	ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
 
@@ -73,7 +72,6 @@ func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) 
 	student := testpkg.CreateTestStudent(t, db, "WebStamp", "Student", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "WebStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-2")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, dev.ID)
 
 	ctx := testpkg.Ctx(t)
 
@@ -98,7 +96,6 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "AutoStamp Room")
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "WebSupervisor")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, room.ID, staff.ID, activeGroup.ID)
 
 	ctx := testpkg.Ctx(t)
 

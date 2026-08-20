@@ -56,9 +56,6 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SD-Act-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SD", fmt.Sprintf("Staff-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "SD", fmt.Sprintf("Stu-%d", suffix), "3a")
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, 0, activity.ID, room.ID)
-	})
 
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
@@ -137,20 +134,12 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 		EndHHMM:         "15:00",
 		Title:           "Lernzeit-3a",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusExpected)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusExpected)
 
 	// Wednesday is weekday 3 (ISO).
-	arrival := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
-	pickup := testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			[]int64{arrival.ID}, nil,
-			[]int64{pickup.ID}, nil,
-			nil, nil)
-	})
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -191,13 +180,9 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 
 	s := buildStudentDaySetup(t)
 
-	arrSched := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
-	arrExc := testpkg.CreateTestArrivalException(t, s.db, s.studentID,
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			[]int64{arrSched.ID}, []int64{arrExc.ID}, nil, nil, nil, nil)
-	})
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -220,12 +205,8 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
 	// the day. Source must still be "exception", ExpectedTime must be nil.
-	exc := testpkg.CreateTestPickupException(t, s.db, s.studentID,
+	testpkg.CreateTestPickupException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			nil, nil, nil, []int64{exc.ID}, nil, nil)
-	})
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -272,7 +253,6 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 
 	// Active group + bridge instance (same shape as the unplanned test).
 	ag := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
@@ -285,15 +265,12 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 			EndHHMM:         "15:00",
 			Title:           "Enrolled-And-Present",
 		})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// Both signals: enrolled row AND a visit on the same active_group.
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
 
-	visit := testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
+	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -320,7 +297,6 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 
 	// Active group + bridge instance.
 	ag := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
@@ -333,13 +309,11 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 			EndHHMM:         "15:00",
 			Title:           "Unplanned-Session",
 		})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// No instance_students row for our student — they're NOT on the plan.
 	// But they checked in, so a visit exists.
-	visit := testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
+	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))

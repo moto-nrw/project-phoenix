@@ -24,7 +24,6 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 
 	// Create test account for created_by
 	account := testpkg.CreateTestAccount(t, db, "transition-creator")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("creates transition successfully", func(t *testing.T) {
 		transition := &educationModels.GradeTransition{
@@ -36,7 +35,6 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, transition)
 		require.NoError(t, err)
 		assert.NotZero(t, transition.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Verify it was created
 		found, err := repo.FindByID(ctx, transition.ID)
@@ -56,7 +54,6 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, transition)
 		require.NoError(t, err)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		found, err := repo.FindByID(ctx, transition.ID)
 		require.NoError(t, err)
@@ -74,11 +71,9 @@ func TestGradeTransitionRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-find")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds existing transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		found, err := repo.FindByID(ctx, transition.ID)
 		require.NoError(t, err)
@@ -101,11 +96,9 @@ func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mappings")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds transition with mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass := "2a"
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", &toClass)
@@ -126,11 +119,9 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("updates transition notes", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		notes := "Updated notes"
 		transition.Notes = &notes
@@ -146,7 +137,6 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 
 	t.Run("updates transition status", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		now := time.Now()
 		transition.Status = educationModels.TransitionStatusApplied
@@ -173,7 +163,6 @@ func TestGradeTransitionRepository_Delete(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-delete")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("deletes transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -210,12 +199,10 @@ func TestGradeTransitionRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-list")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("lists all transitions", func(t *testing.T) {
-		transition1 := testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
-		transition2 := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition1.ID, transition2.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
 		transitions, total, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -233,13 +220,11 @@ func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-year")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds transitions by academic year", func(t *testing.T) {
-		transition1 := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		transition2 := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		transition3 := testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition1.ID, transition2.ID, transition3.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
 
 		transitions, err := repo.FindByAcademicYear(ctx, "2025-2026")
 		require.NoError(t, err)
@@ -260,11 +245,9 @@ func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-status")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("finds transitions by status", func(t *testing.T) {
-		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
 		transitions, err := repo.FindByStatus(ctx, educationModels.TransitionStatusDraft)
 		require.NoError(t, err)
@@ -285,11 +268,9 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-mapping-ops")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("creates and retrieves mapping", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass := "2a"
 		mapping := &educationModels.GradeTransitionMapping{
@@ -311,7 +292,6 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 
 	t.Run("creates multiple mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass2a := "2a"
 		toClass2b := "2b"
@@ -331,7 +311,6 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 
 	t.Run("deletes mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass := "2a"
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", &toClass)
@@ -354,11 +333,9 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-history-ops")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("creates and retrieves history", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass := "2a"
 		history := &educationModels.GradeTransitionHistory{
@@ -382,7 +359,6 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 
 	t.Run("creates batch history", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		toClass := "2a"
 		historyBatch := []*educationModels.GradeTransitionHistory{
@@ -423,10 +399,9 @@ func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 
 	t.Run("returns distinct classes from students", func(t *testing.T) {
 		// Create test students with different classes
-		student1 := testpkg.CreateTestStudent(t, db, "Test1", "Student1", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Test2", "Student2", "1b")
-		student3 := testpkg.CreateTestStudent(t, db, "Test3", "Student3", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
+		testpkg.CreateTestStudent(t, db, "Test1", "Student1", "1a")
+		testpkg.CreateTestStudent(t, db, "Test2", "Student2", "1b")
+		testpkg.CreateTestStudent(t, db, "Test3", "Student3", "2a")
 
 		classes, err := repo.GetDistinctClasses(ctx)
 		require.NoError(t, err)
@@ -448,9 +423,8 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 	t.Run("counts students in class", func(t *testing.T) {
 		// Create unique class name using UUID to ensure test isolation
 		className := fmt.Sprintf("test-count-%s", uuid.Must(uuid.NewV4()).String()[:8])
-		student1 := testpkg.CreateTestStudent(t, db, "Count1", "Student1", className)
-		student2 := testpkg.CreateTestStudent(t, db, "Count2", "Student2", className)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		testpkg.CreateTestStudent(t, db, "Count1", "Student1", className)
+		testpkg.CreateTestStudent(t, db, "Count2", "Student2", className)
 
 		count, err := repo.GetStudentCountByClass(ctx, className)
 		require.NoError(t, err)
@@ -477,9 +451,8 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		class1 := fmt.Sprintf("test-get-class1-%s", suffix)
 		class2 := fmt.Sprintf("test-get-class2-%s", suffix)
-		student1 := testpkg.CreateTestStudent(t, db, "Get1", "Student1", class1)
-		student2 := testpkg.CreateTestStudent(t, db, "Get2", "Student2", class2)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		testpkg.CreateTestStudent(t, db, "Get1", "Student1", class1)
+		testpkg.CreateTestStudent(t, db, "Get2", "Student2", class2)
 
 		students, err := repo.GetStudentsByClasses(ctx, []string{class1, class2})
 		require.NoError(t, err)
@@ -508,7 +481,6 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-classes")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("updates student classes based on mappings", func(t *testing.T) {
 		// Create unique class names for test isolation
@@ -518,13 +490,11 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 
 		// Create students in fromClass
 		student1 := testpkg.CreateTestStudent(t, db, "Update1", "Test1", fromClass)
-		student2 := testpkg.CreateTestStudent(t, db, "Update2", "Test2", fromClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		testpkg.CreateTestStudent(t, db, "Update2", "Test2", fromClass)
 
 		// Create transition with mapping
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Execute update
 		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
@@ -549,12 +519,10 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 
 		// Create student in graduate class
 		student := testpkg.CreateTestStudent(t, db, "Graduate", "Test", graduateClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create transition with graduate mapping (to_class = null)
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Execute update - should not affect graduate students
 		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
@@ -584,7 +552,6 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 		nonExistent := "non-existent-class-xyz"
 		toClass := "target-class-xyz"
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, nonExistent, &toClass)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
 		require.NoError(t, err)
@@ -619,7 +586,6 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 		// Create students in graduate class
 		student1 := testpkg.CreateTestStudent(t, db, "Grad1", "Test1", graduateClass)
 		student2 := testpkg.CreateTestStudent(t, db, "Grad2", "Test2", graduateClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		// Execute graduation (soft delete)
 		affected, err := repo.GraduateStudentsByClasses(ctx, []string{graduateClass})
@@ -652,7 +618,6 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 		// Create students
 		studentToGraduate := testpkg.CreateTestStudent(t, db, "Graduate", "Test", gradClass)
 		studentToKeep := testpkg.CreateTestStudent(t, db, "Keep", "Test", keepClass)
-		defer testpkg.CleanupActivityFixtures(t, db, studentToGraduate.ID, studentToKeep.ID)
 
 		// Graduate only gradClass
 		affected, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
@@ -667,8 +632,7 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		gradClass := fmt.Sprintf("regrad-%s", suffix)
 
-		student := testpkg.CreateTestStudent(t, db, "Regrad", "Test", gradClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "Regrad", "Test", gradClass)
 
 		affected, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
 		require.NoError(t, err)
@@ -694,7 +658,6 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 		gradClass := fmt.Sprintf("react-%s", suffix)
 
 		student := testpkg.CreateTestStudent(t, db, "React", "Test", gradClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		_, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
 		require.NoError(t, err)
@@ -718,7 +681,6 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 		keepClass := fmt.Sprintf("noreact-%s", suffix)
 
 		student := testpkg.CreateTestStudent(t, db, "NoReact", "Test", keepClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		affected, err := repo.ReactivateStudentsByIDs(ctx, []int64{student.ID})
 		require.NoError(t, err)
@@ -882,10 +844,8 @@ func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "mapping-invalid")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	t.Run("create mapping with empty from_class fails", func(t *testing.T) {
 		toClass := "2a"
@@ -923,10 +883,8 @@ func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "history-invalid")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	t.Run("create history with invalid action fails", func(t *testing.T) {
 		history := &educationModels.GradeTransitionHistory{

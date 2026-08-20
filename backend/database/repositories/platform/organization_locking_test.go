@@ -47,9 +47,6 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 		Active: true,
 	}
 	require.NoError(t, repo.Create(ctx, org))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-	})
 
 	t.Run("FOR UPDATE blocks a concurrent FOR SHARE holder", func(t *testing.T) {
 		// Hold FOR SHARE on the org row in tx1.

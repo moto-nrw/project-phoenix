@@ -29,7 +29,6 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 			Where("tenant_id = ?", tenantID).
 			Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)

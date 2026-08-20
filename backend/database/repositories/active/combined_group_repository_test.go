@@ -17,31 +17,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-// cleanupCombinedGroupRecords removes combined groups and their mappings
-func cleanupCombinedGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
-	t.Helper()
-	if len(groupIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	// First remove any mappings
-	_, _ = db.NewDelete().
-		TableExpr("active.group_mappings").
-		Where("active_combined_group_id IN (?)", bun.List(groupIDs)).
-		Exec(ctx)
-
-	// Then remove the combined groups
-	_, err := db.NewDelete().
-		TableExpr("active.combined_groups").
-		Where("id IN (?)", bun.List(groupIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup combined groups: %v", err)
-	}
-}
-
 // combinedGroupTestData holds test fixtures
 type combinedGroupTestData struct {
 	ActivityGroup int64
@@ -94,13 +69,6 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB) *combinedGroupTestDat
 	}
 }
 
-// cleanupCombinedGroupTestData removes test data
-func cleanupCombinedGroupTestData(t *testing.T, db *bun.DB, data *combinedGroupTestData) {
-	cleanupActiveGroupRecords(t, db, data.ActiveGroup1.ID, data.ActiveGroup2.ID)
-	testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, data.CategoryID, data.Room1)
-	testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, data.Room2)
-}
-
 // ============================================================================
 // CRUD Tests
 // ============================================================================
@@ -112,8 +80,7 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.Ctx(t)
-	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
+	createCombinedGroupTestData(t, db)
 
 	t.Run("creates combined group with valid data", func(t *testing.T) {
 		now := time.Now()
@@ -125,7 +92,6 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, combinedGroup.ID)
 
-		cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 	})
 
 	t.Run("creates combined group with end time", func(t *testing.T) {
@@ -141,7 +107,6 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 		assert.NotZero(t, combinedGroup.ID)
 		assert.NotNil(t, combinedGroup.EndTime)
 
-		cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 	})
 
 	t.Run("create with nil combined group should fail", func(t *testing.T) {
@@ -158,8 +123,7 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.Ctx(t)
-	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
+	createCombinedGroupTestData(t, db)
 
 	t.Run("lists all combined groups", func(t *testing.T) {
 		now := time.Now()
@@ -168,7 +132,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -185,7 +148,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, activeGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, activeGroup.ID)
 
 		// Create an ended combined group (has end_time)
 		endedGroup := &active.CombinedGroup{
@@ -194,7 +156,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err = repo.Create(ctx, endedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, endedGroup.ID)
 
 		// Test active_only=true filter
 		options := modelBase.NewQueryOptions()
@@ -229,7 +190,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, futureEndGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, futureEndGroup.ID)
 
 		// Create an ended combined group (end_time in past)
 		endedGroup := &active.CombinedGroup{
@@ -238,7 +198,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err = repo.Create(ctx, endedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, endedGroup.ID)
 
 		// Test active_only=true filter
 		options := modelBase.NewQueryOptions()
@@ -273,7 +232,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, futureEndGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, futureEndGroup.ID)
 
 		// Create an ended combined group (end_time in past - should be in inactive results)
 		endedGroup := &active.CombinedGroup{
@@ -282,7 +240,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		}
 		err = repo.Create(ctx, endedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, endedGroup.ID)
 
 		// Test active_only=false filter
 		options := modelBase.NewQueryOptions()
@@ -313,8 +270,7 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.Ctx(t)
-	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
+	createCombinedGroupTestData(t, db)
 
 	t.Run("finds only active combined groups", func(t *testing.T) {
 		now := time.Now()
@@ -331,7 +287,6 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, inactiveGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, activeGroup.ID, inactiveGroup.ID)
 
 		groups, err := repo.FindActive(ctx)
 		require.NoError(t, err)
@@ -360,8 +315,7 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.Ctx(t)
-	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
+	createCombinedGroupTestData(t, db)
 
 	t.Run("finds groups active during time range", func(t *testing.T) {
 		now := time.Now()
@@ -370,7 +324,6 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 
 		// Search for groups active in the last 2 hours
 		start := now.Add(-2 * time.Hour)
@@ -398,8 +351,7 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 
 	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := testpkg.Ctx(t)
-	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
+	createCombinedGroupTestData(t, db)
 
 	t.Run("ends active combined group", func(t *testing.T) {
 		now := time.Now()
@@ -408,7 +360,6 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 		}
 		err := repo.Create(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 
 		err = repo.EndCombination(ctx, combinedGroup.ID)
 		require.NoError(t, err)
@@ -428,7 +379,6 @@ func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 	mappingRepo := repositories.NewFactory(db).GroupMapping
 	ctx := testpkg.Ctx(t)
 	data := createCombinedGroupTestData(t, db)
-	defer cleanupCombinedGroupTestData(t, db, data)
 
 	t.Run("finds combined group with active groups", func(t *testing.T) {
 		now := time.Now()
@@ -437,7 +387,6 @@ func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 		}
 		err := repo.Create(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 
 		// Add active groups to the combination
 		err = mappingRepo.AddGroupToCombination(ctx, combinedGroup.ID, data.ActiveGroup1.ID)
@@ -464,7 +413,6 @@ func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 		}
 		err := repo.Create(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer cleanupCombinedGroupRecords(t, db, combinedGroup.ID)
 
 		found, err := repo.FindWithGroups(ctx, combinedGroup.ID)
 		require.NoError(t, err)

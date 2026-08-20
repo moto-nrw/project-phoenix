@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -31,16 +30,6 @@ func loadDeviationEvents(t *testing.T, db *bun.DB, ctx context.Context, tenantID
 	return rows
 }
 
-func cleanupDeviationEvents(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Model((*auditModels.DeviationEvent)(nil)).
-		ModelTableExpr(`audit.deviation_events AS "deviation_event"`).
-		Where(`"deviation_event".tenant_id = ?`, tenantID).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
 // TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes: the deviated slot's
 // schedule row is deleted before the re-plan, so the occurrence never
 // regenerates — the snapshot is dropped and MUST leave a
@@ -51,15 +40,19 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
-	defer cleanupDeviationEvents(t, s.db, s.tenantID)
 
-	subStaffID := seedDeviatedOccurrence(t, s, date)
+	seedDeviatedOccurrence(t, s, date)
 
 	// Remove the template's only schedule slot: re-plan deletes the deviated
-	// occurrence and regenerates nothing.
-	testpkg.CleanupTableRecords(t, s.db, "activities.schedules", s.schedule.ID)
+	// occurrence and regenerates nothing. This delete is the test's ACT step,
+	// not a teardown.
+	_, err := s.db.NewDelete().
+		TableExpr("activities.schedules").
+		Where("id = ?", s.schedule.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
 
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
@@ -73,7 +66,6 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	assert.Nil(t, ev.ActorAccountID)
 	require.NotNil(t, ev.OldValue)
 	assert.Contains(t, string(ev.OldValue), "substitutes")
-	_ = subStaffID
 }
 
 // TestReplanWeek_SuccessfulReapplyLogsNothing: the template is unchanged, the
@@ -84,7 +76,6 @@ func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
-	defer cleanupDeviationEvents(t, s.db, s.tenantID)
 
 	seedDeviatedOccurrence(t, s, date)
 
@@ -93,7 +84,6 @@ func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1)
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
 	assert.Empty(t, events, "a successful reapply is not a state change and logs nothing")

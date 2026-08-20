@@ -27,7 +27,6 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Old")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Three sessions: two old (one 800d, one 1500d) and one fresh (10d).
 	// The two old ones get audit edits and a break each to prove CASCADE
@@ -69,7 +68,6 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	assert.Equal(t, staff.ID, *auditRows[0].StaffID)
 	assert.Nil(t, auditRows[0].StudentID, "staff-scoped row must leave student_id null")
 
-	cleanupDeletionRows(t, db, staff.ID)
 }
 
 func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
@@ -79,7 +77,6 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Abs")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
@@ -100,7 +97,6 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	auditRows := findStaffDeletionRows(t, db, staff.ID)
 	require.Len(t, auditRows, 1)
 	assert.Equal(t, 1, auditRows[0].RecordsDeleted)
-	cleanupDeletionRows(t, db, staff.ID)
 }
 
 func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
@@ -110,7 +106,6 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Preview")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	oldSessionID := insertSession(t, db, staff.ID, daysAgo(800))
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
@@ -138,12 +133,10 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "PreviewFresh")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 	purgeOldRowsInTenant(t, db, testpkg.Tenant(t))
 
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
-	defer cleanupTimeTrackingRows(t, db, freshSessionID, freshAbsenceID)
 
 	repos := repoFactory.NewFactory(db)
 	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
@@ -165,7 +158,6 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoOp")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Other tests in this package can leave behind stale rows for other
 	// staff inside the same tenant. The "noop" assertion only holds when
@@ -198,7 +190,6 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "NoAudit")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 	insertSession(t, db, staff.ID, daysAgo(800))
 
 	repos := repoFactory.NewFactory(db)
@@ -215,7 +206,6 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "BusinessDate")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	freshBusinessSessionID := insertSessionWithBusinessDate(t, db, staff.ID, daysAgo(900), daysAgo(10))
 	oldBusinessSessionID := insertSessionWithBusinessDate(t, db, staff.ID, daysAgo(10), daysAgo(900))
@@ -235,7 +225,6 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	assert.True(t, absenceExists(t, db, freshBusinessAbsenceID), "fresh business absence must remain")
 	assert.False(t, absenceExists(t, db, oldBusinessAbsenceID), "old business absence must be deleted")
 
-	cleanupDeletionRows(t, db, staff.ID)
 }
 
 // --- Helpers ---------------------------------------------------------------
@@ -397,29 +386,6 @@ func purgeOldRowsInTenant(t *testing.T, db *bun.DB, tenantID int64) {
 		Table("active.staff_absences").
 		Where("tenant_id = ?", tenantID).
 		Where("date_end < ?", cutoff).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
-func cleanupDeletionRows(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Table("audit.data_deletions").
-		Where("staff_id = ?", staffID).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
-func cleanupTimeTrackingRows(t *testing.T, db *bun.DB, sessionID, absenceID int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Table("active.staff_absences").
-		Where("id = ?", absenceID).
-		Exec(context.Background())
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("active.work_sessions").
-		Where("id = ?", sessionID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

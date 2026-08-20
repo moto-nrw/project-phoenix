@@ -55,9 +55,6 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("PT-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("PT-Act-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, db, timezone.NewDate(2026, 4, 22), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &activity.ID,
@@ -65,7 +62,6 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		EndHHMM:         "15:00",
 		Title:           "PT-Lernzeit",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID) })
 
 	setup := &participantsSetup{
 		db:         db,
@@ -75,21 +71,13 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		activityID: activity.ID,
 	}
 	staff := testpkg.CreateTestStaff(t, db, "Sara", fmt.Sprintf("Staffel-%d", suffix))
-	staffRow := testpkg.CreateTestInstanceStaff(t, db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", staffRow.ID)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	})
+	testpkg.CreateTestInstanceStaff(t, db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
 	setup.staffID = staff.ID
 	setup.staffFullName = fmt.Sprintf("Sara Staffel-%d", suffix)
 
 	for i, name := range []struct{ first, last string }{{"Anna", "Alpha"}, {"Ben", "Beta"}} {
 		student := testpkg.CreateTestStudent(t, db, name.first, fmt.Sprintf("%s-%d", name.last, suffix), fmt.Sprintf("%da", i+1))
 		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, schedule.AttendanceStatusExpected)
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
-			testpkg.CleanupActivityFixtures(t, db, student.ID)
-		})
 		setup.students = append(setup.students, &participantFixture{
 			studentID: student.ID,
 			rowID:     row.ID,

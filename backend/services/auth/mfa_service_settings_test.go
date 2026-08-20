@@ -325,8 +325,7 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 
 	// Need a real account so the account FK is satisfied for any downstream call.
 	// (IssueTrustedDevice never reaches persistence in the disabled branch.)
-	db := fix.repos.AuthEvent // any repo's db is fine; just confirm fixture wired
-	_ = db
+	_ = fix.repos.AuthEvent // any repo's db is fine; just confirm fixture wired
 	cookie, expiresAt, err := fix.svc.IssueTrustedDevice(ctx, 99999, fix.tenantID, "ua", net.ParseIP("203.0.113.99"))
 	require.NoError(t, err)
 	assert.Empty(t, cookie, "disabled setting must skip cookie issuance")

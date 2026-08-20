@@ -48,38 +48,12 @@ type scenarioSetup struct {
 	enrollmentIDs []int64
 	supervisorIDs []int64
 	extraCleanups []func()
-	cleanupTables map[string][]int64 // table → IDs
-}
-
-func (s *scenarioSetup) registerCleanup(table string, ids ...int64) {
-	if s.cleanupTables == nil {
-		s.cleanupTables = make(map[string][]int64)
-	}
-	s.cleanupTables[table] = append(s.cleanupTables[table], ids...)
 }
 
 func (s *scenarioSetup) runCleanup(tb testing.TB) {
 	tb.Helper()
-	// Cleanup order matters for FKs. Children first.
-	order := []string{
-		"schedule.instance_students",
-		"schedule.instance_staff",
-		"schedule.activity_instances",
-		"schedule.activity_exceptions",
-		"activities.student_enrollments",
-		"activities.supervisors",
-		"activities.schedules",
-	}
-	for _, tbl := range order {
-		if ids := s.cleanupTables[tbl]; len(ids) > 0 {
-			testpkg.CleanupTableRecords(tb, s.db, tbl, ids...)
-		}
-	}
 	for _, fn := range s.extraCleanups {
 		fn()
-	}
-	if s.cleanup != nil {
-		s.cleanup()
 	}
 }
 
@@ -209,17 +183,9 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	}
 
 	// Cleanup plan (children first).
-	s.registerCleanup("activities.student_enrollments", s.enrollmentIDs...)
-	s.registerCleanup("activities.supervisors", s.supervisorIDs...)
-	s.registerCleanup("activities.schedules", sched.ID)
 
 	// Ambient cleanup for things created by testpkg helpers (reuses helpers).
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, student1.ID, staff.ID, 0, template.ID, room.ID)
-		testpkg.CleanupTableRecords(t, db, "users.students", student2.ID, student3.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
-		testpkg.CleanupScheduleFixtures(t, db, timeframe.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 	s.cleanup = func() {}
 	return s
@@ -254,7 +220,6 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	// Collect instance + register for cleanup.
 	instanceRows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
 	require.Len(t, instanceRows, 1)
-	s.registerCleanup("schedule.activity_instances", instanceRows[0].ID)
 
 	// --- Idempotent re-run ---
 	r2, err := s.svc.MaterializeForTenant(s.ctx, from, to, scheduleSvc.MaterializationSourceManual)
@@ -310,7 +275,6 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 
 	instanceRows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
 	require.Len(t, instanceRows, 1)
-	s.registerCleanup("schedule.activity_instances", instanceRows[0].ID)
 
 	// The graduated student must not appear in instance_students.
 	count, err := s.db.NewSelect().
@@ -333,7 +297,6 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 		t, s.db, s.tenantID, "Dora", fmt.Sprintf("Later-%d", time.Now().UnixNano()), "5a",
 	)
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.students", laterStudent.ID)
 	})
 
 	class3a := "3a"
@@ -350,7 +313,6 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 	assert.Equal(t, 3, first.InstanceStudentsCreated, "explicit and dynamic memberships form a deduplicated union")
 	firstInstances := listInstancesForDate(t, s.db, s.template.ID, firstMonday)
 	require.Len(t, firstInstances, 1)
-	s.registerCleanup("schedule.activity_instances", firstInstances[0].ID)
 
 	_, err = s.db.NewUpdate().
 		Table("users.students").
@@ -366,7 +328,6 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 	assert.Equal(t, 4, second.InstanceStudentsCreated, "future materialization uses the changed class membership")
 	secondInstances := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, secondInstances, 1)
-	s.registerCleanup("schedule.activity_instances", secondInstances[0].ID)
 }
 
 func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
@@ -385,7 +346,6 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
 	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -413,7 +373,6 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
 	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -422,7 +381,6 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	rows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
 	require.Len(t, rows, 1)
 	assert.Equal(t, 13, rows[0].StartTime.Hour(), "exception overrode start_time")
-	s.registerCleanup("schedule.activity_instances", rows[0].ID)
 }
 
 func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
@@ -532,7 +490,6 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 
 	rows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
 	require.Len(t, rows, 1)
-	s.registerCleanup("schedule.activity_instances", rows[0].ID)
 
 	r2, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -559,7 +516,6 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	}
 	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, holiday))
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", holiday.ID)
 	})
 
 	// Pin the schedule to the holiday period. The materialize window
@@ -624,10 +580,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, r2.InstancesCreated, "Week-B schedule must materialize in a Week-B calendar week")
 
-	rows := listInstancesForDate(t, s.db, s.template.ID, nextMon)
-	if len(rows) > 0 {
-		s.registerCleanup("schedule.activity_instances", rows[0].ID)
-	}
+	require.NotEmpty(t, listInstancesForDate(t, s.db, s.template.ID, nextMon))
 }
 
 // -----------------------------------------------------------------------------
@@ -668,9 +621,6 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, r0.InstancesCreated, "open-ended schedule materializes unchanged")
 	assert.Zero(t, r0.CandidatesSkippedEnded)
-	for _, row := range listInstancesForDate(t, s.db, s.template.ID, secondMonday) {
-		s.registerCleanup("schedule.activity_instances", row.ID)
-	}
 
 	// Cap the schedule between the two Mondays (exclusive end): the first
 	// Monday is before the cap and still materializes, the second is ended.
@@ -693,7 +643,6 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 
 	created := listInstancesForDate(t, s.db, s.template.ID, firstMonday)
 	require.Len(t, created, 1)
-	s.registerCleanup("schedule.activity_instances", created[0].ID)
 }
 
 // -----------------------------------------------------------------------------
@@ -731,5 +680,4 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 		"no phantom instance before valid_from")
 	created := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, created, 1, "valid_from is inclusive")
-	s.registerCleanup("schedule.activity_instances", created[0].ID)
 }

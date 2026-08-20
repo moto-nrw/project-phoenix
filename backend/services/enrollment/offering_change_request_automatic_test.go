@@ -73,7 +73,6 @@ func createPendingTriggerRequest(
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 	return row
 }
 
@@ -178,7 +177,6 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	views, err := svc.ListPending(ctx)
 	require.NoError(t, err)
@@ -301,7 +299,6 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
@@ -355,7 +352,6 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	view, err := svc.GetForStudent(ctx, fx.studentID)
 	require.NoError(t, err)
@@ -414,7 +410,6 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID})
 	require.NoError(t, err)
@@ -486,7 +481,6 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:               row.ID,

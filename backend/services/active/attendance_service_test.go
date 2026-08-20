@@ -95,7 +95,6 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 
 	// ARRANGE: Create a student (but NO attendance record)
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// ACT: Get attendance status for student without check-in
 	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -144,7 +143,6 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Create an attendance record (checked in, not checked out)
 	checkInTime := time.Now().Add(-1 * time.Hour)
@@ -175,7 +173,6 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff2")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-002")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Create an attendance record with check-out time
 	checkInTime := time.Now().Add(-2 * time.Hour)
@@ -209,9 +206,6 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	studentCheckedOut := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student3", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-003")
-	defer testpkg.CleanupActivityFixtures(t, db,
-		studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID,
-		staff.ID, device.ID)
 
 	// Create attendance records:
 	// - studentNotCheckedIn: no record
@@ -288,7 +282,6 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckIn", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Toggle", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "toggle-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// ACT: Toggle attendance (should check in)
 	// skipAuthCheck=true to bypass authorization for testing
@@ -316,7 +309,6 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "DeviceOnly", "CheckIn", "4d")
 	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-without-staff")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, testDevice.ID)
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
 
@@ -349,7 +341,6 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckOut", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "Toggle", "Staff2")
 	device := testpkg.CreateTestDevice(t, db, "toggle-device-002")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Check in the student first
 	checkInTime := time.Now().Add(-1 * time.Hour)
@@ -380,7 +371,6 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "ZeroStaff", "Checkout", "4z")
 	staff := testpkg.CreateTestStaff(t, db, "ZeroStaff", "Checkin")
 	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-zero-staff")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, testDevice.ID)
 
 	// Check in the student first (needs valid staffID for check-in FK)
 	checkInTime := time.Now().Add(-1 * time.Hour)
@@ -416,7 +406,6 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "ReCheckIn", "4c")
 	staff := testpkg.CreateTestStaff(t, db, "Toggle", "Staff3")
 	device := testpkg.CreateTestDevice(t, db, "toggle-device-003")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Create attendance with both check-in and check-out
 	checkInTime := time.Now().Add(-2 * time.Hour)
@@ -455,7 +444,6 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "5a")
 		staff := testpkg.CreateTestStaff(t, db, "NoAccess", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
 		// ACT: Toggle attendance without skipAuthCheck
 		// In a normal (non-IoT) context, this triggers the web toggle path
@@ -482,7 +470,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
 		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "6a")
 		staff := testpkg.CreateTestStaff(t, db, "Unrelated", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
 		// ACT: Check access - should return false because staff is not a teacher
 		hasAccess, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
@@ -495,7 +482,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	t.Run("returns false for non-existent staff", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "Orphan", "Student", "6b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		hasAccess, err := service.CheckTeacherStudentAccess(ctx, 99999999, student.ID)
@@ -510,7 +496,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 		// ARRANGE: Create a full teacher with account
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Group", "Teacher")
 		student := testpkg.CreateTestStudent(t, db, "Group", "Student", "6c")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, student.ID)
 
 		// Note: We don't have a way to easily assign the teacher to the student's group
 		// without more complex fixture setup, so this test verifies the error path
@@ -527,7 +512,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	t.Run("returns false for non-existent student", func(t *testing.T) {
 		// ARRANGE: Create a teacher so the check reaches the student lookup.
 		teacher := testpkg.CreateTestTeacher(t, db, "MissingStudent", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
 
 		// ACT
 		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, 999999999)
@@ -541,7 +525,6 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 		// ARRANGE: Create a teacher and student without group assignment
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "NoGroup", "Teacher")
 		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "6d")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, student.ID)
 		// Note: student.GroupID is nil by default
 
 		// ACT
@@ -569,8 +552,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 		// ARRANGE: Create an active group without supervisors
 		activity := testpkg.CreateTestActivityGroup(t, db, "unclaimed-activity")
 		room := testpkg.CreateTestRoom(t, db, "Unclaimed Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		groups, err := service.GetUnclaimedActiveGroups(ctx)
@@ -605,7 +587,6 @@ func TestClaimActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Claim Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Claim", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// ACT
 		supervisor, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
@@ -624,7 +605,6 @@ func TestClaimActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Default Role Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "DefaultRole", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// ACT - pass empty role
 		supervisor, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "")
@@ -638,7 +618,6 @@ func TestClaimActiveGroup(t *testing.T) {
 	t.Run("returns error when group not found", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "NotFound", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		_, err := service.ClaimActiveGroup(ctx, 99999999, staff.ID, "supervisor")
@@ -654,7 +633,6 @@ func TestClaimActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Ended Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "EndedGroup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// End the group
 		err := service.EndActivitySession(ctx, activeGroup.ID)
@@ -674,7 +652,6 @@ func TestClaimActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Duplicate Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Duplicate", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// First claim
 		_, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
@@ -708,7 +685,6 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RoomAccess", "Student", "7a")
 		staff := testpkg.CreateTestStaff(t, db, "RoomAccess", "Supervisor")
 		device := testpkg.CreateTestDevice(t, db, "supervisor-access-device")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, device.ID)
 
 		// Create a visit for the student in the active group
 		entryTime := time.Now().Add(-30 * time.Minute)
@@ -754,11 +730,9 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testDevice := testpkg.CreateTestDevice(t, db, "iot-toggle-device")
 		student := testpkg.CreateTestStudent(t, db, "IoTToggle", "Student", "12a")
 		staff := testpkg.CreateTestStaff(t, db, "IoTToggle", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, testDevice.ID, student.ID, staff.ID)
 
 		// Create active group for the device
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 		// Link device to active group
 		_, err := db.NewUpdate().
@@ -789,7 +763,6 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		// ARRANGE: Create device without active group
 		testDevice := testpkg.CreateTestDevice(t, db, "iot-no-group-device")
 		student := testpkg.CreateTestStudent(t, db, "IoTNoGroup", "Student", "12b")
-		defer testpkg.CleanupActivityFixtures(t, db, testDevice.ID, student.ID)
 
 		// Create IoT device context using device package constants
 		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
@@ -818,7 +791,6 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 		checkInStaff := testpkg.CreateTestStaff(t, db, "CheckIn", "Staff")
 		checkOutStaff := testpkg.CreateTestStaff(t, db, "CheckOut", "Staff")
 		device := testpkg.CreateTestDevice(t, db, "staffname-device")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, checkInStaff.ID, checkOutStaff.ID, device.ID)
 
 		// Create attendance with both check-in and check-out by different staff
 		checkInTime := time.Now().Add(-2 * time.Hour)
@@ -874,7 +846,6 @@ func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Action", "CheckIn", "5a")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "action-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	result, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
 
@@ -899,7 +870,6 @@ func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Action", "AlreadyIn", "5b")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff2")
 	device := testpkg.CreateTestDevice(t, db, "action-device-002")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Pre-populate an open row to simulate the winner of an in/in race.
 	checkInTime := time.Now().Add(-30 * time.Minute)
@@ -926,7 +896,6 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Action", "CheckOut", "5c")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff3")
 	device := testpkg.CreateTestDevice(t, db, "action-device-003")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Open row to be closed.
 	checkInTime := time.Now().Add(-1 * time.Hour)
@@ -959,10 +928,8 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-checkout-supervisor")
 	student := testpkg.CreateTestStudent(t, db, "Device", "Checkout", "5h")
 	staff := testpkg.CreateTestStaff(t, db, "Device", "Supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, student.ID, staff.ID)
 
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	_, err := db.NewUpdate().
 		Model(activeGroup).
@@ -1006,7 +973,6 @@ func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *tes
 	device := testpkg.CreateTestDevice(t, db, "device-checkout-no-supervisor")
 	student := testpkg.CreateTestStudent(t, db, "Device", "NoSupervisor", "5i")
 	staff := testpkg.CreateTestStaff(t, db, "Device", "CheckInOnly")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID, student.ID, staff.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
@@ -1042,7 +1008,6 @@ func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Action", "Idempotent", "5d")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff4")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
 	// Student has no attendance row at all today.
 	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
@@ -1068,7 +1033,6 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Action", "DoubleOut", "5e")
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff5")
 	device := testpkg.CreateTestDevice(t, db, "action-device-005")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Pre-create a closed row.
 	checkInTime := time.Now().Add(-2 * time.Hour)
@@ -1104,13 +1068,11 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-checkout")
 	room := testpkg.CreateTestRoom(t, db, "Invariant Room 1")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
 
 	// Open attendance + open visit (student is in a room).
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
 
@@ -1146,14 +1108,12 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-orphan")
 	room := testpkg.CreateTestRoom(t, db, "Invariant Room 2")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
 
 	// The orphan state from issue #895: attendance already closed, visit open.
 	checkInTime := time.Now().Add(-2 * time.Hour)
 	checkOutTime := time.Now().Add(-30 * time.Minute)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
 
@@ -1184,12 +1144,10 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-toggle")
 	room := testpkg.CreateTestRoom(t, db, "Invariant Room 3")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
 
@@ -1214,7 +1172,6 @@ func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "NoRecord", "7a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	result, err := service.ConfirmDailyCheckout(ctx, student.ID, 0, "zuhause")
 
@@ -1237,7 +1194,6 @@ func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "Unterwegs", "7b")
 	staff := testpkg.CreateTestStaff(t, db, "DailyCheckout", "Supervisor")
 	device := testpkg.CreateTestDevice(t, db, "daily-checkout-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)

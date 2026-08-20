@@ -65,14 +65,6 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 	return count
 }
 
-func cleanupChangeLogRows(tb testing.TB, db *bun.DB, studentID int64) {
-	tb.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewRaw(`DELETE FROM audit.data_deletions WHERE student_id = ?`, studentID).Exec(ctx)
-	_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID).Exec(ctx)
-}
-
 func changeLogSettings(retentionDays int) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
@@ -93,8 +85,6 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Old", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer cleanupChangeLogRows(t, db, student.ID)
 
 	// Two expired edits (200d, 400d) and one fresh (10d, inside the 90d window).
 	insertFieldEdit(t, db, student.ID, daysAgo(200))
@@ -129,8 +119,6 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Fresh", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer cleanupChangeLogRows(t, db, student.ID)
 
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))

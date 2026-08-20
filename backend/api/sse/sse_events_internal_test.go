@@ -119,8 +119,7 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	ctx := setupEventsTestContext(t)
 
 	// Create a teacher with account (has staff record)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
-	_ = teacher // Avoid unused variable
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
 
 	// Mount handler directly to bypass JWT middleware
 	router := chi.NewRouter()
@@ -206,8 +205,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	tctx := setupEventsTestContext(t)
 
 	// Create a teacher with account (has staff record)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
-	_ = teacher
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
 
 	// Mount handler directly
 	router := chi.NewRouter()
@@ -241,8 +239,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	tctx := setupEventsTestContext(t)
 
 	// Create a teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
-	_ = teacher
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.eventsHandler)

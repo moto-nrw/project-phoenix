@@ -79,10 +79,8 @@ func authToken(t *testing.T, perms ...string) string {
 func deleteStaffAuthToken(t *testing.T, db *bun.DB) (string, func()) {
 	t.Helper()
 
-	actor, account := testpkg.CreateTestStaffWithAccount(t, db, "Delete", "Actor")
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Delete", "Actor")
 	cleanup := func() {
-		testpkg.CleanupStaffFixtures(t, db, actor.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}
 
 	claims := testutil.DefaultTestClaims()
@@ -104,15 +102,6 @@ func pinToken(t *testing.T, accountID int, username string) string {
 	claims.Username = username
 	claims.Permissions = nil
 	return testutil.MintTestJWT(t, claims)
-}
-
-func cleanupStaffScheduleRows(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Table("config.staff_work_schedules").
-		Where("staff_id = ?", staffID).
-		Exec(context.Background())
-	require.NoError(t, err)
 }
 
 func assignSystemRoleToAccount(
@@ -202,9 +191,7 @@ func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testi
 
 	ctx := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "TeacherOnly")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "TeacherOnly")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -248,9 +235,7 @@ func TestListStaff_WithAccountEmail(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	// Create staff with an account so the email-loading path is exercised
-	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailList", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	_, _ = testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailList", "Staff")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -270,9 +255,7 @@ func TestGetStaff_WithAccountEmail(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	// Create staff with an account so the email-loading path is exercised
-	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailGet", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	staff, _ := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailGet", "Staff")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -299,7 +282,6 @@ func TestGetStaff_Success(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "GetStaff", "Test")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -315,7 +297,6 @@ func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "TimeTrackingManager", "Profile")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "time_tracking:manage")))
@@ -331,7 +312,6 @@ func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Payroll", "Profile")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/financial-profile/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "staff:financial")))
@@ -347,7 +327,6 @@ func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Health", "Documents")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/documents-profile/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "staff_documents:health")))
@@ -363,7 +342,6 @@ func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UnrelatedPermission", "Profile")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "rooms:read")))
@@ -408,7 +386,6 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	tenantID := testpkg.Tenant(t)
 	tenantCtx := testpkg.TenantContext(tenantID)
@@ -423,7 +400,6 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 	session.SetTenantID(tenantID)
 	_, err := ctx.db.NewInsert().Model(session).Exec(tenantCtx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, ctx.db, "active.work_sessions", session.ID)
 
 	listReq := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -474,7 +450,6 @@ func TestCreateStaff_Success(t *testing.T) {
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person := testpkg.CreateTestPerson(t, ctx.db, "NewStaff"+uniqueSuffix, "Person")
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	body := map[string]interface{}{
 		"person_id":   person.ID,
@@ -489,12 +464,6 @@ func TestCreateStaff_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	// Parse response to get staff ID for cleanup
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]interface{}); ok {
-		if staffID, ok := data["id"].(float64); ok {
-			defer testpkg.CleanupStaffFixtures(t, ctx.db, int64(staffID))
-		}
-	}
 }
 
 func TestCreateStaff_AsTeacher(t *testing.T) {
@@ -505,7 +474,6 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person := testpkg.CreateTestPerson(t, ctx.db, "NewTeacher"+uniqueSuffix, "Person")
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	body := map[string]interface{}{
 		"person_id":      person.ID,
@@ -523,12 +491,6 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	// Parse response to get staff ID for cleanup
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]interface{}); ok {
-		if staffID, ok := data["id"].(float64); ok {
-			defer testpkg.CleanupStaffFixtures(t, ctx.db, int64(staffID))
-		}
-	}
 }
 
 // createStaffForAccountPerson posts a staff record for a person that already
@@ -576,13 +538,10 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Lehrkraft"+uniqueSuffix, "Person")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "lehrkraft")
 
-	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
+	granted, _ := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
 
 	assert.NotContains(t, granted, permissions.GroupsRead,
 		"a Lehrkraft account must not be granted groups:read on staff creation")
@@ -598,13 +557,10 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "PlainStaff"+uniqueSuffix, "Person")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "user")
 
-	granted, staffID := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staffID)
+	granted, _ := createStaffForAccountPerson(t, ctx, person.ID, account.ID)
 
 	assert.Contains(t, granted, permissions.GroupsRead,
 		"a regular staff account keeps the groups:read default")
@@ -620,7 +576,6 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Vorhandene", "Kraft")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	body := map[string]interface{}{
 		"person_id":   staff.PersonID,
@@ -654,8 +609,6 @@ func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "LehrkraftProfil"+uniqueSuffix, "Person")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "lehrkraft")
 
@@ -727,7 +680,6 @@ func TestUpdateStaff_Success(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateStaff", "Test")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	body := map[string]interface{}{
 		"person_id":   staff.PersonID,
@@ -856,7 +808,6 @@ func TestGetStaffGroups_Success(t *testing.T) {
 
 	// Create a teacher with the full chain (person -> staff -> teacher)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupsTest", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", teacher.StaffID), nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -873,7 +824,6 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 
 	// Create regular staff (not a teacher)
 	staff := testpkg.CreateTestStaff(t, ctx.db, "NonTeacher", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -908,7 +858,6 @@ func TestGetStaffSubstitutions_Success(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "SubstitutionsTest", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/substitutions", staff.ID), nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -1015,8 +964,6 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	ctx := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "teacher")
 
@@ -1050,8 +997,6 @@ func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, ctx.db, account.ID, testpkg.Tenant(t), "teacher")
 
@@ -1104,7 +1049,6 @@ func TestGetPINStatus_Success(t *testing.T) {
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	// Get the person to access the account ID
 	person := teacher.Staff.Person
@@ -1144,7 +1088,6 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	person := teacher.Staff.Person
 	require.NotNil(t, person)
@@ -1170,7 +1113,6 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	person := teacher.Staff.Person
 	require.NotNil(t, person)
@@ -1196,7 +1138,6 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	person := teacher.Staff.Person
 	require.NotNil(t, person)
@@ -1237,7 +1178,6 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 
 	// Create a staff with account (no existing PIN)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	person := teacher.Staff.Person
 	require.NotNil(t, person)
@@ -1326,7 +1266,6 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 
 	// Create regular staff (not a teacher)
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ConvertTo", "Teacher")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	// Update to convert to teacher
 	body := map[string]interface{}{
@@ -1360,7 +1299,6 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 
 	// Create a teacher with the full chain
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdateTeacher", "Test")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	// Update teacher fields
 	body := map[string]interface{}{
@@ -1387,7 +1325,6 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 
 	// Create a teacher
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "KeepTeacher", "Test")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	// Update without is_teacher flag - should still return teacher response
 	body := map[string]interface{}{
@@ -1409,7 +1346,6 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	// Invalid request - missing person_id
 	body := map[string]interface{}{
@@ -1433,12 +1369,9 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person1 := testpkg.CreateTestPerson(t, ctx.db, "Original"+uniqueSuffix, "Person")
 	person2 := testpkg.CreateTestPerson(t, ctx.db, "New"+uniqueSuffix, "Person")
-	defer testpkg.CleanupPerson(t, ctx.db, person1.ID)
-	defer testpkg.CleanupPerson(t, ctx.db, person2.ID)
 
 	// Create staff with person1
 	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID)
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	// Update to point to person2
 	body := map[string]interface{}{
@@ -1460,7 +1393,6 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	// Try to update to non-existent person
 	body := map[string]interface{}{
@@ -1511,8 +1443,6 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "SupervisionActivity")
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.ID, room.ID)
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
 	defer cleanupActor()
@@ -1530,8 +1460,6 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
-	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
 	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
@@ -1572,8 +1500,18 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	reloadedStaff, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
+	// config.work_time_model_entries has no tenant of its own; it only goes
+	// away with its model, so the delete has to actually happen (#2419).
 	t.Cleanup(func() {
-		_ = repositories.NewFactory(ctx.db).WorkTimeModel.Delete(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
+		_, err := ctx.db.NewUpdate().TableExpr("users.staff").
+			Set("work_time_model_id = NULL").
+			Where("work_time_model_id = ?", *reloadedStaff.WorkTimeModelID).
+			Exec(context.Background())
+		require.NoError(t, err)
+		_, err = ctx.db.NewDelete().TableExpr("config.work_time_models").
+			Where("id = ?", *reloadedStaff.WorkTimeModelID).
+			Exec(context.Background())
+		require.NoError(t, err)
 	})
 
 	model, err := repositories.NewFactory(ctx.db).WorkTimeModel.FindByID(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
@@ -1589,8 +1527,6 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
-	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
 	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
@@ -1617,9 +1553,8 @@ func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 
 	ctx := setupTestContext(t)
 
-	ownStaff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
 	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleOther", "Denied")
-	defer testpkg.CleanupStaffFixtures(t, ctx.db, otherStaff.ID, ownStaff.ID)
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)

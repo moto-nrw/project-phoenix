@@ -293,12 +293,11 @@ func TestUserContextService_GetMyActivityGroups(t *testing.T) {
 		ctx := contextWithClaims(t, int(account.ID))
 
 		// ACT
-		groups, err := service.GetMyActivityGroups(ctx)
+		_, err := service.GetMyActivityGroups(ctx)
 
 		// ASSERT
 		require.NoError(t, err)
 		// May be empty if no supervisions, just verify no error
-		_ = groups
 	})
 }
 
@@ -350,12 +349,11 @@ func TestUserContextService_GetMySupervisedGroups(t *testing.T) {
 		ctx := contextWithClaims(t, int(account.ID))
 
 		// ACT
-		groups, err := service.GetMySupervisedGroups(ctx)
+		_, err := service.GetMySupervisedGroups(ctx)
 
 		// ASSERT
 		require.NoError(t, err)
 		// May be empty if no supervisions, just verify no error
-		_ = groups
 	})
 }
 

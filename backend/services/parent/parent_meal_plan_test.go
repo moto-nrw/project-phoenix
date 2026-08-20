@@ -64,7 +64,6 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	seedMealPlanWeek(t, db, currentMonday)
@@ -82,7 +81,6 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	nextMonday := currentMonday.AddDays(7)
@@ -99,7 +97,6 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
@@ -114,7 +111,6 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	lastWeek := currentMonday.AddDays(-7)
@@ -128,7 +124,6 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	weekAfterNext := currentMonday.AddDays(14)
@@ -142,9 +137,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, other.ID) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
@@ -158,7 +151,6 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
@@ -174,7 +166,6 @@ func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	svcOn := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	flags, err := svcOn.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)

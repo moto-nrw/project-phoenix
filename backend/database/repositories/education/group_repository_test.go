@@ -11,20 +11,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
-
-// cleanupGroupRecords removes education groups directly
-func cleanupGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
-	t.Helper()
-	for _, id := range groupIDs {
-		testpkg.CleanupTableRecords(t, db, "education.groups", id)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -49,12 +40,10 @@ func TestGroupRepository_Create(t *testing.T) {
 		assert.NotZero(t, group.ID)
 
 		// Cleanup
-		cleanupGroupRecords(t, db, group.ID)
 	})
 
 	t.Run("creates group with room assignment", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "GroupRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
 		group := &education.Group{
@@ -71,7 +60,6 @@ func TestGroupRepository_Create(t *testing.T) {
 		require.NotNil(t, found.RoomID)
 		assert.Equal(t, room.ID, *found.RoomID)
 
-		cleanupGroupRecords(t, db, group.ID)
 	})
 }
 
@@ -85,7 +73,6 @@ func TestGroupRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing group", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "FindByID")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
@@ -111,7 +98,6 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "FindByIDs1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "FindByIDs2")
-		defer cleanupGroupRecords(t, db, group1.ID, group2.ID)
 
 		groups, err := repo.FindByIDs(ctx, []int64{group1.ID, group2.ID})
 		require.NoError(t, err)
@@ -137,7 +123,6 @@ func TestGroupRepository_Update(t *testing.T) {
 
 	t.Run("updates group name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UpdateTest")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
 		group.Name = newName
@@ -183,8 +168,7 @@ func TestGroupRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "ListTest")
-		defer cleanupGroupRecords(t, db, group.ID)
+		testpkg.CreateTestEducationGroup(t, db, "ListTest")
 
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -201,8 +185,7 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
-		defer cleanupGroupRecords(t, db, group.ID)
+		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		options := base.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -223,7 +206,6 @@ func TestGroupRepository_FindByName(t *testing.T) {
 
 	t.Run("finds group by exact name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UniqueNameTest")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindByName(ctx, group.Name)
 		require.NoError(t, err)
@@ -259,7 +241,6 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 				TableExpr("education.group_teacher").
 				Where("id = ?", gt.ID).
 				Exec(ctx)
-			cleanupGroupRecords(t, db, group.ID)
 			// Teacher cleanup
 			_, _ = db.NewDelete().
 				TableExpr("users.teachers").
@@ -293,7 +274,6 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithRoomTest")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
 		group := &education.Group{
@@ -302,7 +282,6 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		// Find with room
 		found, err := repo.FindWithRoom(ctx, group.ID)
@@ -313,7 +292,6 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 	t.Run("finds group without room", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "NoRoomTest")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		found, err := repo.FindWithRoom(ctx, group.ID)
 		require.NoError(t, err)
@@ -364,7 +342,6 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 
 	t.Run("returns error for invalid name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UpdateValidation")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		group.Name = "" // Invalid empty name
 		err := repo.Update(ctx, group)
@@ -391,8 +368,6 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 		group2 := testpkg.CreateTestEducationGroup(t, db, uniquePrefix+"-Beta")
 		group3 := testpkg.CreateTestEducationGroup(t, db, "OtherGroup")
 
-		defer cleanupGroupRecords(t, db, group1.ID, group2.ID, group3.ID)
-
 		filters := map[string]interface{}{
 			"name_like": uniquePrefix,
 		}
@@ -412,7 +387,6 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 	t.Run("filters by has_room true", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "FilterRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		// Create group with room
 		uniqueName := fmt.Sprintf("WithRoom-%d", time.Now().UnixNano())
@@ -422,7 +396,6 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 		}
 		err := repo.Create(ctx, groupWithRoom)
 		require.NoError(t, err)
-		defer cleanupGroupRecords(t, db, groupWithRoom.ID)
 
 		filters := map[string]interface{}{
 			"has_room": true,
@@ -439,8 +412,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 	t.Run("filters by has_room false", func(t *testing.T) {
 		// Create group without room
-		groupWithoutRoom := testpkg.CreateTestEducationGroup(t, db, "NoRoom")
-		defer cleanupGroupRecords(t, db, groupWithoutRoom.ID)
+		testpkg.CreateTestEducationGroup(t, db, "NoRoom")
 
 		filters := map[string]interface{}{
 			"has_room": false,
@@ -468,7 +440,6 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 		// Create groups
 		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
-		defer cleanupGroupRecords(t, db, group1.ID, group2.ID)
 
 		options := base.NewQueryOptions()
 		sorting := &base.Sorting{}
@@ -495,8 +466,7 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 	})
 
 	t.Run("lists with filter and pagination combined", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
-		defer cleanupGroupRecords(t, db, group.ID)
+		testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
 
 		options := base.NewQueryOptions()
 		filter := base.NewFilter()
@@ -525,7 +495,6 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 		}
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		// Search with different case
 		found, err := repo.FindByName(ctx, uniqueName)

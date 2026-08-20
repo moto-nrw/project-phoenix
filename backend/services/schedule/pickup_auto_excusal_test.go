@@ -86,10 +86,8 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	}
 	require.Equal(t, time.Monday, date.Weekday(), "fixture date must be a Monday")
 
-	var scheduleIDs []int64
 	if withBaseline {
-		weekly := testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "16:00")
-		scheduleIDs = append(scheduleIDs, weekly.ID)
+		testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "16:00")
 	}
 
 	before := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -104,16 +102,6 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	beforeRow := testpkg.CreateTestInstanceStudent(t, db, before.ID, student.ID, scheduleModel.AttendanceStatusExpected)
 	overlapRow := testpkg.CreateTestInstanceStudent(t, db, overlap.ID, student.ID, scheduleModel.AttendanceStatusExpected)
 	afterRow := testpkg.CreateTestInstanceStudent(t, db, after.ID, student.ID, scheduleModel.AttendanceStatusExpected)
-
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(
-			t, db,
-			nil, nil, scheduleIDs, nil,
-			[]int64{beforeRow.ID, overlapRow.ID, afterRow.ID},
-			[]int64{before.ID, overlap.ID, after.ID},
-		)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, room.ID)
-	})
 
 	return &autoExcusalHarness{
 		db:         db,
@@ -486,9 +474,6 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	require.True(t, row.ExcusedAuto)
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, h.db, h.student.ID, h.date, "sick")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, h.db, "active.student_status_days", statusDay.ID)
-	})
 	// Project the sick day onto the slots the way the production repo does.
 	_, err = repos.InstanceStudent.ApplyStatusDay(h.ctx, h.student.ID, h.date, statusDay.ID, scheduleModel.AttendanceSubstatusSick)
 	require.NoError(t, err)

@@ -40,8 +40,6 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "RFID", "Staff")
 		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
-
 		// Create context with both staff and device (simulates RFID check-in)
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
@@ -80,7 +78,6 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Completed", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Completed", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-COMPLETED-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
@@ -91,11 +88,9 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 		EntryTime: entryTime, ExitTime: &exitTime,
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
 	require.NotNil(t, attendance.CheckedOutBy)
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
@@ -115,21 +110,18 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Revised", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Revised", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REVISED-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 	entryTime := time.Now().Add(-2 * time.Hour)
 	visit := &activeModels.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	exitTime := entryTime.Add(time.Hour)
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
 
@@ -156,10 +148,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	student := testpkg.CreateTestStudent(t, db, "Moved", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Moved", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-MOVED-VISIT-001")
-	defer testpkg.CleanupActivityFixtures(
-		t, db, activity.ID, sourceRoom.ID, targetRoom.ID, sourceGroup.ID,
-		targetGroup.ID, student.ID, staff.ID, rfidDevice.ID,
-	)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
@@ -168,7 +156,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	exitTime := entryTime.Add(time.Hour)
 	visit.ActiveGroupID = targetGroup.ID
@@ -177,7 +164,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime,
 		"a combined group move and checkout must not leave daily attendance open")
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
@@ -207,8 +193,6 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		// Create existing attendance with checkout time (student left earlier)
 		checkoutTime := time.Now().Add(-2 * time.Hour)
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID, existingAttendance.ID)
 
 		// Create context with staff and device
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -262,7 +246,6 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Sick", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACS-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	// Pre-state: mark student sick
 	sickTrue := true
@@ -329,7 +312,6 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Excused", "4c")
 	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACE-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	excusedTrue := true
 	now := time.Now()
@@ -378,7 +360,6 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "KeepExc", "Student", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "KeepExc", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-KEX-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	excusedTrue := true
 	now := time.Now()
@@ -426,7 +407,6 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Clear", "4d")
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PCS-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	trueVal := true
 	now := time.Now()
@@ -504,7 +484,6 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Parent", "Clear", "4e")
 	staff := testpkg.CreateTestStaff(t, db, "Parent", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PRC-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.

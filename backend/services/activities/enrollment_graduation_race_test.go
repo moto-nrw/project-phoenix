@@ -55,7 +55,6 @@ func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRost
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enrollment-race")
 	stays := testpkg.CreateTestStudent(t, db, "Still", "Enrolled", "1a")
 	graduating := testpkg.CreateTestStudent(t, db, "About", "ToGraduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, stays.ID, graduating.ID)
 
 	service := setupActivityService(t, db)
 	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{stays.ID, graduating.ID}))

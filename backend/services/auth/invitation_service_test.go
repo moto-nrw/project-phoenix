@@ -663,7 +663,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 
 	invitations := newStubInvitationTokenRepository()
 	accounts := newStubAccountRepository()
-	tenantID := int64(42)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	roles := newStubRoleRepository(
 		&authModel.Role{Model: baseModel.Model{ID: 21}, Name: "admin", IsSystem: true},
 		&authModel.Role{Model: baseModel.Model{ID: 22}, Name: "user", IsSystem: true},

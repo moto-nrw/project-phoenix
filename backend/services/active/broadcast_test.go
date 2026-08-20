@@ -74,7 +74,6 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, "broadcast-device")
 	// Students before their education group (FK ON DELETE SET NULL nulls
 	// students.tenant_id otherwise — see the edu-batch test below).
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID, staff.ID, iotDevice.ID)
 
 	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
@@ -87,7 +86,6 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 
 	err := svc.CreateVisit(deviceCtx, visit)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after CreateVisit")
@@ -137,7 +135,6 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Checkout", "1b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID, eduGroup.ID)
 
 	// Clear calls from visit creation
 	broadcaster.Reset()
@@ -201,12 +198,6 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Move", "4a")
 	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		sourceActivity.ID, targetActivity.ID,
-		sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID,
-		student.ID, visit.ID,
-	)
 
 	broadcaster.Reset()
 
@@ -240,8 +231,7 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, session.ID, "supervisor")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchEnd", "2a")
-	visit := testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID, staff.ID, activityGroup.ID, session.ID, student.ID, visit.ID)
+	testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
 
 	broadcaster.Reset()
 
@@ -281,12 +271,8 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, session.ID, "supervisor")
 	studentA := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchA", "2a")
 	studentB := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchB", "2b")
-	visitA := testpkg.CreateTestVisit(t, db, studentA.ID, session.ID, time.Now(), nil)
-	visitB := testpkg.CreateTestVisit(t, db, studentB.ID, session.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		room.ID, staff.ID, activityGroup.ID, session.ID,
-		studentA.ID, studentB.ID, visitA.ID, visitB.ID,
-	)
+	testpkg.CreateTestVisit(t, db, studentA.ID, session.ID, time.Now(), nil)
+	testpkg.CreateTestVisit(t, db, studentB.ID, session.ID, time.Now(), nil)
 
 	broadcaster.Reset()
 
@@ -355,19 +341,13 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	assignStudentToEducationGroup(t, db, ctx, studentB.ID, groupX.ID)
 	assignStudentToEducationGroup(t, db, ctx, studentC.ID, groupY.ID)
 
-	visitA := testpkg.CreateTestVisit(t, db, studentA.ID, session.ID, time.Now(), nil)
-	visitB := testpkg.CreateTestVisit(t, db, studentB.ID, session.ID, time.Now(), nil)
-	visitC := testpkg.CreateTestVisit(t, db, studentC.ID, session.ID, time.Now(), nil)
+	testpkg.CreateTestVisit(t, db, studentA.ID, session.ID, time.Now(), nil)
+	testpkg.CreateTestVisit(t, db, studentB.ID, session.ID, time.Now(), nil)
+	testpkg.CreateTestVisit(t, db, studentC.ID, session.ID, time.Now(), nil)
 	// Students must be cleaned up before their education groups: the composite
 	// students.group_id FK is ON DELETE SET NULL, and deleting a still-referenced
 	// group nulls students.tenant_id (NOT NULL) and errors. Cleanup processes IDs
 	// in order, so list students/visits ahead of the groups.
-	defer testpkg.CleanupActivityFixtures(t, db,
-		studentA.ID, studentB.ID, studentC.ID,
-		visitA.ID, visitB.ID, visitC.ID,
-		groupX.ID, groupY.ID,
-		session.ID, activityGroup.ID, room.ID, staff.ID,
-	)
 
 	broadcaster.Reset()
 
@@ -470,7 +450,6 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	defer checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")()
 
@@ -489,7 +468,6 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-RoomlessCheckout")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, eduGroup.ID)
 
 	defer checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")()
 
@@ -531,7 +509,6 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast-GDPR")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Gdpr", "1c")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID)
 
 	ctx := testpkg.Ctx(t)
 	studentIDStr := strconv.FormatInt(student.ID, 10)
@@ -543,7 +520,6 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 		EntryTime:     time.Now(),
 	}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventStudentCheckIn, studentIDStr)
 
@@ -555,8 +531,7 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 
 	// --- whole-session end (bulk path) --------------------------------------
 	broadcaster.Reset()
-	bulkVisit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, bulkVisit.ID)
+	testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 	require.NoError(t, svc.EndActivitySession(ctx, activeGroup.ID))
 
 	assertBothHalvesOfTheContract(t, broadcaster, realtime.EventBulkStudentCheckOut, studentIDStr)

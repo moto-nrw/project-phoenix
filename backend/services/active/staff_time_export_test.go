@@ -58,7 +58,6 @@ func (f *overviewFixture) cleanupAccessLogs(t *testing.T) {
 func (f *overviewFixture) newActorAccount(t *testing.T) int64 {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, f.db, "time-export-actor")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, f.db, account.ID) })
 	return account.ID
 }
 

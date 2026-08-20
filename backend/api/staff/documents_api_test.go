@@ -78,8 +78,6 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 		ctx := testpkg.Ctx(t)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, target.ID)
-		testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 		if pubDir, err := common.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents"))
 		}

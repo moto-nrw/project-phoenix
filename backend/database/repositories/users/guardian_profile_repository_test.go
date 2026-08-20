@@ -48,7 +48,6 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 		assert.NotZero(t, profile.ID)
 
 		// Cleanup
-		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 	})
 
 	t.Run("creates guardian profile without email", func(t *testing.T) {
@@ -63,7 +62,6 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 	})
 }
 
@@ -77,7 +75,6 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "findbyid")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		found, err := repo.FindByID(ctx, profile.ID)
 		require.NoError(t, err)
@@ -102,7 +99,6 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "byemail")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		found, err := repo.FindByEmail(ctx, *profile.Email)
 		require.NoError(t, err)
@@ -111,7 +107,6 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 	t.Run("finds guardian profile by email case-insensitive", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "casetest")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		// Search with the email
 		found, err := repo.FindByEmail(ctx, *profile.Email)
@@ -136,7 +131,6 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	t.Run("updates guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		profile.FirstName = "Updated"
 		profile.LastName = "Name"
@@ -206,8 +200,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "listopt")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+		testpkg.CreateTestGuardianProfile(t, db, "listopt")
 
 		options := base.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -218,8 +211,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "listnil")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+		testpkg.CreateTestGuardianProfile(t, db, "listnil")
 
 		profiles, err := repo.ListWithOptions(ctx, nil)
 		require.NoError(t, err)
@@ -237,7 +229,6 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 
 	t.Run("finds guardians without accounts", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "noaccount")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		// Profile should not have an account
 		profiles, err := repo.FindWithoutAccount(ctx)
@@ -264,7 +255,6 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 	t.Run("finds invitable guardians", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "invitable")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		// Profile has email and no account - should be invitable
 		profiles, err := repo.FindInvitable(ctx)
@@ -282,12 +272,10 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 	t.Run("returns profiles ordered by last name", func(t *testing.T) {
 		profile1 := testpkg.CreateTestGuardianProfile(t, db, "orderz")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile1.ID)
 		profile1.LastName = "Zebra"
 		_ = repo.Update(ctx, profile1)
 
 		profile2 := testpkg.CreateTestGuardianProfile(t, db, "ordera")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile2.ID)
 		profile2.LastName = "Alpha"
 		_ = repo.Update(ctx, profile2)
 
@@ -321,7 +309,6 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 		// PR 3, migration 1.15.46) references auth.accounts(id) instead
 		// of the orphaned auth.accounts_parents(id).
 		account := testpkg.CreateTestAccount(t, db, "linkaccount")
-		defer testpkg.CleanupAccount(t, db, account.ID)
 
 		// Use non-existent profile ID with real account ID
 		err := repo.LinkAccount(ctx, int64(999999), account.ID)
@@ -332,10 +319,8 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	t.Run("successfully links account to profile", func(t *testing.T) {
 		// Create guardian profile and a real auth account.
 		profile := testpkg.CreateTestGuardianProfile(t, db, "linktest")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		account := testpkg.CreateTestAccount(t, db, "linkprofile")
-		defer testpkg.CleanupAccount(t, db, account.ID)
 
 		// Link the account
 		err := repo.LinkAccount(ctx, profile.ID, account.ID)
@@ -381,11 +366,6 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	account := testpkg.CreateTestAccount(t, db, "profilechildren")
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, visible.ID, profile.ID)
-		testpkg.CleanupActivityFixtures(t, db, hidden.ID, profile.ID)
-		testpkg.CleanupAccount(t, db, account.ID)
-	})
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
 
 	visibleRel := &users.StudentGuardian{
@@ -430,7 +410,6 @@ func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo users
 		LanguagePreference:     "de",
 	}
 	require.NoError(t, repo.Create(ctx, profile))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID) })
 	return profile
 }
 
@@ -533,10 +512,8 @@ func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
 
 	t.Run("persists locale and is reflected by FindByAccountID", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "portallocale")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		account := testpkg.CreateTestAccount(t, db, "portallocale")
-		defer testpkg.CleanupAccount(t, db, account.ID)
 
 		require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
 
@@ -581,10 +558,8 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "findbyaccount")
-	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 	account := testpkg.CreateTestAccount(t, db, "findbyaccount")
-	defer testpkg.CleanupAccount(t, db, account.ID)
 
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
 
@@ -614,11 +589,9 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "localeordering")
-	defer testpkg.CleanupAccount(t, db, account.ID)
 
 	// Older row in tenant 1, no portal language chosen (portal_locale NULL).
 	older := testpkg.CreateTestGuardianProfile(t, db, "localeordering-a")
-	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", older.ID)
 	require.NoError(t, repo.LinkAccount(ctx, older.ID, account.ID))
 
 	// Newer row in a second tenant with an explicit "en". Different tenant_id
@@ -642,7 +615,6 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 		ModelTableExpr(`users.guardian_profiles`).
 		Scan(context.Background())
 	require.NoError(t, err, "failed to insert second-tenant guardian profile")
-	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", newer.ID)
 	require.NoError(t, repo.LinkAccount(ctx, newer.ID, account.ID))
 	require.Greater(t, newer.ID, older.ID, "explicit row must have the higher id for the test to be meaningful")
 
@@ -666,7 +638,6 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 
 	t.Run("locks an existing guardian within a tenant transaction", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-existing")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// The full-delete flow takes this lock inside a tenant tx; exercise the
 		// real contract rather than a bare autocommit call.

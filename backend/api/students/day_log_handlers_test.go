@@ -77,7 +77,6 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "day-log-dev")
 	// Students before the group: cleanup deletes in argument order, and the
 	// group row only deletes cleanly once no student references it.
-	defer testpkg.CleanupActivityFixtures(t, tc.db, present.ID, sick.ID, excused.ID, missing.ID, staff.ID, device.ID, group.ID)
 
 	for _, s := range []int64{present.ID, sick.ID, excused.ID, missing.ID} {
 		testpkg.AssignStudentToGroup(t, tc.db, s, group.ID)
@@ -85,13 +84,11 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 
 	checkIn := timezone.Today().Add(8 * time.Hour)
 	checkOut := timezone.Today().Add(15 * time.Hour)
-	att := testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, &checkOut)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", att.ID)
+	testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, &checkOut)
 
 	today := timezone.TodayDate()
-	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
-	excusedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, sickDay.ID, excusedDay.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -148,8 +145,7 @@ func TestGetStudentsDayLog_StaffSeesEveryGroup(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DayLog", "Supervisor")
 	ownGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Eigene")
 	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Fremde")
-	groupTeacher := testpkg.CreateTestGroupTeacher(t, tc.db, ownGroup.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, account.ID, ownGroup.ID, foreignGroup.ID, groupTeacher.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, ownGroup.ID, teacher.ID)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -184,7 +180,6 @@ func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
 	// Account without a person/staff row: supervisor-only mode must answer
 	// with a 403 "no permitted groups", not a 500 dependency failure.
 	account := testpkg.CreateTestAccount(t, tc.db, "daylog-unlinked@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -241,7 +236,6 @@ func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Audit")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Earlier day-log tests in this package also write audit rows — clear the
 	// slate so the count below sees exactly this request's entry.
@@ -280,7 +274,6 @@ func TestExportStudentsDayLog_RendersFile(t *testing.T) {
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Export")
 	student := testpkg.CreateTestStudent(t, tc.db, "Exportia", "Kind", "2a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().

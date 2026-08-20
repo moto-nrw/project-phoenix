@@ -29,7 +29,6 @@ func TestTimetableConflictAckRepository_CapPrunesOldest(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(),
 			"DELETE FROM schedule.timetable_conflict_acks WHERE account_id = ?", account.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 	})
 
 	const extra = 10

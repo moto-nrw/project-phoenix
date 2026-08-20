@@ -54,7 +54,6 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-reconcile@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4roster-%s", suffix)
@@ -62,7 +61,6 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Roster", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -72,11 +70,9 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 	pastInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(-7), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", futureInstance.ID, pastInstance.ID)
 
-	futureRow := testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
-	pastRow := testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", futureRow.ID, pastRow.ID)
+	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
 
 	// The enrollment that makes the child belong to the group — kept on
 	// graduation so the revert can restore the future roster row.
@@ -89,7 +85,6 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().
@@ -103,7 +98,6 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	// APPLY: the future roster row is removed, the past one survives.
 	_, err = service.Apply(ctx, transition.ID, account.ID)
@@ -153,7 +147,6 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-edits@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4edits-%s", suffix)
@@ -162,7 +155,6 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 	guestGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-guest-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Edited", "Roster", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, enrolledGroup.ID, guestGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -174,17 +166,14 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &enrolledGroup.ID})
 	guestInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(10), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &guestGroup.ID})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-		keptInstance.ID, excusedInstance.ID, guestInstance.ID)
 
 	// The roster as a supervisor left it: on the first occurrence, hand-removed
 	// from the second (no row despite the enrollment), and hand-added as a guest
 	// to an occurrence of a group they have no enrollment for.
-	keptRow := testpkg.CreateTestInstanceStudent(t, db, keptInstance.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, keptInstance.ID, student.ID,
 		scheduleModel.AttendanceStatusExpected)
-	guestRow := testpkg.CreateTestInstanceStudent(t, db, guestInstance.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, guestInstance.ID, student.ID,
 		scheduleModel.AttendanceStatusExpected)
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", keptRow.ID, guestRow.ID)
 
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
@@ -194,7 +183,6 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().
@@ -208,7 +196,6 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err = service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -244,7 +231,6 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-today@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4today-%s", suffix)
@@ -252,7 +238,6 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Today", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -270,18 +255,15 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 			StartHHMM:       "15:15",
 			EndHHMM:         "16:15",
 		})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-		plannedToday.ID, observedToday.ID)
 
-	plannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
 		scheduleModel.AttendanceStatusExpected)
 	// An observed presence carries the check-in stamp every real check-in path
 	// writes; a bare 'present' on a block that has not started is a plan (#405
 	// review).
 	checkedInAt := time.Now().Add(-15 * time.Minute)
-	observedRow := testpkg.CreateTestInstanceStudent(t, db, observedToday.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, observedToday.ID, student.ID,
 		scheduleModel.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", plannedRow.ID, observedRow.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().
@@ -295,7 +277,6 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -330,7 +311,6 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-boundary@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4bound-%s", suffix)
@@ -338,7 +318,6 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -350,11 +329,9 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err = service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -365,7 +342,6 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	// as materialized (and its roster as enrollment-derived).
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Period-%s", suffix),
 		today.AddDays(-60), today.AddDays(60))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 	todayInstance := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
 		testpkg.ActivityInstanceOpts{
@@ -374,7 +350,6 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 			StartHHMM:        "16:30",
 			EndHHMM:          "17:30",
 		})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", todayInstance.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().
@@ -400,7 +375,6 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 		Where("instance_id = ?", todayInstance.ID).
 		Where("student_id = ?", student.ID).
 		Scan(ctx, &createdID))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", createdID)
 }
 
 // newRosterReconcilingTransitionService wires the grade transition service with
@@ -448,7 +422,6 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-finalized@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4final-%s", suffix)
@@ -456,7 +429,6 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Finalized", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 	manualAt := time.Now().Add(-30 * time.Minute)
@@ -481,15 +453,11 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 			StartHHMM:       "09:30",
 			EndHHMM:         "10:30",
 		})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-		completedToday.ID, plannedTomorrow.ID)
 
-	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedToday.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, completedToday.ID, student.ID,
 		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
-	manualPlannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedTomorrow.ID, student.ID,
+	testpkg.CreateTestInstanceStudent(t, db, plannedTomorrow.ID, student.ID,
 		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
-		completedRow.ID, manualPlannedRow.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().
@@ -503,7 +471,6 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -532,7 +499,6 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-backdated@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4backd-%s", suffix)
@@ -540,7 +506,6 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Backdated", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -552,11 +517,9 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err = service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -566,11 +529,9 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	// calendar period, which is what marks the roster as enrollment-derived.
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Period-%s", suffix),
 		today.AddDays(-60), today.AddDays(60))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 	lateInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(3), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID, CalendarPeriodID: &period.ID})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", lateInstance.ID)
 
 	_, err = db.NewUpdate().
 		TableExpr(`schedule.activity_instances`).
@@ -603,7 +564,6 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 		Where("instance_id = ?", lateInstance.ID).
 		Where("student_id = ?", student.ID).
 		Scan(ctx, &createdID))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", createdID)
 }
 
 // TestGradeTransitionService_Revert_SkipsHandPlannedInstance pins the boundary
@@ -624,7 +584,6 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-roster-handplanned@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4hand-%s", suffix)
@@ -632,7 +591,6 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "HandPlanned", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
 
 	today := timezone.TodayDate()
 
@@ -644,11 +602,9 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err = service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -658,7 +614,6 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	// the children the planner picked (here: none).
 	handPlanned := testpkg.CreateTestActivityInstance(t, db, today.AddDays(3), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", handPlanned.ID)
 
 	countRow := func(instanceID int64) int {
 		n, cErr := db.NewSelect().

@@ -22,7 +22,6 @@ func TestPeriodScopedRosterUniquenessAllowsSamePersonAcrossScopes(t *testing.T) 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Roster", "Student", "3a")
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Roster", "Staff")
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "RosterPeriodScoped")
-	defer cleanupRosterUniquenessTest(t, db, tenantID)
 
 	periodA := insertRosterUniquenessPeriod(t, db, tenantID, "Roster A")
 	periodB := insertRosterUniquenessPeriod(t, db, tenantID, "Roster B")
@@ -84,12 +83,4 @@ func insertRosterSupervisorErr(t *testing.T, db *bun.DB, tenantID, staffID, grou
 		VALUES (?, ?, ?, '2026-01-01', ?)
 	`, tenantID, staffID, groupID, periodID).Exec(context.Background())
 	return err
-}
-
-func cleanupRosterUniquenessTest(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	testpkg.CleanupTenantTestData(t, db, tenantID)
-	_, err := db.NewRaw(`DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, tenantID).Exec(context.Background())
-	require.NoError(t, err)
-	require.NoError(t, periodScopedRosterUniquenessUp(context.Background(), db))
 }

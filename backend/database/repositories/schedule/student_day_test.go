@@ -26,7 +26,6 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	dayA := timezone.NewDate(2026, 10, 5)
 	dayB := timezone.NewDate(2026, 10, 6)
@@ -63,11 +62,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	rowOut := mkRow(instOutside.ID, scheduleModels.AttendanceStatusExpected, false)
 
 	require.NoError(t, repo.Create(ctx, rowA))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowA.ID)
 	require.NoError(t, repo.Create(ctx, rowB))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowB.ID)
 	require.NoError(t, repo.Create(ctx, rowOut))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowOut.ID)
 
 	t.Run("returns joined rows in range, sorted", func(t *testing.T) {
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, dayA, dayB)
@@ -132,7 +128,6 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	day := timezone.NewDate(2034, 6, 5)
 
@@ -159,10 +154,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 
 	spared := mkRow(completedInst.ID, scheduleModels.AttendanceStatusExpected, true)
 	require.NoError(t, repo.Create(ctx, spared))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", spared.ID)
 	cancelledExpected := mkRow(cancelledInst.ID, scheduleModels.AttendanceStatusExpected, false)
 	require.NoError(t, repo.Create(ctx, cancelledExpected))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", cancelledExpected.ID)
 
 	t.Run("spared row on a completed instance is hidden", func(t *testing.T) {
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
@@ -246,7 +239,6 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Mila", fmt.Sprintf("HP-%d", time.Now().UnixNano()), "2b")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	from := timezone.NewDate(2032, 3, 2)
 	to := timezone.NewDate(2032, 3, 6)
@@ -270,10 +262,8 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 
 	walkIn := mkRow(instIn.ID, true)
 	require.NoError(t, repo.Create(ctx, walkIn))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", walkIn.ID)
 	plannedOutside := mkRow(instOut.ID, false)
 	require.NoError(t, repo.Create(ctx, plannedOutside))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", plannedOutside.ID)
 
 	t.Run("walk-in in range and planned row outside range are no evidence", func(t *testing.T) {
 		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)
@@ -327,7 +317,6 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("HPC-%d", time.Now().UnixNano()), "4c")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	from := timezone.NewDate(2033, 5, 2)
 	to := timezone.NewDate(2033, 5, 6)
@@ -342,7 +331,6 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 	}
 	planned.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, planned))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", planned.ID)
 
 	t.Run("planned row on a live instance counts", func(t *testing.T) {
 		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)

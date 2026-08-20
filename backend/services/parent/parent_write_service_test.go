@@ -141,7 +141,6 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", activeModels.StudentStatusDaySick)
@@ -169,7 +168,6 @@ func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
 	svc.(parentService.AbsenceNotifierSetter).SetAbsenceNotifier(notifier)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	for range 2 {
 		_, err := svc.SubmitSickNote(
@@ -200,7 +198,6 @@ func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Downgrade the guardian to read-only portal access (no notes.write).
 	_, err := db.ExecContext(context.Background(), `
@@ -225,7 +222,6 @@ func TestPostChildMessage_EmptyBody(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "   \n\t ")
 	require.ErrorIs(t, err, parentService.ErrEmptyNote)
@@ -239,7 +235,6 @@ func TestPostChildMessage_BodyTooLong(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, strings.Repeat("x", 2001))
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
@@ -258,7 +253,6 @@ func TestPostChildMessage_AllowsMultibyteUpToRuneLimit(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	body := strings.Repeat("ä", maxMessageRunesForTest)
 	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, body)
@@ -281,7 +275,6 @@ func TestChildMessaging_FeatureDisabled(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	_, err := svc.PostChildMessage(ctx, chain.AccountID, chain.StudentID, "Hallo OGS")
@@ -299,7 +292,6 @@ func TestPostChildMessage_NotOwned(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -321,7 +313,6 @@ func TestGetChildConversation_NotOwned(t *testing.T) {
 
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -339,7 +330,6 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	future := timezone.TodayDate().AddDays(7)
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -362,10 +352,6 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	date := timezone.TodayDate().AddDays(7)
 	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
@@ -402,7 +388,6 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
@@ -500,7 +485,6 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -518,7 +502,6 @@ func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, false, true) // sick disabled
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick)
@@ -530,7 +513,6 @@ func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := db.ExecContext(context.Background(), `
 		UPDATE users.students_guardians
@@ -549,7 +531,6 @@ func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, strings.Repeat("x", 2001), activeModels.StudentStatusDaySick)
@@ -561,7 +542,6 @@ func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "   ", activeModels.StudentStatusDaySick)
@@ -573,7 +553,6 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
@@ -604,7 +583,6 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -624,7 +602,6 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(2)
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -662,7 +639,6 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	tctx := testpkg.Ctx(t)
@@ -698,7 +674,6 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", activeModels.StudentStatusDayExcused)
@@ -725,7 +700,6 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// First report sick today (flips the live sick flag), then switch the same
 	// day to an excused absence: the stale live sick flag must be cleared so the
@@ -751,7 +725,6 @@ func TestSubmitSickNote_InvalidStatus(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "", "class_trip")
@@ -763,7 +736,6 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickDay := timezone.TodayDate().AddDays(2)
 	excusedDay := timezone.TodayDate().AddDays(4)
@@ -796,7 +768,6 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	tctx := testpkg.Ctx(t)
@@ -839,7 +810,6 @@ func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, false) // sick on, notes off
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -852,7 +822,6 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
 	_, err := db.ExecContext(context.Background(), `

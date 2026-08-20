@@ -67,7 +67,6 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, linked, 1, "expected exactly one linked guardian")
 	assert.Equal(t, "Atomic", linked[0].Profile.FirstName)
-	defer cleanupGuardian(t, ctx.db, linked[0].Profile.ID)
 }
 
 // TestCreateStudentGuardians_EmptyGuardians_BadRequest rejects an empty batch.

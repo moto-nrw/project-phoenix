@@ -31,10 +31,6 @@ func TestSchoolRepository_Create(t *testing.T) {
 			Active: true,
 		}
 		require.NoError(t, platformRepo.NewOrganizationRepository(db).Create(ctx, org))
-		t.Cleanup(func() {
-			_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE organization_id = ?`, org.ID)
-			_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-		})
 
 		school := &platformModels.School{
 			Model:          modelBase.Model{ID: now + 1},

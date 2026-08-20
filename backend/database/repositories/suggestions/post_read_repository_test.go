@@ -1,16 +1,36 @@
 package suggestions_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// countInTenantTx runs a count inside a tenant transaction. The unread counts
+// carry no tenant_id filter of their own and rely on RLS to narrow them; with
+// a plain tenant context they see the posts of the whole clone, which used to
+// stay invisible only because per-row teardowns removed every other test's
+// rows (#2419).
+func countInTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) (int, error)) int {
+	t.Helper()
+	var count int
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t),
+		func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			count, err = fn(txCtx)
+			return err
+		}))
+	return count
+}
 
 func TestPostReadRepository_MarkViewed(t *testing.T) {
 	t.Parallel()
@@ -21,10 +41,8 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-mark-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("marks post as viewed for first time", func(t *testing.T) {
 		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
@@ -65,7 +83,6 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 
 	t.Run("handles multiple operators viewing same post", func(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
 		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
@@ -92,10 +109,8 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-isviewed-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns false when operator never viewed post", func(t *testing.T) {
 		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID, "user")
@@ -120,7 +135,6 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 
 	t.Run("returns false for different operator", func(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
 		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
@@ -131,57 +145,60 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the assertion is a count over a tenant-less
-// table, so every row a test running beside it creates is counted too.
+// Each subtest owns its tenant and counts inside a tenant transaction, so
+// the count sees its own rows only (#2419).
 func TestPostReadRepository_CountUnviewed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
-	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-count-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	t.Run("returns 0 when no posts exist", func(t *testing.T) {
-		count, err := repo.CountUnviewed(ctx, account.ID, "user")
-		require.NoError(t, err)
+		testpkg.OwnTenant(t)
+		count := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account.ID, "user")
+		})
 		assert.Equal(t, 0, count)
 	})
 
 	t.Run("counts all posts when operator never viewed any", func(t *testing.T) {
-		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
-		defer cleanupPosts(t, db, post1.ID, post2.ID)
+		testpkg.OwnTenant(t)
+		testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
+		testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
 
-		count, err := repo.CountUnviewed(ctx, account.ID, "user")
-		require.NoError(t, err)
+		count := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account.ID, "user")
+		})
 		assert.GreaterOrEqual(t, count, 2)
 	})
 
 	t.Run("excludes viewed posts from count", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
-		post3 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post3 %d", time.Now().UnixNano()), "Desc3")
-		defer cleanupPosts(t, db, post1.ID, post2.ID, post3.ID)
+		testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
+		testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post3 %d", time.Now().UnixNano()), "Desc3")
 
-		countBefore, err := repo.CountUnviewed(ctx, account.ID, "user")
-		require.NoError(t, err)
+		countBefore := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account.ID, "user")
+		})
 
-		err = repo.MarkViewed(ctx, account.ID, post1.ID, "user")
-		require.NoError(t, err)
+		require.NoError(t, repo.MarkViewed(ctx, account.ID, post1.ID, "user"))
 
-		countAfter, err := repo.CountUnviewed(ctx, account.ID, "user")
-		require.NoError(t, err)
+		countAfter := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account.ID, "user")
+		})
 
 		assert.Equal(t, countBefore-1, countAfter)
 	})
 
 	t.Run("handles different operators independently", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
 		post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
-		defer cleanupPosts(t, db, post.ID)
 
 		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
@@ -196,12 +213,11 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	})
 
 	t.Run("returns 0 after viewing all posts", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		account3 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op3-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account3.ID)
 
 		post1 := testpkg.CreateTestPost(t, db, account3.ID, fmt.Sprintf("P1 %d", time.Now().UnixNano()), "D1")
 		post2 := testpkg.CreateTestPost(t, db, account3.ID, fmt.Sprintf("P2 %d", time.Now().UnixNano()), "D2")
-		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
 		err := repo.MarkViewed(ctx, account3.ID, post1.ID, "user")
 		require.NoError(t, err)
@@ -209,15 +225,16 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		err = repo.MarkViewed(ctx, account3.ID, post2.ID, "user")
 		require.NoError(t, err)
 
-		count, err := repo.CountUnviewed(ctx, account3.ID, "user")
-		require.NoError(t, err)
+		count := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account3.ID, "user")
+		})
 		assert.Equal(t, 0, count)
 	})
 
 	t.Run("excludes hidden posts for operators", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		visiblePost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
 		hiddenPost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
-		defer cleanupPosts(t, db, visiblePost.ID, hiddenPost.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("suggestions.posts").
@@ -229,8 +246,9 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		err = repo.MarkViewed(ctx, account.ID, visiblePost.ID, "operator")
 		require.NoError(t, err)
 
-		count, err := repo.CountUnviewed(ctx, account.ID, "operator")
-		require.NoError(t, err)
+		count := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountUnviewed(ctx, account.ID, "operator")
+		})
 		assert.Equal(t, 0, count)
 	})
 }

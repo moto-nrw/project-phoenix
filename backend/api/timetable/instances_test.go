@@ -159,7 +159,6 @@ func setupLifecycleRouter(rs *Resource, route string, handler http.HandlerFunc) 
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Post(route, handler)
-	_ = rs
 	return r
 }
 

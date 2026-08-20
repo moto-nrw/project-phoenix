@@ -81,9 +81,6 @@ func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, 
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.Ctx(t), period))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
-	})
 	return period
 }
 
@@ -107,9 +104,6 @@ func createCareOfferingTemplateGroup(t *testing.T, db *bun.DB, name string) *act
 			TableExpr("activities.schedules").
 			Where("activity_group_id = ?", group.ID).
 			Exec(context.Background())
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	})
 	return group
 }
@@ -126,10 +120,6 @@ func createCareOfferingTemplateSchedule(t *testing.T, db *bun.DB, groupID int64,
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
 }
 
 func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentModels.CareOffering {
@@ -148,9 +138,8 @@ func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentM
 func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
 	t.Parallel()
 
-	db, svc, phase, cleanup := setupCareTest(t)
+	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	_ = db
 	ctx := testpkg.Ctx(t)
 
 	offering := &enrollmentModels.CareOffering{
@@ -443,7 +432,6 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 	period.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
 	require.NoError(t, repos.CalendarPeriod.Create(testpkg.Ctx(t), period))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
 	group := createCareOfferingTemplateGroup(t, db, "care-ab-template")
 	weekATimeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care AB A")
 	weekBTimeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care AB B")
@@ -466,8 +454,6 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), weekB))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("activities.schedules").Where("activity_group_id = ?", group.ID).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", weekATimeframe.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", weekBTimeframe.ID)
 	})
 	_, err = svc.Create(testpkg.Ctx(t), offering)
 	require.NoError(t, err, "complementary A/B rows cover every advertised Monday")
@@ -493,10 +479,6 @@ func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
@@ -515,7 +497,6 @@ func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testin
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.Ctx(t), period))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
 	group := createCareOfferingTemplateGroup(t, db, "inactive-care-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 	offering := baseLinkedOffering(t, phase.ID, group.ID)
@@ -535,9 +516,6 @@ func TestCareOfferingService_Create_RejectsNonTemplateActivityGroup(t *testing.T
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := testpkg.CreateTestActivityGroup(t, db, "Care-NonTemplate")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-	})
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 

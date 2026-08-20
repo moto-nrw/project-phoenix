@@ -130,7 +130,7 @@ func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	service := &wcService{
+	_ = &wcService{
 		facilityService: nil, // nil causes panic → use cancelled ctx instead
 		activityService: activityService,
 		logger:          slog.Default(),
@@ -142,7 +142,6 @@ func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 	// Instead, use a context that works but the nil service panics.
 	// Simplest: just verify the error wrapping via cancelled context on the full service.
 	fullService := setupWCServiceInternal(t, db)
-	_ = service // unused, approach changed
 
 	// Create a context that will fail for room creation by removing tenant
 	ctx := context.Background() // no tenant → room creation fails

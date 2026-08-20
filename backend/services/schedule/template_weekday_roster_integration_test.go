@@ -937,7 +937,6 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	}
 	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, periodB))
 	s.cleanup = append(s.cleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodB.ID)
 	})
 
 	// An unpinned template can be used in either period. Its open rosters are
@@ -1057,10 +1056,6 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 		periodID:    period.ID,
 	}
 	s.cleanup = append(s.cleanup, func() {
-		testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, studentA.ID, staffA.ID, 0, 0, room.ID)
-		testpkg.CleanupTableRecords(t, db, "users.students", studentB.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 	return s
 }
@@ -1075,12 +1070,9 @@ func (s *weekdayRosterScenario) registerTemplate(t *testing.T, templateID, timef
 		for _, table := range []string{"schedule.instance_students", "schedule.instance_staff"} {
 			s.deleteByInstanceIDs(t, table, instanceIDs)
 		}
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instanceIDs...)
 		s.deleteByTemplate(t, "activities.student_enrollments", "activity_group_id", templateID)
 		s.deleteByTemplate(t, "activities.supervisors", "group_id", templateID)
 		s.deleteByTemplate(t, "activities.schedules", "activity_group_id", templateID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", templateID)
-		testpkg.CleanupScheduleFixtures(t, s.db, timeframeID)
 	}}, s.cleanup...)
 }
 

@@ -75,5 +75,5 @@ func TestIsDuplicateKeyError_PGUniqueViolationDetected(t *testing.T) {
 	// Sanity check that the pgdriver package is importable so future
 	// regressions notice if the helper's type assertion stops compiling.
 	var pgErr pgdriver.Error
-	_ = pgErr
+	assert.False(t, isDuplicateKeyError(pgErr))
 }

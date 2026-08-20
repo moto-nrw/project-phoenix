@@ -30,7 +30,6 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-states@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4a-%s", suffix)
@@ -38,11 +37,9 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 	stillAlumnus := testpkg.CreateTestStudent(t, db, "State", "Alumnus", graduateClass)
 	restored := testpkg.CreateTestStudent(t, db, "State", "Restored", graduateClass)
 	purged := testpkg.CreateTestStudent(t, db, "State", "Purged", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, stillAlumnus.ID, restored.ID, purged.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -87,17 +84,14 @@ func TestAnonymizePurgedGraduate(t *testing.T) {
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4b-%s", suffix)
 
 	student := testpkg.CreateTestStudent(t, db, "Anonymize", "Candidate", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

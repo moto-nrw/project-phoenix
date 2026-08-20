@@ -56,9 +56,6 @@ func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *tes
 		_, err = db.ExecContext(context.Background(),
 			`DELETE FROM audit.student_deletions WHERE student_id = ?`, student.ID)
 		require.NoError(t, err)
-		cleanupStudentDeletionTest(t, db,
-			[]int64{student.ID}, []int64{student.PersonID},
-			nil, nil, nil, []int64{actor.ID}, nil)
 	})
 
 	preview, err := service.Preview(ctx, student.ID)

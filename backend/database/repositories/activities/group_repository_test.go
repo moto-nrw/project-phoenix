@@ -20,7 +20,6 @@ func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	ctx := scope.Context()
 	factory := repositories.NewFactory(db)
 
@@ -86,7 +85,6 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 	t.Run("creates activity group with valid data", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "GroupCreate")
 		staff := testpkg.CreateTestStaff(t, db, "GroupCreate", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
 		group := &activities.Group{
@@ -106,13 +104,11 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, activities.TargetGroupTypeNone, persisted.TargetGroupType)
 
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
 
 	t.Run("creates closed activity group", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ClosedGroup")
 		staff := testpkg.CreateTestStaff(t, db, "ClosedGroup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("ClosedGroup-%d", time.Now().UnixNano())
 		group := &activities.Group{
@@ -127,7 +123,6 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, group.IsOpen)
 
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
 }
 
@@ -139,7 +134,6 @@ func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	defer testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
 
 	groupA := testpkg.CreateTestActivityGroupForTenant(t, db, tenantA, "Target-A")
 	groupB := testpkg.CreateTestActivityGroupForTenant(t, db, tenantB, "Target-B")
@@ -171,7 +165,6 @@ func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Atomic-Targets")
 	repo, ok := repositories.NewFactory(db).ActivityGroup.(activities.GroupTargetRepository)
@@ -212,8 +205,6 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing activity group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
@@ -237,8 +228,6 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 
 	t.Run("updates activity group name", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
 		group.Name = newName
@@ -252,8 +241,6 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 
 	t.Run("updates activity group open status", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "UpdateIsOpen")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		group.IsOpen = false
 		err := repo.Update(ctx, group)
@@ -266,8 +253,6 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 
 	t.Run("canonicalizes an empty target group type before a generic update", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "UpdateEmptyTargetGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		group.TargetGroupType = ""
 		require.NoError(t, repo.Update(ctx, group))
@@ -289,8 +274,6 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing activity group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
-		categoryID := group.CategoryID
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, categoryID, 0)
 
 		err := repo.Delete(ctx, group.ID)
 		require.NoError(t, err)
@@ -313,9 +296,7 @@ func TestActivityGroupRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all activity groups", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "List")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+		testpkg.CreateTestActivityGroup(t, db, "List")
 
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -324,8 +305,6 @@ func TestActivityGroupRepository_List(t *testing.T) {
 
 	t.Run("lists with filter using id field", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ListFilter")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		// Create filter with id field - this tests the table alias fix
 		// to avoid ambiguous column reference with the category join
@@ -349,8 +328,6 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 
 	t.Run("finds groups by category ID", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		groups, err := repo.FindByCategory(ctx, group.CategoryID)
 		require.NoError(t, err)
@@ -368,7 +345,6 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 
 	t.Run("returns empty for category with no groups", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "EmptyCategory")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		groups, err := repo.FindByCategory(ctx, category.ID)
 		require.NoError(t, err)
@@ -387,8 +363,6 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	t.Run("finds only open groups", func(t *testing.T) {
 		// Create an open group
 		openGroup := testpkg.CreateTestActivityGroup(t, db, "IsOpenGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, openGroup.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", openGroup.ID)
 
 		groups, err := repo.FindOpenGroups(ctx)
 		require.NoError(t, err)
@@ -423,13 +397,9 @@ func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
 		templateGroup := testpkg.CreateTestActivityGroup(t, db, "TemplateGroup")
 		templateGroup.IsTemplate = true
 		require.NoError(t, repo.Update(ctx, templateGroup))
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, templateGroup.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", templateGroup.ID)
 
 		// Non-template group — should NOT be returned.
 		regularGroup := testpkg.CreateTestActivityGroup(t, db, "RegularGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, regularGroup.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", regularGroup.ID)
 
 		templates, err := repo.FindAllTemplates(ctx)
 		require.NoError(t, err)
@@ -472,14 +442,10 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 
 	t.Run("returns groups with enrollment counts", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithEnrollments")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		// Create some enrollments
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, 0, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 
 		// Add enrollments directly
 		enrollment1 := &activities.StudentEnrollment{
@@ -535,11 +501,8 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add a supervisor
 		sup := &activities.SupervisorPlanned{
@@ -577,11 +540,8 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 
 	t.Run("finds groups supervised by staff member", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "BySupervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		staff := testpkg.CreateTestStaff(t, db, "Finding", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add supervisor assignment
 		sup := &activities.SupervisorPlanned{
@@ -611,7 +571,6 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 
 	t.Run("returns empty for staff with no supervised groups", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		groups, err := repo.FindByStaffSupervisor(ctx, staff.ID)
 		require.NoError(t, err)
@@ -684,7 +643,6 @@ func TestActivityGroupRepository_FindByIDs(t *testing.T) {
 	t.Run("returns the groups matching the ids", func(t *testing.T) {
 		a := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-A-%d", time.Now().UnixNano()))
 		b := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-B-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", a.ID, b.ID)
 
 		groups, err := repo.FindByIDs(ctx, []int64{a.ID, b.ID, 9_999_999})
 		require.NoError(t, err)

@@ -663,7 +663,7 @@ func TestInvitationTokenRepository_InvalidateByTenantID(t *testing.T) {
 
 	t.Run("marks pending invitations as used and returns count", func(t *testing.T) {
 		// ARRANGE
-		tenantID := int64(42)
+		tenantID := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, tenantID)
 		ctx := testpkg.TenantContext(tenantID)
 
@@ -690,7 +690,7 @@ func TestInvitationTokenRepository_InvalidateByTenantID(t *testing.T) {
 	})
 
 	t.Run("returns zero when tenant has no pending invitations", func(t *testing.T) {
-		tenantID := int64(43)
+		tenantID := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, tenantID)
 		ctx := testpkg.TenantContext(tenantID)
 

@@ -18,12 +18,11 @@ func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	tenantID := createFacilityTestTenant(t, db)
-	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("blocks renaming system room Toilette", func(t *testing.T) {
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Ruheraum"
 		err := service.UpdateRoom(ctx, room)
@@ -33,8 +32,9 @@ func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 	})
 
 	t.Run("blocks deletion of system room Toilette", func(t *testing.T) {
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		err := service.DeleteRoom(ctx, room.ID)
 
@@ -43,8 +43,9 @@ func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 	})
 
 	t.Run("blocks color change on system room Toilette", func(t *testing.T) {
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#A3D977"
 		room.Color = &newColor
@@ -61,12 +62,11 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	tenantID := createFacilityTestTenant(t, db)
-	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("rejects Toilette when WC already exists", func(t *testing.T) {
-		room := createRoomWithExactName(t, db, tenantID, constants.WCRoomName)
-		defer cleanupRoom(t, db, tenantID, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		createRoomWithExactName(t, db, tenantID, constants.WCRoomName)
 
 		aliasRoom := &facilities.Room{Name: constants.WCRoomAliasName, Building: "Test Building"}
 		err := service.CreateRoom(ctx, aliasRoom)
@@ -76,8 +76,9 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 	})
 
 	t.Run("rejects WC when Toilette already exists", func(t *testing.T) {
-		room := createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
-		defer cleanupRoom(t, db, tenantID, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
 
 		aliasRoom := &facilities.Room{Name: constants.WCRoomName, Building: "Test Building"}
 		err := service.CreateRoom(ctx, aliasRoom)
@@ -93,12 +94,11 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
-	tenantID := createFacilityTestTenant(t, db)
-	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("rejects renaming to Toilette when WC already exists", func(t *testing.T) {
-		wcRoom := createRoomWithExactName(t, db, tenantID, constants.WCRoomName)
-		defer cleanupRoom(t, db, tenantID, wcRoom.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		createRoomWithExactName(t, db, tenantID, constants.WCRoomName)
 
 		room := testpkg.CreateTestRoomForTenant(t, db, tenantID, "AliasTarget")
 
@@ -110,8 +110,9 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 	})
 
 	t.Run("rejects renaming to WC when Toilette already exists", func(t *testing.T) {
-		aliasRoom := createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
-		defer cleanupRoom(t, db, tenantID, aliasRoom.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		createRoomWithExactName(t, db, tenantID, constants.WCRoomAliasName)
 
 		room := testpkg.CreateTestRoomForTenant(t, db, tenantID, "CanonicalTarget")
 

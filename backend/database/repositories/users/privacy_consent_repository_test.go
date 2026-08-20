@@ -30,7 +30,6 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 
 	t.Run("creates consent with valid data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Consent", "Create", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		now := time.Now()
 		consent := &users.PrivacyConsent{
@@ -45,12 +44,10 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, consent.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 	})
 
 	t.Run("creates consent with expiry date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Consent", "Expiry", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		now := time.Now()
 		expiresAt := now.AddDate(1, 0, 0)
@@ -69,7 +66,6 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 		assert.NotZero(t, consent.ID)
 		assert.NotNil(t, consent.ExpiresAt)
 
-		testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 	})
 
 	t.Run("fails with nil consent", func(t *testing.T) {
@@ -91,7 +87,6 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 
 	t.Run("fails without policy version", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Consent", "NoPol", "1c")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
 			StudentID:         student.ID,
@@ -105,7 +100,6 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 
 	t.Run("fails with invalid data retention days", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Consent", "BadDays", "1d")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
 			StudentID:         student.ID,
@@ -129,8 +123,6 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "FindByID")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
 		found, err := repo.FindByID(ctx, consent.ID)
 		require.NoError(t, err)
@@ -154,8 +146,6 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds consents by student ID", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByStudent")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
 		found, err := repo.FindByStudentID(ctx, consent.StudentID)
 		require.NoError(t, err)
@@ -188,8 +178,6 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 
 	t.Run("updates consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Update")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
 		consent.RenewalRequired = true
 		consent.DataRetentionDays = 15
@@ -224,7 +212,6 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 
 	t.Run("accepts consent", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Accept", "Consent", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
 			StudentID:         student.ID,
@@ -234,7 +221,6 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 		}
 		err := repo.Create(ctx, consent)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 
 		acceptedAt := time.Now()
 		err = repo.Accept(ctx, consent.ID, acceptedAt)
@@ -257,8 +243,6 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 
 	t.Run("revokes consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Revoke")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
 		err := repo.Revoke(ctx, consent.ID)
 		require.NoError(t, err)
@@ -283,8 +267,6 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 
 	t.Run("finds active consents for student", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Active")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
 		found, err := repo.FindActiveByStudentID(ctx, consent.StudentID)
 		require.NoError(t, err)
@@ -316,9 +298,7 @@ func TestPrivacyConsentRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with accepted filter", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterAccepted")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
+		testpkg.CreateTestPrivacyConsent(t, db, "FilterAccepted")
 
 		filters := map[string]interface{}{
 			"accepted": true,
@@ -334,9 +314,7 @@ func TestPrivacyConsentRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with policy_version filter", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterVersion")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
+		testpkg.CreateTestPrivacyConsent(t, db, "FilterVersion")
 
 		filters := map[string]interface{}{
 			"policy_version": "v1.0",
@@ -387,7 +365,6 @@ func TestPrivacyConsentRepository_ListAcceptedRetentionSettings(t *testing.T) {
 				Where("tenant_id = ?", tid).
 				Exec(testpkg.TenantContext(tid))
 		}
-		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
 	})
 
 	ctx := testpkg.TenantContext(tenantID)

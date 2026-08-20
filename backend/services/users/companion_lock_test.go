@@ -57,7 +57,6 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 	service := newCompanionTestService(db)
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyLow", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, busy.ID)
 
 	holdStudentRowLock(t, db, busy.ID)
 
@@ -83,7 +82,6 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 	service := newCompanionTestService(db)
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyHigh", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, busy.ID)
 
 	holdStudentRowLock(t, db, busy.ID)
 
@@ -109,7 +107,6 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 
 	first := testpkg.CreateTestStudent(t, db, "LockFreeOne", "Companion", "1a")
 	second := testpkg.CreateTestStudent(t, db, "LockFreeTwo", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
 
 	require.NoError(t, service.LockStudentsForUpdate(ctx, []int64{second.ID, first.ID}))
 	// A free row below the bound goes through the NOWAIT path and must still
@@ -142,8 +139,6 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 	firstSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectOne", "Companion", "1a")
 	secondSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectTwo", "Companion", "1a")
 	farEnd := testpkg.CreateTestStudent(t, db, "GraphFarEnd", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
-	defer cleanupCompanionEdges(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
 
 	setAccompaniedDays(t, db, ctx, secondSubject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, farEnd.ID, "mon")

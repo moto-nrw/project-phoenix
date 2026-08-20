@@ -40,7 +40,6 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Gap-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 	}
 
 	res := NewResource(Dependencies{
@@ -119,7 +118,6 @@ func TestGaps_OneGapPlannedNoStaff(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Gap-1",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	router := gapsRouter(s.ctx, s.res)
 	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
@@ -143,19 +141,13 @@ func TestGaps_AllStaffAbsent_IsAGap(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Gap-All-Absent",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	staff1 := testpkg.CreateTestStaff(t, s.db, "GapA", fmt.Sprintf("One-%d", suffix))
 	staff2 := testpkg.CreateTestStaff(t, s.db, "GapA", fmt.Sprintf("Two-%d", suffix))
 
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, staff1.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, staff2.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	router := gapsRouter(s.ctx, s.res)
 	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
@@ -181,19 +173,13 @@ func TestGaps_PartiallyStaffed_IsAGap(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Gap-Partial",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	present := testpkg.CreateTestStaff(t, s.db, "GapP", fmt.Sprintf("Present-%d", suffix))
 	absent := testpkg.CreateTestStaff(t, s.db, "GapP", fmt.Sprintf("Absent-%d", suffix))
 
-	rowPresent := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, present.ID, testpkg.InstanceStaffOpts{})
-	rowAbsent := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, absent.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, rowPresent.ID, rowAbsent.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, present.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, absent.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, present.ID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, absent.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	router := gapsRouter(s.ctx, s.res)
 	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
@@ -220,19 +206,13 @@ func TestGaps_SubstituteCovers_NotAGap(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Covered",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	planned := testpkg.CreateTestStaff(t, s.db, "GapC", fmt.Sprintf("Planned-%d", suffix))
 	sub := testpkg.CreateTestStaff(t, s.db, "GapC", fmt.Sprintf("Sub-%d", suffix))
 
-	rowPlanned := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, planned.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowSub := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, sub.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, rowPlanned.ID, rowSub.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, planned.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, sub.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, planned.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, sub.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
 
 	router := gapsRouter(s.ctx, s.res)
 	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
@@ -251,14 +231,9 @@ func TestGaps_NonAbsentStaff_NotAGap(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Not-A-Gap",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	staff := testpkg.CreateTestStaff(t, s.db, "NotGap", fmt.Sprintf("%d", time.Now().UnixNano()))
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, staff.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
 
 	router := gapsRouter(s.ctx, s.res)
 	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
@@ -274,14 +249,11 @@ func TestGaps_CompletedAndCancelled_Excluded(t *testing.T) {
 	defer s.cleanupFn()
 
 	dateStr, date := futureDate(1)
-	completed := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Status: schedule.InstanceStatusCompleted, StartHHMM: "14:00", EndHHMM: "15:00",
 	})
-	cancelled := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Status: schedule.InstanceStatusCancelled, StartHHMM: "15:00", EndHHMM: "16:00",
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", completed.ID, cancelled.ID)
 	})
 
 	router := gapsRouter(s.ctx, s.res)
@@ -300,14 +272,11 @@ func TestGaps_UnderstaffedAck_MovedToAcknowledged(t *testing.T) {
 	defer s.cleanupFn()
 
 	dateStr, date := futureDate(1)
-	open := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Open-Gap",
 	})
 	ack := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Acknowledged-Gap",
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", open.ID, ack.ID)
 	})
 
 	// Mark the second instance as deliberately unstaffed.
@@ -381,17 +350,14 @@ func TestGaps_Sorting(t *testing.T) {
 	day2Str, day2 := futureDate(2)
 
 	// Day 2, 14:00 should sort AFTER Day 1's two instances.
-	d1Late := testpkg.CreateTestActivityInstance(t, s.db, day1, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, day1, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "D1-Late",
 	})
-	d1Early := testpkg.CreateTestActivityInstance(t, s.db, day1, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, day1, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:00", EndHHMM: "14:00", Title: "D1-Early",
 	})
-	d2 := testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "D2",
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", d1Late.ID, d1Early.ID, d2.ID)
 	})
 
 	router := gapsRouter(s.ctx, s.res)
@@ -411,10 +377,9 @@ func TestGaps_TenantIsolation(t *testing.T) {
 	defer s.cleanupFn()
 
 	dateStr, date := futureDate(1)
-	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	otherTenantCtx := testpkg.TenantContext(999)
 	router := gapsRouter(otherTenantCtx, s.res)

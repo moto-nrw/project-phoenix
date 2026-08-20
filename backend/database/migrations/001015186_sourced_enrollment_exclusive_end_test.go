@@ -103,22 +103,6 @@ func TestRepairSourcedEnrollmentExclusiveEnds_IsTenantJoinedAndSourceScoped(t *t
 	crossTenantSource.SetTenantID(otherTenantID)
 	require.NoError(t, repositories.NewFactory(db).StudentEnrollment.Create(otherCtx, crossTenantSource))
 
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", target.ID, manual.ID, unrelated.ID, wrongStudentSource.ID)
-		testpkg.CleanupTableRecords(t, db, "enrollment.request_children", childID)
-		testpkg.CleanupTableRecords(t, db, "enrollment.requests", requestID)
-		testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		testpkg.CleanupTenantTestData(t, db, otherTenantID)
-		cleanupCtx := testpkg.TenantContext(tenantID)
-		_, err := db.NewDelete().TableExpr("platform.schools").
-			Where("id IN (?, ?)", tenantID, otherTenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-		_, err = db.NewDelete().TableExpr("platform.organizations").
-			Where("id IN (?, ?)", tenantID, otherTenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-	})
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })

@@ -40,7 +40,6 @@ func createRequestedVacation(t *testing.T, tc *testContext, staffID int64) *acti
 	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.Ctx(t), absence))
 	t.Cleanup(func() {
 		// Audit rows cascade with the absence (FK ON DELETE CASCADE).
-		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absence.ID)
 	})
 	return absence
 }

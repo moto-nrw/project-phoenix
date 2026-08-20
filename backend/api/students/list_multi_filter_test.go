@@ -85,8 +85,6 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 	assignStudentGroup(t, tc, third.ID, groupA.ID)
 	assignStudentGroup(t, tc, fourth.ID, groupB.ID)
 
-	defer testpkg.CleanupActivityFixtures(t, tc.db, third.ID, fourth.ID, second.ID, groupA.ID, groupB.ID)
-
 	t.Run("two classes return both cohorts", func(t *testing.T) {
 		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
 			"school_class=%s,%s&page_size=50",
@@ -226,7 +224,6 @@ func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
 
 	comma := testpkg.CreateTestStudent(t, tc.db, "Sep", "Comma", commaClass)
 	plain := testpkg.CreateTestStudent(t, tc.db, "Sep", "Plain", plainClass)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, comma.ID, plain.ID)
 
 	t.Run("an escaped comma selects the one class", func(t *testing.T) {
 		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(

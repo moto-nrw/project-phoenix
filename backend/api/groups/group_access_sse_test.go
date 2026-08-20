@@ -61,11 +61,8 @@ func groupLeader(t *testing.T, tc *testContext, label string) (groupID int64, ac
 	t.Helper()
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, label)
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, group.ID) })
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, label+"Leader", "Teacher")
-	t.Cleanup(func() { testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, tc.db, account.ID) })
 
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -79,7 +76,6 @@ func TestTransferGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	groupID, accountID := groupLeader(t, tc, "SSETransfer")
 
 	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSETarget", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	body := map[string]interface{}{"target_user_id": targetStaff.Person.ID}
 	claims := testutil.TeacherTestClaims(int(accountID))
@@ -99,11 +95,9 @@ func TestCancelTransfer_BroadcastsGroupAccessChanged(t *testing.T) {
 	groupID, accountID := groupLeader(t, tc, "SSECancel")
 
 	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSECancelTarget", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	today := timezone.TodayDate()
 	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, nil, targetStaff.ID, today, today)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, transfer.ID)
 
 	claims := testutil.TeacherTestClaims(int(accountID))
 	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
@@ -129,10 +123,8 @@ func TestUpdateGroupTeachers_BroadcastsGroupAccessChanged(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSEGroupTeachers")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	teacher := testpkg.CreateTestTeacher(t, tc.db, "SSEAssigned", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 
 	body := map[string]interface{}{
 		"name":        fmt.Sprintf("SSEGroupTeachers-%d", group.ID),
@@ -191,10 +183,11 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	require.Len(t, originalTeachers, 1)
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Candidate")
-	t.Cleanup(func() { testpkg.CleanupTeacherFixtures(t, tc.db, candidate.ID) })
 
 	missing := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Missing")
 	missingID := missing.ID
+	// Deleting the second teacher is the ARRANGE step: the request must fail
+	// on the missing ID and roll back. Not a teardown (#2419).
 	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
 
 	body := map[string]interface{}{
@@ -224,10 +217,11 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Candidate")
-	t.Cleanup(func() { testpkg.CleanupTeacherFixtures(t, tc.db, candidate.ID) })
 
 	missing := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Missing")
 	missingID := missing.ID
+	// Deleting the second teacher is the ARRANGE step: the request must fail
+	// on the missing ID and roll back. Not a teardown (#2419).
 	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
 
 	groupName := fmt.Sprintf("SSECreateRollback-%d", candidate.ID)
@@ -265,7 +259,6 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	groupID, _ := groupLeader(t, tc, "SSEDeleteGroup")
 
 	substituteStaff := testpkg.CreateTestStaff(t, tc.db, "SSEDeleteGroupSub", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, substituteStaff.ID)
 
 	today := timezone.TodayDate()
 	testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, nil, substituteStaff.ID, today, today)
@@ -295,7 +288,6 @@ func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	tc, router, broadcaster := setupRecordingRouter(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSEDeleteEmptyGroup")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
@@ -315,15 +307,11 @@ func TestTransferGroup_NotGroupLeader_BroadcastsNothing(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSENoLeader")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Teacher deliberately NOT assigned to the group.
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SSENoLeader", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SSENoLeader", "Teacher")
 
 	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSENoLeaderTarget", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	body := map[string]interface{}{"target_user_id": targetStaff.Person.ID}
 	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))

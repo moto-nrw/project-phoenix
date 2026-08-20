@@ -121,7 +121,6 @@ func TestMigrateOpenCareRequests_RecomputesStalePreview(t *testing.T) {
 	ctx := context.Background()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadID := insertCareRequestThread(t, db, chain.TenantID, chain.StudentID, chain.AccountID)
 	chatAt := time.Now().Add(-1 * time.Minute)
@@ -158,7 +157,6 @@ func TestMigrateOpenCareRequests_ClearsPreviewWhenOnlyMessage(t *testing.T) {
 	ctx := context.Background()
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadID := insertCareRequestThread(t, db, chain.TenantID, chain.StudentID, chain.AccountID)
 	requestAt := time.Now()

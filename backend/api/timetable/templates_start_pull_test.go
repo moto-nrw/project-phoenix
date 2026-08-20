@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Issue #2226: PUT /timetable/templates/{id} accepts an optional start_date
@@ -47,9 +46,6 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 		oldStart.AddDays(365),
 		1, nil,
 	)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
-	})
 
 	createBody := createTemplateBody(s, "Tpl-StartPull")
 	createBody["weekdays"] = []int{1}

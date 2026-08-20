@@ -38,8 +38,8 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 
 	// booked: Monday plan. unbooked: a plan that covers Wednesday only —
 	// the difference between "not booked today" and "no plan on file".
-	bookedPlan := testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
-	unbookedPlan := testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Status:    scheduleModel.InstanceStatusCompleted,
@@ -56,17 +56,6 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, scheduleModel.AttendanceStatusExpected),
 		"planless": testpkg.CreateTestInstanceStudent(t, db, inst.ID, planless.ID, scheduleModel.AttendanceStatusExpected),
 	}
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
-			rows["booked"].ID, rows["unbooked"].ID, rows["planless"].ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", bookedPlan.ID, unbookedPlan.ID)
-		testpkg.CleanupActivityFixtures(t, db, booked.ID, staff.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, db, unbooked.ID, 0, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, db, planless.ID, 0, 0, 0, 0)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
 
@@ -103,8 +92,8 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 	booked := testpkg.CreateTestStudent(t, db, "Spaeter", "Montagsplan", "1a")
 	unbooked := testpkg.CreateTestStudent(t, db, "Spaeter", "Mittwochsplan", "1a")
 
-	bookedPlan := testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
-	unbookedPlan := testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Status:    scheduleModel.InstanceStatusCompleted,
@@ -124,15 +113,6 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 		rows["booked"].ID, rows["unbooked"].ID,
 	).Exec(ctx)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rows["booked"].ID, rows["unbooked"].ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", bookedPlan.ID, unbookedPlan.ID)
-		testpkg.CleanupActivityFixtures(t, db, booked.ID, staff.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, db, unbooked.ID, 0, 0, 0, 0)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
 
@@ -160,7 +140,7 @@ func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Backfill-Reset-Room")
 	staff := testpkg.CreateTestStaff(t, db, "Backfill", "Resetter")
 	student := testpkg.CreateTestStudent(t, db, "Manuell", "Zurueckgesetzt", "1a")
-	plan := testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
 
 	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Status:    scheduleModel.InstanceStatusCompleted,
@@ -171,14 +151,6 @@ func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	require.NoError(t, err)
 
 	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, scheduleModel.AttendanceStatusExpected)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", plan.ID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, 0, 0, 0)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
 

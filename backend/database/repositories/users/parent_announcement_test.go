@@ -58,7 +58,6 @@ func TestParentAnnouncementAudience(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t) // tenant 1
@@ -156,7 +155,6 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -229,7 +227,6 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -294,7 +291,6 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -338,7 +334,6 @@ func TestParentAnnouncementDelete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -369,7 +364,6 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -413,7 +407,6 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -464,7 +457,6 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -489,7 +481,6 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -544,7 +535,6 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
@@ -637,7 +627,6 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	bg := context.Background()
 	repo := usersRepo.NewParentAnnouncementRepository(db)
@@ -713,7 +702,6 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	// A different account (no matching request e-mail) must NOT be reached — the
 	// fallback resolves the real account, it does not match everyone.
 	other := testpkg.CreateTestAccount(t, db, "other-parent")
-	defer testpkg.CleanupAccount(t, db, other.ID)
 	otherMatched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, other.ID)
 	require.NoError(t, err)
 	assert.False(t, otherMatched, "an account with no matching enrollment request must NOT be reached")

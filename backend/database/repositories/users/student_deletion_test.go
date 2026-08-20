@@ -49,11 +49,6 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 		VALUES (?, ?, ?)
 		RETURNING id
 	`, target.TenantID, target.ID, guardian.ID).Scan(ctx, &threadID))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", target.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", target.PersonID)
-		testpkg.CleanupAuthFixtures(t, db, guardian.ID)
-	})
 
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -89,14 +84,6 @@ func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	})
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, spared.ID, "")
-
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, nil,
-			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID})
-		testpkg.CleanupTableRecords(t, db, "users.students", target.ID, spared.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", target.PersonID, spared.PersonID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	repo := repositories.NewFactory(db).StudentDeletion
 	preview, err := repo.Preview(ctx, target.ID)

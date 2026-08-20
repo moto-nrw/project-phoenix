@@ -111,8 +111,6 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 	t.Run("creates enrollment with valid data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "TestGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       student.ID,
@@ -124,14 +122,11 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, enrollment.ID)
 
-		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	})
 
 	t.Run("creates enrollment with attendance status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Status", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "StatusGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		status := activities.AttendancePresent
 		enrollment := &activities.StudentEnrollment{
@@ -145,14 +140,11 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, activities.AttendancePresent, *enrollment.AttendanceStatus)
 
-		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	})
 
 	t.Run("creates enrollment with tenant from context and selected weekdays", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Weekday", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "WeekdayGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        student.ID,
@@ -170,14 +162,11 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []int{1, 3, 5}, found.SelectedWeekdays)
 
-		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	})
 
 	t.Run("creates enrollment with explicit tenant outside tenant context", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "ExplicitTenant", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "ExplicitTenantGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       student.ID,
@@ -190,7 +179,6 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, enrollment.ID)
 
-		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	})
 
 	t.Run("rejects invalid selected weekdays before insert", func(t *testing.T) {
@@ -235,11 +223,8 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 	t.Run("finds existing enrollment", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Find", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 		found, err := repo.FindByID(ctx, enrollment.ID)
 		require.NoError(t, err)
@@ -264,11 +249,8 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 	t.Run("updates enrollment attendance status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Update", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 		status := activities.AttendanceAbsent
 		enrollment.AttendanceStatus = &status
@@ -298,11 +280,8 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 	t.Run("updates with explicit tenant when context has no tenant", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoTenant", "Update", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "NoTenantUpdateGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 
 		status := activities.AttendanceExcused
 		enrollment.AttendanceStatus = &status
@@ -357,8 +336,6 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 	t.Run("deletes existing enrollment", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
 
@@ -385,11 +362,8 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 	t.Run("lists all enrollments", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "List", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+		createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
 
 		enrollments, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -399,11 +373,8 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 	t.Run("lists enrollments with pagination", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Page", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "PageGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+		createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
 
 		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -426,13 +397,9 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Student", "Enrollments", "1a")
 		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1")
 		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group1.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group2.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
 
 		enrollment1 := createEnrollment(t, db, student.ID, group1.ID, time.Now(), nil)
 		enrollment2 := createEnrollment(t, db, student.ID, group2.ID, time.Now().Add(-24*time.Hour), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment1.ID, enrollment2.ID)
 
 		enrollments, err := repo.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
@@ -450,7 +417,6 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("returns empty for student with no enrollments", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoEnrollments", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 		enrollments, err := repo.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
@@ -482,16 +448,6 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 	groupBoundary := testpkg.CreateTestActivityGroup(t, db, "FindActiveBoundary")
 	groupWeekdayMatch := testpkg.CreateTestActivityGroup(t, db, "FindActiveWeekdayMatch")
 	groupWeekdayMismatch := testpkg.CreateTestActivityGroup(t, db, "FindActiveWeekdayMismatch")
-	defer testpkg.CleanupActivityFixtures(t, db,
-		studentA.ID, studentB.ID, studentOther.ID,
-		groupAlpha.ID, groupAlpha.CategoryID, *groupAlpha.CreatedBy,
-		groupBeta.ID, groupBeta.CategoryID, *groupBeta.CreatedBy,
-		groupFuture.ID, groupFuture.CategoryID, *groupFuture.CreatedBy,
-		groupExpired.ID, groupExpired.CategoryID, *groupExpired.CreatedBy,
-		groupBoundary.ID, groupBoundary.CategoryID, *groupBoundary.CreatedBy,
-		groupWeekdayMatch.ID, groupWeekdayMatch.CategoryID, *groupWeekdayMatch.CreatedBy,
-		groupWeekdayMismatch.ID, groupWeekdayMismatch.CategoryID, *groupWeekdayMismatch.CreatedBy,
-	)
 	matchingWeekday := int(onDate.Weekday())
 	if matchingWeekday == 0 {
 		matchingWeekday = activities.WeekdaySunday
@@ -519,7 +475,6 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 		weekdayMismatch,
 	} {
 		require.NoError(t, repo.Create(ctx, enrollment))
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	}
 
 	empty, err := repo.FindActiveByStudentIDs(ctx, nil, onDate)
@@ -560,13 +515,9 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 		group := testpkg.CreateTestActivityGroup(t, db, "GroupEnrollments")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollment1 := createEnrollment(t, db, student1.ID, group.ID, time.Now(), nil)
 		enrollment2 := createEnrollment(t, db, student2.ID, group.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment1.ID, enrollment2.ID)
 
 		enrollments, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -589,8 +540,6 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 
 	t.Run("returns empty for group with no enrollments", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "EmptyGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		enrollments, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -609,10 +558,6 @@ func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 	activeStudent := testpkg.CreateTestStudent(t, db, "CapActive", "Open", "1a")
 	closedStudent := testpkg.CreateTestStudent(t, db, "CapActive", "Closed", "1a")
 	group := testpkg.CreateTestActivityGroup(t, db, "CapActiveGroup")
-	defer testpkg.CleanupActivityFixtures(t, db,
-		activeStudent.ID, closedStudent.ID,
-		group.ID, group.CategoryID, *group.CreatedBy,
-	)
 
 	validFrom := timezone.NewDate(2026, time.September, 1)
 	existingUntil := timezone.NewDate(2026, time.December, 31)
@@ -630,7 +575,6 @@ func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, activeEnrollment))
 	require.NoError(t, repo.Create(ctx, closedEnrollment))
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", activeEnrollment.ID, closedEnrollment.ID)
 
 	rows, err := repo.CapActiveByGroup(ctx, group.ID, capUntil)
 	require.NoError(t, err)
@@ -659,11 +603,6 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 	groupLinked := testpkg.CreateTestActivityGroup(t, db, "BackfillSourceLinked")
 	groupManual := testpkg.CreateTestActivityGroup(t, db, "BackfillSourceManual")
 	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		student.ID,
-		groupLinked.ID, groupLinked.CategoryID, *groupLinked.CreatedBy,
-		groupManual.ID, groupManual.CategoryID, *groupManual.CreatedBy,
-	)
 
 	reviewedAt := time.Now().UTC()
 	_, err := db.NewRaw(`
@@ -690,7 +629,6 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 	}
 	require.NoError(t, repo.Create(ctx, linkedEnrollment))
 	require.NoError(t, repo.Create(ctx, manualEnrollment))
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", linkedEnrollment.ID, manualEnrollment.ID)
 
 	rows, err := repo.BackfillEnrollmentRequestChildSource(ctx, student.ID, requestChildID, nil)
 	require.NoError(t, err)
@@ -729,11 +667,6 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 	groupFromEnrollment := testpkg.CreateTestActivityGroup(t, db, "DeleteSourceEnrollment")
 	groupManual := testpkg.CreateTestActivityGroup(t, db, "DeleteSourceManual")
 	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		student.ID,
-		groupFromEnrollment.ID, groupFromEnrollment.CategoryID, *groupFromEnrollment.CreatedBy,
-		groupManual.ID, groupManual.CategoryID, *groupManual.CreatedBy,
-	)
 
 	validFrom := timezone.NewDate(2026, time.September, 1)
 	validUntil := timezone.NewDate(2027, time.July, 31)
@@ -752,7 +685,6 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 	}
 	require.NoError(t, repo.Create(ctx, sourcedEnrollment))
 	require.NoError(t, repo.Create(ctx, manualEnrollment))
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", sourcedEnrollment.ID, manualEnrollment.ID)
 
 	rows, err := repo.DeleteByEnrollmentRequestChild(ctx, student.ID, requestChildID)
 	require.NoError(t, err)
@@ -793,11 +725,6 @@ func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 		IsActive:        true,
 	}
 	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		studentNoPeriod.ID, studentWithPeriod.ID,
-		group.ID, group.CategoryID, *group.CreatedBy,
-	)
 
 	validFrom := timezone.NewDate(2026, time.September, 1)
 	closeAt := timezone.NewDate(2026, time.October, 1)
@@ -816,7 +743,6 @@ func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, noPeriod))
 	require.NoError(t, repo.Create(ctx, withPeriod))
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", noPeriod.ID, withPeriod.ID)
 
 	require.NoError(t, repo.CloseOpenByGroupAndPeriod(ctx, group.ID, nil, closeAt))
 	gotNoPeriod, err := repo.FindByID(ctx, noPeriod.ID)

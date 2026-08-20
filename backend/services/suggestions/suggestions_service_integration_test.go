@@ -44,9 +44,6 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 	account := testpkg.CreateTestAccount(t, db, "svc-vote-test")
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Vote", "Tester", account.ID)
 
-	t.Cleanup(func() {
-	})
-
 	return db, svc, &testAccount{AccountID: account.ID, PersonID: person.ID}
 }
 

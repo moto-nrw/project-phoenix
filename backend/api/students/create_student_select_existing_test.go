@@ -77,7 +77,6 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	// Exactly one link, pointing at the EXISTING profile.
 	var linkedID int64
@@ -171,7 +170,6 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	relCount, err := tc.db.NewSelect().
 		Table("users.students_guardians").
@@ -214,7 +212,6 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	relCount, err := tc.db.NewSelect().
 		Table("users.students_guardians").

@@ -85,17 +85,14 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-resync-order@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4order-%s", suffix)
 
-	student := testpkg.CreateTestStudent(t, db, "Order", "Child", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	testpkg.CreateTestStudent(t, db, "Order", "Child", gradClass)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -129,18 +126,15 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-offering-resync@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("2resync-%s", suffix)
 	toClass := fmt.Sprintf("3resync-%s", suffix)
 
-	student := testpkg.CreateTestStudent(t, db, "Resync", "Child", fromClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	testpkg.CreateTestStudent(t, db, "Resync", "Child", fromClass)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

@@ -28,7 +28,6 @@ func TestActivityService_GetStudentEnrollments_HidesGraduatedChild(t *testing.T)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-student-read")
 	student := testpkg.CreateTestStudent(t, db, "Read", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 	require.NoError(t, service.EnrollStudent(ctx, group.ID, student.ID))
 

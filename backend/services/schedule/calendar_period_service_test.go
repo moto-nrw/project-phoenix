@@ -281,12 +281,11 @@ func TestShouldMaterialize(t *testing.T) {
 	t.Run("large week offset still correct", func(t *testing.T) {
 		// 52 weeks (364 days) after anchor
 		// 364 / 7 = 52, 52 % 2 = 0 → pattern 1 (week A)
-		date := timezone.NewDate(2026, 8, 31) // ~364 days after 2025-09-01
+		timezone.NewDate(2026, 8, 31) // ~364 days after 2025-09-01
 		// Actually compute exactly: 2025-09-01 + 364 days = 2026-08-31
 		exactDate := anchor.AddDays(364)
 		assert.True(t, svc.ShouldMaterialize(1, exactDate, abPeriod))
 		assert.False(t, svc.ShouldMaterialize(2, exactDate, abPeriod))
-		_ = date // used for documentation
 	})
 
 	t.Run("DST boundary does not break A/B pattern", func(t *testing.T) {

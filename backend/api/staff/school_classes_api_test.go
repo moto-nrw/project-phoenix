@@ -19,10 +19,6 @@ func TestSchoolClassesAPI(t *testing.T) {
 
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "SchoolClasses", fmt.Sprintf("API-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		cleanupClassTeacherAssignments(t, ctx, target.ID)
-		testpkg.CleanupStaffFixtures(t, ctx.tc.db, target.ID)
-	})
 	base := fmt.Sprintf("/staff/%d/school-classes", target.ID)
 
 	// Permission split: users:read may read but not write. The write tier is
@@ -70,6 +66,8 @@ func TestSchoolClassesAPI_UnknownStaff(t *testing.T) {
 	ctx := setupOverviewAPI(t)
 	ghost := testpkg.CreateTestStaff(t, ctx.tc.db, "SchoolClasses", fmt.Sprintf("Ghost-%d", time.Now().UnixNano()))
 	ghostID := ghost.ID
+	// Deleting the staff row is the ARRANGE step: both endpoints must answer
+	// 404 for an ID that no longer exists. Not a teardown (#2419).
 	testpkg.CleanupStaffFixtures(t, ctx.tc.db, ghost.ID)
 	base := fmt.Sprintf("/staff/%d/school-classes", ghostID)
 
@@ -78,10 +76,4 @@ func TestSchoolClassesAPI_UnknownStaff(t *testing.T) {
 
 	rec = ctx.put(base, `{"school_classes":["1a"]}`, "users:manage")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-}
-
-func cleanupClassTeacherAssignments(t *testing.T, ctx *overviewAPIContext, staffID int64) {
-	t.Helper()
-	tenantCtx := testpkg.Ctx(t)
-	_, _ = ctx.tc.db.NewDelete().TableExpr("education.class_teachers").Where("staff_id = ?", staffID).Exec(tenantCtx)
 }

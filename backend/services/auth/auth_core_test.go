@@ -1200,7 +1200,6 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		token := testpkg.CreateTestTokenForTenant(t, db, testpkg.Tenant(t), account.ID)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID) })
 
 		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", testpkg.StrPtr("user"))
@@ -1860,12 +1859,11 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 
 	t.Run("returns accounts with role or empty list", func(t *testing.T) {
 		// ACT - use existing teacher role name
-		result, err := service.GetAccountsByRole(ctx, "teacher")
+		_, err := service.GetAccountsByRole(ctx, "teacher")
 
 		// ASSERT - may be empty if no accounts have teacher role
 		require.NoError(t, err)
 		// Result can be nil or empty slice, both are valid
-		_ = result
 	})
 }
 
@@ -1985,12 +1983,11 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 
 	t.Run("returns list without error", func(t *testing.T) {
 		// ACT
-		invitations, err := invitationService.ListPendingInvitations(ctx)
+		_, err := invitationService.ListPendingInvitations(ctx)
 
 		// ASSERT - no error means success (empty list is valid)
 		require.NoError(t, err)
 		// invitations can be nil or empty slice
-		_ = invitations
 	})
 }
 
@@ -2665,12 +2662,11 @@ func TestAuthService_GetAccountsWithRolesAndPermissions(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// ACT
-		result, err := service.GetAccountsWithRolesAndPermissions(ctx, nil)
+		_, err := service.GetAccountsWithRolesAndPermissions(ctx, nil)
 
 		// ASSERT
 		require.NoError(t, err)
 		// Result can be empty but should not error
-		_ = result
 	})
 
 	t.Run("filters accounts by provided filters", func(t *testing.T) {
@@ -2809,7 +2805,7 @@ func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
 
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 50
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	// Create a role to assign
@@ -2884,7 +2880,7 @@ func TestRegister_WithTenantID_NoRole(t *testing.T) {
 
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 51
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	ctx := testpkg.TenantContext(tenantID)
@@ -2928,7 +2924,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 
 	invService := setupInvitationService(t, db)
 
-	const tenantID int64 = 52
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	// Create a role scoped to the same tenant used by the invitation context,
@@ -3003,7 +2999,7 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
-	const tenantID int64 = 53
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	t.Run("links existing account to tenant", func(t *testing.T) {
@@ -3164,7 +3160,7 @@ func TestAuthService_RevokeTokensByTenantID_Success(t *testing.T) {
 	service := setupAuthService(t, db)
 
 	// ARRANGE — create a dedicated tenant, account, and token
-	tenantID := int64(42)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -3189,7 +3185,7 @@ func TestAuthService_RevokeTokensByTenantID_NoTokens(t *testing.T) {
 	service := setupAuthService(t, db)
 
 	// ARRANGE — use a tenant with no tokens
-	tenantID := int64(43)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
 

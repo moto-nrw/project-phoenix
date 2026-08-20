@@ -50,11 +50,6 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	suffix := time.Now().UnixNano()
 	staff := testpkg.CreateTestStaff(t, db, "Dokumente", fmt.Sprintf("Service-%d", suffix))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("dokumente-%d@example.test", suffix))
-	t.Cleanup(func() {
-		cleanupStaffDocumentRows(t, db, staff.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-	})
 
 	return &staffDocumentScenario{
 		db:      db,
@@ -64,15 +59,6 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 		staffID: staff.ID,
 		account: account.ID,
 	}
-}
-
-func cleanupStaffDocumentRows(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, staffID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, staffID)
-	require.NoError(t, err)
 }
 
 func (s *staffDocumentScenario) actor(perms ...string) usersSvc.StaffDocumentActor {

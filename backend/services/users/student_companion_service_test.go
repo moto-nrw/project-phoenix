@@ -24,19 +24,6 @@ func newCompanionTestService(db *bun.DB) usersService.StudentService {
 	return usersService.NewStudentService(factory.Student, factory.PrivacyConsent, factory.StudentCompanion, nil)
 }
 
-// cleanupCompanionEdges removes every edge touching the given students. The
-// edges are written by a delete+insert, so the test never learns their row ids.
-func cleanupCompanionEdges(t *testing.T, db *bun.DB, studentIDs ...int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		TableExpr("users.student_companions").
-		Where("student_low_id IN (?) OR student_high_id IN (?)", bun.List(studentIDs), bun.List(studentIDs)).
-		Exec(context.Background())
-	if err != nil {
-		t.Logf("Warning: failed to cleanup users.student_companions: %v", err)
-	}
-}
-
 // setAccompaniedDays gives the student an "Anderes Kind" departure plan on the
 // given weekdays, which is the precondition for carrying a companion link. The
 // free-text note comes along because an accompanied plan must say "mit wem" and
@@ -85,8 +72,6 @@ func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) 
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
@@ -127,8 +112,6 @@ func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testi
 	service := newCompanionTestService(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ConfirmSubject", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 
@@ -179,8 +162,6 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 
 	subject := testpkg.CreateTestStudent(t, db, "ExtendSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ExtendCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	// The companion may only walk with another child on Friday, so Monday is a
@@ -225,9 +206,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 
 	db := testpkg.SetupTestDB(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
 
 	ctx := context.WithValue(testpkg.Ctx(t), jwt.CtxClaims, jwt.AppClaims{
 		ID:        int(account.ID),
@@ -245,8 +224,6 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
@@ -291,8 +268,6 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 
 	subject := testpkg.CreateTestStudent(t, db, "NoteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "NoteCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
@@ -335,8 +310,6 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 
 	subject := testpkg.CreateTestStudent(t, db, "OrphanSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "OrphanCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
@@ -381,8 +354,6 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 	subject := testpkg.CreateTestStudent(t, db, "DaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DayCompanion", "Companion", "1a")
 	third := testpkg.CreateTestStudent(t, db, "DayThird", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID, third.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID, third.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
@@ -436,8 +407,6 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimDaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimDayCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
@@ -478,8 +447,6 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 
 	subject := testpkg.CreateTestStudent(t, db, "TrimOrphanSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimOrphanCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
@@ -523,8 +490,6 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 		peers = append(peers, peer.ID)
 		ids = append(ids, peer.ID)
 	}
-	defer testpkg.CleanupActivityFixtures(t, db, ids...)
-	defer cleanupCompanionEdges(t, db, ids...)
 
 	for _, id := range ids {
 		setAccompaniedDays(t, db, ctx, id, "mon")
@@ -568,8 +533,6 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 
 	subject := testpkg.CreateTestStudent(t, db, "PerDaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "PerDayCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
 	// The companion allows neither day, so both are conflicts — but only Monday
@@ -626,8 +589,6 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 
 	subject := testpkg.CreateTestStudent(t, db, "CoverSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "CoverCompanion", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
@@ -676,8 +637,6 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 	subject := testpkg.CreateTestStudent(t, db, "StaleSubject", "Companion", "1a")
 	first := testpkg.CreateTestStudent(t, db, "StaleFirst", "Companion", "1a")
 	second := testpkg.CreateTestStudent(t, db, "StaleSecond", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, first.ID, second.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, first.ID, second.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, first.ID, "mon")
@@ -744,8 +703,6 @@ func TestStudentService_ListCompanionsForStudents(t *testing.T) {
 	subject := testpkg.CreateTestStudent(t, db, "BulkSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "BulkCompanion", "Companion", "1a")
 	lonely := testpkg.CreateTestStudent(t, db, "BulkLonely", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID, lonely.ID)
-	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID, lonely.ID)
 
 	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, companion.ID, "mon")

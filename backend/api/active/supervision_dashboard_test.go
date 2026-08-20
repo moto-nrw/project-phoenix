@@ -414,10 +414,12 @@ func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, tc.db, teacher.Staff.ID, activeGroup.ID, "supervisor")
 
-	testpkg.EnsureTestTenant(t, tc.db, 2)
-	foreignRoom := testpkg.CreateTestRoomForTenant(t, tc.db, 2, "DashIsoForeignRoom")
-	foreignActivityGroup := testpkg.CreateTestActivityGroupForTenant(t, tc.db, 2, "DashIsoForeignActivity")
-	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, 2, foreignActivityGroup.ID, foreignRoom.ID)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, tc.db, otherTenantID)
+	foreignRoom := testpkg.CreateTestRoomForTenant(t, tc.db, otherTenantID, "DashIsoForeignRoom")
+	foreignActivityGroup := testpkg.CreateTestActivityGroupForTenant(t, tc.db, otherTenantID, "DashIsoForeignActivity")
+	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, otherTenantID, foreignActivityGroup.ID, foreignRoom.ID)
 
 	rr := dashboardExecRaw(t, router, fmt.Sprintf("/active/supervision-dashboard?group_id=%d", foreignActiveGroup.ID), account.ID, dashboardPerms)
 	assert.Equal(t, http.StatusForbidden, rr.Code,

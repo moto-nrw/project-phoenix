@@ -32,7 +32,6 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Milan", "Eligibilitytest", "2a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 	birthday := timezone.NewDate(2018, 5, 20)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
@@ -83,7 +82,6 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Pending", "Enrolltest", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 	birthday := timezone.NewDate(2019, 3, 10)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 

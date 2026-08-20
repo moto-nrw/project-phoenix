@@ -21,9 +21,8 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	// Live caregiver profile (person → staff → teacher) linked to the
 	// account at this school — the state a role swap must never strand.
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Guard", "Betreuung")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Guard", "Betreuung")
 	t.Cleanup(func() {
-		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -150,9 +149,8 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) 
 
 	// The operator role change provisions person/staff/teacher BEFORE it
 	// assigns the role, so the same swap must pass there.
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Wechsel", "Betreuung")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Wechsel", "Betreuung")
 	t.Cleanup(func() {
-		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -251,9 +249,8 @@ func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	service := setupInternalAuthService(t, db)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
 	t.Cleanup(func() {
-		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 

@@ -75,7 +75,6 @@ func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -92,7 +91,6 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
@@ -127,7 +125,6 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
@@ -174,7 +171,6 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
@@ -224,7 +220,6 @@ func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err)
@@ -238,7 +233,6 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "Neue", "Person", false)
 	require.NoError(t, err)
@@ -255,7 +249,6 @@ func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
 	require.NoError(t, err)
@@ -269,7 +262,6 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	// A student the account is NOT a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Not", "Mine", "9z")
 	defer func() {
@@ -288,7 +280,6 @@ func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err)
@@ -302,7 +293,6 @@ func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testin
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err)
@@ -316,7 +306,6 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
@@ -331,7 +320,6 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	t.Run("invite enabled + remove on", func(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
@@ -342,7 +330,6 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	t.Run("invite disabled + remove off", func(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
@@ -353,7 +340,6 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	t.Run("invite disabled + stale remove on", func(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
@@ -386,7 +372,6 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "", false)
 	require.Error(t, err)
@@ -399,7 +384,6 @@ func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "not-an-email", "", "", false)
 	require.Error(t, err)
@@ -415,7 +399,6 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 		stringErr: errors.New("settings unavailable"),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err, "invite-mode resolve failure must surface")
@@ -464,7 +447,6 @@ func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(context.Background())
@@ -480,7 +462,6 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 	t.Run("invite delegate error", func(t *testing.T) {
 		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 		require.Error(t, err)
@@ -489,7 +470,6 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 	t.Run("revoke delegate error", func(t *testing.T) {
 		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 		require.Error(t, err)
@@ -502,7 +482,6 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
@@ -542,7 +521,6 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")

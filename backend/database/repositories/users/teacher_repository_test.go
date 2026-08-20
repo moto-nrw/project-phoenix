@@ -10,136 +10,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
-
-// cleanupTeacherStaffRecords removes staff members and their persons in proper FK order
-// (named differently to avoid redefinition when running all tests together)
-func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
-	t.Helper()
-	if len(staffIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	var personIDs []int64
-	err := db.NewSelect().
-		TableExpr("users.staff").
-		Column("person_id").
-		Where("id IN (?)", bun.List(staffIDs)).
-		Scan(ctx, &personIDs)
-	if err != nil {
-		t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
-	}
-
-	_, err = db.NewDelete().
-		TableExpr("users.staff").
-		Where("id IN (?)", bun.List(staffIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup staff: %v", err)
-	}
-
-	if len(personIDs) > 0 {
-		_, err = db.NewDelete().
-			TableExpr("users.persons").
-			Where("id IN (?)", bun.List(personIDs)).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: failed to cleanup persons: %v", err)
-		}
-	}
-}
-
-// cleanupTeacherEducationData removes education groups and group-teacher assignments
-func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-
-	if len(groupIDs) > 0 {
-		_, err := db.NewDelete().
-			TableExpr("education.group_teacher").
-			Where("group_id IN (?)", bun.List(groupIDs)).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: failed to cleanup group-teacher assignments: %v", err)
-		}
-
-		_, err = db.NewDelete().
-			TableExpr("education.groups").
-			Where("id IN (?)", bun.List(groupIDs)).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: failed to cleanup education groups: %v", err)
-		}
-	}
-}
-
-// cleanupTeacherRecords removes teachers, staff, and persons in proper FK order
-func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
-	t.Helper()
-	if len(teacherIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	// Get staff IDs before deleting teachers
-	var staffIDs []int64
-	err := db.NewSelect().
-		TableExpr("users.teachers").
-		Column("staff_id").
-		Where("id IN (?)", bun.List(teacherIDs)).
-		Scan(ctx, &staffIDs)
-	if err != nil {
-		t.Logf("Warning: failed to get staff IDs for cleanup: %v", err)
-	}
-
-	// Delete teachers first
-	_, err = db.NewDelete().
-		TableExpr("users.teachers").
-		Where("id IN (?)", bun.List(teacherIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup teachers: %v", err)
-	}
-
-	// Delete staff and persons
-	if len(staffIDs) > 0 {
-		var personIDs []int64
-		err := db.NewSelect().
-			TableExpr("users.staff").
-			Column("person_id").
-			Where("id IN (?)", bun.List(staffIDs)).
-			Scan(ctx, &personIDs)
-		if err != nil {
-			t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
-		}
-
-		_, err = db.NewDelete().
-			TableExpr("users.staff").
-			Where("id IN (?)", bun.List(staffIDs)).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: failed to cleanup staff: %v", err)
-		}
-
-		if len(personIDs) > 0 {
-			_, err = db.NewDelete().
-				TableExpr("users.persons").
-				Where("id IN (?)", bun.List(personIDs)).
-				Exec(ctx)
-			if err != nil {
-				t.Logf("Warning: failed to cleanup persons: %v", err)
-			}
-		}
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -155,7 +30,6 @@ func TestTeacherRepository_Create(t *testing.T) {
 
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
-		defer cleanupTeacherStaffRecords(t, db, staff.ID)
 
 		teacher := &users.Teacher{
 			StaffID: staff.ID,
@@ -179,7 +53,6 @@ func TestTeacherRepository_Create(t *testing.T) {
 
 	t.Run("creates teacher with specialization", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher")
-		defer cleanupTeacherStaffRecords(t, db, staff.ID)
 
 		teacher := &users.Teacher{
 			StaffID:        staff.ID,
@@ -226,7 +99,6 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindByID(ctx, teacher.ID)
 		require.NoError(t, err)
@@ -250,7 +122,6 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindByStaffID(ctx, teacher.StaffID)
 		require.NoError(t, err)
@@ -276,7 +147,6 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
 		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher")
 		teacher2 := testpkg.CreateTestTeacher(t, db, "FindByIDs2", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
 
 		staffIDs := []int64{teacher1.StaffID, teacher2.StaffID}
 		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
@@ -296,7 +166,6 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 
 	t.Run("returns partial results for mixed existing/non-existing IDs", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByIDsPartial", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		staffIDs := []int64{teacher.StaffID, 999999} // one exists, one doesn't
 		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
@@ -319,7 +188,6 @@ func TestTeacherRepository_Update(t *testing.T) {
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		teacher.Specialization = "Physics"
 
@@ -348,7 +216,6 @@ func TestTeacherRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher")
-		staffID := teacher.StaffID
 
 		err := repo.Delete(ctx, teacher.ID)
 		require.NoError(t, err)
@@ -358,7 +225,6 @@ func TestTeacherRepository_Delete(t *testing.T) {
 		require.Error(t, err)
 
 		// Cleanup staff (teacher is already deleted)
-		cleanupTeacherStaffRecords(t, db, staffID)
 	})
 }
 
@@ -377,7 +243,6 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
 		teacher := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		uniqueSpec := fmt.Sprintf("UniqueSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
@@ -406,8 +271,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "List", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
+		testpkg.CreateTestTeacher(t, db, "List", "Teacher")
 
 		teachers, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -416,7 +280,6 @@ func TestTeacherRepository_List(t *testing.T) {
 
 	t.Run("lists teachers with staff_id filter", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Filter", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		teachers, err := repo.List(ctx, map[string]any{
 			"staff_id": teacher.StaffID,
@@ -451,8 +314,6 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 				TableExpr("education.group_teacher").
 				Where("id = ?", gt.ID).
 				Exec(ctx)
-			cleanupTeacherRecords(t, db, teacher.ID)
-			cleanupTeacherEducationData(t, db, []int64{group.ID})
 		}()
 
 		// Test
@@ -464,7 +325,6 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup")
-		defer cleanupTeacherEducationData(t, db, []int64{group.ID})
 
 		teachers, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -486,7 +346,6 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindWithStaffAndPerson(ctx, teacher.ID)
 		require.NoError(t, err)
@@ -514,7 +373,6 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 		// Create multiple teachers
 		teacher1 := testpkg.CreateTestTeacher(t, db, "AllWithStaff1", "Person1")
 		teacher2 := testpkg.CreateTestTeacher(t, db, "AllWithStaff2", "Person2")
-		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
 
 		results, err := repo.ListAllWithStaffAndPerson(ctx)
 		require.NoError(t, err)
@@ -545,7 +403,6 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 
 	t.Run("loads all staff and person fields correctly", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "StaffPersonFields", "Check")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		results, err := repo.ListAllWithStaffAndPerson(ctx)
 		require.NoError(t, err)
@@ -588,7 +445,6 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
 		teacher := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		uniqueSpec := fmt.Sprintf("FilterSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
@@ -614,7 +470,6 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 
 	t.Run("filters teachers by role_like", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		// Set a unique role
 		uniqueRole := fmt.Sprintf("RoleFilter%d", time.Now().UnixNano())

@@ -49,11 +49,9 @@ func TestParentFeedbackRequiresOwnSchool(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	foreignTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenant)
-	defer testpkg.CleanupTenantTestData(t, db, foreignTenant)
 
 	ctx := context.Background()
 
@@ -71,8 +69,6 @@ func TestParentFeedbackRoundTrip(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -106,7 +102,6 @@ func TestParentFeedbackSchoolsFollowChildren(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	schools, err := svc.ListFeedbackSchools(context.Background(), chain.AccountID)
 	require.NoError(t, err)
@@ -122,8 +117,6 @@ func TestParentFeedbackEntryLifecycle(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -160,8 +153,6 @@ func TestParentFeedbackVoting(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -203,8 +194,6 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -296,7 +285,6 @@ func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 
@@ -326,7 +314,6 @@ func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
 	t.Run("foreign school on a write", func(t *testing.T) {
 		foreignTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, foreignTenant)
-		defer testpkg.CleanupTenantTestData(t, db, foreignTenant)
 
 		err := svc.CreateFeedbackComment(ctx, chain.AccountID, foreignTenant, 1, "Hallo")
 		require.ErrorIs(t, err, parentService.ErrFeedbackSchoolNotAllowed)
@@ -352,7 +339,6 @@ func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 
@@ -415,8 +401,6 @@ func TestParentFeedbackRejectsEmptyEntry(t *testing.T) {
 
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 

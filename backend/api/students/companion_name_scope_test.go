@@ -36,7 +36,6 @@ func TestGetStudentCompanions_NamesVisibleAcrossGroups(t *testing.T) {
 	crossGroup := testpkg.CreateTestStudent(t, tc.db, "CompanionScope", "Fremd", "CS2")
 	// Students before groups: the cleanup deletes education.groups in the same
 	// pass, and a group still referenced by a student cannot go.
-	defer testpkg.CleanupActivityFixtures(t, tc.db, subject.ID, sameGroup.ID, crossGroup.ID, myGroup.ID, otherGroup.ID, teacher.ID)
 
 	testpkg.AssignStudentToGroup(t, tc.db, subject.ID, myGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, sameGroup.ID, myGroup.ID)

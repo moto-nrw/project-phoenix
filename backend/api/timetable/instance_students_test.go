@@ -212,7 +212,6 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("P-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("P-Act-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "P-Stu", fmt.Sprintf("One-%d", suffix), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, activity.ID, room.ID) })
 
 	// Insert a planned instance for this tenant.
 	inst := &schedule.ActivityInstance{
@@ -227,7 +226,6 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	inst.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID) })
 
 	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	row := &schedule.InstanceStudent{
@@ -237,7 +235,6 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
 	res := NewResource(Dependencies{TimetableData: testTimetableData(db), DB: db})
 
@@ -321,8 +318,7 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	initial := "pre"
 	s.row.Note = &initial
 	s.row.Status = schedule.AttendanceStatusPresent
-	_, err := scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
-	_ = err // best-effort — the row is present so this is a no-op, we just need it to exist
+	_, _ = scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	// Directly set note via the repo's update-fields path to be sure.
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Note: &initial,

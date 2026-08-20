@@ -291,8 +291,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T
 	// parent dashboard puts familiar schools at the top.
 	db := testpkg.SetupTestDB(t)
 
-	var tenantLinked int64 = 91510
-	var tenantUnlinked int64 = 91511
+	tenantLinked := testpkg.UniqueTestTenantID(t)
+	tenantUnlinked := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantLinked)
 	testpkg.EnsureTestTenant(t, db, tenantUnlinked)
 	enableEnrollmentForTenant(t, db, tenantLinked)

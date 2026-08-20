@@ -62,8 +62,6 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staff.ID, admin.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	svc := active.NewStaffAbsenceService(

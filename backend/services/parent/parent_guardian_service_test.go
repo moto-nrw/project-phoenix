@@ -85,7 +85,6 @@ func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-list")
 	defer cleanup()
 
@@ -121,7 +120,6 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	email := "oma.neu@example.test"
 	created, err := svc.CreateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, parentService.CreateGuardianContactInput{
 		Contact: parentService.GuardianContactInput{
@@ -167,7 +165,6 @@ func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	editorID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "contact-creator", map[string]interface{}{
 		authorize.GuardianPermissionPortalAccess: true,
 		authorize.GuardianPermissionGuardianEdit: true,
@@ -192,7 +189,6 @@ func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-edit")
 	defer cleanup()
 
@@ -233,7 +229,6 @@ func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testi
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-no-primary")
 	defer cleanup()
 
@@ -259,7 +254,6 @@ func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T)
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-many-primary")
 	defer cleanup()
 
@@ -304,7 +298,6 @@ func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	firstID, firstCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-dupe-a")
 	defer firstCleanup()
 	secondID, secondCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-dupe-b")
@@ -334,7 +327,6 @@ func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	firstID, firstCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-case-a")
 	defer firstCleanup()
 	secondID, secondCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-case-b")
@@ -359,7 +351,6 @@ func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Another guardian WITH their own portal account, linked to the same child.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "other-parent", map[string]interface{}{
@@ -395,7 +386,6 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-shared")
 	defer cleanup()
 
@@ -446,7 +436,6 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-pickup")
 	defer cleanup()
 
@@ -496,7 +485,6 @@ func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-noteonly")
 	defer cleanup()
 
@@ -536,7 +524,6 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-manage-only")
 	defer cleanup()
 
@@ -591,7 +578,6 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Another guardian WITH their own portal account, linked to the same child.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "other-parent", map[string]interface{}{
@@ -635,7 +621,6 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-audit")
 	defer cleanup()
 	// Clean audit rows explicitly (belt-and-suspenders; the student/guardian FKs
@@ -679,7 +664,6 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-contact-audit")
 	defer cleanup()
 	defer func() {
@@ -741,7 +725,6 @@ func TestGuardianManagement_FeatureDisabled(t *testing.T) {
 	svc, db := buildGuardianServiceFeature(t, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-disabled")
 	defer cleanup()
 
@@ -931,7 +914,6 @@ func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sozialarbeiter", authorize.GuardianRoleSocialWorker)
 	defer cleanup()
 
@@ -961,7 +943,6 @@ func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-edit", authorize.GuardianRoleSocialWorker)
 	defer cleanup()
 
@@ -980,7 +961,6 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-flag", authorize.GuardianRoleSocialWorker)
 	defer cleanup()
 
@@ -1001,7 +981,6 @@ func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent", authorize.GuardianRoleLegalGuardian)
 	defer cleanup()
 
@@ -1029,7 +1008,6 @@ func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-edit", authorize.GuardianRoleCoGuardian)
 	defer cleanup()
 
@@ -1048,7 +1026,6 @@ func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-flag", authorize.GuardianRoleLegalGuardian)
 	defer cleanup()
 
@@ -1068,7 +1045,6 @@ func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	helperID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "helper-pickup", authorize.GuardianRolePickupOnly)
 	defer cleanup()
 
@@ -1094,7 +1070,6 @@ func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-clearnote")
 	defer cleanup()
 
@@ -1135,7 +1110,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *t
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	// Another guardian WITH their own portal account (contact read-only), linked
 	// to the same child with a non-full-guardian relationship.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "note-acct-holder", map[string]interface{}{
@@ -1180,7 +1154,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-note", authorize.GuardianRoleLegalGuardian)
 	defer cleanup()
 
@@ -1207,7 +1180,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-note", authorize.GuardianRoleSocialWorker)
 	defer cleanup()
 
@@ -1228,7 +1200,6 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-label-audit")
 	defer cleanup()
 	defer func() {
@@ -1292,7 +1263,6 @@ func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	firstID, firstCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-race-a")
 	defer firstCleanup()
 	secondID, secondCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-race-b")
@@ -1456,7 +1426,6 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-emailerr")
 	defer cleanup()
 

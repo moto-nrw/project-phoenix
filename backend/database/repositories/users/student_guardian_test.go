@@ -43,12 +43,6 @@ func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProf
 	return sg
 }
 
-// cleanupStudentGuardians removes student_guardian records by ID.
-func cleanupStudentGuardians(t *testing.T, db *bun.DB, ids ...int64) {
-	t.Helper()
-	testpkg.CleanupTableRecords(t, db, "users.students_guardians", ids...)
-}
-
 // ============================================================================
 // FindByStudentID Tests
 // ============================================================================
@@ -65,12 +59,10 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Guardian", "Student", "1a")
 	guardian1 := testpkg.CreateTestGuardianProfile(t, db, "guardian1")
 	guardian2 := testpkg.CreateTestGuardianProfile(t, db, "guardian2")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian1.ID, guardian2.ID)
 
 	// Create relationships
-	sg1 := createTestStudentGuardian(t, db, student.ID, guardian1.ID, "parent", true)
-	sg2 := createTestStudentGuardian(t, db, student.ID, guardian2.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sg1.ID, sg2.ID)
+	createTestStudentGuardian(t, db, student.ID, guardian1.ID, "parent", true)
+	createTestStudentGuardian(t, db, student.ID, guardian2.ID, "parent", false)
 
 	// ACT
 	results, err := repo.FindByStudentID(ctx, student.ID)
@@ -94,7 +86,6 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 
 	// Create student with no guardians
 	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// ACT
 	results, err := repo.FindByStudentID(ctx, student.ID)
@@ -120,12 +111,10 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 	student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "2a")
 	student2 := testpkg.CreateTestStudent(t, db, "Multi2", "Student", "2b")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "multi-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, guardian.ID)
 
 	// Create relationships - same guardian, different students
-	sg1 := createTestStudentGuardian(t, db, student1.ID, guardian.ID, "parent", true)
-	sg2 := createTestStudentGuardian(t, db, student2.ID, guardian.ID, "parent", true)
-	defer cleanupStudentGuardians(t, db, sg1.ID, sg2.ID)
+	createTestStudentGuardian(t, db, student1.ID, guardian.ID, "parent", true)
+	createTestStudentGuardian(t, db, student2.ID, guardian.ID, "parent", true)
 
 	// ACT
 	results, err := repo.FindByGuardianProfileID(ctx, guardian.ID)
@@ -166,11 +155,9 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "SetPrimary", "Student", "6a")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 	// Create relationship that is NOT primary
 	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", false)
-	defer cleanupStudentGuardians(t, db, sg.ID)
 
 	// ACT
 	err := repo.SetPrimary(ctx, sg.ID, true)
@@ -220,7 +207,6 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "CreateSG", "Student", "10a")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "create-sg-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 	// ACT
 	sg := &users.StudentGuardian{
@@ -237,7 +223,6 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	assert.NotZero(t, sg.ID)
-	defer cleanupStudentGuardians(t, db, sg.ID)
 
 	// Verify it was created
 	results, err := repo.FindByStudentID(ctx, student.ID)
@@ -300,7 +285,6 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "ListTest", "Student", "13a")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "list-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 	// Create primary guardian
 	sg := &users.StudentGuardian{
@@ -315,7 +299,6 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	sg.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(sg).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
-	defer cleanupStudentGuardians(t, db, sg.ID)
 
 	// ACT
 	results, err := repo.List(ctx, map[string]interface{}{
@@ -346,7 +329,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 	t.Run("inserts a new link and reports it as inserted", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Link", "Student", "1a")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkfresh")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 		rel := &users.StudentGuardian{
 			StudentID:         student.ID,
@@ -358,7 +340,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		rel.SetTenantID(testpkg.Tenant(t))
 
 		inserted, err := repo.LinkIfNotExists(ctx, rel)
-		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		assert.True(t, inserted, "a brand-new link must report inserted=true")
 		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
@@ -368,7 +349,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 	t.Run("treats a duplicate link as a no-op reporting not-inserted", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Dup", "Student", "1b")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkdup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 		first := &users.StudentGuardian{
 			StudentID:         student.ID,
@@ -380,7 +360,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		inserted, err := repo.LinkIfNotExists(ctx, first)
 		require.NoError(t, err)
 		require.True(t, inserted)
-		defer cleanupStudentGuardians(t, db, first.ID)
 
 		// Same (tenant, student, guardian) again — must NOT raise a unique
 		// violation and must report that nothing new was inserted.
@@ -410,7 +389,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 	t.Run("auto-populates tenant_id from context when unset", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Auto", "Student", "1c")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkauto")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 		// TenantID deliberately left at zero — the repo must fill it from ctx.
 		rel := &users.StudentGuardian{
@@ -420,7 +398,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 			EmergencyPriority: 1,
 		}
 		inserted, err := repo.LinkIfNotExists(ctx, rel)
-		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, testpkg.Tenant(t), rel.GetTenantID(), "tenant_id must be auto-set from context")
@@ -431,7 +408,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 	t.Run("defaults pickup-style links without portal access", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "1d")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkpickup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
 		rel := &users.StudentGuardian{
 			StudentID:         student.ID,
@@ -441,7 +417,6 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 			EmergencyPriority: 1,
 		}
 		inserted, err := repo.LinkIfNotExists(ctx, rel)
-		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, authorize.GuardianRolePickupOnly, rel.GuardianRole)
@@ -486,9 +461,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Relationship", "1a")
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-relationship-guardian")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "relative", false)
-	defer cleanupStudentGuardians(t, db, sg.ID)
 
 	t.Run("returns the relationship row", func(t *testing.T) {
 		got, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, guardian.ID)
@@ -561,17 +534,12 @@ func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
 	// Primary guardian (all parent-portal permissions) → chain.StudentID, with an
 	// ACTIVE account_tenants mapping. This is the authorized child.
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A SECOND child of the SAME guardian, linked WITHOUT enrollment.submit (empty
 	// permissions) — the exact P1 scenario: authority over child A must not extend
 	// to child B.
 	otherChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
-	otherLink := createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
-	defer func() {
-		cleanupStudentGuardians(t, db, otherLink.ID)
-		testpkg.CleanupActivityFixtures(t, db, otherChild.ID)
-	}()
+	createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
 
 	perm := authorize.GuardianPermissionEnrollmentSubmit
 
@@ -623,15 +591,10 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 
 	// Guardian WITH an account and an active mapping, primary role on its child.
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A second child of the same guardian, linked without enrollment.submit.
 	otherChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
-	otherLink := createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
-	defer func() {
-		cleanupStudentGuardians(t, db, otherLink.ID)
-		testpkg.CleanupActivityFixtures(t, db, otherChild.ID)
-	}()
+	createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
 
 	// An ACCOUNTLESS guardian (the typical late-invite recipient) with the full
 	// primary-guardian preset on a third child.
@@ -647,11 +610,6 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 		Where("id = ?", accountlessLink.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		cleanupStudentGuardians(t, db, accountlessLink.ID)
-		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", accountlessProfile.ID)
-		testpkg.CleanupActivityFixtures(t, db, accountlessChild.ID)
-	}()
 
 	perm := authorize.GuardianPermissionEnrollmentSubmit
 
@@ -724,20 +682,14 @@ func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T)
 
 	// Primary guardian with parent_portal.access on chain.StudentID.
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A second child of the SAME guardian, linked WITHOUT any permission — the
 	// revoked-access shape.
 	revokedChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
-	revokedLink := createTestStudentGuardian(t, db, revokedChild.ID, chain.GuardianProfileID, "parent", false)
-	defer func() {
-		cleanupStudentGuardians(t, db, revokedLink.ID)
-		testpkg.CleanupActivityFixtures(t, db, revokedChild.ID)
-	}()
+	createTestStudentGuardian(t, db, revokedChild.ID, chain.GuardianProfileID, "parent", false)
 
 	// Another family in the same school.
 	otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, otherFamily)
 
 	t.Run("keeps a guardian who still sees the child", func(t *testing.T) {
 		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,

@@ -44,7 +44,6 @@ func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Prova", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Prove", "Nienz")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
 	offeringID := int64(0)
 	// A minimal care offering row to satisfy the FK on care_offering_id.
@@ -106,7 +105,6 @@ func TestUpsertBulkPickupSchedules_ChangedTimeFlipsToStaff(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Flipa", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Flipe", "Nienz")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
 	offering := testpkg.CreateTestCareOffering(t, db, phase.ID, "Ganztag bis 14:30")

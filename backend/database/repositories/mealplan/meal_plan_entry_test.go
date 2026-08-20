@@ -15,15 +15,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// cleanupMealPlan removes every meal plan row for the tenant in the given
-// (inclusive) date range so the test leaves no residue.
-func cleanupMealPlan(t *testing.T, repo mealplan.MealPlanEntryRepository, ctx context.Context, from, to timezone.Date) {
-	t.Helper()
-	for d := from; !d.After(to); d = d.AddDays(1) {
-		_ = repo.DeleteByDate(ctx, d)
-	}
-}
-
 func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +25,6 @@ func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 
 	monday := timezone.NewDate(2026, time.July, 6) // a Monday
 	friday := monday.AddDays(4)
-	defer cleanupMealPlan(t, repo, ctx, monday, friday)
 
 	note := "vegetarisch"
 	// Two dishes on Monday, one on Wednesday.
@@ -100,7 +90,6 @@ func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
 	friday := monday.AddDays(4)
 	before := monday.AddDays(-1)
 	after := friday.AddDays(1)
-	defer cleanupMealPlan(t, repo, ctx, before, after)
 
 	for _, d := range []timezone.Date{before, monday, friday, after} {
 		require.NoError(t, repo.ReplaceDay(ctx, d, []*mealplan.MealPlanEntry{
@@ -143,8 +132,6 @@ func TestMealPlanRepository_TenantIsolation(t *testing.T) {
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 
 	day := timezone.NewDate(2026, time.September, 7)
-	defer cleanupMealPlan(t, repo, tenant1, day, day)
-	defer cleanupMealPlan(t, repo, tenant2, day, day)
 
 	require.NoError(t, repo.ReplaceDay(tenant1, day, []*mealplan.MealPlanEntry{
 		{Date: day, Position: 0, Dish: "Tenant1 Dish"},

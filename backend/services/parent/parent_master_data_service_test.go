@@ -66,7 +66,6 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{
 		ID:        int(chain.AccountID),
@@ -119,7 +118,6 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		Logger:              slog.Default(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -150,7 +148,6 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 		Logger:    slog.Default(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -164,7 +161,6 @@ func TestGetChildMasterData_ReturnsChainData(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.GetChildMasterData(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -181,15 +177,12 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
-	const secondTenantID int64 = 2
+	secondTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, secondTenantID)
 	testpkg.MapAccountToTenant(t, db, chain.AccountID, secondTenantID)
 	secondStudent := testpkg.CreateTestStudentForTenant(t, db, secondTenantID, "Mila", "Schneider", "2a")
-	defer testpkg.CleanupTableRecords(t, db, "users.persons", secondStudent.PersonID)
-	defer testpkg.CleanupTableRecords(t, db, "users.students", secondStudent.ID)
 
 	secondEmail := "second-child-guardian@example.test"
 	secondProfile := &usersModels.GuardianProfile{
@@ -204,7 +197,6 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	secondProfile.SetTenantID(secondTenantID)
 	_, err := db.NewInsert().Model(secondProfile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", secondProfile.ID)
 
 	link := &usersModels.StudentGuardian{
 		StudentID:         secondStudent.ID,
@@ -215,7 +207,6 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	link.SetTenantID(secondTenantID)
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "users.students_guardians", link.ID)
 
 	data, err := svc.GetChildMasterData(ctx, chain.AccountID, secondStudent.ID)
 	require.NoError(t, err)
@@ -246,7 +237,6 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -278,7 +268,6 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -303,7 +292,6 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -349,7 +337,6 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -371,9 +358,7 @@ func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestGuardianProfile(t, db, "taken-parent")
-	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", other.ID)
 	require.NotNil(t, other.Email)
 
 	_, err := svc.UpdateMasterDataField(
@@ -389,7 +374,6 @@ func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testin
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	cases := []struct {
 		field string
@@ -447,7 +431,6 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -502,7 +485,6 @@ func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -531,7 +513,6 @@ func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	tests := []struct {
 		name   string
@@ -582,7 +563,6 @@ func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.GetChildMasterData(context.Background(), 0, chain.StudentID)
 	require.Error(t, err)
@@ -600,7 +580,6 @@ func TestUpdateMasterDataField_NonAllowlistedField_Rejected(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -615,7 +594,6 @@ func TestUpdateMasterDataField_FeatureDisabled_Rejected(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,

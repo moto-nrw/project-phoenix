@@ -578,7 +578,7 @@ func TestResolveSystemRoleByName_NameMismatch(t *testing.T) {
 func TestResolveSystemRoleByName_TenantSpecificSkipped(t *testing.T) {
 	t.Parallel()
 
-	tenantID := int64(5)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{

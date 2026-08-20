@@ -101,10 +101,6 @@ func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScoped
 	for _, tenantID := range tenantIDs {
 		testpkg.EnsureTestTenant(t, db, tenantID)
 	}
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", bun.List(tenantIDs)).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", bun.List(tenantIDs)).Exec(context.Background())
-	})
 
 	historyPhase := insertNotificationModeTestPhase(t, db, historyTenant, "history")
 	changedSettingPhase := insertNotificationModeTestPhase(t, db, changedSettingTenant, "changed-setting")

@@ -96,10 +96,6 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 101
@@ -182,10 +178,6 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedKeptGroup")
 	addedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedAddedGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		keptGroup.ID, keptGroup.CategoryID, *keptGroup.CreatedBy,
-		addedGroup.ID, addedGroup.CategoryID, *addedGroup.CreatedBy,
-	)
 	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 111
@@ -244,11 +236,6 @@ func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesSchedule
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionOld")
 	correctedGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionNow")
 	scheduledGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionLater")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		correctedGroup.ID, correctedGroup.CategoryID, *correctedGroup.CreatedBy,
-		scheduledGroup.ID, scheduledGroup.CategoryID, *scheduledGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 141
@@ -299,11 +286,6 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedKeptGroup")
 	firstAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedFirstGroup")
 	secondAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedSecondGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		keptGroup.ID, keptGroup.CategoryID, *keptGroup.CreatedBy,
-		firstAddedGroup.ID, firstAddedGroup.CategoryID, *firstAddedGroup.CreatedBy,
-		secondAddedGroup.ID, secondAddedGroup.CategoryID, *secondAddedGroup.CreatedBy,
-	)
 	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt durchgehend", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 114
@@ -363,10 +345,6 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Vorher gewählt", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 121
@@ -415,7 +393,6 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "DatedRejectGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db, group.ID, group.CategoryID, *group.CreatedBy)
 	offering := createAdjustmentCareOfferingWith(t, env, "Egal", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
 		o.SortOrder = 131
@@ -475,10 +452,6 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisheriges Angebot", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 151

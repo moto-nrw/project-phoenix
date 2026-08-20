@@ -37,7 +37,6 @@ func TestDateframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dateframe.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 	})
 
 	t.Run("creates dateframe with same start and end date", func(t *testing.T) {
@@ -53,7 +52,6 @@ func TestDateframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dateframe.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 	})
 
 	t.Run("create with nil dateframe should fail", func(t *testing.T) {

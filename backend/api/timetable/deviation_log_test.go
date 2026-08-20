@@ -35,16 +35,6 @@ func loadEventsForInstance(t *testing.T, db *bun.DB, ctx context.Context, instan
 	return rows
 }
 
-func cleanupEventsForInstances(t *testing.T, db *bun.DB, instanceIDs ...int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Model((*auditModels.DeviationEvent)(nil)).
-		ModelTableExpr(`audit.deviation_events AS "deviation_event"`).
-		Where(`"deviation_event".instance_id IN (?)`, bun.List(instanceIDs)).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
 // TestApplyDeviations_WritesAbsenceAndSubstitutionEvents: one save with an
 // absence (X) and a substitution (A→Y) writes exactly one event per touched
 // row with the right types and staff references.
@@ -56,12 +46,9 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Protokoll"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"absences":      []map[string]any{{"staff_id": s.staffX, "reason": "krank"}},
@@ -107,12 +94,9 @@ func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Rückkehr"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"presences": []int64{s.staffA},
@@ -136,12 +120,9 @@ func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Replay"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"absences": []map[string]any{{"staff_id": s.staffA}},
@@ -171,18 +152,14 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		RoomID:         s.roomID,
 	}
 	require.NoError(t, activeGroupRepo.Create(s.ctx, ag))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Active-Inst",
 		Status:        scheduleModel.InstanceStatusActive,
 		ActiveGroupID: &ag.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
 
-	rowAbsent := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowAbsent.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(s.db)
 	absentSup := &activeModel.GroupSupervisor{
@@ -192,7 +169,6 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		StartDate: timezone.DateFromTime(now),
 	}
 	require.NoError(t, supervisorRepo.Create(s.ctx, absentSup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", absentSup.ID) })
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
@@ -206,18 +182,13 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	subSups, err := supervisorRepo.FindActiveByStaffID(s.ctx, s.staffY)
 	require.NoError(t, err)
 	found := false
-	var newSupID int64
 	for _, sup := range subSups {
 		if sup.GroupID == ag.ID {
 			found = true
-			newSupID = sup.ID
 		}
 	}
 	assert.True(t, found, "substitute must have a new active supervisor row on this group")
 	t.Cleanup(func() {
-		if newSupID > 0 {
-			testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", newSupID)
-		}
 	})
 
 	rows := devInstanceStaff(t, s.db, s.ctx, inst.ID)
@@ -228,5 +199,4 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, newSubRowIDs, "substitute instance_staff row created")
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubRowIDs...) })
 }

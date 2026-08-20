@@ -82,16 +82,6 @@ func workSessionSource(t *testing.T, db *bun.DB, id int64) string {
 	return source
 }
 
-func cleanupWorkSessionsSourceTest(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if _, err := db.ExecContext(ctx,
-		`DELETE FROM active.work_sessions WHERE tenant_id = ?`, tenantID); err != nil {
-		t.Logf("work_sessions source migration cleanup: %v", err)
-	}
-}
-
 // TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown verifies the backfill:
 // a row that exists before the migration runs (no source value) must end up
 // labelled 'unknown'. This is the entire backfill contract — no heuristic,
@@ -99,10 +89,9 @@ func cleanupWorkSessionsSourceTest(t *testing.T, db *bun.DB, tenantID int64) {
 func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9201
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
@@ -127,10 +116,9 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9202
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
 
@@ -154,10 +142,9 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 9203
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Reject")
 

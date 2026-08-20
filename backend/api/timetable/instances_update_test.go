@@ -49,7 +49,6 @@ func TestUpdateInstance_Success(t *testing.T) {
 		Title:         "Updated Basteln",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
 	s.mock.updateRes = persisted
 
 	body := map[string]any{

@@ -79,8 +79,6 @@ func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtu
 	// no ids of their own here. Students before their education group: the FK is
 	// ON DELETE SET NULL and would null students.tenant_id otherwise.
 	cleanup := func() {
-		testpkg.CleanupActivityFixtures(t, db,
-			activity.ID, room.ID, activeGroup.ID, student.ID, eduGroup.ID, staff.ID, iotDevice.ID)
 	}
 	return f, cleanup
 }
@@ -566,7 +564,6 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 		EntryTime:     time.Now(),
 	}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	assert.Len(t, checkinEventsOnTopic(broadcaster, f.activeGroupTopic()), 1,
 		"exactly one student_checkin on the active-group topic")

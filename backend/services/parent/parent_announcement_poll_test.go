@@ -72,7 +72,6 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -128,7 +127,6 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 
 	_, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -163,7 +161,6 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -192,7 +189,6 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	future := time.Now().Add(time.Hour)
@@ -219,9 +215,7 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Mila", "Fremd", "2b")
-	defer testpkg.CleanupActivityFixtures(t, db, other.ID)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -236,7 +230,6 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -252,7 +245,6 @@ func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
 
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")

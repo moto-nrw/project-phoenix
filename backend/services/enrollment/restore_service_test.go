@@ -227,17 +227,6 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 	})
 }
 
-func cleanupRestorationAuditRows(t *testing.T, db *bun.DB, requestID int64) {
-	t.Helper()
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Model((*auditModels.EnrollmentRestoration)(nil)).
-			ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
-			Where(`"enrollment_restoration".request_id = ?`, requestID).
-			Exec(testpkg.Ctx(t))
-	})
-}
-
 func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testing.T) {
 	t.Parallel()
 
@@ -266,7 +255,6 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	require.Equal(t, enrollmentModels.ChildStatusSubmitted, resB.Children[0].Status)
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
-	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
 	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 1)
@@ -307,7 +295,6 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	// Nobody took the slot: the child's own (withdrawn) claim must not
 	// count against itself, so the restore lands on submitted.
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
-	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
 	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 1)
@@ -369,7 +356,6 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	setOfferingInterval(t, env.db, resB.Children[0].ID, &splitDate, nil)
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
-	cleanupRestorationAuditRows(t, env.db, resA.Request.ID)
 	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 1)
@@ -425,7 +411,6 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	require.NoError(t, repositories.NewFactory(env.db).CareOffering.Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
-	cleanupRestorationAuditRows(t, env.db, res.Request.ID)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 2)

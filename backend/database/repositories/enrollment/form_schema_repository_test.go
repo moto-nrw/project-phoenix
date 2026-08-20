@@ -710,8 +710,8 @@ func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
 	// that bypasses the RLS predicate.
 	db, repo, _, creator := setupSchemaRepoTest(t)
 
-	var tenantA int64 = 90010
-	var tenantB int64 = 90011
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 

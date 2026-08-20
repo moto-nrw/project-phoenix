@@ -106,23 +106,6 @@ func assignTenantRole(t *testing.T, db *bun.DB, accountID int64, roleID int64) {
 	require.NoError(t, err)
 }
 
-func cleanupOffboardedStaffChain(t *testing.T, db *bun.DB, staffID, personID int64, accountID *int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, _ = db.ExecContext(ctx, `DELETE FROM audit.time_tracking_deletions WHERE staff_id = ? OR deleted_by = ?`, staffID, staffID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM audit.data_deletions WHERE staff_id = ?`, staffID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id = ?`, staffID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM users.staff WHERE id = ?`, staffID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id = ?`, personID)
-	if accountID != nil {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.tokens WHERE account_id = ?`, *accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id = ?`, *accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, *accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE account_id = ?`, *accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, *accountID)
-	}
-}
-
 // TestOffboardStaff_WithAttendanceHistory is the headline regression for
 // issue #695: staff with attendance records could never be deleted because of
 // the ON DELETE RESTRICT FK. With soft delete the offboarding must succeed and
@@ -141,8 +124,6 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.attendance WHERE id = ?`, attendance.ID)
-		testpkg.CleanupActivityFixtures(t, sc.db, student.ID, device.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
 	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
@@ -191,10 +172,6 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	role := testpkg.GetOrCreateTestRole(t, sc.db, "user")
 	assignTenantRole(t, sc.db, account.ID, role.ID)
 	testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
-
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
-	})
 
 	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login must work before offboarding")
@@ -263,10 +240,6 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, sc.db, otherTenant)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, otherTenant)
 
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
-	})
-
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	var active bool
@@ -330,8 +303,6 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
-		testpkg.CleanupTableRecords(t, sc.db, "auth.roles", role.ID)
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
@@ -398,9 +369,6 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.group_supervisors WHERE id = ?`, supervisor.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.groups WHERE id = ?`, activeGroup.ID)
-		testpkg.CleanupTableRecords(t, sc.db, "activities.groups", activityGroup.ID)
-		testpkg.CleanupActivityFixtures(t, sc.db, room.ID, activityGroup.CategoryID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
@@ -429,7 +397,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 	educationGroup := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardGroup")
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, educationGroup.ID, teacher.ID)
 
-	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
+	testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, sc.db, educationGroup.ID, nil, staffID,
 		today.AddDays(1), today.AddDays(8))
@@ -446,8 +414,6 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_substitution WHERE id = ?`, substitution.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, educationGroup.ID)
-		cleanupOffboardedStaffChain(t, sc.db, otherStaff.ID, otherStaff.PersonID, nil)
-		cleanupOffboardedStaffChain(t, sc.db, staffID, personID, nil)
 	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staffID, staffID, "test-admin"))
@@ -510,7 +476,6 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_substitution WHERE id = ?`, substitution.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
-		cleanupOffboardedStaffChain(t, sc.db, teacher.StaffID, personID, nil)
 	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin"))
@@ -542,7 +507,6 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
-		cleanupOffboardedStaffChain(t, sc.db, teacher.StaffID, teacher.Staff.PersonID, nil)
 	})
 
 	err := svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin")
@@ -579,10 +543,6 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Listed", "Staff")
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
-	})
-
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
 	listed, err := sc.repos.Staff.ListAllWithPerson(sc.ctx)
@@ -613,8 +573,6 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE account_id = ?`, account.ID)
-		testpkg.CleanupTableRecords(t, sc.db, "auth.permissions", perm.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
 	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
@@ -647,10 +605,6 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	assignTenantRole(t, sc.db, account.ID, staffRole.ID)
 	guardianRole := testpkg.GetOrCreateTestRole(t, sc.db, "guardian")
 	assignTenantRole(t, sc.db, account.ID, guardianRole.ID)
-
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
-	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
@@ -718,7 +672,6 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 		}
 		inst.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, sc.repos.ActivityInstance.Create(sc.ctx, inst))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.activity_instances", inst.ID) })
 		return inst
 	}
 	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
@@ -731,16 +684,10 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, sc.repos.InstanceStaff.Create(sc.ctx, row))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.instance_staff", row.ID) })
 		return row
 	}
 	plannedRow := makeAssignment(plannedInst.ID)
 	completedRow := makeAssignment(completedInst.ID)
-
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, sc.db, room.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
-	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
@@ -781,7 +728,6 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 			CreatedBy:   staff.ID,
 		}
 		require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "active.staff_absences", absence.ID) })
 		return absence
 	}
 	pendingRequest := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested,
@@ -792,11 +738,6 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		today.AddDays(-10), today.AddDays(-8))
 	pastQuestion := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusQuestion,
 		today.AddDays(-6), today.AddDays(-4))
-
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
-		cleanupOffboardedStaffChain(t, sc.db, actor.ID, actor.PersonID, nil)
-	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, actor.ID, "test-admin"))
 
@@ -856,10 +797,6 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 		CreatedBy:   staff.ID,
 	}
 	require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, sc.db, "active.staff_absences", absence.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
-	})
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, 0, "test-admin")
 	require.Error(t, err)
@@ -899,16 +836,11 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 			CreatedBy: staff.ID,
 		}
 		require.NoError(t, sc.repos.StaffShift.Create(sc.ctx, shift))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.staff_shifts", shift.ID) })
 		return shift
 	}
 	past := makeShift(today.AddDays(-1), 8)
 	sameDay := makeShift(today, 8)
 	future := makeShift(today.AddDays(1), 8)
-
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
-	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
@@ -959,7 +891,6 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
 	})
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
@@ -1001,9 +932,6 @@ func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	role := testpkg.GetOrCreateTestRole(t, sc.db, "user")
 	assignTenantRole(t, sc.db, account.ID, role.ID)
-	t.Cleanup(func() {
-		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
-	})
 
 	holder, err := sc.db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)

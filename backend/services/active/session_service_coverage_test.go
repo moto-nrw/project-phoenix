@@ -40,7 +40,6 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
 
 	// Cleanup
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start a session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -69,7 +68,6 @@ func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 
 	// Create device with no session
 	device := testpkg.CreateTestDevice(t, db, "device-session-none")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 	// ACT
 	_, err := service.GetDeviceCurrentSession(ctx, device.ID)
@@ -93,8 +91,6 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-timeout-active")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Timeout")
 	room := testpkg.CreateTestRoom(t, db, "Room Timeout")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -124,7 +120,6 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 
 	// Create device with no session
 	device := testpkg.CreateTestDevice(t, db, "device-timeout-none")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 	// ACT
 	_, err := service.ProcessSessionTimeout(ctx, device.ID)
@@ -149,8 +144,6 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity WithVisits")
 	room := testpkg.CreateTestRoom(t, db, "Room WithVisits")
 	student := testpkg.CreateTestStudent(t, db, "Student", "WithVisits", "1a")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -188,8 +181,6 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Ended")
 	room := testpkg.CreateTestRoom(t, db, "Room Ended")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
-
 	// Start and end session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 	require.NoError(t, err)
@@ -220,8 +211,6 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Daily")
 	room := testpkg.CreateTestRoom(t, db, "Room Daily")
 	student := testpkg.CreateTestStudent(t, db, "Student", "Daily", "1a")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -281,8 +270,6 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Orphaned")
 	room := testpkg.CreateTestRoom(t, db, "Room Orphaned")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, activityGroup.ID, room.ID)
-
 	// Create an ended active group (session)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 	require.NotNil(t, activeGroup)
@@ -336,8 +323,6 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Abandoned")
 	room := testpkg.CreateTestRoom(t, db, "Room Abandoned")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
-
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 	require.NoError(t, err)
@@ -382,8 +367,6 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-online")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Online")
 	room := testpkg.CreateTestRoom(t, db, "Room Online")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -452,8 +435,6 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Reactivate")
 	room := testpkg.CreateTestRoom(t, db, "Room Reactivate")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, device.ID, activityGroup.ID, room.ID)
-
 	// ARRANGE: Start session with supervisor 1 only
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID}, &room.ID)
 	require.NoError(t, err)
@@ -497,8 +478,6 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student1.ID, student2.ID)
-
 	// ARRANGE: Start session with supervisors
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 	require.NoError(t, err)
@@ -539,8 +518,6 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "Three", "2a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Four", "2b")
 
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student1.ID, student2.ID)
-
 	// ARRANGE: Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 	require.NoError(t, err)
@@ -575,8 +552,6 @@ func TestEndActivitySession_BySessionID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-end-session")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity End")
 	room := testpkg.CreateTestRoom(t, db, "Room End")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ARRANGE: Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)

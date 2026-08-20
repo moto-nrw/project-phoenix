@@ -30,13 +30,6 @@ func newShiftType(name, color string) *scheduleModels.ShiftType {
 	return &scheduleModels.ShiftType{Name: name, Color: color, IsActive: true}
 }
 
-func cleanupShiftTypes(t *testing.T, repo scheduleModels.ShiftTypeRepository, ctx context.Context, ids ...int64) {
-	t.Helper()
-	for _, id := range ids {
-		_ = repo.Delete(ctx, id)
-	}
-}
-
 func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 	t.Parallel()
 
@@ -50,7 +43,6 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 	alpha := newShiftType("Alpha-"+testUnique(), "#5080d8")
 	require.NoError(t, repo.Create(ctx, zebra))
 	require.NoError(t, repo.Create(ctx, alpha))
-	defer cleanupShiftTypes(t, repo, ctx, zebra.ID, alpha.ID)
 
 	require.NotZero(t, zebra.ID)
 	assert.Equal(t, testpkg.Tenant(t), zebra.TenantID, "tenant_id must be stamped from context")
@@ -85,7 +77,6 @@ func TestShiftTypeRepository_Update(t *testing.T) {
 
 	st := newShiftType("Update-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(ctx, st))
-	defer cleanupShiftTypes(t, repo, ctx, st.ID)
 
 	st.Name = "Updated-" + testUnique()
 	st.Color = "#f78c10"
@@ -119,7 +110,6 @@ func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 	name := "Dup-" + testUnique()
 	first := newShiftType(name, "#83CD2D")
 	require.NoError(t, repo.Create(ctx, first))
-	defer cleanupShiftTypes(t, repo, ctx, first.ID)
 
 	// Case-insensitive unique index must reject a same-name row for the tenant.
 	dup := newShiftType(name, "#5080D8")
@@ -142,7 +132,6 @@ func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, created, "the first insert must create a row")
 	require.NotZero(t, first.ID)
-	defer cleanupShiftTypes(t, repo, ctx, first.ID)
 
 	// A second insert of the same name (different case + color) must be a clean
 	// no-op via ON CONFLICT (tenant_id, LOWER(name)) DO NOTHING — never an error
@@ -179,7 +168,6 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 
 	st := newShiftType("Isolated-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(tenant1, st))
-	defer cleanupShiftTypes(t, repo, tenant1, st.ID)
 
 	rows, err := repo.ListAll(tenant2)
 	require.NoError(t, err)
@@ -231,7 +219,6 @@ func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
 
 	st := newShiftType("ListOpts-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(ctx, st))
-	defer cleanupShiftTypes(t, repo, ctx, st.ID)
 
 	// nil options exercises the base List override without extra clauses.
 	rows, err := repo.List(ctx, nil)

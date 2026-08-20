@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,10 +44,6 @@ func createCareMaterializationSchedule(
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
 	return timeframe, schedule
 }
 
@@ -69,9 +67,6 @@ func createCareMaterializationException(
 	t.Helper()
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.Ctx(t), exception))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exception.ID)
-	})
 }
 
 func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *testing.T) {
@@ -157,9 +152,6 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 		EndTime:         &end,
 		RoomID:          &overrideRoom.ID,
 	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
-	})
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
@@ -222,10 +214,6 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivityException.Create(testpkg.Ctx(t), exception))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exception.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
-	})
 
 	created, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err, "the exact occurrence room override must satisfy materialization")
@@ -284,10 +272,6 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), successorSchedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", rootSchedule.ID, successorSchedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
 
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care segment exception override")
 	for _, date := range []timezone.Date{firstMonday, secondMonday} {
@@ -298,15 +282,28 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 			RoomID:          &overrideRoom.ID,
 		})
 	}
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", overrideRoom.ID)
-	})
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, root.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, secondMonday.String())
 	assert.ErrorContains(t, err, "no effective room",
 		"a root exception on the successor date must not apply to the successor segment")
+}
+
+// inCareTenantTx runs fn inside a tenant transaction. The materializability
+// validators sweep care offerings without a tenant_id filter of their own and
+// rely on RLS to narrow the sweep; a plain tenant context leaves it open to
+// the whole clone, which used to be invisible only because per-row teardowns
+// removed every other test's offerings (#2419).
+func inCareTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
+	t.Helper()
+	var inner error
+	require.NoError(t, tenant.WithTenantTx(testpkg.Ctx(t), db, testpkg.Tenant(t),
+		func(txCtx context.Context, _ bun.Tx) error {
+			inner = fn(txCtx)
+			return nil
+		}))
+	return inner
 }
 
 // Deliberately NOT parallel: the code under test sweeps rows across tenants.
@@ -326,22 +323,30 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 
 	validator, ok := svc.(enrollmentService.CareOfferingMaterializationResourceValidator)
 	require.True(t, ok)
-	err = validator.ValidateRoomDeletion(testpkg.Ctx(t), *group.PlannedRoomID)
+	err = inCareTenantTx(t, db, func(ctx context.Context) error {
+		return validator.ValidateRoomDeletion(ctx, *group.PlannedRoomID)
+	})
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "no effective room")
 
-	err = validator.ValidateTimeframeDeletion(testpkg.Ctx(t), timeframe.ID)
+	err = inCareTenantTx(t, db, func(ctx context.Context) error {
+		return validator.ValidateTimeframeDeletion(ctx, timeframe.ID)
+	})
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "no complete timeframe")
 
 	openEnded := *timeframe
 	openEnded.EndTime = nil
-	err = validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &openEnded)
+	err = inCareTenantTx(t, db, func(ctx context.Context) error {
+		return validator.ValidateTimeframeChange(ctx, timeframe.ID, &openEnded)
+	})
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 
 	inactive := *timeframe
 	inactive.IsActive = false
-	require.NoError(t, validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &inactive),
+	require.NoError(t, inCareTenantTx(t, db, func(ctx context.Context) error {
+		return validator.ValidateTimeframeChange(ctx, timeframe.ID, &inactive)
+	}),
 		"materialization deliberately accepts inactive timeframes with complete clock times")
 }
 
@@ -374,7 +379,9 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 	replacement := *timeframe
 	replacementEnd := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	replacement.EndTime = &replacementEnd
-	err = validator.ValidateTimeframeChange(testpkg.Ctx(t), timeframe.ID, &replacement)
+	err = inCareTenantTx(t, db, func(ctx context.Context) error {
+		return validator.ValidateTimeframeChange(ctx, timeframe.ID, &replacement)
+	})
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "invalid effective start/end time",
 		"replacement and partial exception must be composed before validating effective times")

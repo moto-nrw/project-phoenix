@@ -42,7 +42,6 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 	db := testpkg.SetupTestDB(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
 	ctx := tenant.WithTenantID(context.Background(), chain.TenantID)
@@ -96,19 +95,15 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chainA)
 	ctxA := tenant.WithTenantID(context.Background(), chainA.TenantID)
 	rowA := coverageChangeRequest(chainA.StudentID, chainA.AccountID, chainA.TenantID,
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Maximilian"`)
 	require.NoError(t, repo.Create(ctxA, rowA))
 
-	const tenantB int64 = 90213
-	testpkg.CleanupTenantTestData(t, db, tenantB)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantB) })
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "Other", "Child", "2b")
 	accountB := testpkg.CreateTestAccount(t, db, "parent")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.accounts", accountB.ID) })
 	ctxB := tenant.WithTenantID(context.Background(), tenantB)
 	rowB := coverageChangeRequest(studentB.ID, accountB.ID, tenantB,
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Lena"`)

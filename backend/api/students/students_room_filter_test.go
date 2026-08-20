@@ -34,16 +34,8 @@ func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 	studentNotInAnyRoom := testpkg.CreateTestStudent(t, tc.db, "NoRoom", "Student", "RFNR")
 
 	now := time.Now().UTC()
-	visitA1 := testpkg.CreateTestVisit(t, tc.db, studentInRoomA1.ID, activeGroupA.ID, now.Add(-10*time.Minute), nil)
-	visitA2 := testpkg.CreateTestVisit(t, tc.db, studentInRoomA2.ID, activeGroupA.ID, now.Add(-5*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, tc.db,
-		visitA1.ID, visitA2.ID,
-		activeGroupA.ID,
-		studentInRoomA1.ID, studentInRoomA2.ID, studentNotInAnyRoom.ID,
-		activityA.ID, roomA.ID,
-	)
+	testpkg.CreateTestVisit(t, tc.db, studentInRoomA1.ID, activeGroupA.ID, now.Add(-10*time.Minute), nil)
+	testpkg.CreateTestVisit(t, tc.db, studentInRoomA2.ID, activeGroupA.ID, now.Add(-5*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d", roomA.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -93,17 +85,8 @@ func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, studentInGroupY.ID, groupY.ID)
 
 	now := time.Now().UTC()
-	visitX := testpkg.CreateTestVisit(t, tc.db, studentInGroupX.ID, activeGroupA.ID, now.Add(-10*time.Minute), nil)
-	visitY := testpkg.CreateTestVisit(t, tc.db, studentInGroupY.ID, activeGroupA.ID, now.Add(-5*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, tc.db,
-		visitX.ID, visitY.ID,
-		activeGroupA.ID,
-		studentInGroupX.ID, studentInGroupY.ID,
-		activityA.ID, roomA.ID,
-		groupX.ID, groupY.ID,
-	)
+	testpkg.CreateTestVisit(t, tc.db, studentInGroupX.ID, activeGroupA.ID, now.Add(-10*time.Minute), nil)
+	testpkg.CreateTestVisit(t, tc.db, studentInGroupY.ID, activeGroupA.ID, now.Add(-5*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d&group_id=%d", roomA.ID, groupX.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -140,8 +123,7 @@ func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
 	emptyRoom := testpkg.CreateTestRoom(t, tc.db, "EmptyFilterRoom")
 	// Create an unrelated student so "all students" would be non-empty if the
 	// filter silently failed open.
-	bystander := testpkg.CreateTestStudent(t, tc.db, "Bystander", "Student", "BYS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, bystander.ID, emptyRoom.ID)
+	testpkg.CreateTestStudent(t, tc.db, "Bystander", "Student", "BYS1")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d", emptyRoom.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -171,16 +153,9 @@ func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActive
 	absentStudent := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "TFS3")
 
 	now := time.Now().UTC()
-	transitAttendance := testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	inRoomAttendance := testpkg.CreateTestAttendance(t, tc.db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), nil)
-	visit := testpkg.CreateTestVisit(t, tc.db, inRoomStudent.ID, activeGroup.ID, now.Add(-10*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, tc.db,
-		visit.ID, activeGroup.ID, transitStudent.ID, inRoomStudent.ID, absentStudent.ID,
-		activity.ID, room.ID, staff.ID, device.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID)
+	testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, tc.db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), nil)
+	testpkg.CreateTestVisit(t, tc.db, inRoomStudent.ID, activeGroup.ID, now.Add(-10*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", "/?location_state=transit", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -225,18 +200,11 @@ func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *
 	absentStudent := testpkg.CreateTestStudent(t, tc.db, "PresentAbsent", "Student", "PFS4")
 
 	now := time.Now().UTC()
-	transitAttendance := testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	inRoomAttendance := testpkg.CreateTestAttendance(t, tc.db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, tc.db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	checkedOutAttendance := testpkg.CreateTestAttendance(t, tc.db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), &checkOutTime)
-	visit := testpkg.CreateTestVisit(t, tc.db, inRoomStudent.ID, activeGroup.ID, now.Add(-10*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, tc.db,
-		visit.ID, activeGroup.ID, transitStudent.ID, inRoomStudent.ID, checkedOutStudent.ID, absentStudent.ID,
-		activity.ID, room.ID, staff.ID, device.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID, checkedOutAttendance.ID)
+	testpkg.CreateTestAttendance(t, tc.db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-15*time.Minute), &checkOutTime)
+	testpkg.CreateTestVisit(t, tc.db, inRoomStudent.ID, activeGroup.ID, now.Add(-10*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", "/?location_state=present", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -301,16 +269,8 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
-	matchingAttendance := testpkg.CreateTestAttendance(t, tc.db, matchingTransitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	otherGroupAttendance := testpkg.CreateTestAttendance(t, tc.db, otherGroupTransitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, tc.db,
-		matchingTransitStudent.ID, otherGroupTransitStudent.ID, matchingAbsentStudent.ID,
-		staff.ID, device.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", matchingAttendance.ID, otherGroupAttendance.ID)
-	defer testpkg.CleanupTableRecords(t, tc.db, "education.groups", targetGroup.ID, otherGroup.ID)
+	testpkg.CreateTestAttendance(t, tc.db, matchingTransitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, tc.db, otherGroupTransitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?location_state=transit&group_id=%d", targetGroup.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -367,7 +327,6 @@ func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 	tc := setupTestContext(t)
 
 	bystander := testpkg.CreateTestStudent(t, tc.db, "TransitEmpty", "Bystander", "TEB1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, bystander.ID)
 
 	req := testutil.NewRequest("GET", "/?location_state=transit", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -409,11 +368,7 @@ func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
-	attendance := testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, transitStudent.ID, staff.ID, device.ID)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
-	defer testpkg.CleanupTableRecords(t, tc.db, "education.groups", studentGroup.ID, filterGroup.ID)
+	testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/?location_state=transit&group_id=%d", filterGroup.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

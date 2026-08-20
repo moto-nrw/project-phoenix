@@ -27,7 +27,6 @@ func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
 
 	op := createTestOperator(t, db, fmt.Sprintf("op-cred-update-%d@test.local", time.Now().UnixNano()), "Cred Update Op")
-	defer cleanupTestOperator(t, db, op.ID)
 
 	cred := &platform.OperatorMFACredential{
 		OperatorID: op.ID,
@@ -65,7 +64,6 @@ func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
 
 	op := createTestOperator(t, db, fmt.Sprintf("op-cred-list-%d@test.local", time.Now().UnixNano()), "Cred List Op")
-	defer cleanupTestOperator(t, db, op.ID)
 
 	require.NoError(t, repo.Create(ctx, &platform.OperatorMFACredential{
 		OperatorID: op.ID,

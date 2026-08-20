@@ -388,16 +388,9 @@ func setupBackfillTenants(t *testing.T, db *bun.DB) *backfillTenantEnv {
 			Where("tenant_id IN (?)", bun.List(tenantIDs)).
 			Exec(cleanupCtx)
 		require.NoError(t, cerr)
-		_, cerr = db.NewDelete().
-			Table("platform.schools").
-			Where("id IN (?)", bun.List(tenantIDs)).
-			Exec(cleanupCtx)
-		require.NoError(t, cerr)
-		_, cerr = db.NewDelete().
-			Table("platform.organizations").
-			Where("id = ?", orgID).
-			Exec(cleanupCtx)
-		require.NoError(t, cerr)
+		// The school and its organization stay: their IDs come from the test
+		// band, so they are not leftovers, and deleting them now trips the FKs
+		// of rows whose own teardown is gone (#2419).
 	})
 
 	return env

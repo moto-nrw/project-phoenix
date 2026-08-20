@@ -368,10 +368,6 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	account := testpkg.CreateTestAccount(t, db, "parentlist-permission")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
 	student := testpkg.CreateTestStudent(t, db, "Materialized", "Child", "1a")
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID)
-		testpkg.CleanupAccount(t, db, account.ID)
-	}()
 
 	factory := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
@@ -412,11 +408,6 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-mixed-permission")
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, db, visible.ID, profile.ID)
-		testpkg.CleanupActivityFixtures(t, db, hidden.ID, profile.ID)
-		testpkg.CleanupAccount(t, db, account.ID)
-	}()
 
 	factory := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)

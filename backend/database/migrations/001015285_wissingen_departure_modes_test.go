@@ -105,13 +105,9 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	require.NoError(t, studentsDepartureAccompaniedUp(ctx, db))
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("wissingen-departure-%d@example.test", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, account.ID) })
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
-		testpkg.CleanupTestTenant(t, db, tenantID, otherTenantID)
-	})
+	testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
 	_, err := db.NewRaw(`
 		UPDATE platform.schools
 		SET slug = 'ogs-wissingen', subdomain = 'ogs-wissingen'

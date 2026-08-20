@@ -30,7 +30,6 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 
 	// Create operator for announcement
 	operator := createTestOperator(t, db, "viewtest@example.com", "View Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	// Create announcement
 	announcement := &platformModels.Announcement{
@@ -45,22 +44,18 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	annoRepo := platform.NewAnnouncementRepository(db)
 	err := annoRepo.Create(ctx, announcement)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	// Create an auth account
 	accountID := createTestAccount(t, db, "viewuser@example.com")
-	defer cleanupTestAccount(t, db, accountID)
 
 	// Create a person linked to that account
-	personID := createTestPerson(t, db, accountID, "Max", "Mustermann")
-	defer cleanupTestPerson(t, db, personID)
+	createTestPerson(t, db, accountID, "Max", "Mustermann")
 
 	// Mark announcement as seen + dismissed
 	err = viewRepo.MarkSeen(ctx, accountID, announcement.ID)
 	require.NoError(t, err)
 	err = viewRepo.MarkDismissed(ctx, accountID, announcement.ID)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncementView(t, db, accountID, announcement.ID)
 
 	t.Run("returns user name from persons table", func(t *testing.T) {
 		details, err := viewRepo.GetViewDetails(ctx, announcement.ID)
@@ -77,13 +72,11 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	t.Run("falls back to email when no person exists", func(t *testing.T) {
 		// Create account without a person
 		orphanAccountID := createTestAccount(t, db, "orphan@example.com")
-		defer cleanupTestAccount(t, db, orphanAccountID)
 
 		err := viewRepo.MarkSeen(ctx, orphanAccountID, announcement.ID)
 		require.NoError(t, err)
 		err = viewRepo.MarkDismissed(ctx, orphanAccountID, announcement.ID)
 		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, orphanAccountID, announcement.ID)
 
 		details, err := viewRepo.GetViewDetails(ctx, announcement.ID)
 		require.NoError(t, err)
@@ -116,17 +109,16 @@ func createTestAccount(t *testing.T, db *bun.DB, email string) int64 {
 		RETURNING id
 	`, email).Exec(ctx, &id)
 	require.NoError(t, err)
+	// auth.accounts carries no tenant: without taking the row back it stays
+	// visible to every other test in the binary (#2419).
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ?`, id).Exec(bg)
+		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, id).Exec(bg)
+		_, _ = db.NewRaw(`DELETE FROM users.persons WHERE account_id = ?`, id).Exec(bg)
+		_, _ = db.NewRaw(`DELETE FROM auth.accounts WHERE id = ?`, id).Exec(bg)
+	})
 	return id
-}
-
-func cleanupTestAccount(t *testing.T, db *bun.DB, accountID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM auth.accounts WHERE id = ?`, accountID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup account %d: %v", accountID, err)
-	}
 }
 
 func createTestPerson(t *testing.T, db *bun.DB, accountID int64, firstName, lastName string) int64 {
@@ -142,26 +134,6 @@ func createTestPerson(t *testing.T, db *bun.DB, accountID int64, firstName, last
 	`, accountID, firstName, lastName, testpkg.Tenant(t)).Exec(ctx, &id)
 	require.NoError(t, err)
 	return id
-}
-
-func cleanupTestPerson(t *testing.T, db *bun.DB, personID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM users.persons WHERE id = ?`, personID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup person %d: %v", personID, err)
-	}
-}
-
-func cleanupTestAnnouncementView(t *testing.T, db *bun.DB, userID, announcementID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM platform.announcement_views WHERE user_id = ? AND announcement_id = ?`, userID, announcementID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup announcement view user=%d announcement=%d: %v", userID, announcementID, err)
-	}
 }
 
 // --- Additional test helpers for org/tenant targeting tests ---
@@ -192,16 +164,6 @@ func createTestOrganization(t *testing.T, db *bun.DB, name string) int64 {
 	return id
 }
 
-func cleanupTestOrganization(t *testing.T, db *bun.DB, orgID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, orgID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup organization %d: %v", orgID, err)
-	}
-}
-
 func createTestSchool(t *testing.T, db *bun.DB, name string, orgID int64) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -228,16 +190,6 @@ func createTestSchool(t *testing.T, db *bun.DB, name string, orgID int64) int64 
 	return id
 }
 
-func cleanupTestSchool(t *testing.T, db *bun.DB, schoolID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM platform.schools WHERE id = ?`, schoolID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup school %d: %v", schoolID, err)
-	}
-}
-
 func createTestRole(t *testing.T, db *bun.DB, roleName string) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -249,6 +201,12 @@ func createTestRole(t *testing.T, db *bun.DB, roleName string) int64 {
 		RETURNING id
 	`, roleName).Exec(ctx, &id)
 	require.NoError(t, err)
+	// A role without a tenant is part of the clone-wide RBAC catalog.
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewRaw(`DELETE FROM auth.account_roles WHERE role_id = ?`, id).Exec(bg)
+		_, _ = db.NewRaw(`DELETE FROM auth.roles WHERE id = ?`, id).Exec(bg)
+	})
 	return id
 }
 
@@ -266,16 +224,6 @@ func createTestRoleWithBaseRole(t *testing.T, db *bun.DB, roleName, baseRole str
 	return id
 }
 
-func cleanupTestRole(t *testing.T, db *bun.DB, roleID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM auth.roles WHERE id = ?`, roleID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup role %d: %v", roleID, err)
-	}
-}
-
 func assignTestRole(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -287,17 +235,6 @@ func assignTestRole(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64)
 	require.NoError(t, err)
 }
 
-func cleanupTestAccountRole(t *testing.T, db *bun.DB, accountID, roleID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?`,
-		accountID, roleID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup account_role account=%d role=%d: %v", accountID, roleID, err)
-	}
-}
-
 func createTestAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -307,16 +244,6 @@ func createTestAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 		VALUES (?, ?, 'active', NOW(), NOW())
 	`, accountID, tenantID).Exec(ctx)
 	require.NoError(t, err)
-}
-
-func cleanupTestAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, tenantID).Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup account_tenant account=%d tenant=%d: %v", accountID, tenantID, err)
-	}
 }
 
 // createTestAnnouncementWithTargeting creates an announcement with specific targeting arrays via raw SQL.
@@ -341,6 +268,15 @@ func createTestAnnouncementWithTargeting(
 		RETURNING id
 	`, title, createdBy, rolesLit, orgLit, tenantLit).Exec(ctx, &id)
 	require.NoError(t, err)
+	// platform.announcements has no tenant, so the row is shared state for
+	// every other test in this binary and for the leftover gate: this fixture
+	// takes it back itself (#2419).
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(`DELETE FROM platform.announcement_views WHERE announcement_id = ?`, id).
+			Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM platform.announcements WHERE id = ?`, id).
+			Exec(context.Background())
+	})
 	return id
 }
 
@@ -452,17 +388,13 @@ func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "markseen-op@test.com", "MarkSeen Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := createTestAnnouncement(t, db, "MarkSeen Test", operator.ID)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	accountID := createTestAccount(t, db, "markseen-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
 
 	err := viewRepo.MarkSeen(ctx, accountID, announcement.ID)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncementView(t, db, accountID, announcement.ID)
 
 	// Verify via raw SQL (HasSeen has a known BUN alias bug)
 	var count int
@@ -489,17 +421,13 @@ func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "markdismiss-op@test.com", "Dismiss Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := createTestAnnouncement(t, db, "MarkDismissed Test", operator.ID)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	accountID := createTestAccount(t, db, "markdismiss-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
 
 	err := viewRepo.MarkDismissed(ctx, accountID, announcement.ID)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncementView(t, db, accountID, announcement.ID)
 
 	// Verify dismissed flag via GetViewDetails
 	details, err := viewRepo.GetViewDetails(ctx, announcement.ID)
@@ -531,30 +459,22 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "unread-op@test.com", "Unread Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	accountID := createTestAccount(t, db, "unread-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
 
 	// Create org/school infrastructure for targeting tests
 	orgID := createTestOrganization(t, db, "unread-test-org")
-	defer cleanupTestOrganization(t, db, orgID)
 
 	schoolID := createTestSchool(t, db, "unread-test-school", orgID)
-	defer cleanupTestSchool(t, db, schoolID)
 
 	otherOrgID := createTestOrganization(t, db, "unread-other-org")
-	defer cleanupTestOrganization(t, db, otherOrgID)
 
 	otherSchoolID := createTestSchool(t, db, "unread-other-school", otherOrgID)
-	defer cleanupTestSchool(t, db, otherSchoolID)
 
 	// Create a role for the user
 	roleID := createTestRole(t, db, "unread-test-teacher")
-	defer cleanupTestRole(t, db, roleID)
 
 	assignTestRole(t, db, accountID, roleID, schoolID)
-	defer cleanupTestAccountRole(t, db, accountID, roleID)
 
 	// Create account_tenants membership so the subquery finds this user's org/tenant
 	createTestAccountTenant(t, db, accountID, schoolID)
@@ -565,7 +485,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("global announcement visible to all", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "global-all", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -582,7 +501,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("role-targeted announcement matches user role", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "role-match", operator.ID, []string{"unread-test-teacher"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -599,7 +517,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("role-targeted announcement skips non-matching", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "role-nomatch", operator.ID, []string{"unread-test-admin"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -613,15 +530,12 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	t.Run("base_role maps custom role to system role for targeting", func(t *testing.T) {
 		// Create a custom role with base_role = "user" in the test tenant
 		customRoleID := createTestRoleWithBaseRole(t, db, "gruppenleitung-base-test", "user", schoolID)
-		defer cleanupTestRole(t, db, customRoleID)
 
 		// Assign the custom role to the user
 		assignTestRole(t, db, accountID, customRoleID, schoolID)
-		defer cleanupTestAccountRole(t, db, accountID, customRoleID)
 
 		// Create announcement targeting system role "user"
 		annoID := createTestAnnouncementWithTargeting(t, db, "base-role-match", operator.ID, []string{"user"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		// User's JWT roles don't include "user" — only the custom name
@@ -640,16 +554,13 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	t.Run("base_role does not leak across tenants", func(t *testing.T) {
 		// Create a custom role with base_role = "admin" in a DIFFERENT tenant
 		otherRoleID := createTestRoleWithBaseRole(t, db, "other-tenant-admin-test", "admin", otherSchoolID)
-		defer cleanupTestRole(t, db, otherRoleID)
 
 		// Assign it in the other tenant
 		assignTestRole(t, db, accountID, otherRoleID, otherSchoolID)
-		defer cleanupTestAccountRole(t, db, accountID, otherRoleID)
 
 		// Create announcement targeting "admin" — should NOT match because the
 		// base_role="admin" assignment is in otherSchoolID, not schoolID
 		annoID := createTestAnnouncementWithTargeting(t, db, "base-role-cross-tenant", operator.ID, []string{"admin"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		// Query with the user's actual tenant (schoolID) — the other-tenant role should not match
@@ -663,7 +574,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("org-targeted announcement matches user org", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "org-match", operator.ID, []string{}, []int64{orgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -680,7 +590,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("org-targeted announcement skips different org", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "org-nomatch", operator.ID, []string{}, []int64{otherOrgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -693,7 +602,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("tenant-targeted announcement matches", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "tenant-match", operator.ID, []string{}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -710,7 +618,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("tenant-targeted announcement skips different tenant", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "tenant-nomatch", operator.ID, []string{}, []int64{}, []int64{otherSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -724,7 +631,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	t.Run("OR-union: org match wins even if tenant doesn't match", func(t *testing.T) {
 		// Both org and tenant targeting set, but only org matches
 		annoID := createTestAnnouncementWithTargeting(t, db, "or-union", operator.ID, []string{}, []int64{orgID}, []int64{otherSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
@@ -744,20 +650,16 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		// in schools A and B, querying as school A, must NOT see an announcement
 		// targeted only at school B (or B's org).
 		secondSchoolID := createTestSchool(t, db, "unread-second-school", otherOrgID)
-		defer cleanupTestSchool(t, db, secondSchoolID)
 
 		// Give the user an active membership in the second school too
 		createTestAccountTenant(t, db, accountID, secondSchoolID)
-		defer cleanupTestAccountTenant(t, db, accountID, secondSchoolID)
 
 		// Announcement targets only the second school's org
 		annoOrgB := createTestAnnouncementWithTargeting(t, db, "cross-tenant-org", operator.ID, []string{}, []int64{otherOrgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoOrgB)
 		publishTestAnnouncement(t, db, annoOrgB)
 
 		// Announcement targets only the second school directly
 		annoTenantB := createTestAnnouncementWithTargeting(t, db, "cross-tenant-school", operator.ID, []string{}, []int64{}, []int64{secondSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoTenantB)
 		publishTestAnnouncement(t, db, annoTenantB)
 
 		// Query as school A (schoolID / orgID) — neither announcement should be visible
@@ -788,13 +690,11 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("seen announcements are excluded", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "seen-excluded", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		// Mark it seen
 		err := viewRepo.MarkSeen(ctx, accountID, annoID)
 		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
@@ -807,7 +707,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	t.Run("unpublished announcements are excluded", func(t *testing.T) {
 		// Do NOT call publishTestAnnouncement
 		annoID := createTestAnnouncementWithTargeting(t, db, "unpublished", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
@@ -819,7 +718,6 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 	t.Run("expired announcements are excluded", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "expired-excl", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
@@ -843,18 +741,13 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "baseline-op@test.com", "Baseline Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	orgID := createTestOrganization(t, db, "baseline-org")
-	defer cleanupTestOrganization(t, db, orgID)
 
 	schoolID := createTestSchool(t, db, "baseline-school", orgID)
-	defer cleanupTestSchool(t, db, schoolID)
 
 	accountID := createTestAccount(t, db, "baseline-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
 	createTestAccountTenant(t, db, accountID, schoolID)
-	defer cleanupTestAccountTenant(t, db, accountID, schoolID)
 
 	now := time.Now().UTC()
 	setTestAccountCreatedAt(t, db, accountID, now.Add(-6*time.Hour))
@@ -872,7 +765,6 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("global announcement before tenant creation is excluded", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-old-global", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncementAt(t, db, annoID, now.Add(-5*time.Hour))
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
@@ -882,7 +774,6 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("global announcement after recipient baseline is visible", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-new-global", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncementAt(t, db, annoID, now.Add(-3*time.Hour))
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
@@ -892,7 +783,6 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("tenant-targeted announcement before baseline is excluded", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-old-tenant", operator.ID, []string{}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncementAt(t, db, annoID, now.Add(-5*time.Hour))
 
 		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
@@ -902,18 +792,14 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("new employee does not see announcements from before tenant invitation", func(t *testing.T) {
 		newAccountID := createTestAccount(t, db, "baseline-new-employee@test.com")
-		defer cleanupTestAccount(t, db, newAccountID)
 		createTestAccountTenant(t, db, newAccountID, schoolID)
-		defer cleanupTestAccountTenant(t, db, newAccountID, schoolID)
 		setTestAccountCreatedAt(t, db, newAccountID, now.Add(-6*time.Hour))
 		setTestAccountTenantInvitedAt(t, db, newAccountID, schoolID, now.Add(-50*time.Minute))
 
 		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-before-invite", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, oldAnnoID)
 		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-2*time.Hour))
 
 		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-after-invite", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, newAnnoID)
 		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-30*time.Minute))
 
 		results, err := viewRepo.GetUnreadForUser(ctx, newAccountID, []string{}, schoolID, orgID)
@@ -924,18 +810,14 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("account creation participates in the baseline", func(t *testing.T) {
 		newAccountID := createTestAccount(t, db, "baseline-new-account@test.com")
-		defer cleanupTestAccount(t, db, newAccountID)
 		createTestAccountTenant(t, db, newAccountID, schoolID)
-		defer cleanupTestAccountTenant(t, db, newAccountID, schoolID)
 		setTestAccountCreatedAt(t, db, newAccountID, now.Add(-30*time.Minute))
 		setTestAccountTenantInvitedAt(t, db, newAccountID, schoolID, now.Add(-3*time.Hour))
 
 		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-before-account", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, oldAnnoID)
 		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-1*time.Hour))
 
 		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-after-account", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, newAnnoID)
 		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-20*time.Minute))
 
 		results, err := viewRepo.GetUnreadForUser(ctx, newAccountID, []string{}, schoolID, orgID)
@@ -946,9 +828,7 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 	t.Run("count unread uses the same baseline", func(t *testing.T) {
 		countAccountID := createTestAccount(t, db, "baseline-count@test.com")
-		defer cleanupTestAccount(t, db, countAccountID)
 		createTestAccountTenant(t, db, countAccountID, schoolID)
-		defer cleanupTestAccountTenant(t, db, countAccountID, schoolID)
 		setTestAccountCreatedAt(t, db, countAccountID, now.Add(-6*time.Hour))
 		setTestAccountTenantInvitedAt(t, db, countAccountID, schoolID, now.Add(-50*time.Minute))
 
@@ -956,11 +836,9 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 		require.NoError(t, err)
 
 		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-count-old", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, oldAnnoID)
 		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-2*time.Hour))
 
 		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-count-new", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, newAnnoID)
 		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-30*time.Minute))
 
 		count, err := viewRepo.CountUnread(ctx, countAccountID, []string{}, schoolID, orgID)
@@ -982,28 +860,20 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "count-op@test.com", "Count Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	accountID := createTestAccount(t, db, "count-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
 
 	orgID := createTestOrganization(t, db, "count-test-org")
-	defer cleanupTestOrganization(t, db, orgID)
 
 	schoolID := createTestSchool(t, db, "count-test-school", orgID)
-	defer cleanupTestSchool(t, db, schoolID)
 
 	otherOrgID := createTestOrganization(t, db, "count-other-org")
-	defer cleanupTestOrganization(t, db, otherOrgID)
 
 	otherSchoolID := createTestSchool(t, db, "count-other-school", otherOrgID)
-	defer cleanupTestSchool(t, db, otherSchoolID)
 
 	roleID := createTestRole(t, db, "count-test-teacher")
-	defer cleanupTestRole(t, db, roleID)
 
 	assignTestRole(t, db, accountID, roleID, schoolID)
-	defer cleanupTestAccountRole(t, db, accountID, roleID)
 
 	// Create account_tenants membership so the subquery finds this user's org/tenant
 	createTestAccountTenant(t, db, accountID, schoolID)
@@ -1012,13 +882,19 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, schoolID).Exec(cleanupCtx)
 	}()
 
-	// Get baseline count before creating any test announcements
-	baselineCount, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
-	require.NoError(t, err)
+	// Baseline per subtest, not once for the test: announcements are
+	// tenant-less, so every subtest's announcement is visible to the next one
+	// until its fixture cleanup runs at the end of the test (#2419).
+	baseline := func(t *testing.T) int {
+		t.Helper()
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
+		require.NoError(t, err)
+		return count
+	}
 
 	t.Run("global announcement counted", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-global", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1027,8 +903,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("role-targeted announcement counted when matching", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-role-match", operator.ID, []string{"count-test-teacher"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1037,8 +913,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("role-targeted announcement not counted when not matching", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-role-nomatch", operator.ID, []string{"count-test-admin"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1047,8 +923,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("org-targeted announcement counted when matching", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-org-match", operator.ID, []string{}, []int64{orgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1057,8 +933,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("org-targeted announcement not counted for different org", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-org-nomatch", operator.ID, []string{}, []int64{otherOrgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1067,8 +943,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("tenant-targeted announcement counted when matching", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-tenant-match", operator.ID, []string{}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1077,8 +953,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("tenant-targeted announcement not counted for different tenant", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-tenant-nomatch", operator.ID, []string{}, []int64{}, []int64{otherSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1087,9 +963,9 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("OR-union: org match counted even if tenant doesn't match", func(t *testing.T) {
+		baselineCount := baseline(t)
 		// Both org and tenant targeting set, but only org matches the session
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-or-union", operator.ID, []string{}, []int64{orgID}, []int64{otherSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
@@ -1098,15 +974,13 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("multi-membership user does not count other tenant announcements", func(t *testing.T) {
+		baselineCount := baseline(t)
 		// Regression: user in schools A+B, announcement targets B only, count as A should be 0
 		secondSchoolID := createTestSchool(t, db, "count-second-school", otherOrgID)
-		defer cleanupTestSchool(t, db, secondSchoolID)
 
 		createTestAccountTenant(t, db, accountID, secondSchoolID)
-		defer cleanupTestAccountTenant(t, db, accountID, secondSchoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-cross-tenant", operator.ID, []string{}, []int64{}, []int64{secondSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		// Count as school A — should not include the school-B-only announcement
@@ -1116,13 +990,12 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("seen announcement not counted", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-seen", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
 		err := viewRepo.MarkSeen(ctx, accountID, annoID)
 		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
 		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
@@ -1130,8 +1003,8 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	})
 
 	t.Run("expired announcement not counted", func(t *testing.T) {
+		baselineCount := baseline(t)
 		annoID := createTestAnnouncementWithTargeting(t, db, "count-expired", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
@@ -1154,22 +1027,16 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 
 	operator := createTestOperator(t, db, "stats-op@test.com", "Stats Op")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	t.Run("global announcement counts all accounts", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-global-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-global-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 
 		acc := createTestAccount(t, db, "stats-global-acc@test.com")
-		defer cleanupTestAccount(t, db, acc)
 		createTestAccountTenant(t, db, acc, schoolID)
-		defer cleanupTestAccountTenant(t, db, acc, schoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-global", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1182,31 +1049,21 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	t.Run("role-filtered announcement counts role-matching accounts", func(t *testing.T) {
 		// Need a school for account_roles.tenant_id FK
 		sOrgID := createTestOrganization(t, db, "stats-role-org")
-		defer cleanupTestOrganization(t, db, sOrgID)
 		sSchoolID := createTestSchool(t, db, "stats-role-school", sOrgID)
-		defer cleanupTestSchool(t, db, sSchoolID)
 
 		roleID := createTestRole(t, db, "stats-role-filter")
-		defer cleanupTestRole(t, db, roleID)
 
 		acc1 := createTestAccount(t, db, "stats-role-acc1@test.com")
-		defer cleanupTestAccount(t, db, acc1)
 		assignTestRole(t, db, acc1, roleID, sSchoolID)
-		defer cleanupTestAccountRole(t, db, acc1, roleID)
 		// GetStats role-only query requires active account_tenants membership
 		createTestAccountTenant(t, db, acc1, sSchoolID)
-		defer cleanupTestAccountTenant(t, db, acc1, sSchoolID)
 
 		acc2 := createTestAccount(t, db, "stats-role-acc2@test.com")
-		defer cleanupTestAccount(t, db, acc2)
 		assignTestRole(t, db, acc2, roleID, sSchoolID)
-		defer cleanupTestAccountRole(t, db, acc2, roleID)
 		// GetStats role-only query requires active account_tenants membership
 		createTestAccountTenant(t, db, acc2, sSchoolID)
-		defer cleanupTestAccountTenant(t, db, acc2, sSchoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-role", operator.ID, []string{"stats-role-filter"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1215,24 +1072,17 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("base_role-mapped custom role counted in stats", func(t *testing.T) {
 		bOrgID := createTestOrganization(t, db, "stats-base-role-org")
-		defer cleanupTestOrganization(t, db, bOrgID)
 		bSchoolID := createTestSchool(t, db, "stats-base-role-school", bOrgID)
-		defer cleanupTestSchool(t, db, bSchoolID)
 
 		// Create a custom role with base_role = "user"
 		customRoleID := createTestRoleWithBaseRole(t, db, "stats-gruppenleitung", "user", bSchoolID)
-		defer cleanupTestRole(t, db, customRoleID)
 
 		acc := createTestAccount(t, db, "stats-base-role-acc@test.com")
-		defer cleanupTestAccount(t, db, acc)
 		assignTestRole(t, db, acc, customRoleID, bSchoolID)
-		defer cleanupTestAccountRole(t, db, acc, customRoleID)
 		createTestAccountTenant(t, db, acc, bSchoolID)
-		defer cleanupTestAccountTenant(t, db, acc, bSchoolID)
 
 		// Announcement targets system role "user"
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-base-role", operator.ID, []string{"user"}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1241,18 +1091,13 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("org-filtered announcement counts org-matching accounts", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-org-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 
 		acc1 := createTestAccount(t, db, "stats-org-acc1@test.com")
-		defer cleanupTestAccount(t, db, acc1)
 		createTestAccountTenant(t, db, acc1, schoolID)
-		defer cleanupTestAccountTenant(t, db, acc1, schoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-org-target", operator.ID, []string{}, []int64{orgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1261,18 +1106,13 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("tenant-filtered announcement counts tenant-matching accounts", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-tenant-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-tenant-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 
 		acc1 := createTestAccount(t, db, "stats-tenant-acc1@test.com")
-		defer cleanupTestAccount(t, db, acc1)
 		createTestAccountTenant(t, db, acc1, schoolID)
-		defer cleanupTestAccountTenant(t, db, acc1, schoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-tenant-target", operator.ID, []string{}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1283,28 +1123,21 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		now := time.Now().UTC()
 
 		orgID := createTestOrganization(t, db, "stats-baseline-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-baseline-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 		setTestSchoolCreatedAt(t, db, schoolID, now.Add(-4*time.Hour))
 
 		beforePublish := createTestAccount(t, db, "stats-baseline-before@test.com")
-		defer cleanupTestAccount(t, db, beforePublish)
 		createTestAccountTenant(t, db, beforePublish, schoolID)
-		defer cleanupTestAccountTenant(t, db, beforePublish, schoolID)
 		setTestAccountCreatedAt(t, db, beforePublish, now.Add(-3*time.Hour))
 		setTestAccountTenantInvitedAt(t, db, beforePublish, schoolID, now.Add(-3*time.Hour))
 
 		afterPublish := createTestAccount(t, db, "stats-baseline-after@test.com")
-		defer cleanupTestAccount(t, db, afterPublish)
 		createTestAccountTenant(t, db, afterPublish, schoolID)
-		defer cleanupTestAccountTenant(t, db, afterPublish, schoolID)
 		setTestAccountCreatedAt(t, db, afterPublish, now.Add(-3*time.Hour))
 		setTestAccountTenantInvitedAt(t, db, afterPublish, schoolID, now.Add(-1*time.Hour))
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-baseline-target", operator.ID, []string{}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncementAt(t, db, annoID, now.Add(-2*time.Hour))
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
@@ -1314,44 +1147,30 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("combined role+org filter counts intersection", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-combo-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-combo-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 
 		// Create a different org/school for "role-only" account's tenant_id FK
 		otherOrgID := createTestOrganization(t, db, "stats-combo-other-org")
-		defer cleanupTestOrganization(t, db, otherOrgID)
 		otherSchoolID := createTestSchool(t, db, "stats-combo-other-school", otherOrgID)
-		defer cleanupTestSchool(t, db, otherSchoolID)
 
 		roleID := createTestRole(t, db, "stats-combo-role")
-		defer cleanupTestRole(t, db, roleID)
 
 		// Account with both role AND tenant in the target org
 		accBoth := createTestAccount(t, db, "stats-combo-both@test.com")
-		defer cleanupTestAccount(t, db, accBoth)
 		assignTestRole(t, db, accBoth, roleID, schoolID)
-		defer cleanupTestAccountRole(t, db, accBoth, roleID)
 		createTestAccountTenant(t, db, accBoth, schoolID)
-		defer cleanupTestAccountTenant(t, db, accBoth, schoolID)
 
 		// Account with role only (tenant in a different org — not in target org)
 		accRoleOnly := createTestAccount(t, db, "stats-combo-roleonly@test.com")
-		defer cleanupTestAccount(t, db, accRoleOnly)
 		assignTestRole(t, db, accRoleOnly, roleID, otherSchoolID)
-		defer cleanupTestAccountRole(t, db, accRoleOnly, roleID)
 		createTestAccountTenant(t, db, accRoleOnly, otherSchoolID)
-		defer cleanupTestAccountTenant(t, db, accRoleOnly, otherSchoolID)
 
 		// Account with tenant only (no role)
 		accTenantOnly := createTestAccount(t, db, "stats-combo-tenantonly@test.com")
-		defer cleanupTestAccount(t, db, accTenantOnly)
 		createTestAccountTenant(t, db, accTenantOnly, schoolID)
-		defer cleanupTestAccountTenant(t, db, accTenantOnly, schoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-combo", operator.ID, []string{"stats-combo-role"}, []int64{orgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1363,32 +1182,23 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("org+tenant filter counts OR-union without role", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-orgtenant-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolInOrg := createTestSchool(t, db, "stats-orgtenant-school1", orgID)
-		defer cleanupTestSchool(t, db, schoolInOrg)
 
 		otherOrgID := createTestOrganization(t, db, "stats-orgtenant-other-org")
-		defer cleanupTestOrganization(t, db, otherOrgID)
 
 		schoolInOtherOrg := createTestSchool(t, db, "stats-orgtenant-school2", otherOrgID)
-		defer cleanupTestSchool(t, db, schoolInOtherOrg)
 
 		// Account in org (should match org filter)
 		accInOrg := createTestAccount(t, db, "stats-orgtenant-inorg@test.com")
-		defer cleanupTestAccount(t, db, accInOrg)
 		createTestAccountTenant(t, db, accInOrg, schoolInOrg)
-		defer cleanupTestAccountTenant(t, db, accInOrg, schoolInOrg)
 
 		// Account in specific tenant in other org (should match tenant filter)
 		accInTenant := createTestAccount(t, db, "stats-orgtenant-intenant@test.com")
-		defer cleanupTestAccount(t, db, accInTenant)
 		createTestAccountTenant(t, db, accInTenant, schoolInOtherOrg)
-		defer cleanupTestAccountTenant(t, db, accInTenant, schoolInOtherOrg)
 
 		// Announcement targets org AND a specific tenant in other org (OR-union)
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-orgtenant", operator.ID, []string{}, []int64{orgID}, []int64{schoolInOtherOrg})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1397,44 +1207,30 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("role+org+tenant filter counts intersection of role with OR-union", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-roleorgtenant-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolInOrg := createTestSchool(t, db, "stats-roleorgtenant-school1", orgID)
-		defer cleanupTestSchool(t, db, schoolInOrg)
 
 		otherOrgID := createTestOrganization(t, db, "stats-roleorgtenant-other-org")
-		defer cleanupTestOrganization(t, db, otherOrgID)
 
 		schoolInOtherOrg := createTestSchool(t, db, "stats-roleorgtenant-school2", otherOrgID)
-		defer cleanupTestSchool(t, db, schoolInOtherOrg)
 
 		roleID := createTestRole(t, db, "stats-roleorgtenant-role")
-		defer cleanupTestRole(t, db, roleID)
 
 		// Account with role + in target org (should match: role AND org)
 		accRoleInOrg := createTestAccount(t, db, "stats-rot-roleinorg@test.com")
-		defer cleanupTestAccount(t, db, accRoleInOrg)
 		assignTestRole(t, db, accRoleInOrg, roleID, schoolInOrg)
-		defer cleanupTestAccountRole(t, db, accRoleInOrg, roleID)
 		createTestAccountTenant(t, db, accRoleInOrg, schoolInOrg)
-		defer cleanupTestAccountTenant(t, db, accRoleInOrg, schoolInOrg)
 
 		// Account with role + in target tenant (should match: role AND tenant)
 		accRoleInTenant := createTestAccount(t, db, "stats-rot-roleintenant@test.com")
-		defer cleanupTestAccount(t, db, accRoleInTenant)
 		assignTestRole(t, db, accRoleInTenant, roleID, schoolInOtherOrg)
-		defer cleanupTestAccountRole(t, db, accRoleInTenant, roleID)
 		createTestAccountTenant(t, db, accRoleInTenant, schoolInOtherOrg)
-		defer cleanupTestAccountTenant(t, db, accRoleInTenant, schoolInOtherOrg)
 
 		// Account without role but in target org (should NOT match: missing role)
 		accNoRole := createTestAccount(t, db, "stats-rot-norole@test.com")
-		defer cleanupTestAccount(t, db, accNoRole)
 		createTestAccountTenant(t, db, accNoRole, schoolInOrg)
-		defer cleanupTestAccountTenant(t, db, accNoRole, schoolInOrg)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-roleorgtenant", operator.ID, []string{"stats-roleorgtenant-role"}, []int64{orgID}, []int64{schoolInOtherOrg})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1445,35 +1241,24 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("role+tenant filter counts intersection without org", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-roletenant-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		schoolID := createTestSchool(t, db, "stats-roletenant-school", orgID)
-		defer cleanupTestSchool(t, db, schoolID)
 
 		roleID := createTestRole(t, db, "stats-roletenant-role")
-		defer cleanupTestRole(t, db, roleID)
 
 		// Account with role + in target tenant (should match)
 		accMatch := createTestAccount(t, db, "stats-roletenant-match@test.com")
-		defer cleanupTestAccount(t, db, accMatch)
 		assignTestRole(t, db, accMatch, roleID, schoolID)
-		defer cleanupTestAccountRole(t, db, accMatch, roleID)
 		createTestAccountTenant(t, db, accMatch, schoolID)
-		defer cleanupTestAccountTenant(t, db, accMatch, schoolID)
 
 		// Account with role only, wrong tenant (should NOT match)
 		otherSchoolID := createTestSchool(t, db, "stats-roletenant-other", orgID)
-		defer cleanupTestSchool(t, db, otherSchoolID)
 		accWrongTenant := createTestAccount(t, db, "stats-roletenant-wrong@test.com")
-		defer cleanupTestAccount(t, db, accWrongTenant)
 		assignTestRole(t, db, accWrongTenant, roleID, otherSchoolID)
-		defer cleanupTestAccountRole(t, db, accWrongTenant, roleID)
 		createTestAccountTenant(t, db, accWrongTenant, otherSchoolID)
-		defer cleanupTestAccountTenant(t, db, accWrongTenant, otherSchoolID)
 
 		// Target: role + specific tenant, no org filter
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-roletenant", operator.ID, []string{"stats-roletenant-role"}, []int64{}, []int64{schoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1483,32 +1268,24 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("soft-deleted school excludes accounts from target count", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-softdel-org")
-		defer cleanupTestOrganization(t, db, orgID)
 
 		activeSchoolID := createTestSchool(t, db, "stats-softdel-active", orgID)
-		defer cleanupTestSchool(t, db, activeSchoolID)
 
 		deletedSchoolID := createTestSchool(t, db, "stats-softdel-deleted", orgID)
-		defer cleanupTestSchool(t, db, deletedSchoolID)
 
 		// Account in active school
 		accActive := createTestAccount(t, db, "stats-softdel-active@test.com")
-		defer cleanupTestAccount(t, db, accActive)
 		createTestAccountTenant(t, db, accActive, activeSchoolID)
-		defer cleanupTestAccountTenant(t, db, accActive, activeSchoolID)
 
 		// Account in soft-deleted school
 		accDeleted := createTestAccount(t, db, "stats-softdel-deleted@test.com")
-		defer cleanupTestAccount(t, db, accDeleted)
 		createTestAccountTenant(t, db, accDeleted, deletedSchoolID)
-		defer cleanupTestAccountTenant(t, db, accDeleted, deletedSchoolID)
 
 		// Soft-delete the school
 		softDeleteTestSchool(t, db, deletedSchoolID)
 
 		// Global announcement — should exclude accounts linked to soft-deleted school
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-softdel", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1517,7 +1294,6 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		// We can't assert an exact total (other accounts may exist in test DB),
 		// so we create a tenant-scoped announcement to get an exact count.
 		annoTenantID := createTestAnnouncementWithTargeting(t, db, "stats-softdel-tenant", operator.ID, []string{}, []int64{}, []int64{activeSchoolID, deletedSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoTenantID)
 
 		statsTenant, err := viewRepo.GetStats(ctx, annoTenantID)
 		require.NoError(t, err)
@@ -1525,7 +1301,6 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		// Also verify org-scoped: both schools are in the same org
 		annoOrgID := createTestAnnouncementWithTargeting(t, db, "stats-softdel-org-target", operator.ID, []string{}, []int64{orgID}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoOrgID)
 
 		statsOrg, err := viewRepo.GetStats(ctx, annoOrgID)
 		require.NoError(t, err)
@@ -1540,31 +1315,22 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		// AND a custom role with matching base_role, the COUNT(DISTINCT at.account_id)
 		// must still return 1, not 2. Protects the DISTINCT keyword in GetStats.
 		dOrgID := createTestOrganization(t, db, "stats-dual-role-org")
-		defer cleanupTestOrganization(t, db, dOrgID)
 		dSchoolID := createTestSchool(t, db, "stats-dual-role-school", dOrgID)
-		defer cleanupTestSchool(t, db, dSchoolID)
 
 		// Role with name "user" (direct name match on target_roles)
 		directRoleID := createTestRoleWithBaseRole(t, db, "user", "user", dSchoolID)
-		defer cleanupTestRole(t, db, directRoleID)
 
 		// Custom role with base_role = "user" (base_role match on target_roles)
 		customRoleID := createTestRoleWithBaseRole(t, db, "gruppenleitung-dual-test", "user", dSchoolID)
-		defer cleanupTestRole(t, db, customRoleID)
 
 		// Single account has BOTH roles assigned
 		acc := createTestAccount(t, db, "stats-dual-role@test.com")
-		defer cleanupTestAccount(t, db, acc)
 		assignTestRole(t, db, acc, directRoleID, dSchoolID)
-		defer cleanupTestAccountRole(t, db, acc, directRoleID)
 		assignTestRole(t, db, acc, customRoleID, dSchoolID)
-		defer cleanupTestAccountRole(t, db, acc, customRoleID)
 		createTestAccountTenant(t, db, acc, dSchoolID)
-		defer cleanupTestAccountTenant(t, db, acc, dSchoolID)
 
 		// Scope to this tenant so we only count accounts in dSchoolID
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-dual-role", operator.ID, []string{"user"}, []int64{}, []int64{dSchoolID})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
@@ -1573,23 +1339,18 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 	t.Run("seen and dismissed counts", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-views", operator.ID, []string{}, []int64{}, []int64{})
-		defer cleanupTestAnnouncement(t, db, annoID)
 
 		acc1 := createTestAccount(t, db, "stats-view-acc1@test.com")
-		defer cleanupTestAccount(t, db, acc1)
 
 		acc2 := createTestAccount(t, db, "stats-view-acc2@test.com")
-		defer cleanupTestAccount(t, db, acc2)
 
 		// acc1 seen only
 		err := viewRepo.MarkSeen(ctx, acc1, annoID)
 		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, acc1, annoID)
 
 		// acc2 seen + dismissed
 		err = viewRepo.MarkDismissed(ctx, acc2, annoID)
 		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, acc2, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)

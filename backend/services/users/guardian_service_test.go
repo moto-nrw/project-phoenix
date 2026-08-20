@@ -71,9 +71,6 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 		// ACT
 		result, err := service.CreateGuardian(ctx, req)
 		defer func() {
-			if result != nil {
-				testpkg.CleanupActivityFixtures(t, db, result.ID)
-			}
 		}()
 
 		// ASSERT
@@ -97,9 +94,6 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 		// ACT
 		result, err := service.CreateGuardian(ctx, req)
 		defer func() {
-			if result != nil {
-				testpkg.CleanupActivityFixtures(t, db, result.ID)
-			}
 		}()
 
 		// ASSERT
@@ -119,9 +113,6 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 		// ACT
 		result, err := service.CreateGuardian(ctx, req)
 		defer func() {
-			if result != nil {
-				testpkg.CleanupActivityFixtures(t, db, result.ID)
-			}
 		}()
 
 		// ASSERT
@@ -156,7 +147,6 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	first, err := service.CreateGuardian(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, first)
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID)
 
 	// Second create with the SAME email (different name) must be rejected as a
 	// validation error, not a DB/operational failure — and nothing is inserted.
@@ -187,7 +177,6 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 	t.Run("returns guardian when found", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		// ACT
 		result, err := service.GetGuardianByID(ctx, profile.ID)
@@ -226,7 +215,6 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 	t.Run("updates guardian successfully", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-update")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		// Use unique email to avoid collisions
 		newEmail := fmt.Sprintf("updated-%d@example.com", time.Now().UnixNano())
@@ -269,7 +257,6 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		// ARRANGE — two distinct guardians.
 		other := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-other")
 		target := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-target")
-		defer testpkg.CleanupActivityFixtures(t, db, other.ID, target.ID)
 
 		req := users.GuardianCreateRequest{
 			FirstName:              "Target",
@@ -292,7 +279,6 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 	t.Run("allows saving a guardian without changing its own email (self-exclusion)", func(t *testing.T) {
 		// ARRANGE — a guardian kept at its own email is NOT a collision with itself.
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update-self")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		req := users.GuardianCreateRequest{
 			FirstName:              "Renamed",
@@ -348,7 +334,6 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// (the #819 sibling-data-loss bug).
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "restrict-linked")
 		student := testpkg.CreateTestStudent(t, db, "Restrict", "Linked", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
@@ -383,7 +368,6 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete")
 	siblingA := testpkg.CreateTestStudent(t, db, "Sibling", "Aaa", "1a")
 	siblingB := testpkg.CreateTestStudent(t, db, "Sibling", "Bbb", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, siblingA.ID, siblingB.ID)
 	for _, s := range []int64{siblingA.ID, siblingB.ID} {
 		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         s,
@@ -428,7 +412,6 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete-stale")
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Changed", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
@@ -467,7 +450,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-to-student")
 		student := testpkg.CreateTestStudent(t, db, "Linked", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
@@ -495,7 +477,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE — link a guardian once.
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "relink")
 		student := testpkg.CreateTestStudent(t, db, "Relink", "Student", "1c")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -535,7 +516,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE — link a guardian with a minimal relationship.
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "upsert")
 		student := testpkg.CreateTestStudent(t, db, "Upsert", "Student", "1d")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		first, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -586,7 +566,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -606,7 +585,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	t.Run("returns error when student not found", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "orphan-guardian")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		req := users.StudentGuardianCreateRequest{
 			StudentID:         99999999,
@@ -626,7 +604,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	t.Run("applies explicit pickup-only role without portal permissions", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-pickup-only")
 		student := testpkg.CreateTestStudent(t, db, "PickupOnly", "Student", "4a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -648,7 +625,6 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	t.Run("defaults primary relationship to full portal permissions", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-primary-role")
 		student := testpkg.CreateTestStudent(t, db, "PrimaryRole", "Student", "4a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -683,7 +659,6 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "student-guardian")
 		student := testpkg.CreateTestStudent(t, db, "HasGuardian", "Student", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Link guardian to student
 		req := users.StudentGuardianCreateRequest{
@@ -711,7 +686,6 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
 		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -746,7 +720,6 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 	t.Run("returns empty list when no guardians", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoGuardians", "Student", "2b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		result, err := service.GetStudentGuardians(ctx, student.ID)
@@ -773,7 +746,6 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "has-students")
 		student := testpkg.CreateTestStudent(t, db, "GuardianChild", "Student", "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Link guardian to student
 		req := users.StudentGuardianCreateRequest{
@@ -796,7 +768,6 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	t.Run("excludes graduated students", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "alumnus-child")
 		student := testpkg.CreateTestStudent(t, db, "Former", "Student", "4a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -820,7 +791,6 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	t.Run("returns empty list when no students", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-students")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// ACT
 		result, err := service.GetGuardianStudents(ctx, guardian.ID)
@@ -847,7 +817,6 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-get")
 		student := testpkg.CreateTestStudent(t, db, "RelGet", "Student", "4a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
 		req := users.StudentGuardianCreateRequest{
@@ -893,7 +862,6 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdate", "Student", "5a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
 		createReq := users.StudentGuardianCreateRequest{
@@ -942,7 +910,6 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	t.Run("updates role and derived permissions", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-role")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateRole", "Student", "5b")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
@@ -970,7 +937,6 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	t.Run("updates every optional relationship field", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-all")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateAll", "Student", "5b")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
@@ -1054,7 +1020,6 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 	t.Run("accepts existing profile link request", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-existing")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		req := validNewStudentGuardian("")
 		req.ExistingProfileID = &profile.ID
@@ -1078,7 +1043,6 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 	t.Run("rejects email already owned by a profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-owned")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		req := validNewStudentGuardian(*profile.Email)
 
@@ -1091,7 +1055,6 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 	t.Run("rejects invalid existing profile relationship", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-bad-rel")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		req := validNewStudentGuardian("")
 		req.ExistingProfileID = &profile.ID
@@ -1106,7 +1069,6 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 	t.Run("rejects missing existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-missing-existing")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		missingID := profile.ID + time.Now().UnixNano()
 		req := validNewStudentGuardian("")
@@ -1180,7 +1142,6 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 
 	t.Run("creates new guardian links student and adds phone", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "BatchAdd", "Student", "7a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		email := fmt.Sprintf("batch-add-%d@example.com", time.Now().UnixNano())
 		req := validNewStudentGuardian(email)
@@ -1203,7 +1164,6 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 	t.Run("links existing profile once when selected twice", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "ExistingBatch", "Student", "7b")
 		profile := testpkg.CreateTestGuardianProfile(t, db, "existing-batch")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID)
 
 		first := validNewStudentGuardian("")
 		first.ExistingProfileID = &profile.ID
@@ -1224,7 +1184,6 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 
 	t.Run("returns validation error before writing invalid guardian", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "InvalidBatch", "Student", "7c")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		req := validNewStudentGuardian(fmt.Sprintf("batch-invalid-%d@example.com", time.Now().UnixNano()))
 		req.Relationship.RelationshipType = "friend"
@@ -1265,7 +1224,6 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		token := fmt.Sprintf("picker-%d", time.Now().UnixNano())
 		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
 		student := testpkg.CreateTestStudent(t, db, "Picker", "Child", "8a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
@@ -1287,7 +1245,6 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 	t.Run("returns matches without linked children", func(t *testing.T) {
 		token := fmt.Sprintf("picker-unlinked-%d", time.Now().UnixNano())
 		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
 		require.NoError(t, err)
@@ -1330,7 +1287,6 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "to-remove")
 		student := testpkg.CreateTestStudent(t, db, "RemoveGuardian", "Student", "6a")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
 		req := users.StudentGuardianCreateRequest{
@@ -1356,7 +1312,6 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 	t.Run("returns error when relationship not found", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999)
@@ -1380,9 +1335,8 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 
 	t.Run("returns list of guardians", func(t *testing.T) {
 		// ARRANGE
-		guardian1 := testpkg.CreateTestGuardianProfile(t, db, "list-1")
-		guardian2 := testpkg.CreateTestGuardianProfile(t, db, "list-2")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian1.ID, guardian2.ID)
+		testpkg.CreateTestGuardianProfile(t, db, "list-1")
+		testpkg.CreateTestGuardianProfile(t, db, "list-2")
 
 		// ACT
 		result, err := service.ListGuardians(ctx, nil)
@@ -1408,7 +1362,6 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 	t.Run("returns guardians without accounts", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-account")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// ACT
 		result, err := service.GetGuardiansWithoutAccount(ctx)
@@ -1442,8 +1395,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 
 	t.Run("returns invitable guardians", func(t *testing.T) {
 		// ARRANGE - create guardian with email (invitable)
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "invitable")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+		testpkg.CreateTestGuardianProfile(t, db, "invitable")
 
 		// ACT
 		result, err := service.GetInvitableGuardians(ctx)
@@ -1479,11 +1431,9 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 		}
 
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Pending", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+		_, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		// ACT - get pending invitations
 		result, err := service.GetPendingInvitations(ctx)
@@ -1586,11 +1536,9 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 		}
 		guardian, err := service.CreateGuardian(ctx, req)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create a teacher to be the inviter
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inviter", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// ACT - send invitation
 		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
@@ -1654,7 +1602,6 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 		}
 		guardian, err := service.CreateGuardian(ctx, req)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// ACT
 		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
@@ -1689,11 +1636,9 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 		}
 		guardian, err := service.CreateGuardian(ctx, req)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create first invitation
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "First", "Inviter")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		_, err = service.SendInvitation(ctx, users.GuardianInvitationRequest{
 			GuardianProfileID: guardian.ID,
@@ -1739,14 +1684,10 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 		}
 
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Creator", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// ACT
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		defer func() {
-			if profile != nil {
-				testpkg.CleanupActivityFixtures(t, db, profile.ID)
-			}
 		}()
 
 		// ASSERT
@@ -1810,16 +1751,13 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		}
 
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "One")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// Create first guardian with invitation
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+		profile, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		// Mark the profile as having an account (what accepting the live
 		// guardian invitation flow does)
-		_ = invitation
 		account := testpkg.CreateTestAccount(t, db, guardianEmail)
 		_, err = db.NewUpdate().
 			ModelTableExpr(`users.guardian_profiles`).
@@ -1853,7 +1791,6 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	t.Run("adds first phone number as primary by default", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "first-phone")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		req := users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 123 456789",
@@ -1875,7 +1812,6 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	t.Run("adds second phone number as non-primary", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "second-phone")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Add first phone
 		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
@@ -1904,7 +1840,6 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	t.Run("adds phone with explicit primary flag", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "explicit-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Add first phone
 		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
@@ -1943,7 +1878,6 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	t.Run("defaults to mobile phone type for invalid type", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-type")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		req := users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
@@ -1999,7 +1933,6 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	t.Run("updates phone number fields", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-fields")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 666 666666",
@@ -2033,7 +1966,6 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create two phones
 		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
@@ -2074,7 +2006,6 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	t.Run("unsets primary flag", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 888 888888",
@@ -2102,7 +2033,6 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	t.Run("updates priority", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-priority")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 999 999999",
@@ -2166,7 +2096,6 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 	t.Run("deletes non-primary phone", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-non-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
@@ -2199,7 +2128,6 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 	t.Run("deletes primary phone and promotes next", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
@@ -2235,7 +2163,6 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 	t.Run("deletes last phone number", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-last")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 555 555555",
@@ -2289,7 +2216,6 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 	t.Run("sets phone as primary", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
@@ -2354,7 +2280,6 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 	t.Run("returns all phone numbers sorted by priority", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-phones")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Add three phones
 		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
@@ -2395,7 +2320,6 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 	t.Run("returns empty list when guardian has no phones", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// ACT
 		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
@@ -2421,7 +2345,6 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 	t.Run("returns phone number by ID", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		label := "Hauptnummer"
 		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{

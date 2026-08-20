@@ -69,7 +69,6 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	// Create two students: one with a pickup schedule, one without
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
 
 	// The handler derives the weekday via timezone.DateOf(time.Now()), which
 	// converts to Europe/Berlin before extracting the date. The test must use
@@ -177,7 +176,6 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "WithSchedule", schoolClass)
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
 
 	berlinToday := timezone.DateOf(time.Now())
 	todayWeekday := int(berlinToday.Weekday())
@@ -282,10 +280,9 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	exceptionAbsent := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "Exception", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "DayPlan", "Creator")
 	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, planned.ID, notPlanned.ID, walkIn.ID, sick.ID, exceptionAbsent.ID, staff.ID, device.ID)
 
 	today := timezone.DateFromTime(fixedNow)
-	pickupSchedule := testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
+	testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
 	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 
 	trueValue := true
@@ -296,17 +293,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 		Where("id = ?", sick.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-	arrivalException := testpkg.CreateTestArrivalException(t, tc.db, exceptionAbsent.ID, today, staff.ID, "", "Arzttermin")
-	defer testpkg.CleanupScheduleFixturesB11(
-		t,
-		tc.db,
-		nil,
-		[]int64{arrivalException.ID},
-		[]int64{pickupSchedule.ID},
-		nil,
-		nil,
-		nil,
-	)
+	testpkg.CreateTestArrivalException(t, tc.db, exceptionAbsent.ID, today, staff.ID, "", "Arzttermin")
 
 	t.Run("returns_computed_day_planning_fields", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
@@ -372,10 +359,9 @@ func TestListStudents(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test students using fixtures
-	student1 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
-	student2 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b")
-	student3 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentEleven", "11a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID, student3.ID)
+	testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
+	testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b")
+	testpkg.CreateTestStudent(t, tc.db, "List", "StudentEleven", "11a")
 
 	t.Run("success_admin_lists_all_students", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
@@ -413,8 +399,7 @@ func TestListStudents_WithLocationFilter(t *testing.T) {
 
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1")
 
 	t.Run("filter_by_in_house", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?location=in_house", nil)
@@ -436,8 +421,7 @@ func TestListStudents_WithNameFilters(t *testing.T) {
 
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "NameFilter", "Test", "NF1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	testpkg.CreateTestStudent(t, tc.db, "NameFilter", "Test", "NF1")
 
 	t.Run("filter_by_first_name", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?first_name=NameFilter", nil)
@@ -462,12 +446,10 @@ func TestListStudents_ExtendedFilters(t *testing.T) {
 
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Filter", "Student", "FI1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	testpkg.CreateTestStudent(t, tc.db, "Filter", "Student", "FI1")
 
 	t.Run("filter_by_group_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d", group.ID), nil)
 
@@ -505,7 +487,6 @@ func TestGetStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Get", "Student", "GS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_admin_gets_student", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
@@ -535,7 +516,6 @@ func TestGetStudent(t *testing.T) {
 	// routes returned when graduates were hard-deleted (#405).
 	t.Run("not_found_for_alumnus", func(t *testing.T) {
 		alumnus := testpkg.CreateTestStudent(t, tc.db, "Graduated", "Alumnus", "GS-Alum")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, alumnus.ID)
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.students`).
 			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
@@ -747,7 +727,6 @@ func TestCreateStudent_WithGroupID(t *testing.T) {
 	tc := setupTestContext(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CreateGroup")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	t.Run("creates_student_with_group", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -770,7 +749,6 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 
 	t.Run("create_with_all_fields", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		body := map[string]interface{}{
 			"first_name":       "Full",
@@ -805,7 +783,6 @@ func TestUpdateStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Update", "Student", "US1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_updates_student", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -857,7 +834,6 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("update_guardian_name", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -896,7 +872,6 @@ func TestUpdateStudent_WithSickStatus(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("mark_as_sick", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -927,7 +902,6 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 
 	t.Run("mark_student_as_sick_sets_sick_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "SickSince", "Student", "SS2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Mark as sick
 		body := map[string]interface{}{
@@ -942,7 +916,6 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 
 	t.Run("clear_sick_status_clears_sick_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ClearSick", "Student", "CS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First mark as sick
 		sickBody := map[string]interface{}{
@@ -981,7 +954,6 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 
 	t.Run("mark_as_excused_sets_excused_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		eventCount := len(tc.broadcaster.Events())
 
@@ -999,7 +971,6 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 
 	t.Run("clear_excused_clears_excused_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ClearExcused", "Student", "EC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		setReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
 			map[string]interface{}{"excused": true})
@@ -1034,7 +1005,6 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 
 	t.Run("both_flags_true_in_same_request_is_rejected", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Student", "MS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{"sick": true, "excused": true}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
@@ -1048,7 +1018,6 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 
 	t.Run("setting_sick_while_already_excused_is_rejected", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Excused", "ME1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Pre-state: excused = true
 		excReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
@@ -1067,7 +1036,6 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 
 	t.Run("switch_from_sick_to_excused_in_one_request_succeeds", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Switch", "Student", "SW1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Pre-state: sick = true
 		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
@@ -1094,7 +1062,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_health_info", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Health", "Student", "HS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"health_info": "Allergies: Peanuts",
@@ -1108,7 +1075,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_extra_info", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Student", "EX1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"extra_info": "Additional notes about the student",
@@ -1122,7 +1088,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_supervisor_notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Notes", "Student", "NS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"supervisor_notes": "Supervisor observations",
@@ -1136,7 +1101,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_and_clear_child_address", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Address", "Student", "AS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"address_street":      "  Neue Straße 5  ",
@@ -1181,7 +1145,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_pickup_status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Student", "PU1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"pickup_status": "ready",
@@ -1195,7 +1158,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_bus", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Bus", "Student", "BU1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Bus is a boolean flag, not a string
 		body := map[string]interface{}{
@@ -1212,7 +1174,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		requireStudentsBusDaysColumn(t, tc)
 
 		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Preserve", "BDP1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		existing := usersModel.BusDays{
 			usersModel.BusDayMonday:    true,
@@ -1246,7 +1207,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		requireStudentsBusDaysColumn(t, tc)
 
 		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Replace", "BDR1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"bus_days": map[string]bool{
@@ -1271,7 +1231,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		requireStudentsBusDaysColumn(t, tc)
 
 		student := testpkg.CreateTestStudent(t, tc.db, "Departure", "Update", "DEP1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Seed an existing bus plan, then replace it via the unified field.
 		seed := map[string]interface{}{"bus_days": map[string]bool{"mon": true}}
@@ -1303,7 +1262,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		requireStudentsBusDaysColumn(t, tc)
 
 		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Reject", "BDX1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		existing := usersModel.BusDays{
 			usersModel.BusDayMonday: true,
@@ -1339,7 +1297,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 	t.Run("update_guardian_contact", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "GC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"guardian_contact": "Emergency: 0800-123456",
@@ -1359,7 +1316,6 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 
 	t.Run("update_last_name", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Original", "Last", "OL1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"last_name": "Updated",
@@ -1374,7 +1330,6 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 
 	t.Run("update_birthday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Birthday", "Update", "BU2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"birthday": "2015-06-15",
@@ -1389,7 +1344,6 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 
 	t.Run("clear_guardian_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Clear", "GCL1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set guardian fields
 		ctx := testpkg.Ctx(t)
@@ -1519,8 +1473,6 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 		// Assign student to group
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
-
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		// Admin sees full details including supervisors
@@ -1544,9 +1496,7 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
 		// Create another staff member (not a supervisor of this group)
-		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Viewer")
-
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, otherStaff.ID)
+		_, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Viewer")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
@@ -1577,7 +1527,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 	t.Run("update_all_person_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Update", "AllFields", "UAF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"first_name":  "NewFirst",
@@ -1599,7 +1548,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 	t.Run("update_guardian_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"guardian_first_name": "GuardianFirst",
@@ -1616,7 +1564,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 	t.Run("update_student_specific_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Student", "Specific", "SS2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"school_class":        "2b",
@@ -1635,7 +1582,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 	t.Run("update_sick_status_extended", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SK1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"sick":       true,
@@ -1651,7 +1597,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 	t.Run("clear_sick_status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Clear", "Sick", "CS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set sick status
 		ctx := testpkg.Ctx(t)
@@ -1710,7 +1655,6 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 
 	t.Run("create_with_group_assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "AssignGroup")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		body := map[string]interface{}{
 			"first_name":   "Group",
@@ -1741,7 +1685,6 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
 		student := testpkg.CreateTestStudent(t, tc.db, "Filter", "GroupStudent", "FG1")
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d", group.ID), nil)
 
@@ -1756,7 +1699,6 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 		other := testpkg.CreateTestStudent(t, tc.db, "Filter", "OtherClass", "FGC2")
 		testpkg.AssignStudentToGroup(t, tc.db, matching.ID, group.ID)
 		testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, matching.ID, other.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d&school_class=FGC1&page_size=50", group.ID), nil)
 
@@ -1776,8 +1718,7 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 	})
 
 	t.Run("filter_combined_search_and_class", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+		testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1")
 
 		req := testutil.NewRequest("GET", "/?search=Combined&school_class=CF1", nil)
 
@@ -1799,10 +1740,9 @@ func TestListSchoolClasses(t *testing.T) {
 	t.Parallel()
 
 	tc := setupTestContext(t)
-	first := testpkg.CreateTestStudent(t, tc.db, "Class", "One", "DistinctClass1")
-	second := testpkg.CreateTestStudent(t, tc.db, "Class", "Two", "DistinctClass2")
-	duplicate := testpkg.CreateTestStudent(t, tc.db, "Class", "Duplicate", "DistinctClass1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, first.ID, second.ID, duplicate.ID)
+	testpkg.CreateTestStudent(t, tc.db, "Class", "One", "DistinctClass1")
+	testpkg.CreateTestStudent(t, tc.db, "Class", "Two", "DistinctClass2")
+	testpkg.CreateTestStudent(t, tc.db, "Class", "Duplicate", "DistinctClass1")
 
 	req := testutil.NewRequest("GET", "/school-classes", nil)
 
@@ -1841,7 +1781,6 @@ func TestListStudents_AlumniHidden(t *testing.T) {
 
 	visible := testpkg.CreateTestStudent(t, tc.db, "Visible", "Kid", alumniClass)
 	hidden := testpkg.CreateTestStudent(t, tc.db, "Hidden", "Alumnus", alumniClass)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, visible.ID, hidden.ID)
 
 	_, err := tc.db.NewUpdate().
 		TableExpr(`users.students`).

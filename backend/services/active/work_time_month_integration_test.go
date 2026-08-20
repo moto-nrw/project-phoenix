@@ -46,8 +46,6 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	// Contract: Mondays 480 minutes since 2020.

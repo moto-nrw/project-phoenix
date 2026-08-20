@@ -32,15 +32,6 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 		`UPDATE platform.schools SET hidden = true WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`UPDATE platform.schools SET hidden = false WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
-
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 	resource.SettingsService = svc.Settings

@@ -110,7 +110,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	linkedName := fmt.Sprintf("eligibility-visible-%d", time.Now().UnixNano())
@@ -127,7 +126,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	revokeGuardianSubmitPermission(t, db, chain.StudentID)
 
@@ -186,7 +184,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSub
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	existingName := fmt.Sprintf("eligibility-exvisible-%d", time.Now().UnixNano())
@@ -217,7 +214,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInact
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "inactive")
 
@@ -241,7 +237,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPend
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "pending")
 
@@ -259,7 +254,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedP
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// Full permission set stays on the guardian link; only the membership
 	// mapping is deactivated. The linked_parents phase must still disappear.
@@ -289,7 +283,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -328,7 +321,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuar
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -366,7 +358,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMem
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -390,7 +381,6 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsS
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	deactivateAccountTenantMapping(t, db, chain.AccountID)
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
@@ -411,7 +401,6 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 
@@ -469,7 +458,6 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracks
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 	load := func() *parentModels.GuardianSubmitStatus {

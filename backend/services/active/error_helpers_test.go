@@ -101,11 +101,9 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "DupViolActivity")
 		room := testpkg.CreateTestRoom(t, db, "DupViolRoom")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, activity.ID, room.ID, activeGroup.ID)
 
 		// First insert: succeeds and stays open (exit_time IS NULL).
-		first := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
-		defer testpkg.CleanupTableRecords(t, db, "active.visits", first.ID)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
 
 		// Second insert: same (tenant_id=1, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.

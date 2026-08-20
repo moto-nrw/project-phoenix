@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,16 +38,9 @@ func init() {
 	testutil.SeedTestJWTConfig()
 }
 
-// displayTenantCounter seeds unique tenant IDs for this package. Deliberately
-// SMALL numbers (not UnixNano): the tenant ID travels through JWT claims,
-// which JSON-decode as float64 — IDs above 2^53 silently lose precision and
-// the FK to platform.schools no longer matches. Uniqueness only needs to hold
-// within this package's cloned test database.
-var displayTenantCounter int64 = 780_000 + time.Now().UnixNano()%100_000
-
 func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
-	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableDisplayFeature(t, db, tenantID)
 	return tenantID
@@ -144,23 +136,12 @@ func createDisplayViaAPI(t *testing.T, router http.Handler, adminJWT, name strin
 	return fmt.Sprintf("%d", created.Display.ID), created.Token
 }
 
-func cleanupDisplays(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewDelete().
-		TableExpr("display.displays").
-		Where("tenant_id = ?", tenantID).
-		Exec(ctx)
-}
-
 func TestDisplayAdminCRUD(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-admin-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read", "display:manage"})
@@ -249,7 +230,6 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-dash-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -367,8 +347,6 @@ func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
 
 	tenantA := newDisplayTestTenant(t, db)
 	tenantB := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantA)
-	defer cleanupDisplays(t, db, tenantB)
 	router := newDisplayRouter(t, db)
 
 	accountA := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-a-%d@test.local", tenantA))
@@ -417,7 +395,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	}
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-pickup-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -515,7 +492,6 @@ func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 	setupDashboard := func(t *testing.T, label string) (int64, string) {
 		t.Helper()
 		tenantID := newDisplayTestTenant(t, db)
-		t.Cleanup(func() { cleanupDisplays(t, db, tenantID) })
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-%s-%d@test.local", label, tenantID))
 		adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
 		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Lifecycle "+label)
@@ -567,7 +543,6 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-touch-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -651,9 +626,8 @@ func TestDisplayFeatureGate(t *testing.T) {
 	// feature by default for the rest of this package's tests. This test
 	// needs a tenant that starts with display.enabled at its registry
 	// default (false).
-	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer cleanupDisplays(t, db, tenantID)
 
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-gate-%d@test.local", tenantID))

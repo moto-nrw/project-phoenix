@@ -50,8 +50,6 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "BatchVisit Activity")
 	room := testpkg.CreateTestRoom(t, db, "BatchVisit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		student.ID, lateStudent.ID, eduGroup.ID, staff.ID, device.ID, activityGroup.ID, room.ID, activeGroup.ID)
 
 	checkIn := time.Now().Add(-2 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkIn, nil)
@@ -117,10 +115,8 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "BatchClear Edu")
 	setGroupID(t, db, student.ID, eduGroup.ID)
 	staff := testpkg.CreateTestStaff(t, db, "BatchClear", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, eduGroup.ID, staff.ID)
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.TodayDate(), "sick")
-	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
 	// The batch clear targets scheduled-ahead rows; the fixture writes
 	// source=manual, so flip it to the planned shape under test.
 	_, err := db.NewUpdate().
@@ -156,7 +152,6 @@ func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "BatchAction", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// The action check fires before any student lookup, so any id works.
 	result, err := service.ProcessSchoolCheckinBatch(ctx, []int64{staff.ID}, staff.ID, "toggle")

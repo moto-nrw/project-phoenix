@@ -405,12 +405,11 @@ func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 
-	ctx := testpkg.Ctx(t)
+	testpkg.Ctx(t)
 	offering := createPickupTimeOffering(t, env, "gehzeit-approve",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Materialisiert")
 	studentID := submitAndApproveWithReviewer(t, env, offering.ID, "gehzeit-approve@example.com", "Appa", reviewerAccount.ID, nil)
-	_ = ctx
 
 	rows := pickupRowsByWeekday(t, env, studentID)
 	require.Contains(t, rows, scheduleModels.WeekdayMonday,
@@ -465,8 +464,7 @@ func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
 	offering := createPickupTimeOffering(t, env, "gehzeit-form",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
-	reviewerStaff, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Gehzeit")
-	_ = reviewerStaff
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Gehzeit")
 
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{

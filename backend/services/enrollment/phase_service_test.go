@@ -495,7 +495,6 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	defer func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
-		testpkg.CleanupPerson(t, db, student.PersonID)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
@@ -553,7 +552,6 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	defer func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
-		testpkg.CleanupPerson(t, db, student.PersonID)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))

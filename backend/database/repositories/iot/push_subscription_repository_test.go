@@ -235,7 +235,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("child scope answers parent_portal.access for that child", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		defer cleanupPushSubscriptions(t, db, chain.AccountID)
 
 		chainCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
@@ -250,7 +249,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// Another family's child in the same school: the relationship carries the
 		// permission, so being a guardian somewhere is not access everywhere.
 		otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, otherFamily)
 		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{otherFamily.StudentID})
 		require.NoError(t, err)
 		assert.Empty(t, subs, "no relationship to that child means no push about it")

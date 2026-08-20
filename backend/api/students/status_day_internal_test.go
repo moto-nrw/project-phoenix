@@ -43,7 +43,7 @@ func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, repo
 func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 	t.Parallel()
 
-	const tenantID int64 = 17
+	tenantID := testpkg.UniqueTestTenantID(t)
 	const actorID = 23
 	today := timezone.TodayDate()
 
@@ -342,7 +342,6 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 
 	resource := newStatusDayTestResource(db)
 	student := testpkg.CreateTestStudent(t, db, "StatusHandler", "Student", "SH1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
 
 	createReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
@@ -381,7 +380,6 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	notifier := &recordingAbsenceNotifier{}
 	resource.AbsenceNotifier = notifier
 	student := testpkg.CreateTestStudent(t, db, "StatusToday", "Student", "ST1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
 	today := timezone.TodayDate().Format(dateFormatYYYYMMDD)
 
@@ -502,7 +500,6 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 
 	resource := newStatusDayTestResource(db)
 	student := testpkg.CreateTestStudent(t, db, "StatusInvalid", "Student", "SI1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
 	overLimitIDs := make([]int64, 501)
 	for i := range overLimitIDs {
@@ -578,7 +575,6 @@ func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 	resource := newStatusDayTestResource(db)
 	resource.StudentStatusDayService = nil
 	student := testpkg.CreateTestStudent(t, db, "StatusMissing", "Student", "SM1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	router := statusDayTestRouter(resource)
 
 	getReq := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days", student.ID), nil)
@@ -611,7 +607,6 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StatusErrors", "Student", "SE1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	baseResource := newStatusDayTestResource(db)
 
 	t.Run("get maps repository error to internal server error", func(t *testing.T) {

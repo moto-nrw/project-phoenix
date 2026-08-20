@@ -38,56 +38,8 @@ type instFixture struct {
 	studentIDs       []int64
 	staffIDs         []int64
 	roomIDs          []int64
-	activityGrpIDs   []int64
 	templateIDs      []int64
 	categoryIDs      []int64
-}
-
-func (f *instFixture) cleanup(t *testing.T) {
-	t.Helper()
-	// Children first. Most instance_students + instance_staff rows disappear
-	// via CASCADE when the instance row is deleted by the test, but some
-	// tests intentionally leave rows un-deleted and want the child tables
-	// cleared explicitly.
-	if len(f.instStudentIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_students", f.instStudentIDs...)
-	}
-	if len(f.instanceStaffIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_staff", f.instanceStaffIDs...)
-	}
-	if len(f.instanceIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.activity_instances", f.instanceIDs...)
-	}
-	if len(f.exceptionIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.activity_exceptions", f.exceptionIDs...)
-	}
-	if len(f.templateIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.groups", f.templateIDs...)
-	}
-	if len(f.activityGrpIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.groups", f.activityGrpIDs...)
-	}
-	if len(f.categoryIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.categories", f.categoryIDs...)
-	}
-	if len(f.studentIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "users.students", f.studentIDs...)
-	}
-	if len(f.staffIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "users.staff", f.staffIDs...)
-	}
-	if len(f.roomIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "facilities.rooms", f.roomIDs...)
-	}
-	// Clean up orphaned audit rows for the test's affected students. Audit
-	// rows are tenant-scoped and use DELETE CASCADE on student_id, so most
-	// are gone when the student is deleted — but rows written by tests
-	// where we prevent the DELETE (mock rollback) remain.
-	for _, sid := range f.studentIDs {
-		_, _ = f.db.NewDelete().Table("audit.data_deletions").
-			Where("tenant_id = ? AND student_id = ? AND deletion_type = ?", f.tenantID, sid, auditModels.DeletionTypeTimetableRetention).
-			Exec(f.ctx)
-	}
 }
 
 // newInstanceFixture inserts an ActivityInstance row and returns the ID. The
@@ -174,7 +126,6 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Room-%d", suffix))
 	f := &instFixture{db: db, ctx: ctx, tenantID: tenantID, roomIDs: []int64{room.ID}}
-	t.Cleanup(func() { f.cleanup(t) })
 	return f, room.ID
 }
 
@@ -215,8 +166,7 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 	f.categoryIDs = append(f.categoryIDs, cat.ID)
 	template := createTemplate(t, f, roomID, cat.ID)
 	oldExcID := f.newException(t, template.ID, old, scheduleModels.ActivityExceptionCancelled)
-	recentExcID := f.newException(t, template.ID, recent, scheduleModels.ActivityExceptionCancelled)
-	_ = recentExcID
+	f.newException(t, template.ID, recent, scheduleModels.ActivityExceptionCancelled)
 
 	result, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)

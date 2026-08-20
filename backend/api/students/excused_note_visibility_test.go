@@ -38,8 +38,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ExcusedNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Note", "EN1")
 	// A second account supplies a valid submitted_by (FK) for the seeded request.
-	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Submitter")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	_, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Submitter")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -93,8 +92,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "AbsenceNote", "Kind", "AN1")
-	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	_, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 

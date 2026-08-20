@@ -24,7 +24,6 @@ func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Delete", "PersonFailure", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	_, err := tc.db.NewUpdate().
 		TableExpr(`users.students`).

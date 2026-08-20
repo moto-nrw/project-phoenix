@@ -55,12 +55,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	// case; since #2329 the group no longer takes part in the access decision.
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
-	t.Cleanup(func() {
-		cleanupStudentDocumentRows(t, db, student.ID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-		testpkg.CleanupTableRecords(t, db, "education.groups", group.ID)
-	})
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewStudentDocumentService(
@@ -81,17 +75,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 		account:   account.ID,
 		groupID:   group.ID,
 	}
-}
-
-func cleanupStudentDocumentRows(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.ExecContext(ctx, `DELETE FROM users.student_documents WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM users.student_document_file_cleanup WHERE owner_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
 }
 
 func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumentActor {
@@ -595,7 +578,6 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 	require.Error(t, err, "an unknown child must not read as an empty document list")
 
 	groupless := testpkg.CreateTestStudent(t, s.db, "Ohne", fmt.Sprintf("Gruppe-%d", time.Now().UnixNano()), "1c")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, groupless.ID) })
 
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", office)
 	require.NoError(t, err, "a staff member reaches a child that has no group yet")

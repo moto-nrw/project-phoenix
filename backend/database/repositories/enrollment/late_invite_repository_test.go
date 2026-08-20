@@ -27,7 +27,6 @@ func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *t
 			Where("tenant_id = ? AND token_hash LIKE ?", tenantID, tokenPrefix+"%").
 			Exec(context.Background())
 		wipeRequests(db, tenantID, tokenPrefix)
-		testpkg.CleanupAuthFixtures(t, db, creator.ID)
 	})
 
 	requestA := makeRequest(phaseID, tokenPrefix+"-request-a", "a@example.test")

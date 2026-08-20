@@ -46,7 +46,6 @@ func TestActiveService_GetCombinedGroup(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		result, err := service.GetCombinedGroup(ctx, combinedGroup.ID)
@@ -102,7 +101,6 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, combinedGroup.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 	})
 
 	t.Run("creates combined group with end time", func(t *testing.T) {
@@ -120,7 +118,6 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, combinedGroup.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 	})
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -152,7 +149,6 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Update end time
 		endTime := now.Add(3 * time.Hour)
@@ -262,7 +258,6 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		result, err := service.ListCombinedGroups(ctx, nil)
@@ -307,7 +302,6 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		result, err := service.FindActiveCombinedGroups(ctx)
@@ -342,7 +336,6 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Use time range that includes the group
 		start := now.Add(-1 * time.Hour)
@@ -377,7 +370,6 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		err = service.EndCombinedGroup(ctx, combinedGroup.ID)
@@ -434,7 +426,6 @@ func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		result, err := service.GetCombinedGroupWithGroups(ctx, combinedGroup.ID)
@@ -472,7 +463,6 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "add-to-combo")
 		room := testpkg.CreateTestRoom(t, db, "Combo Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -480,7 +470,6 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
@@ -506,7 +495,6 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "add-invalid-combo")
 		room := testpkg.CreateTestRoom(t, db, "Invalid Combo Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT
 		err := service.AddGroupToCombination(ctx, 99999999, activeGroup.ID)
@@ -533,7 +521,6 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "remove-from-combo")
 		room := testpkg.CreateTestRoom(t, db, "Remove Combo Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -541,7 +528,6 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Add first
 		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
@@ -579,7 +565,6 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "mapping-by-active")
 		room := testpkg.CreateTestRoom(t, db, "Mapping Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -587,7 +572,6 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
@@ -608,7 +592,6 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-mappings")
 		room := testpkg.CreateTestRoom(t, db, "No Mappings Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT
 		result, err := service.GetGroupMappingsByActiveGroupID(ctx, activeGroup.ID)
@@ -636,7 +619,6 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "mapping-by-combined")
 		room := testpkg.CreateTestRoom(t, db, "Combined Mapping Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -644,7 +626,6 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
 		require.NoError(t, err)
@@ -668,7 +649,6 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// ACT
 		result, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
@@ -724,7 +704,6 @@ func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "dup-combo")
 		room := testpkg.CreateTestRoom(t, db, "Dup Combo Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -732,7 +711,6 @@ func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
 		}
 		err := service.CreateCombinedGroup(ctx, combinedGroup)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Add first time - should succeed
 		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
@@ -765,7 +743,6 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "delete-with-mappings")
 		room := testpkg.CreateTestRoom(t, db, "Delete Mappings Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -864,7 +841,6 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activity2 := testpkg.CreateTestActivityGroup(t, db, "atomic-combo-2")
 		room2 := testpkg.CreateTestRoom(t, db, "Atomic Room 2")
 		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, room1.ID, activeGroup1.ID, activity2.ID, room2.ID, activeGroup2.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -884,7 +860,6 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, tx.Commit())
 		assert.Greater(t, combinedGroup.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Verify both mappings exist
 		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
@@ -897,7 +872,6 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "rollback-invalid")
 		room := testpkg.CreateTestRoom(t, db, "Rollback Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{
@@ -936,7 +910,6 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, combinedGroup.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
 		// Verify no mappings exist
 		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
@@ -949,7 +922,6 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "rollback-dup")
 		room := testpkg.CreateTestRoom(t, db, "Rollback Dup Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		now := time.Now()
 		combinedGroup := &activeModels.CombinedGroup{

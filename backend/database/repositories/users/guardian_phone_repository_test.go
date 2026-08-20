@@ -25,7 +25,6 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 
 	t.Run("creates phone number with valid data", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "create-phone")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -40,12 +39,10 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 		assert.NotZero(t, phone.ID)
 
 		// Cleanup phone first, then guardian
-		testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 	})
 
 	t.Run("creates phone number with label", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "phone-with-label")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		label := "Büro"
 		phone := &users.GuardianPhoneNumber{
@@ -62,7 +59,6 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 		assert.NotZero(t, phone.ID)
 		assert.Equal(t, &label, phone.Label)
 
-		testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 	})
 
 	t.Run("fails with missing guardian profile ID", func(t *testing.T) {
@@ -79,7 +75,6 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 
 	t.Run("fails with empty phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "empty-phone")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -107,7 +102,6 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-phone")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -118,7 +112,6 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 
 		found, err := repo.FindByID(ctx, phone.ID)
 		require.NoError(t, err)
@@ -148,7 +141,6 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 
 	t.Run("finds all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-all-phones")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		// Create multiple phones
 		phone1 := &users.GuardianPhoneNumber{
@@ -160,7 +152,6 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone1)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone1.ID)
 
 		phone2 := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -171,7 +162,6 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 		}
 		err = repo.Create(ctx, phone2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone2.ID)
 
 		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -184,7 +174,6 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 
 	t.Run("returns empty slice for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -216,7 +205,6 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-phone")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -227,7 +215,6 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 
 		// Update fields
 		phone.PhoneNumber = "+49 30 999000"
@@ -250,7 +237,6 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-nonexistent")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -279,7 +265,6 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-phone")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -320,7 +305,6 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		// Create first phone as primary
 		phone1 := &users.GuardianPhoneNumber{
@@ -332,7 +316,6 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone1)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone1.ID)
 
 		// Create second phone as non-primary
 		phone2 := &users.GuardianPhoneNumber{
@@ -344,7 +327,6 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 		}
 		err = repo.Create(ctx, phone2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone2.ID)
 
 		// Set phone2 as primary
 		err = repo.SetPrimary(ctx, phone2.ID, guardian.ID)
@@ -363,7 +345,6 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary-error")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		err := repo.SetPrimary(ctx, int64(999999), guardian.ID)
 		require.Error(t, err)
@@ -385,7 +366,6 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 
 	t.Run("unsets all primary flags", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
@@ -396,7 +376,6 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 
 		err = repo.UnsetAllPrimary(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -411,7 +390,6 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 
 	t.Run("succeeds even with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-empty")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		err := repo.UnsetAllPrimary(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -432,7 +410,6 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 
 	t.Run("counts phone numbers correctly", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "count-phones")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		// Create multiple phones
 		for i := range 3 {
@@ -445,7 +422,6 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 			}
 			err := repo.Create(ctx, phone)
 			require.NoError(t, err)
-			defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 		}
 
 		count, err := repo.CountByGuardianID(ctx, guardian.ID)
@@ -455,7 +431,6 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 
 	t.Run("returns zero for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "count-zero")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		count, err := repo.CountByGuardianID(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -477,7 +452,6 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 
 	t.Run("deletes all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-all")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		// Create multiple phones
 		for i := range 2 {
@@ -504,7 +478,6 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 
 	t.Run("succeeds even with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-empty")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		err := repo.DeleteByGuardianID(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -525,7 +498,6 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority-empty")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		priority, err := repo.GetNextPriority(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -534,7 +506,6 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 
 	t.Run("returns next priority value", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", guardian.ID)
 
 		// Create phone with priority 3
 		phone := &users.GuardianPhoneNumber{
@@ -546,7 +517,6 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 		}
 		err := repo.Create(ctx, phone)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 
 		priority, err := repo.GetNextPriority(ctx, guardian.ID)
 		require.NoError(t, err)

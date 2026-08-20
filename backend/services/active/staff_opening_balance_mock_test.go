@@ -266,7 +266,6 @@ func (s *failingBalanceMonthService) GetClosingBalanceAsOf(ctx context.Context, 
 }
 
 func newOpeningTestService(events *[]string, repo activeModels.StaffBalanceAdjustmentRepository, month WorkTimeMonthService) StaffBalanceAdjustmentService {
-	_ = events
 	return NewStaffBalanceAdjustmentService(
 		repo,
 		month,

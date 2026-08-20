@@ -46,11 +46,6 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().TableExpr(`audit.student_deletions`).Where(`student_id = ?`, student.ID).Exec(context.Background())
 		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, student.ID).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.instance_students", assignment.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "facilities.rooms", room.ID)
-		testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-		testpkg.CleanupAuthFixtures(t, tc.db, actor.ID)
 	})
 
 	req := testutil.NewRequest(http.MethodDelete, fmt.Sprintf("/%d/purge", student.ID), nil)

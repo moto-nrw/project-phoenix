@@ -98,11 +98,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }

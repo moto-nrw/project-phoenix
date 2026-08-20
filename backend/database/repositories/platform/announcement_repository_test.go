@@ -25,7 +25,6 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 
 	// Create test operator for announcement creator
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	t.Run("Success", func(t *testing.T) {
 		announcement := &platformModels.Announcement{
@@ -44,7 +43,6 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 		assert.NotZero(t, announcement.CreatedAt)
 
 		// Cleanup
-		defer cleanupTestAnnouncement(t, db, announcement.ID)
 	})
 
 	t.Run("NilAnnouncement", func(t *testing.T) {
@@ -95,11 +93,9 @@ func TestAnnouncementRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	t.Run("Success", func(t *testing.T) {
 		announcement := createTestAnnouncement(t, db, "Test Announcement", operator.ID)
-		defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 		found, err := repo.FindByID(ctx, announcement.ID)
 		require.NoError(t, err)
@@ -126,11 +122,9 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	t.Run("Success", func(t *testing.T) {
 		announcement := createTestAnnouncement(t, db, "Original Title", operator.ID)
-		defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 		announcement.Title = "Updated Title"
 		announcement.Content = "Updated content"
@@ -152,7 +146,6 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 
 	t.Run("ValidationError", func(t *testing.T) {
 		announcement := createTestAnnouncement(t, db, "Test", operator.ID)
-		defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 		announcement.Type = "invalid"
 		err := repo.Update(ctx, announcement)
@@ -171,7 +164,6 @@ func TestAnnouncementRepository_Delete(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := createTestAnnouncement(t, db, "To Delete", operator.ID)
 
@@ -195,17 +187,14 @@ func TestAnnouncementRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	// Create test announcements
 	active := createTestAnnouncement(t, db, "Active", operator.ID)
-	defer cleanupTestAnnouncement(t, db, active.ID)
 
 	inactive := createTestAnnouncement(t, db, "Inactive", operator.ID)
 	inactive.Active = false
 	err := repo.Update(ctx, inactive)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, inactive.ID)
 
 	t.Run("ActiveOnly", func(t *testing.T) {
 		announcements, err := repo.List(ctx, false)
@@ -254,10 +243,8 @@ func TestAnnouncementRepository_Publish(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := createTestAnnouncement(t, db, "To Publish", operator.ID)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	// Initially not published
 	assert.Nil(t, announcement.PublishedAt)
@@ -283,10 +270,8 @@ func TestAnnouncementRepository_Unpublish(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := createTestAnnouncement(t, db, "To Unpublish", operator.ID)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	// First publish it
 	err := repo.Publish(ctx, announcement.ID)
@@ -345,6 +330,15 @@ func createTestOperator(t *testing.T, db *bun.DB, email, displayName string) *pl
 		Scan(ctx)
 	require.NoError(t, err)
 
+	// Operators sit above the tenant boundary, so the row is shared state:
+	// this fixture takes it back itself (#2419).
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.ExecContext(bg, `DELETE FROM platform.announcements WHERE created_by = ?`, operator.ID)
+		_, _ = db.ExecContext(bg, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operator.ID)
+		_, _ = db.ExecContext(bg, `DELETE FROM platform.operators WHERE id = ?`, operator.ID)
+	})
+
 	return operator
 }
 
@@ -370,37 +364,12 @@ func createTestAnnouncement(t *testing.T, db *bun.DB, title string, createdBy in
 		Scan(ctx)
 	require.NoError(t, err)
 
+	// Announcements are tenant-less shared state (#2419).
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.ExecContext(bg, `DELETE FROM platform.announcement_views WHERE announcement_id = ?`, announcement.ID)
+		_, _ = db.ExecContext(bg, `DELETE FROM platform.announcements WHERE id = ?`, announcement.ID)
+	})
+
 	return announcement
-}
-
-func cleanupTestOperator(t *testing.T, db *bun.DB, operatorID int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		Model((*platformModels.Operator)(nil)).
-		ModelTableExpr(`platform.operators`).
-		Where("id = ?", operatorID).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup operator: %v", err)
-	}
-}
-
-func cleanupTestAnnouncement(t *testing.T, db *bun.DB, announcementID int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		Model((*platformModels.Announcement)(nil)).
-		ModelTableExpr(`platform.announcements`).
-		Where("id = ?", announcementID).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup announcement: %v", err)
-	}
 }

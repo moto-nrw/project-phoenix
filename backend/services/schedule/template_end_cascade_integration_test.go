@@ -125,7 +125,6 @@ func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
 		PrimaryStaffID:  &c.staffID,
 	})
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, c.scenarioSetup, other.TemplateID)
 
 	_, err = c.svc.MaterializeForTenant(
 		c.ctx, c.firstBoundary, c.secondBoundary.AddDays(-1), scheduleSvc.MaterializationSourceManual)

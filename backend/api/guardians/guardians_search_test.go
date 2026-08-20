@@ -47,7 +47,6 @@ func seedSearchGuardian(t *testing.T, tc *testContext, firstName, lastName, emai
 	g.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(g).Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupGuardian(t, tc.db, g.ID) })
 	return g
 }
 

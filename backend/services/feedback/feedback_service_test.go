@@ -53,22 +53,6 @@ func createTestFeedbackEntry(t *testing.T, db *bun.DB, studentID int64, value st
 	return entry
 }
 
-// cleanupFeedbackFixtures removes feedback test fixtures
-func cleanupFeedbackFixtures(t *testing.T, db *bun.DB, entryIDs []int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	for _, id := range entryIDs {
-		_, _ = db.NewDelete().
-			Model((*feedback.Entry)(nil)).
-			ModelTableExpr(`feedback.entries`).
-			Where("id = ?", id).
-			Exec(ctx)
-	}
-}
-
 // ============================================================================
 // Core Operations Tests
 // ============================================================================
@@ -101,7 +85,6 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 		assert.NotZero(t, entry.ID)
 
 		// Cleanup
-		defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 	})
 
 	t.Run("rejects nil entry", func(t *testing.T) {
@@ -155,7 +138,6 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "GetStudent", "2a")
 
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 
 	t.Run("retrieves entry by ID", func(t *testing.T) {
 		// ACT
@@ -237,9 +219,8 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "ListStudent", "5a")
 
-	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
-	entry2 := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
-	defer cleanupFeedbackFixtures(t, db, []int64{entry1.ID, entry2.ID})
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
 
 	t.Run("lists all entries", func(t *testing.T) {
 		// ACT
@@ -279,9 +260,8 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentQuery", "6a")
 
-	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
-	entry2 := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.TodayDate())
-	defer cleanupFeedbackFixtures(t, db, []int64{entry1.ID, entry2.ID})
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.TodayDate())
 
 	t.Run("retrieves entries for student", func(t *testing.T) {
 		// ACT
@@ -312,8 +292,7 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a")
 
 	today := timezone.TodayDate()
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 
 	t.Run("retrieves entries for day", func(t *testing.T) {
 		// ACT
@@ -344,8 +323,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
 
 	today := timezone.TodayDate()
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, today)
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, today)
 
 	t.Run("retrieves entries for date range", func(t *testing.T) {
 		// ARRANGE
@@ -394,21 +372,19 @@ func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 
 	t.Run("retrieves mensa feedback", func(t *testing.T) {
 		// ACT
-		entries, err := service.GetMensaFeedback(ctx, true)
+		_, err := service.GetMensaFeedback(ctx, true)
 
 		// ASSERT
 		require.NoError(t, err)
 		// May or may not have entries, just verify no error
-		_ = entries
 	})
 
 	t.Run("retrieves non-mensa feedback", func(t *testing.T) {
 		// ACT
-		entries, err := service.GetMensaFeedback(ctx, false)
+		_, err := service.GetMensaFeedback(ctx, false)
 
 		// ASSERT
 		require.NoError(t, err)
-		_ = entries
 	})
 }
 
@@ -423,8 +399,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
 
 	today := timezone.TodayDate()
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
+	createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 
 	t.Run("retrieves entries for student and date range", func(t *testing.T) {
 		// ARRANGE
@@ -495,15 +470,6 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, errors)
-
-		// Cleanup
-		var ids []int64
-		for _, e := range entries {
-			if e.ID != 0 {
-				ids = append(ids, e.ID)
-			}
-		}
-		defer cleanupFeedbackFixtures(t, db, ids)
 	})
 
 	t.Run("returns empty for empty slice", func(t *testing.T) {
@@ -551,9 +517,8 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 		oldDay := timezone.TodayDate().AddDays(-100)
 		recentDay := timezone.TodayDate()
 
-		oldEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, oldDay)
+		createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, oldDay)
 		recentEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, recentDay)
-		defer cleanupFeedbackFixtures(t, db, []int64{oldEntry.ID, recentEntry.ID})
 
 		// Count before
 		entriesBefore, err := service.GetEntriesByStudent(ctx, student.ID)
@@ -580,8 +545,7 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 
 	t.Run("returns zero when no old entries exist", func(t *testing.T) {
 		// ARRANGE: Create only a recent entry
-		recentEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.TodayDate())
-		defer cleanupFeedbackFixtures(t, db, []int64{recentEntry.ID})
+		createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.TodayDate())
 
 		// ACT: Delete entries older than 365 days — none should qualify
 		deleted, err := service.DeleteEntriesOlderThan(ctx, 365)

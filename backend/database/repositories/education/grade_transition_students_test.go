@@ -85,7 +85,6 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 	t.Run("returns nothing when no child in the cohort holds a tag", func(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		student := testpkg.CreateTestStudent(t, db, "Ohne", "Armband", fmt.Sprintf("4no-tag-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		released, err := repo.ReleaseStudentTagsByIDs(ctx, []int64{student.ID})
 		require.NoError(t, err)
@@ -98,13 +97,10 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 		// The card is created FIRST so its cleanup runs last: deleting a card a
 		// person still points at trips the FK's SET NULL on the composite key.
 		card := testpkg.CreateTestRFIDCard(t, db, "RELTAG")
-		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 		defer clearPersonTag(db, card.ID)
 
 		holder := testpkg.CreateTestStudent(t, db, "Mit", "Armband", fmt.Sprintf("4tag-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, holder.ID)
 		bare := testpkg.CreateTestStudent(t, db, "Ohne", "Armband", fmt.Sprintf("4tag-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, bare.ID)
 
 		testpkg.LinkRFIDToStudent(t, db, holder.PersonID, card.ID)
 
@@ -139,11 +135,9 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 
 		card := testpkg.CreateTestRFIDCard(t, db, "RESTORETAG")
-		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 		defer clearPersonTag(db, card.ID)
 
 		student := testpkg.CreateTestStudent(t, db, "Zurück", "Armband", fmt.Sprintf("4res-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		testpkg.LinkRFIDToStudent(t, db, student.PersonID, card.ID)
 		_, err := repo.ReleaseStudentTagsByIDs(ctx, []int64{student.ID})
@@ -160,13 +154,10 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 
 		oldCard := testpkg.CreateTestRFIDCard(t, db, "OLDTAG")
-		defer testpkg.CleanupRFIDCards(t, db, oldCard.ID)
 		newCard := testpkg.CreateTestRFIDCard(t, db, "NEWTAG")
-		defer testpkg.CleanupRFIDCards(t, db, newCard.ID)
 		defer clearPersonTag(db, newCard.ID)
 
 		student := testpkg.CreateTestStudent(t, db, "Neues", "Armband", fmt.Sprintf("4new-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		testpkg.LinkRFIDToStudent(t, db, student.PersonID, newCard.ID)
 
@@ -182,13 +173,10 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 
 		card := testpkg.CreateTestRFIDCard(t, db, "REISSUED")
-		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 		defer clearPersonTag(db, card.ID)
 
 		graduate := testpkg.CreateTestStudent(t, db, "Weg", "Kind", fmt.Sprintf("4gone-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
 		current := testpkg.CreateTestStudent(t, db, "Da", "Kind", fmt.Sprintf("1now-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, current.ID)
 
 		// The bracelet was handed to a current child while the graduate was gone.
 		testpkg.LinkRFIDToStudent(t, db, current.PersonID, card.ID)
@@ -204,11 +192,9 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 
 		card := testpkg.CreateTestRFIDCard(t, db, "TXTAG")
-		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 		defer clearPersonTag(db, card.ID)
 
 		student := testpkg.CreateTestStudent(t, db, "Transaktion", "Armband", fmt.Sprintf("4tx-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		testpkg.LinkRFIDToStudent(t, db, student.PersonID, card.ID)
 		_, err := repo.ReleaseStudentTagsByIDs(ctx, []int64{student.ID})
@@ -246,9 +232,7 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 
 		active := testpkg.CreateTestStudent(t, db, "Aktives", "Kind", fmt.Sprintf("1st-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, active.ID)
 		graduate := testpkg.CreateTestStudent(t, db, "Abgang", "Kind", fmt.Sprintf("4st-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
 
 		graduated, err := repo.GraduateStudentsByIDs(ctx, []int64{graduate.ID})
 		require.NoError(t, err)
@@ -277,16 +261,12 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	purged := testpkg.CreateTestStudent(t, db, "Gelöschtes", "Kind", fmt.Sprintf("4anon-%s", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, purged.ID)
 	kept := testpkg.CreateTestStudent(t, db, "Bleibendes", "Kind", fmt.Sprintf("4anon-%s", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, kept.ID)
 	rfidTag := "rfid-deleted-student"
 
 	require.NoError(t, repo.CreateHistoryBatch(ctx, []*educationModels.GradeTransitionHistory{
@@ -344,7 +324,6 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-batch-mappings")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("returns an empty map for an empty id list", func(t *testing.T) {
 		grouped, err := repo.GetMappingsByTransitionIDs(ctx, nil)
@@ -354,11 +333,8 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 
 	t.Run("groups mappings by their transition", func(t *testing.T) {
 		first := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, first.ID)
 		second := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, second.ID)
 		bare := testpkg.CreateTestGradeTransition(t, db, "2027-2028", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, bare.ID)
 
 		toClass := "2a"
 		testpkg.CreateTestGradeTransitionMapping(t, db, first.ID, "1a", &toClass)
@@ -397,9 +373,7 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 		otherClass := fmt.Sprintf("3p-%s", suffix)
 
 		promoted := testpkg.CreateTestStudent(t, db, "Aufsteigendes", "Kind", fromClass)
-		defer testpkg.CleanupActivityFixtures(t, db, promoted.ID)
 		elsewhere := testpkg.CreateTestStudent(t, db, "Anderes", "Kind", otherClass)
-		defer testpkg.CleanupActivityFixtures(t, db, elsewhere.ID)
 
 		// elsewhere is in the cohort by id but not in fromClass: the from-class
 		// guard keeps the statement idempotent and must skip it.
@@ -435,7 +409,6 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 	t.Run("graduates and restores the previous status", func(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		student := testpkg.CreateTestStudent(t, db, "Abgang", "Rückkehr", fmt.Sprintf("4gr-%s", suffix))
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		before := studentStatus(t, db, student.ID)
 
@@ -471,10 +444,8 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-validation")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	t.Run("Update rejects a malformed academic year", func(t *testing.T) {
 		invalid := *transition

@@ -88,7 +88,6 @@ func seedPublishedAnnouncement(
 func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
@@ -136,7 +135,6 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -155,7 +153,6 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -170,7 +167,6 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 
 	svc, db, _ := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	// A high id that does not exist collapses to not-found (never leaks existence).
@@ -184,7 +180,6 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, false) // feature OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)

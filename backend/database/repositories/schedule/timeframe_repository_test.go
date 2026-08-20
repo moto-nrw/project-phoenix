@@ -37,7 +37,6 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, timeframe.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("creates open-ended timeframe", func(t *testing.T) {
@@ -53,7 +52,6 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		assert.NotZero(t, timeframe.ID)
 		assert.Nil(t, timeframe.EndTime)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("create with nil timeframe should fail", func(t *testing.T) {

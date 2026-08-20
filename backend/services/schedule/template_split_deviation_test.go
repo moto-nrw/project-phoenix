@@ -35,10 +35,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	secondSupervisor.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(secondSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.supervisors", secondSupervisor.ID)
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", secondStaff.ID, substitute.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", secondStaff.PersonID, substitute.PersonID)
 	})
 
 	_, err = s.factory.Materialization.MaterializeForTenant(
@@ -51,7 +48,6 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	require.Len(t, targetInstances, 1)
 	beforeInstance := beforeInstances[0]
 	targetInstance := targetInstances[0]
-	s.registerCleanup("schedule.activity_instances", beforeInstance.ID, targetInstance.ID)
 
 	beforeReason := "Fortbildung"
 	_, err = s.db.NewUpdate().
@@ -109,13 +105,11 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	in.MaterializeTo = &effective
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 	require.False(t, splitInstanceExists(t, s, targetInstance.ID), "split must replace the old future instance")
 	successors := listInstancesForDate(t, s.db, result.NewTemplateID, effective)
 	require.Len(t, successors, 1)
 	successor := successors[0]
-	s.registerCleanup("schedule.activity_instances", successor.ID)
 	require.NotEqual(t, targetInstance.ID, successor.ID)
 	require.NotNil(t, successor.ActivityGroupID)
 	assert.Equal(t, result.NewTemplateID, *successor.ActivityGroupID)
@@ -174,7 +168,6 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	oldInstances := listInstancesForDate(t, s.db, s.template.ID, effective)
 	require.Len(t, oldInstances, 1)
 	old := oldInstances[0]
-	s.registerCleanup("schedule.activity_instances", old.ID)
 
 	_, err = s.db.NewUpdate().
 		Model((*scheduleModels.InstanceStaff)(nil)).
@@ -192,12 +185,10 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	in.MaterializeTo = &tuesday
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 	assert.Empty(t, listInstancesForDate(t, s.db, result.NewTemplateID, effective))
 	tuesdayInstances := listInstancesForDate(t, s.db, result.NewTemplateID, tuesday)
 	require.Len(t, tuesdayInstances, 1)
-	s.registerCleanup("schedule.activity_instances", tuesdayInstances[0].ID)
 	rows := loadInstanceStaffRows(t, s.db, s.ctx, tuesdayInstances[0].ID)
 	require.Len(t, rows, 1)
 	assert.False(t, rows[0].IsAbsent, "a removed Monday's deviation must not move to Tuesday")

@@ -35,7 +35,7 @@ func setupAbsenceAdminTest(t *testing.T) (tc *testContext, token string, subject
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Absence", fmt.Sprintf("Editor-%d", suffix))
-	editorStaff := testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
+	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Subject-%d", suffix))
 
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -48,14 +48,6 @@ func setupAbsenceAdminTest(t *testing.T) (tc *testContext, token string, subject
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(tc.db).StaffShift.Create(testpkg.Ctx(t), shift))
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.staff_shifts", shift.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, subject.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, editorStaff.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", editorPerson.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "auth.accounts", editorAccount.ID)
-	})
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(editorAccount.ID)
@@ -94,9 +86,6 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	absences, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absences[0].ID)
-	})
 	assert.Equal(t, activeModels.AbsenceTypeSick, absences[0].AbsenceType)
 	assert.NotEqual(t, subjectID, absences[0].CreatedBy, "creator must be the editor, not the subject")
 
@@ -147,9 +136,6 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absences[0].ID)
-	})
 	assert.Equal(t, activeModels.AbsenceTypeCompTime, absences[0].AbsenceType)
 	assert.True(t, absences[0].HalfDay)
 	assert.Equal(t, activeModels.AbsenceStatusReported, absences[0].Status)
@@ -192,7 +178,6 @@ func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 
 	tc := setupTestContext(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, tc.db, staff.ID) })
 	token := authToken(t, "time_tracking:manage")
 	year := timezone.TodayDate().Year
 

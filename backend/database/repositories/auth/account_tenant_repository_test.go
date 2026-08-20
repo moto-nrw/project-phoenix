@@ -20,7 +20,7 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant")
-	tenantID := account.ID + 1000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
@@ -95,7 +95,7 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
-	tenantID := account.ID + 2000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
@@ -141,8 +141,8 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 	repo := authRepo.NewAccountTenantRepository(db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-deactivate")
-	tenantID := account.ID + 3000
-	otherTenantID := account.ID + 3001
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	t.Cleanup(func() {

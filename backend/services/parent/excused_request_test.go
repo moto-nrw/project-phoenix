@@ -96,7 +96,6 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -128,7 +127,6 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 
 	svc, _, _, db := buildExcusedServices(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -153,7 +151,6 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 			[]timezone.Date{day}, "   ", activeModels.StudentStatusDayExcused)
 		assert.ErrorIs(t, err, parentService.ErrEmptyNote, "excused with blank note must be rejected (gate=%v)", gate)
 
-		testpkg.CleanupParentGuardianChain(t, db, chain)
 	}
 }
 
@@ -164,7 +161,6 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -205,7 +201,6 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -241,7 +236,6 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -290,7 +284,6 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A date well beyond the parent's ~2-month status-day window.
 	far := timezone.TodayDate().AddDays(120)
@@ -333,7 +326,6 @@ func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
 
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,

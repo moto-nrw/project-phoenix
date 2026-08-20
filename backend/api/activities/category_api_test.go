@@ -68,9 +68,6 @@ func TestCreateCategory_Success(t *testing.T) {
 	data := categoryDataFromResponse(t, rr.Body.Bytes())
 	assert.Equal(t, name, data["name"])
 	assert.Equal(t, false, data["is_system"])
-
-	categoryID := int64(data["id"].(float64))
-	defer cleanupCategory(t, ctx.db, categoryID)
 }
 
 func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
@@ -113,7 +110,6 @@ func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	existing := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiDuplicate")
-	defer cleanupCategory(t, ctx.db, existing.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": existing.Name})
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
@@ -136,7 +132,6 @@ func TestUpdateCategory_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiRename")
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	newName := fmt.Sprintf("Umbenannt-%d", time.Now().UnixNano())
 	body := map[string]string{"name": newName, "color": "#5080D8"}
@@ -155,7 +150,6 @@ func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiInvalidColor")
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/categories/%d", category.ID), map[string]string{
 		"name":  category.Name,
@@ -171,7 +165,6 @@ func TestArchiveAndRestoreCategory(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchive")
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	archiveReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/categories/%d", category.ID), nil)
 	archiveRR := testutil.ExecuteWithAuth(t, ctx.router, archiveReq, categoryManagerClaims())
@@ -201,7 +194,6 @@ func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchiveDenied")
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/categories/%d", category.ID), nil)
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, caregiverClaims())
@@ -214,8 +206,6 @@ func TestListCategories_ReportsUsageCount(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UsageApi-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	// usage_count is opt-in: the pickers must not pay for the extra aggregate.
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories?with_usage=true", nil)

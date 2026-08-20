@@ -77,10 +77,6 @@ func TestStudentDeletionsAuditMigration(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(context.Background())
-	})
 	_, err := db.NewRaw(`
 		INSERT INTO audit.student_deletions
 			(tenant_id, student_id, actor_account_id, reason, counts)

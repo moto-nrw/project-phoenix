@@ -36,11 +36,6 @@ func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Overview", fmt.Sprintf("Editor-%d", suffix))
 	editorStaff := testpkg.CreateTestStaffForPerson(t, tc.db, person.ID)
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, tc.db, editorStaff.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", person.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "auth.accounts", account.ID)
-	})
 
 	token := func(perms ...string) string {
 		claims := testutil.DefaultTestClaims()

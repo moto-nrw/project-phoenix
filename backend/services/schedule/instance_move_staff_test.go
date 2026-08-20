@@ -41,21 +41,6 @@ type moveSetup struct {
 	rowIDs   []int64
 }
 
-func (s *moveSetup) cleanup(t *testing.T) {
-	t.Helper()
-	cleanupDeviationEvents(t, s.db, s.tenantID)
-	var allRows []int64
-	err := s.db.NewSelect().
-		Model((*scheduleModels.InstanceStaff)(nil)).
-		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
-		Column("id").
-		Where("tenant_id = ?", s.tenantID).
-		Scan(context.Background(), &allRows)
-	require.NoError(t, err)
-	testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", allRows...)
-	testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", s.source.ID, s.target.ID)
-}
-
 // createMoveInstance inserts one activity instance for the setup's tenant.
 func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
 	t.Helper()
@@ -120,9 +105,6 @@ func makeMoveSetup(t *testing.T) *moveSetup {
 	other := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Otto", fmt.Sprintf("Other-%d", suffix))
 	s.staffID = staff.ID
 	s.otherID = other.ID
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, staff.ID, other.ID)
-	})
 
 	s.source = createMoveInstance(t, s, "Schulhof", "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 	s.target = createMoveInstance(t, s, "Mensa", "14:30", "15:30", scheduleModels.InstanceStatusPlanned)
@@ -140,7 +122,6 @@ func TestMoveStaffBetweenBlocks_RelocatesRowAndLogsEvent(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	roomOverride := s.roomID
 	original := createMoveStaffRow(t, s, s.source.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
 		row.IsPrimary = true
@@ -189,7 +170,6 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 
 	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 		StaffID: s.otherID,
@@ -214,7 +194,6 @@ func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	// Already-moved state: on target, gone from source.
 	createMoveStaffRow(t, s, s.target.ID, s.staffID, nil)
 
@@ -231,11 +210,23 @@ func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
 func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	t.Parallel()
 
-	s := makeMoveSetup(t)
-	defer s.cleanup(t)
-	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
+	// One setup per subtest: each one puts the staff member on a block, and
+	// schedule.instance_staff is unique on (instance, staff), so a shared
+	// setup only worked while a per-row teardown ran between them (#2419).
+	setup := func(t *testing.T) *moveSetup {
+		t.Helper()
+		s := makeMoveSetup(t)
+		createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
+		// Every case here is a rejected move, so none of them may log a
+		// deviation event.
+		t.Cleanup(func() {
+			assert.Empty(t, loadDeviationEvents(t, s.db, s.ctx, s.tenantID))
+		})
+		return s
+	}
 
 	t.Run("not assigned to source", func(t *testing.T) {
+		s := setup(t)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.otherID,
 			SourceInstanceID: &s.source.ID,
@@ -245,8 +236,8 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("on both blocks", func(t *testing.T) {
-		row := createMoveStaffRow(t, s, s.target.ID, s.staffID, nil)
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID)
+		s := setup(t)
+		createMoveStaffRow(t, s, s.target.ID, s.staffID, nil)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
@@ -257,13 +248,13 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("absent on target", func(t *testing.T) {
+		s := setup(t)
 		// Same state as the pool-assign path: the target row carries the
 		// absence, so the conflict code must match (staff_absent_on_target,
 		// not staff_already_on_target).
-		row := createMoveStaffRow(t, s, s.target.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+		createMoveStaffRow(t, s, s.target.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
@@ -274,10 +265,10 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("absent on source", func(t *testing.T) {
-		absent := createMoveStaffRow(t, s, s.source.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
+		s := setup(t)
+		createMoveStaffRow(t, s, s.source.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", absent.ID)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.otherID,
 			SourceInstanceID: &s.source.ID,
@@ -287,12 +278,11 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("pool assign rejects day-wide absence from a terminal block", func(t *testing.T) {
+		s := setup(t)
 		terminal := createMoveInstance(t, s, "Abgeschlossene Historie", "09:00", "10:00", scheduleModels.InstanceStatusCompleted)
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", terminal.ID)
-		absent := createMoveStaffRow(t, s, terminal.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
+		createMoveStaffRow(t, s, terminal.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", absent.ID)
 
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID: s.otherID,
@@ -304,12 +294,11 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("relocate rejects day-wide absence from another block", func(t *testing.T) {
+		s := setup(t)
 		third := createMoveInstance(t, s, "Dritter Block", "09:00", "10:00", scheduleModels.InstanceStatusPlanned)
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", third.ID)
-		absent := createMoveStaffRow(t, s, third.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+		createMoveStaffRow(t, s, third.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", absent.ID)
 
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
@@ -322,6 +311,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("cross-date move rejected", func(t *testing.T) {
+		s := setup(t)
 		otherDay := &scheduleModels.ActivityInstance{
 			Date:      moveTestDate().AddDays(1),
 			Title:     "Anderer Tag",
@@ -333,7 +323,6 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		otherDay.SetTenantID(s.tenantID)
 		_, err := s.db.NewInsert().Model(otherDay).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", otherDay.ID)
 
 		_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
@@ -344,6 +333,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("source equals target", func(t *testing.T) {
+		s := setup(t)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.target.ID,
@@ -353,6 +343,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("unknown staff", func(t *testing.T) {
+		s := setup(t)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          999_999_999,
 			SourceInstanceID: &s.source.ID,
@@ -362,8 +353,8 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	})
 
 	t.Run("cancelled target", func(t *testing.T) {
+		s := setup(t)
 		cancelled := createMoveInstance(t, s, "Abgesagt", "14:00", "15:00", scheduleModels.InstanceStatusCancelled)
-		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", cancelled.ID)
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, cancelled.ID, scheduleSvc.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
@@ -371,16 +362,12 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		de := requireDeviationErr(t, err)
 		assert.Equal(t, http.StatusConflict, de.Status)
 	})
-
-	// The failed attempts above must not have logged anything.
-	assert.Empty(t, loadDeviationEvents(t, s.db, s.ctx, s.tenantID))
 }
 
 func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
 	// Both blocks acknowledged as deliberately unstaffed.
 	_, err := s.db.NewUpdate().
@@ -408,7 +395,6 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	sourceGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
 	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
 	_, err := s.db.NewUpdate().
@@ -446,8 +432,6 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 			Column("id").
 			Where("tenant_id = ?", s.tenantID).
 			Scan(context.Background(), &supIDs)
-		testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", supIDs...)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", sourceGroup.ID, targetGroup.ID)
 	})
 
 	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
@@ -516,7 +500,6 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
 	_, err := s.db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
@@ -544,8 +527,6 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 			Column("id").
 			Where("tenant_id = ?", s.tenantID).
 			Scan(context.Background(), &supIDs)
-		testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", supIDs...)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", targetGroup.ID)
 	})
 
 	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
@@ -571,7 +552,6 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	past := &scheduleModels.ActivityInstance{
 		Date:      timezone.TodayDate().AddDays(-1),
 		Title:     "Gestern",
@@ -583,7 +563,6 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 	past.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(past).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", past.ID)
 
 	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, scheduleSvc.MoveStaffInput{StaffID: s.staffID})
 	var de *scheduleSvc.DeviationError

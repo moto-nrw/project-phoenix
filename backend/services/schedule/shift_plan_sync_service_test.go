@@ -76,11 +76,6 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 
 	// Row-level cleanups are registered by each create helper; only the
 	// parent fixtures are dropped here (LIFO: children first, then these).
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, subject.ID, 0, tmpl.ID, room.ID)
-		testpkg.CleanupStaffFixtures(t, db, admin.ID)
-		testpkg.CleanupStaffFixtures(t, db, sub.ID)
-	})
 
 	syncer := scheduleSvc.NewShiftPlanSyncService(
 		serviceFactory.StaffShifts,
@@ -139,9 +134,6 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, e.repos.StaffShift.Create(e.ctx, shift))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", shift.ID)
-	})
 	return shift
 }
 
@@ -156,10 +148,6 @@ func (e *sickCascadeEnv) createBlock(t *testing.T, date timezone.Date, status, s
 		StartHHMM:       startHHMM,
 	})
 	row := testpkg.CreateTestInstanceStaff(t, e.db, instance.ID, staffID, staffOpts)
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, e.db, row.ID)
-		testpkg.CleanupTableRecords(t, e.db, "schedule.activity_instances", instance.ID)
-	})
 	return instance, row
 }
 
@@ -189,9 +177,6 @@ func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, even
 	}
 	// Deviation events have no per-row cleanup helper; drop them by id.
 	t.Cleanup(func() {
-		for _, ev := range filtered {
-			testpkg.CleanupTableRecords(t, e.db, "audit.deviation_events", ev.ID)
-		}
 	})
 	return filtered
 }
@@ -240,9 +225,6 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 		return nil
 	})
 	require.NotZero(t, absenceID)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID)
-	})
 
 	// Subject/creator separation.
 	absence, err := e.repos.StaffAbsence.FindByID(e.ctx, absenceID)
@@ -460,7 +442,6 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	rows, err := e.repos.StaffAbsence.GetByStaffAndDateRange(e.ctx, e.subject.ID, day, day)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "serialized overlapping reports must merge into one absence")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", rows[0].ID) })
 }
 
 func TestSickCascade_HalfDayRules(t *testing.T) {
@@ -476,7 +457,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 
 	// HalfDay absences never cascade (guarded in the absence service).
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, activeSvc.CreateAbsenceRequest{
+		_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, activeSvc.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -485,9 +466,6 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", resp.ID)
-		})
 		return nil
 	})
 	assert.False(t, e.reloadShift(t, shiftTomorrow.ID).Cancelled, "half-day sick report must not cancel shifts")
@@ -534,7 +512,6 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 		}
 		return err
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID) })
 
 	before := activeSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
@@ -640,7 +617,6 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		})
 	}()
 	<-created
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", shift.ID) })
 
 	markDone := make(chan error, 1)
 	go func() {
@@ -700,7 +676,6 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		})
 	}()
 	<-created
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", cover.ID) })
 
 	clearDone := make(chan error, 1)
 	go func() {
@@ -793,7 +768,6 @@ func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Dat
 		}
 		return err
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID) })
 	return absenceID
 }
 
@@ -834,9 +808,6 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		s.OriginShiftID = &replaced.ID
 	})
 	subRow := testpkg.CreateTestInstanceStaff(t, e.db, substitutedInstance.ID, e.sub.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, e.db, subRow.ID)
-	})
 
 	e.inTx(t, func(ctx context.Context) error {
 		return e.factory.StaffAbsence.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
@@ -879,7 +850,6 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		}
 	}
 	require.Len(t, unackEvents, 1)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "audit.deviation_events", unackEvents[0].ID) })
 
 	// Substituted block: stays absent (never silently overstaff), stamp
 	// released, substitute row untouched.
@@ -953,9 +923,6 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 		}
 		absenceID = resp.ID
 		return nil
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID)
 	})
 	e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickReported) // registers event cleanup
 

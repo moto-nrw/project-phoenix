@@ -77,24 +77,15 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 
 	svc, db := buildCareServiceWithAutoExcusal(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Parent", "Baseline")
 	room := testpkg.CreateTestRoom(t, db, "Parent auto excusal room")
 
 	date := nextMonday()
-	weekly := testpkg.CreateTestPickupSchedule(t, db, chain.StudentID, 1, staff.ID, "16:00")
+	testpkg.CreateTestPickupSchedule(t, db, chain.StudentID, 1, staff.ID, "16:00")
 	block := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Nachmittags-AG",
 	})
 	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(
-			t, db,
-			nil, nil, []int64{weekly.ID}, nil,
-			[]int64{slot.ID}, []int64{block.ID},
-		)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, room.ID)
-	})
 
 	// Parent pulls the pickup forward to 14:45 → the 15:00 block is excused.
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
@@ -128,24 +119,15 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 
 	svc, db := buildCareServiceWithAutoExcusal(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Parent", "Withdraw")
 	room := testpkg.CreateTestRoom(t, db, "Parent withdraw room")
 
 	date := nextMonday()
-	weekly := testpkg.CreateTestPickupSchedule(t, db, chain.StudentID, 1, staff.ID, "16:00")
+	testpkg.CreateTestPickupSchedule(t, db, chain.StudentID, 1, staff.ID, "16:00")
 	block := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Nachmittags-AG",
 	})
 	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(
-			t, db,
-			nil, nil, []int64{weekly.ID}, nil,
-			[]int64{slot.ID}, []int64{block.ID},
-		)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, room.ID)
-	})
 
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
 	require.NoError(t, err)

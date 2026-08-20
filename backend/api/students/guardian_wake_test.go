@@ -26,10 +26,8 @@ func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupWake", "GuardianExc")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupWake", "GuardianExc")
 
 	// Isolate the wake triggered by the write below from any setup broadcasts.
 	tc.broadcaster.Reset()
@@ -72,10 +70,8 @@ func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StatusWake", "GuardianUpd")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StatusWake", "GuardianUpd")
 
 	// A sick=true update writes today's status day → must wake guardians.
 	tc.broadcaster.Reset()

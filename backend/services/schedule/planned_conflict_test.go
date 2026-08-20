@@ -49,9 +49,6 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("PC-Room-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "PC", fmt.Sprintf("Staff-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "PC-Kid", fmt.Sprintf("One-%d", suffix), "2b")
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, 0, 0, room.ID)
-	})
 
 	return &plannedConflictSetup{
 		deps: scheduleSvc.PlannedConflictDependencies{
@@ -85,7 +82,6 @@ func probeQuery(s *plannedConflictSetup, mutate func(*scheduleSvc.PlannedConflic
 func seedConflictInstance(t *testing.T, s *plannedConflictSetup, opts testpkg.ActivityInstanceOpts) *scheduleModels.ActivityInstance {
 	t.Helper()
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, opts)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 	return inst
 }
 
@@ -109,8 +105,7 @@ func TestDetectPlannedConflicts_AdjacencyIsNotAConflict(t *testing.T) {
 
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Davor"}) // 14:00–15:00
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
 	// Probe 15:00–16:00 with the same staff — touching edges must not conflict.
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
@@ -130,12 +125,8 @@ func TestDetectPlannedConflicts_Staff_IncludingAbsentExclusion(t *testing.T) {
 
 	suffix := time.Now().UnixNano()
 	absentStaff := testpkg.CreateTestStaff(t, s.db, "PC", fmt.Sprintf("Absent-%d", suffix))
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, absentStaff.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	// Probe without a room: the slot's room is undetermined, so the staff
 	// overlap warns ("not certainly the same room").
@@ -155,8 +146,7 @@ func TestDetectPlannedConflicts_StaffSameRoomIsNotAConflict(t *testing.T) {
 
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Parallel"})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
 	// Same staff, overlapping window, SAME concrete room — sanctioned
 	// parallel supervision (#2139), no warning.
@@ -173,12 +163,8 @@ func TestDetectPlannedConflicts_StaffDifferentRoomWarns(t *testing.T) {
 
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Anderswo"})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("PC-Room-B-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, 0, otherRoom.ID)
-	})
 
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
 		q.RoomID = &otherRoom.ID
@@ -200,11 +186,7 @@ func TestDetectPlannedConflicts_StaffRowRoomOverrideCountsAsSameRoom(t *testing.
 	// warn — the effective rooms match.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("PC-Room-C-%d", time.Now().UnixNano()))
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Split"})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{RoomID: &otherRoom.ID})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, 0, otherRoom.ID)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{RoomID: &otherRoom.ID})
 
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
 		q.RoomID = &otherRoom.ID
@@ -220,8 +202,7 @@ func TestDetectPlannedConflicts_Student(t *testing.T) {
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Kind"})
 
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, "")
 
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
 		q.StudentIDs = []int64{s.studentID}
@@ -240,8 +221,7 @@ func TestDetectPlannedConflicts_StudentWarnsEvenInSameRoom(t *testing.T) {
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Kind-Raum"})
 
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, "")
 
 	// A child double-booking warns regardless of rooms (#2139) — even when
 	// the probe targets the SAME room as the conflicting instance.
@@ -259,8 +239,7 @@ func TestDetectPlannedConflicts_ExcludeSelf(t *testing.T) {
 
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Selbst"})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
 		q.StaffIDs = []int64{s.staffID}
@@ -278,8 +257,7 @@ func TestDetectPlannedConflicts_CancelledIgnored(t *testing.T) {
 		Title:  "PC-Abgesagt",
 		Status: scheduleModels.InstanceStatusCancelled,
 	})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
 	warnings := scheduleSvc.DetectPlannedConflicts(s.ctx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {
 		q.StaffIDs = []int64{s.staffID}
@@ -293,8 +271,7 @@ func TestDetectPlannedConflicts_CrossTenantInvisible(t *testing.T) {
 
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Fremd"})
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
 	otherCtx := testpkg.TenantContext(999)
 	warnings := scheduleSvc.DetectPlannedConflicts(otherCtx, s.deps, probeQuery(s, func(q *scheduleSvc.PlannedConflictQuery) {

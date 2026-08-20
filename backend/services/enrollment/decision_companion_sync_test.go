@@ -142,7 +142,6 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	ctx := testpkg.Ctx(t)
 
 	partner := testpkg.CreateTestStudent(t, env.db, "Companion", "SyncPartner", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, env.db, partner.ID) })
 	t.Cleanup(func() {
 		_, err := env.db.NewDelete().
 			TableExpr("users.student_companions").

@@ -66,10 +66,6 @@ func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 
 	normal := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NormalAct-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SystemAct-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, normal.CategoryID)
-	defer cleanupActivity(t, ctx.db, system.ID)
-	defer cleanupCategory(t, ctx.db, system.CategoryID)
 
 	markGroupAsSystem(t, ctx.db, system.ID)
 
@@ -100,8 +96,6 @@ func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 
 	normal := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NormalCat-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("SystemCat-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, system.ID)
 
 	markCategoryAsSystem(t, ctx.db, system.ID)
 
@@ -134,10 +128,6 @@ func TestGetAvailableActivities_ExcludesSystemActivities(t *testing.T) {
 
 	normal := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AvailNormal-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AvailSystem-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, normal.CategoryID)
-	defer cleanupActivity(t, ctx.db, system.ID)
-	defer cleanupCategory(t, ctx.db, system.CategoryID)
 
 	// Both groups open for enrollment; one flagged as system infrastructure
 	// (mirrors Schulhof Freispiel/WC, which are created with is_open = true).

@@ -40,8 +40,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "dashboard-active")
 		room := testpkg.CreateTestRoom(t, db, "Dashboard Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		analytics, err := service.GetDashboardAnalytics(ctx)
@@ -59,7 +58,6 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		statusRepo := repositories.NewFactory(db).StudentStatusDay
 		plannedExcusedStudent := testpkg.CreateTestStudent(t, db, "PlannedExcused", "Dashboard", "PE1")
 		legacyOverlapStudent := testpkg.CreateTestStudent(t, db, "LegacyOverlap", "Dashboard", "PE2")
-		defer testpkg.CleanupActivityFixtures(t, db, plannedExcusedStudent.ID, legacyOverlapStudent.ID)
 
 		flagTrue := true
 		_, err = db.NewUpdate().
@@ -96,7 +94,6 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		classTripStudent := testpkg.CreateTestStudent(t, db, "ClassTrip", "Dashboard", "CT1")
 		alreadyExcusedStudent := testpkg.CreateTestStudent(t, db, "ExcusedClassTrip", "Dashboard", "CT2")
 		sickClassTripStudent := testpkg.CreateTestStudent(t, db, "SickClassTrip", "Dashboard", "CT3")
-		defer testpkg.CleanupActivityFixtures(t, db, classTripStudent.ID, alreadyExcusedStudent.ID, sickClassTripStudent.ID)
 
 		flagTrue := true
 		_, err = db.NewUpdate().
@@ -154,7 +151,6 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "TenantA", "ClassTrip", "CTA")
 		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
-		defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
 
 		statusRepo := repositories.NewFactory(db).StudentStatusDay
 		now := time.Now()

@@ -297,7 +297,6 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 	defer cleanup()
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, foreignTenantID)
-	defer testpkg.CleanupTenantTestData(t, env.db, foreignTenantID)
 
 	foreign := testpkg.CreateTestStudentForTenant(t, env.db, foreignTenantID, "Foreign", "Student", "1a")
 	audit := &stubAccessLogRepo{}

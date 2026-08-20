@@ -144,11 +144,7 @@ func newFixtureWithSettings(t *testing.T, settings stubSettings) *fixture {
 	t.Helper()
 	svc, bc, _, db := buildMessagingWithSettings(t, settings)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	return &fixture{db: db, svc: svc, bc: bc, chain: chain, staffAccount: staffAccount.ID}
 }
 
@@ -267,10 +263,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	colleague, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, f.db, colleague.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, f.db, colleagueAccount.ID) })
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, colleagueAccount.ID) })
+	_, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 
 	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)

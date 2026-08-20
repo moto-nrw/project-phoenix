@@ -81,7 +81,6 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 		return false
 	}
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abholung", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, author.ID) })
 	row := &scheduleModels.StudentPickupSchedule{
 		StudentID: studentID, Weekday: weekday, PickupTime: pickup, CreatedBy: author.ID,
 	}
@@ -112,7 +111,6 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 
 	// Real staff row rather than a guessed id: created_by carries a foreign key.
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Plan", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, author.ID) })
 
 	row := &scheduleModels.StudentArrivalSchedule{
 		StudentID:       studentID,
@@ -235,7 +233,6 @@ func TestGetChildTodayStatusRejectsForeignChild(t *testing.T) {
 
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID+999999)
 
@@ -249,7 +246,6 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	checkIn := timezone.Now().Add(-90 * time.Minute)
 	openAttendanceToday(t, db, chain.TenantID, chain.StudentID, checkIn)
@@ -273,7 +269,6 @@ func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
 
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
 
@@ -291,7 +286,6 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))
 	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
@@ -318,7 +312,6 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 7, 30, 0, 0, time.UTC))
 	seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
@@ -343,7 +336,6 @@ func TestGetChildTodayStatusWithoutPlanIsNoCareDay(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
 
@@ -356,7 +348,6 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedPickupScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 15, 30, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
@@ -380,17 +371,12 @@ func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 
 	// Die Historie gehoert einem MITSCHUELER, das angefragte Kind hat keine.
 	classmate := testpkg.CreateTestStudentForTenant(t, db, chain.TenantID, "Mit", "Schueler", "3a")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", classmate.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", classmate.PersonID)
-	})
 	seedClosedAttendanceOn(t, db, chain.TenantID, classmate.ID, timezone.TodayDate().AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
@@ -406,12 +392,10 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
 	exception := &scheduleModels.StudentArrivalException{
 		StudentID: chain.StudentID, ExceptionDate: timezone.TodayDate(), ExpectedArrival: nil, CreatedBy: staff.ID,
 	}

@@ -2230,16 +2230,6 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		// Restore the school so it doesn't leak into other tests.
-		_, _ = db.ExecContext(context.Background(),
-			`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
-
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 

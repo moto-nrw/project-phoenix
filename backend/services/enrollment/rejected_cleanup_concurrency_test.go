@@ -68,17 +68,11 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	ctx := scope.Context()
 	repos := repositories.NewFactory(db)
 	relatedType := platformModels.EmailRelatedTypeEnrollmentRequest
-	var phaseID, requestID int64
+	var _, requestID int64
 	defer func() {
 		if requestID > 0 {
 			_, _ = repos.EmailOutbox.DeleteByRelatedEntity(ctx, relatedType, requestID)
-			testpkg.CleanupTableRecords(t, db, "enrollment.requests", requestID)
 		}
-		if phaseID > 0 {
-			testpkg.CleanupTableRecords(t, db, "enrollment.phases", phaseID)
-		}
-		testpkg.CleanupTableRecords(t, db, "platform.schools", scope.TenantID)
-		testpkg.CleanupTableRecords(t, db, "platform.organizations", scope.TenantID)
 	}()
 
 	phase := &enrollmentModels.Phase{
@@ -90,7 +84,6 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	}
 	phase.SetTenantID(scope.TenantID)
 	require.NoError(t, repos.Phase.Create(ctx, phase))
-	phaseID = phase.ID
 
 	request := &enrollmentModels.Request{
 		PhaseID:           phase.ID,
@@ -217,19 +210,12 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
 	relatedType := platformModels.EmailRelatedTypeEnrollmentRequest
 
-	var phaseID, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
+	var _, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("enrollment.late_invites").Where("tenant_id = ?", scope.TenantID).Exec(context.Background())
 		if requestID > 0 {
 			_, _ = repos.EmailOutbox.DeleteByRelatedEntity(scope.Context(), relatedType, requestID)
-			testpkg.CleanupTableRecords(t, db, "enrollment.requests", requestID)
 		}
-		if phaseID > 0 {
-			testpkg.CleanupTableRecords(t, db, "enrollment.phases", phaseID)
-		}
-		testpkg.CleanupAuthFixtures(t, db, creator.ID)
-		testpkg.CleanupTableRecords(t, db, "platform.schools", scope.TenantID)
-		testpkg.CleanupTableRecords(t, db, "platform.organizations", scope.TenantID)
 	}()
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)
@@ -244,7 +230,6 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		if err := repos.Phase.Create(ctx, phase); err != nil {
 			return err
 		}
-		phaseID = phase.ID
 
 		request := &enrollmentModels.Request{
 			PhaseID:           phase.ID,

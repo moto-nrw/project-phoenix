@@ -60,26 +60,6 @@ func setupOperatorInvitationTokenRepositoryTest(
 	return db, repoplatform.NewOperatorInvitationTokenRepository(db)
 }
 
-// cleanupInvitationTokens removes all tokens created by a specific operator.
-func cleanupInvitationTokens(tb testing.TB, db *bun.DB, createdBy int64) {
-	tb.Helper()
-	_, _ = db.NewDelete().
-		Model((*platform.OperatorInvitationToken)(nil)).
-		ModelTableExpr("platform.operator_invitation_tokens").
-		Where("created_by = ?", createdBy).
-		Exec(context.Background())
-}
-
-// cleanupOperator removes an operator row.
-func cleanupOperator(tb testing.TB, db *bun.DB, id int64) {
-	tb.Helper()
-	_, _ = db.NewDelete().
-		Model((*platform.Operator)(nil)).
-		ModelTableExpr("platform.operators").
-		Where("id = ?", id).
-		Exec(context.Background())
-}
-
 func newTestToken(email string, createdBy int64) *platform.OperatorInvitationToken {
 	return &platform.OperatorInvitationToken{
 		Email:     email,
@@ -98,8 +78,6 @@ func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("create-test@example.com", op.ID)
 
@@ -139,8 +117,6 @@ func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("findbyid@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -171,8 +147,6 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("findvalid@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -188,8 +162,6 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	// Insert directly with past expiry (bypassing model validation)
 	expiredToken := &platform.OperatorInvitationToken{
@@ -211,8 +183,6 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("used-valid@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -245,8 +215,6 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) 
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("consume@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -263,8 +231,6 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *tes
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("double-consume@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -299,8 +265,6 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("markused@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -321,8 +285,6 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) 
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("markused-twice@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -347,8 +309,6 @@ func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	// Create two pending tokens
 	token1 := newTestToken("pending1@example.com", op.ID)
@@ -390,8 +350,6 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("extend@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -412,8 +370,6 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("extend-used@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -436,8 +392,6 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	targetEmail := uuid.Must(uuid.NewV4()).String() + "-invalidate@example.com"
 	token := newTestToken(targetEmail, op.ID)
@@ -473,8 +427,6 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testi
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("delivery@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -496,8 +448,6 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *tes
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("delivery-err@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -520,8 +470,6 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t 
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	token := newTestToken("delivery-reset@example.com", op.ID)
 	require.NoError(t, repo.Create(context.Background(), token))
@@ -552,8 +500,6 @@ func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
-	defer cleanupOperator(t, db, op.ID)
-	defer cleanupInvitationTokens(t, db, op.ID)
 
 	// Insert an expired token directly (bypassing model validation)
 	expiredToken := &platform.OperatorInvitationToken{
@@ -596,8 +542,6 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 
 	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {
 		op := testpkg.CreateTestOperator(t, db)
-		defer cleanupOperator(t, db, op.ID)
-		defer cleanupInvitationTokens(t, db, op.ID)
 
 		count, err := repo.CountRecentByCreatedBy(ctx, op.ID, time.Now().Add(-1*time.Hour))
 		require.NoError(t, err)
@@ -606,8 +550,6 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 
 	t.Run("CountsAllTokensInWindow_PendingAndUsed", func(t *testing.T) {
 		op := testpkg.CreateTestOperator(t, db)
-		defer cleanupOperator(t, db, op.ID)
-		defer cleanupInvitationTokens(t, db, op.ID)
 
 		// Two pending tokens
 		for i := 0; i < 2; i++ {
@@ -627,8 +569,6 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 
 	t.Run("IgnoresTokensOutsideWindow", func(t *testing.T) {
 		op := testpkg.CreateTestOperator(t, db)
-		defer cleanupOperator(t, db, op.ID)
-		defer cleanupInvitationTokens(t, db, op.ID)
 
 		// Insert a token with created_at well in the past (2 hours ago).
 		// Using raw SQL because repo.Create sets created_at to NOW() via the
@@ -656,10 +596,6 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 	t.Run("ScopesByCreatedBy", func(t *testing.T) {
 		opA := testpkg.CreateTestOperator(t, db)
 		opB := testpkg.CreateTestOperator(t, db)
-		defer cleanupOperator(t, db, opA.ID)
-		defer cleanupOperator(t, db, opB.ID)
-		defer cleanupInvitationTokens(t, db, opA.ID)
-		defer cleanupInvitationTokens(t, db, opB.ID)
 
 		// Three tokens from opA, one from opB
 		for i := 0; i < 3; i++ {

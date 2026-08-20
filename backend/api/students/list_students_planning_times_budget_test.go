@@ -79,9 +79,8 @@ func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 		return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	}
 
-	studentA := testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindA", "TB1")
-	studentB := testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindB", "TB1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentA.ID, studentB.ID)
+	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindA", "TB1")
+	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindB", "TB1")
 
 	counter := &planningTimesCounter{queries: make(map[string][]string)}
 	tc.db.AddQueryHook(counter)

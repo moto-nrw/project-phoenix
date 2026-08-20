@@ -260,7 +260,6 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 		p2.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, p2)
 		require.NoError(t, err)
-
 		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", p1.ID, p2.ID)
 
 		periods, err := repo.FindByTenantID(ctx)
@@ -308,7 +307,6 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 		require.NoError(t, err)
 
 		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", activePeriod.ID, inactivePeriod.ID)
-
 		periods, err := repo.FindActiveByTenantID(ctx)
 
 		require.NoError(t, err)
@@ -746,8 +744,7 @@ func TestCalendarPeriodRepository_List(t *testing.T) {
 
 	t.Run("lists periods with nil options", func(t *testing.T) {
 		name := fmt.Sprintf("Test-List-%d", time.Now().UnixNano())
-		period := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
+		createTestCalendarPeriod(t, repo, name)
 
 		periods, err := repo.List(ctx, nil)
 

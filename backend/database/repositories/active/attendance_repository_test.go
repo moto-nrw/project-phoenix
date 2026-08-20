@@ -35,15 +35,6 @@ func createAttendanceTestData(t *testing.T, db *bun.DB) *attendanceTestData {
 	}
 }
 
-// cleanupAttendanceTestData removes test data using hermetic cleanup
-func cleanupAttendanceTestData(t *testing.T, db *bun.DB, data *attendanceTestData) {
-	testpkg.CleanupActivityFixtures(t, db,
-		data.Student1.ID, data.Student2.ID,
-		data.Staff1.ID, data.Staff2.ID,
-		data.Device1.ID,
-	)
-}
-
 // TestAttendanceRepository_Create tests basic record creation
 func TestAttendanceRepository_Create(t *testing.T) {
 	t.Parallel()
@@ -53,13 +44,9 @@ func TestAttendanceRepository_Create(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("create valid attendance record", func(t *testing.T) {
@@ -127,7 +114,6 @@ func TestAttendanceRepository_Create(t *testing.T) {
 		// (student_id, date) WHERE check_out_time IS NULL doesn't fight us:
 		// Student1 already has an open row from the earlier sub-test.
 		isolatedStudent := testpkg.CreateTestStudent(t, db, "IsCheckedIn", "Helper", "1f")
-		defer testpkg.CleanupActivityFixtures(t, db, isolatedStudent.ID)
 
 		// Create attendance without check-out
 		attendanceCheckedIn := &active.Attendance{
@@ -173,13 +159,11 @@ func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	now := time.Now()
-	openAttendance := testpkg.CreateTestAttendance(t, db, data.Student1.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, data.Student1.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	closedAttendance := testpkg.CreateTestAttendance(t, db, data.Student2.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), &checkOutTime)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", openAttendance.ID, closedAttendance.ID)
+	testpkg.CreateTestAttendance(t, db, data.Student2.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), &checkOutTime)
 
 	ids, err := repo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 
@@ -197,13 +181,9 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("single record for student on date", func(t *testing.T) {
@@ -249,7 +229,6 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		// a CheckOutTime, only the latest stays open. This matches the
 		// realistic in/out/in/out lifecycle.
 		multiRowStudent := testpkg.CreateTestStudent(t, db, "MultiRow", "Same", "1g")
-		defer testpkg.CleanupActivityFixtures(t, db, multiRowStudent.ID)
 
 		checkout1 := now.Add(-90 * time.Minute)
 		checkout2 := now.Add(30 * time.Minute)
@@ -322,7 +301,6 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		// Isolate from prior sub-tests' open rows — partial unique index
 		// only allows one open attendance per (student_id, date).
 		dateFilterStudent := testpkg.CreateTestStudent(t, db, "DateFilter", "Test", "1h")
-		defer testpkg.CleanupActivityFixtures(t, db, dateFilterStudent.ID)
 
 		attendance := &active.Attendance{
 			StudentID:   dateFilterStudent.ID,
@@ -361,7 +339,6 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		// check_out_time IS NULL.
 		diffStudentA := testpkg.CreateTestStudent(t, db, "DiffStudents", "A", "1i")
 		diffStudentB := testpkg.CreateTestStudent(t, db, "DiffStudents", "B", "1j")
-		defer testpkg.CleanupActivityFixtures(t, db, diffStudentA.ID, diffStudentB.ID)
 
 		attendance1 := &active.Attendance{
 			StudentID:   diffStudentA.ID,
@@ -409,7 +386,6 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		// earlier sub-tests; the partial unique index would block the
 		// second insert here.
 		twoDayStudent := testpkg.CreateTestStudent(t, db, "TwoDay", "Test", "1k")
-		defer testpkg.CleanupActivityFixtures(t, db, twoDayStudent.ID)
 
 		// Create attendance for date1
 		attendance1 := &active.Attendance{
@@ -470,13 +446,9 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("latest record across multiple dates", func(t *testing.T) {
@@ -488,7 +460,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		// Different dates each, so the partial unique index isn't relevant
 		// here — but use an isolated student for clean assertions.
 		latestDateStudent := testpkg.CreateTestStudent(t, db, "LatestDate", "Test", "1l")
-		defer testpkg.CleanupActivityFixtures(t, db, latestDateStudent.ID)
 
 		// Create attendance for date1 (oldest)
 		attendance1 := &active.Attendance{
@@ -541,7 +512,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		// one open row per (student_id, date) is allowed by the partial
 		// unique index.
 		multiCheckinStudent := testpkg.CreateTestStudent(t, db, "MultiCheckin", "Same", "1m")
-		defer testpkg.CleanupActivityFixtures(t, db, multiCheckinStudent.ID)
 
 		earlyCheckout := now.Add(-1 * time.Hour)
 		closedBy := data.Staff1.ID
@@ -581,7 +551,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	t.Run("no records for student", func(t *testing.T) {
 		// Create a new student with no attendance records
 		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "1c")
-		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		// Try to find latest record for student with no attendance
 		latest, err := repo.FindLatestByStudent(ctx, newStudent.ID)
@@ -594,7 +563,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	t.Run("single record for student", func(t *testing.T) {
 		// Create a new student for isolated test
 		singleStudent := testpkg.CreateTestStudent(t, db, "Single", "RecordStudent", "1d")
-		defer testpkg.CleanupActivityFixtures(t, db, singleStudent.ID)
 
 		now := time.Now()
 		date := timezone.TodayDate()
@@ -623,7 +591,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	t.Run("complex scenario - mixed dates and times", func(t *testing.T) {
 		// Create a new student for isolated test
 		complexStudent := testpkg.CreateTestStudent(t, db, "Complex", "ScenarioStudent", "1e")
-		defer testpkg.CleanupActivityFixtures(t, db, complexStudent.ID)
 
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -687,7 +654,6 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		// check_out_time IS NULL.
 		noInterfereA := testpkg.CreateTestStudent(t, db, "NoInterfere", "A", "1n")
 		noInterfereB := testpkg.CreateTestStudent(t, db, "NoInterfere", "B", "1o")
-		defer testpkg.CleanupActivityFixtures(t, db, noInterfereA.ID, noInterfereB.ID)
 
 		attendanceStudent1 := &active.Attendance{
 			StudentID:   noInterfereA.ID,
@@ -734,19 +700,14 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("no records today - student not checked in", func(t *testing.T) {
 		// Create a new student with no attendance records
 		newStudent := testpkg.CreateTestStudent(t, db, "NoRecords", "Today", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		// Try to get current status for student with no attendance today
 		status, err := repo.GetStudentCurrentStatus(ctx, newStudent.ID)
@@ -759,7 +720,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	t.Run("student checked in - latest record has no check-out time", func(t *testing.T) {
 		// Create isolated student
 		checkedInStudent := testpkg.CreateTestStudent(t, db, "CheckedIn", "StatusTest", "2b")
-		defer testpkg.CleanupActivityFixtures(t, db, checkedInStudent.ID)
 
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -791,7 +751,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	t.Run("student checked out - latest record has check-out time", func(t *testing.T) {
 		// Create isolated student
 		checkedOutStudent := testpkg.CreateTestStudent(t, db, "CheckedOut", "StatusTest", "2c")
-		defer testpkg.CleanupActivityFixtures(t, db, checkedOutStudent.ID)
 
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -826,7 +785,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	t.Run("multiple records today - returns latest by check-in time", func(t *testing.T) {
 		// Create isolated student
 		multiRecordStudent := testpkg.CreateTestStudent(t, db, "MultiRecord", "StatusTest", "2d")
-		defer testpkg.CleanupActivityFixtures(t, db, multiRecordStudent.ID)
 
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -887,7 +845,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	t.Run("historical records exist but none today", func(t *testing.T) {
 		// Create isolated student
 		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "StatusTest", "2e")
-		defer testpkg.CleanupActivityFixtures(t, db, historicalStudent.ID)
 
 		now := time.Now()
 		yesterday := timezone.TodayDate().AddDays(-1)
@@ -916,7 +873,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		// Create isolated students
 		diffStudent1 := testpkg.CreateTestStudent(t, db, "Different1", "StatusTest", "2f")
 		diffStudent2 := testpkg.CreateTestStudent(t, db, "Different2", "StatusTest", "2g")
-		defer testpkg.CleanupActivityFixtures(t, db, diffStudent1.ID, diffStudent2.ID)
 
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -969,7 +925,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	t.Run("timezone handling - today calculation", func(t *testing.T) {
 		// Create isolated student
 		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
-		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
 		today := timezone.TodayDate()
 
@@ -1004,13 +959,9 @@ func TestAttendanceRepository_Update(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("updates attendance with check-out time", func(t *testing.T) {
@@ -1062,13 +1013,9 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("finds existing attendance by ID", func(t *testing.T) {
@@ -1108,7 +1055,6 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	t.Run("deletes existing attendance record", func(t *testing.T) {
 		now := time.Now()
@@ -1142,13 +1088,9 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
@@ -1175,7 +1117,6 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	t.Run("returns error when no attendance today", func(t *testing.T) {
 		// Create student with no attendance today
 		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendanceToday", "Test", "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		_, err := repo.GetTodayByStudentID(ctx, newStudent.ID)
 		assert.Error(t, err)
@@ -1191,13 +1132,9 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
@@ -1274,13 +1211,9 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("nil attendance returns error", func(t *testing.T) {
@@ -1292,7 +1225,6 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 
 	t.Run("first open insert succeeds and assigns ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Conflict", "First", "1z")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
 		att := &active.Attendance{
@@ -1312,7 +1244,6 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 
 	t.Run("conflicting open insert returns inserted=false without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Conflict", "Race", "1y")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
 		date := timezone.TodayDate()
@@ -1342,7 +1273,6 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 
 	t.Run("re-entry after checkout succeeds", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Conflict", "Reentry", "1x")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
 		date := timezone.TodayDate()
@@ -1397,18 +1327,13 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
 	defer func() {
-		for _, id := range createdIDs {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	t.Run("closes the open row and clears yard_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Open", "2x")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
 		yard := now.Add(-15 * time.Minute)
@@ -1436,7 +1361,6 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 
 	t.Run("no open row returns nil without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), timezone.TodayDate(), data.Staff1.ID)
 		require.NoError(t, err)
@@ -1447,7 +1371,6 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		// Mirrors the kiosk path where deviceID owns the close but no
 		// staff PIN is in scope.
 		student := testpkg.CreateTestStudent(t, db, "Close", "NoStaff", "2z")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
 		open := &active.Attendance{
@@ -1481,10 +1404,8 @@ func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	student := testpkg.CreateTestStudent(t, db, "Close", "SnapshotDay", "2w")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	now := time.Now()
 	yesterday := timezone.TodayDate().AddDays(-1)
@@ -1496,7 +1417,6 @@ func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 		DeviceID:    data.Device1.ID,
 	}
 	require.NoError(t, repo.Create(ctx, open))
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", open.ID)
 
 	// A close scoped to the CURRENT day must not touch yesterday's open row.
 	closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.TodayDate(), data.Staff1.ID)

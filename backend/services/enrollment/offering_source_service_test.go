@@ -1453,10 +1453,6 @@ func createBoundedTemplateSchedule(
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(env.db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, env.db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, env.db, "schedule.timeframes", timeframe.ID)
-	})
 }
 
 // createSourcedTemplateSegment is createSourcedTemplate with an explicit
@@ -1605,7 +1601,6 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 			TableExpr("schedule.instance_students").
 			Where("instance_id IN (?, ?)", planned.ID, decided.ID).
 			Exec(context.Background())
-		testpkg.CleanupTableRecords(t, env.db, "schedule.activity_instances", planned.ID, decided.ID)
 	})
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentGrade1, "expected")
 	manualAt := time.Now()
@@ -1726,7 +1721,6 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 				Where("instance_id = ?", instanceID).
 				Exec(context.Background())
 		}
-		testpkg.CleanupTableRecords(t, env.db, "schedule.activity_instances", instanceIDs...)
 	})
 }
 

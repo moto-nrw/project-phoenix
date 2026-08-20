@@ -85,8 +85,6 @@ func (c *seriesChain) addStaff(t *testing.T, label string) int64 {
 	staff := testpkg.CreateTestStaffForTenant(t, c.db, c.tenantID, "Extra",
 		fmt.Sprintf("%s-%d", label, time.Now().UnixNano()))
 	c.extraCleanups = append(c.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, c.db, "users.staff", staff.ID)
-		testpkg.CleanupTableRecords(t, c.db, "users.persons", staff.PersonID)
 	})
 	return staff.ID
 }
@@ -440,7 +438,6 @@ func (c *seriesChain) insertPredecessorEnrollment(
 	row.SetTenantID(c.tenantID)
 	_, err := c.db.NewInsert().Model(row).ModelTableExpr(`activities.student_enrollments`).Exec(c.ctx)
 	require.NoError(t, err)
-	c.registerCleanup("activities.student_enrollments", row.ID)
 	return row
 }
 

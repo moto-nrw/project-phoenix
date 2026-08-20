@@ -66,7 +66,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 	t.Run("get combined group by id", func(t *testing.T) {
 		// Create combined group fixture
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -88,7 +87,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 	t.Run("update combined group", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Update Room %d", time.Now().UnixNano()))
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		body := map[string]interface{}{
 			"name":       "Updated Combined Name",
@@ -104,7 +102,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("end combined group", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/combined/%d/end", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -124,7 +121,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("get combined group groups", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d/groups", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -170,7 +166,6 @@ func TestGroupMappings_Integration(t *testing.T) {
 
 	t.Run("get combined group mappings", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/combined/%d", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -184,7 +179,6 @@ func TestGroupMappings_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Add Mapping Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		body := map[string]interface{}{
 			"active_group_id":   activeGroup.ID,
@@ -203,9 +197,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Remove Mapping Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		mapping := createTestGroupMapping(t, tc.db, activeGroup.ID, combinedGroup.ID)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
-		defer cleanupGroupMapping(t, tc.db, mapping.ID)
+		createTestGroupMapping(t, tc.db, activeGroup.ID, combinedGroup.ID)
 
 		body := map[string]interface{}{
 			"active_group_id":   activeGroup.ID,
@@ -1123,31 +1115,6 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	return combinedGroup
 }
 
-// cleanupCombinedGroup removes a combined group from the database
-func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	// First delete any mappings
-	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.group_mappings").
-		Where("active_combined_group_id = ?", id).
-		Exec(ctx)
-
-	// Then delete the combined group
-	_, err := db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.combined_groups").
-		Where("id = ?", id).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup combined group: %v", err)
-	}
-}
-
 // createTestGroupMapping creates a group mapping directly in the database
 func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
 	t.Helper()
@@ -1168,21 +1135,4 @@ func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGro
 	require.NoError(t, err, "Failed to create test group mapping")
 
 	return mapping
-}
-
-// cleanupGroupMapping removes a group mapping from the database
-func cleanupGroupMapping(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.group_mappings").
-		Where("id = ?", id).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup group mapping: %v", err)
-	}
 }

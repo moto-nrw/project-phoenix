@@ -12,7 +12,6 @@ import (
 func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	group := testpkg.CreateTestActivityGroup(t, db, "PlanningTrackTenantFK")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, *group.CreatedBy, group.CategoryID)
 
 	otherScope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)

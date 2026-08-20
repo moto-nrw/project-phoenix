@@ -74,10 +74,6 @@ func TestStammdatenAPI_FinancialWriteAllowsAccountWithoutStaffMapping(t *testing
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Payroll-%d", time.Now().UnixNano()))
 	account := testpkg.CreateTestAccount(t, ctx.tc.db, fmt.Sprintf("payroll-%d@example.test", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, ctx.tc.db, target.ID)
-		testpkg.CleanupAuthFixtures(t, ctx.tc.db, account.ID)
-	})
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)

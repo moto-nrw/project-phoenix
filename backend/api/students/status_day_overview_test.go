@@ -72,7 +72,6 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	tripChild := testpkg.CreateTestStudent(t, tc.db, "Theo", "Fahrt", "2b")
 	endedChild := testpkg.CreateTestStudent(t, tc.db, "Ehemalig", "Beendet", "3c")
 	inactiveLegacyChild := testpkg.CreateTestStudent(t, tc.db, "Ehemalig", "Legacy", "3c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, sickChild.ID, tripChild.ID, endedChild.ID, inactiveLegacyChild.ID, groupA.ID, groupB.ID, emptyGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, sickChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, tripChild.ID, groupB.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, groupA.ID)
@@ -80,13 +79,12 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 
 	today := timezone.TodayDate()
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), active.StudentStatusDaySick)
-	tripDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), active.StudentStatusDayClassTrip)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), active.StudentStatusDayClassTrip)
 	// Out of the default two-month window: must not be listed.
-	farDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year, today.Month+3, 1), active.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year, today.Month+3, 1), active.StudentStatusDayExcused)
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(3), active.StudentStatusDaySick)
-	endedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), active.StudentStatusDaySick)
-	legacyDay := testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), active.StudentStatusDayExcused)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, sickDay.ID, tripDay.ID, farDay.ID, clearedDay.ID, endedDay.ID, legacyDay.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), active.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), active.StudentStatusDayExcused)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -186,14 +184,12 @@ func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Filter B")
 	inGroup := testpkg.CreateTestStudent(t, tc.db, "Ida", "Drin", "1a")
 	outGroup := testpkg.CreateTestStudent(t, tc.db, "Omar", "Draussen", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, inGroup.ID, outGroup.ID, groupA.ID, groupB.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, inGroup.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, outGroup.ID, groupB.ID)
 
 	today := timezone.TodayDate()
-	inDay := testpkg.CreateTestStudentStatusDay(t, tc.db, inGroup.ID, today.AddDays(1), active.StudentStatusDayExcused)
-	outDay := testpkg.CreateTestStudentStatusDay(t, tc.db, outGroup.ID, today.AddDays(1), active.StudentStatusDaySick)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, inDay.ID, outDay.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, inGroup.ID, today.AddDays(1), active.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, outGroup.ID, today.AddDays(1), active.StudentStatusDaySick)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/status-days?group_id=%d", groupA.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -233,8 +229,7 @@ func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 	t.Parallel()
 
 	tc := setupTestContext(t)
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Page Cap")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Page Cap")
 
 	req := testutil.NewRequest("GET", "/status-days?page_size=10000", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -252,16 +247,14 @@ func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.
 	endedChild := testpkg.CreateTestStudent(t, tc.db, "A", "Beendet", "1a")
 	zChild := testpkg.CreateTestStudent(t, tc.db, "Zora", "Zulu", "1a")
 	aChild := testpkg.CreateTestStudent(t, tc.db, "Anna", "Alpha", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, endedChild.ID, zChild.ID, aChild.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, zChild.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, aChild.ID, group.ID)
 
 	today := timezone.TodayDate()
-	endedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today, active.StudentStatusDaySick)
-	zDay := testpkg.CreateTestStudentStatusDay(t, tc.db, zChild.ID, today, active.StudentStatusDaySick)
-	aDay := testpkg.CreateTestStudentStatusDay(t, tc.db, aChild.ID, today, active.StudentStatusDayExcused)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, endedDay.ID, zDay.ID, aDay.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today, active.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, zChild.ID, today, active.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, aChild.ID, today, active.StudentStatusDayExcused)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -304,8 +297,7 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 	t.Parallel()
 
 	tc := setupTestContext(t)
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
 	tc.resource.StudentHistoryService = nil
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
@@ -319,8 +311,7 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 // status-day overview lands between the two counts.
 func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T) {
 	tc := setupTestContext(t)
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+	testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
 	tc.resource.AbsenceOverview = nil
 
 	before, err := tc.db.NewSelect().
@@ -362,7 +353,6 @@ func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "overview-unlinked@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -376,14 +366,12 @@ func TestGetStudentStatusDaysOverview_StaffSeesAllGroups(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// #2329: tenant-wide for verified staff — no supervision narrowing.
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Overview", "Staff")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Overview", "Staff")
 	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Fremde")
 	child := testpkg.CreateTestStudent(t, tc.db, "Frida", "Fremd", "3c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, child.ID, teacher.ID, account.ID, foreignGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, child.ID, foreignGroup.ID)
 
-	day := testpkg.CreateTestStudentStatusDay(t, tc.db, child.ID, timezone.TodayDate().AddDays(1), active.StudentStatusDaySick)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, day.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, child.ID, timezone.TodayDate().AddDays(1), active.StudentStatusDaySick)
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})

@@ -971,17 +971,6 @@ func findImportAuditRecords(t *testing.T, db *bun.DB, filename string) []*auditM
 	return records
 }
 
-// cleanupImportAuditRecords removes audit rows created by a test.
-func cleanupImportAuditRecords(t *testing.T, db *bun.DB, filename string) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Model((*auditModels.DataImport)(nil)).
-		ModelTableExpr(`audit.data_imports AS "data_import"`).
-		Where(`"data_import".filename = ?`, filename).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
 func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
 	t.Parallel()
 
@@ -990,7 +979,6 @@ func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditPrev", "Regression")
 
 	filename := fmt.Sprintf("audit-preview-%d.csv", account.ID)
-	defer cleanupImportAuditRecords(t, tc.db, filename)
 
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
 	req := testutil.NewMultipartRequest(t, "POST", "/students/preview", "file", filename, csvContent,
@@ -1015,7 +1003,6 @@ func TestImportStudents_PersistsAuditRecord(t *testing.T) {
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditImp", "Regression")
 
 	filename := fmt.Sprintf("audit-import-%d.csv", account.ID)
-	defer cleanupImportAuditRecords(t, tc.db, filename)
 
 	firstName := fmt.Sprintf("AuditKind%d", account.ID)
 	csvContent := fmt.Sprintf("Vorname,Nachname,Klasse\n%s,Regression,1a", firstName)

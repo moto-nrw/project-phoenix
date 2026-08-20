@@ -85,7 +85,6 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 
 	inRoom := testpkg.CreateTestStudent(t, tc.db, "OGSLive", "Drinnen", "OL1")
 	atHome := testpkg.CreateTestStudent(t, tc.db, "OGSLive", "Zuhause", "OL1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, inRoom.ID, atHome.ID, group.ID, room.ID, teacher.ID)
 
 	testpkg.AssignStudentToGroup(t, tc.db, inRoom.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, atHome.ID, group.ID)
@@ -98,13 +97,11 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestAttendance(t, tc.db, inRoom.ID, teacher.Staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
 	testpkg.CreateTestVisit(t, tc.db, inRoom.ID, activeGroup.ID, time.Now().Add(-1*time.Hour), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.ID, device.ID)
 
 	// Same-day transfer: substitution with unassigned regular staff slot.
 	substitute := testpkg.CreateTestStaff(t, tc.db, "OGSLive", "Vertretung")
 	today := timezone.TodayDate()
 	sub := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, substitute.ID, today, today)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, sub.ID, substitute.ID)
 
 	// Tracking indicators: enable the feature with one label so the aggregate
 	// exercises the settings-gated ActiveService path.
@@ -173,7 +170,6 @@ func TestOGSGroupLive_MinimalProjection(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSSlim", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSSlimGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "OGSSlim", "Kind", "OS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, group.ID, teacher.ID)
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -253,9 +249,6 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 		}
 	}
 	// Students before groups: a group still referenced by a student cannot go.
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, group.ID, teacher.ID)...)
-	}()
 
 	counter := &queryCounter{}
 	tc.db.AddQueryHook(counter)
@@ -299,17 +292,11 @@ func TestOGSGroupLive_PayloadBudget(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSPayloadGroup")
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
-	var studentIDs []int64
 	const groupSize = 30
 	for i := range groupSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "OGSPayload", fmt.Sprintf("Produktionskind%02d", i), "OP1")
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		studentIDs = append(studentIDs, student.ID)
 	}
-	// Students before groups: a group still referenced by a student cannot go.
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, group.ID, teacher.ID)...)
-	}()
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
@@ -338,8 +325,6 @@ func TestOGSGroupLive_ErrorContract(t *testing.T) {
 	otherTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSErr", "Other")
 	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "OGSErrForeign")
 	testpkg.CreateTestGroupTeacher(t, tc.db, foreignGroup.ID, otherTeacher.ID)
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, foreignGroup.ID, teacher.ID, otherTeacher.ID)
 
 	t.Run("invalid group_id is a 400", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/ogs-group-live?group_id=abc", nil)
@@ -371,8 +356,7 @@ func TestOGSGroupLive_ErrorContract(t *testing.T) {
 	})
 
 	t.Run("no supervised groups is an explicit empty 200", func(t *testing.T) {
-		lonely, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSErr", "Gruppenlos")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, lonely.ID)
+		_, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSErr", "Gruppenlos")
 
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(lonelyAccount.ID)), ogsLivePerms)
@@ -394,9 +378,10 @@ func TestOGSGroupLive_TenantIsolation(t *testing.T) {
 	ownGroup := testpkg.CreateTestEducationGroup(t, tc.db, "OGSIsoOwn")
 	testpkg.CreateTestGroupTeacher(t, tc.db, ownGroup.ID, teacher.ID)
 
-	testpkg.EnsureTestTenant(t, tc.db, 2)
-	otherTenantGroup := testpkg.CreateTestEducationGroupForTenant(t, tc.db, 2, "OGSIsoForeignTenant")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, ownGroup.ID, otherTenantGroup.ID, teacher.ID)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, tc.db, otherTenantID)
+	otherTenantGroup := testpkg.CreateTestEducationGroupForTenant(t, tc.db, otherTenantID, "OGSIsoForeignTenant")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", otherTenantGroup.ID), nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)

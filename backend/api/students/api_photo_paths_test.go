@@ -19,7 +19,6 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -141,7 +140,6 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoWithdraw", "Student", "PW1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 
@@ -193,7 +191,6 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoGrant", "Student", "PG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Start state: no consent. Sanity check the precondition.
 	require.False(t, readConsentTimestamp(t, tc, student.ID),
@@ -236,7 +233,6 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoNoOp", "Student", "PN1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Stamp consent directly so we can verify it survives an unrelated
 	// edit.
@@ -278,7 +274,6 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	// about the photo feature flag — the unlink branch runs whenever
 	// fresh.PhotoPath is non-NULL, regardless of feature toggle state.
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -310,7 +305,6 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -343,7 +337,6 @@ func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Enabled", "PR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
 	body := map[string]interface{}{"first_name": "RenamedResp"}
@@ -372,7 +365,6 @@ func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 	// Deliberately do NOT enable the feature.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Disabled", "PR2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
 	body := map[string]interface{}{"first_name": "RenamedDisabled"}
@@ -401,4 +393,3 @@ func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 
 // noop — placeholder so context.Context import is used should we add
 // a future test that needs ctx without other plumbing.
-var _ context.Context

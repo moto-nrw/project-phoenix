@@ -46,13 +46,12 @@ func TestDeviationEventRepository_ListByRangeFiltersSlotAndRange(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Protokoll-Gruppe")
 	otherGroup := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Andere Gruppe")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, otherGroup.ID)
 
 	day := timezone.NewDate(2026, time.September, 22)
 	inRange := createTestDeviationEvent(t, db, scope, group.ID, day, "14:00", auditModels.DeviationEventAbsence)
-	sameDayOtherSlot := createTestDeviationEvent(t, db, scope, group.ID, day, "15:30", auditModels.DeviationEventSubstitution)
-	otherGroupEvent := createTestDeviationEvent(t, db, scope, otherGroup.ID, day, "14:00", auditModels.DeviationEventCancellation)
-	outOfRange := createTestDeviationEvent(t, db, scope, group.ID, day.AddDays(10), "14:00", auditModels.DeviationEventAbsence)
+	createTestDeviationEvent(t, db, scope, group.ID, day, "15:30", auditModels.DeviationEventSubstitution)
+	createTestDeviationEvent(t, db, scope, otherGroup.ID, day, "14:00", auditModels.DeviationEventCancellation)
+	createTestDeviationEvent(t, db, scope, group.ID, day.AddDays(10), "14:00", auditModels.DeviationEventAbsence)
 
 	repo := repositories.NewFactory(db).DeviationEvent
 
@@ -66,9 +65,6 @@ func TestDeviationEventRepository_ListByRangeFiltersSlotAndRange(t *testing.T) {
 	require.Len(t, slot, 1)
 	require.Equal(t, inRange.ID, slot[0].ID)
 
-	_ = sameDayOtherSlot
-	_ = otherGroupEvent
-	_ = outOfRange
 }
 
 func TestDeviationEventRepository_TenantIsolation(t *testing.T) {
@@ -79,7 +75,6 @@ func TestDeviationEventRepository_TenantIsolation(t *testing.T) {
 	scopeA := testpkg.NewTenantScope(t, db)
 	scopeB := testpkg.NewTenantScope(t, db)
 	groupA := testpkg.CreateTestActivityGroupForTenant(t, db, scopeA.TenantID, "Tenant-A-Gruppe")
-	defer testpkg.CleanupActivityFixtures(t, db, groupA.ID)
 
 	day := timezone.NewDate(2026, time.September, 22)
 	createTestDeviationEvent(t, db, scopeA, groupA.ID, day, "14:00", auditModels.DeviationEventAbsence)
@@ -97,10 +92,9 @@ func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
 
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Retention-Gruppe")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 	cutoff := timezone.NewDate(2026, time.March, 1)
-	old := createTestDeviationEvent(t, db, scope, group.ID, cutoff.AddDays(-30), "14:00", auditModels.DeviationEventAbsence)
+	createTestDeviationEvent(t, db, scope, group.ID, cutoff.AddDays(-30), "14:00", auditModels.DeviationEventAbsence)
 	recent := createTestDeviationEvent(t, db, scope, group.ID, cutoff.AddDays(5), "14:00", auditModels.DeviationEventAbsence)
 
 	repo := repositories.NewFactory(db).DeviationEvent
@@ -113,7 +107,6 @@ func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, recent.ID, rows[0].ID)
 
-	_ = old
 }
 
 // TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows: #1884
@@ -125,9 +118,7 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Protokoll-Gruppe-Shift")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Schicht", "Bewegt")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, scope.TenantID, staff.ID)
 
 	day := timezone.NewDate(2026, time.September, 22)
 	slotEvent := createTestDeviationEvent(t, db, scope, group.ID, day, "14:00", auditModels.DeviationEventAbsence)
@@ -142,7 +133,6 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 	shift.SetTenantID(scope.TenantID)
 	_, err := db.NewInsert().Model(shift).ModelTableExpr(`schedule.staff_shifts`).Exec(scope.Context())
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", shift.ID)
 
 	repo := repositories.NewFactory(db).DeviationEvent
 	shiftEvent := &auditModels.DeviationEvent{
@@ -152,7 +142,6 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 		EventType:      auditModels.DeviationEventShiftMoved,
 	}
 	require.NoError(t, repo.Create(scope.Context(), shiftEvent))
-	defer testpkg.CleanupTableRecords(t, db, "audit.deviation_events", shiftEvent.ID)
 
 	rows, err := repo.ListByRange(scope.Context(), day, day, nil, nil)
 	require.NoError(t, err)

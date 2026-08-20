@@ -260,12 +260,14 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		defer testpkg.CleanupRoleRecords(t, db, roleTenant1.ID, roleTenant2.ID)
 		defer cleanupAccountRecords(t, db, account.ID)
 
+		otherTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, db, otherTenantID)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-		testpkg.EnsureAccountTenant(t, db, account.ID, 2)
+		testpkg.EnsureAccountTenant(t, db, account.ID, otherTenantID)
 
 		_, err := db.ExecContext(context.Background(),
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, 2)",
-			account.ID, roleTenant1.ID, testpkg.Tenant(t), account.ID, roleTenant2.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)",
+			account.ID, roleTenant1.ID, testpkg.Tenant(t), account.ID, roleTenant2.ID, otherTenantID)
 		require.NoError(t, err)
 
 		rolesTenant1, err := repo.FindByAccountID(testpkg.Ctx(t), account.ID)
@@ -273,7 +275,7 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		require.Len(t, rolesTenant1, 1)
 		assert.Equal(t, roleTenant1.ID, rolesTenant1[0].ID)
 
-		rolesTenant2, err := repo.FindByAccountID(testpkg.TenantContext(2), account.ID)
+		rolesTenant2, err := repo.FindByAccountID(testpkg.TenantContext(otherTenantID), account.ID)
 		require.NoError(t, err)
 		require.Len(t, rolesTenant2, 1)
 		assert.Equal(t, roleTenant2.ID, rolesTenant2[0].ID)
@@ -416,8 +418,8 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, role.Name, result[account.ID])
 
-		// Query with tenant 2 context — should not find it
-		ctx2 := testpkg.TenantContext(2)
+		// Query from another tenant — should not find it
+		ctx2 := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))
 		result2, err := repo.FindRoleNamesByAccountIDs(ctx2, []int64{account.ID})
 		require.NoError(t, err)
 		assert.Empty(t, result2)

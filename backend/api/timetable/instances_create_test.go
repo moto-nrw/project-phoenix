@@ -53,7 +53,6 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	mock := &mockInstanceService{}
@@ -131,7 +130,6 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 		Title:         "Spontane Bastelstunde",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
 	s.mock.createRes = persisted
 
 	body := map[string]any{
@@ -232,7 +230,6 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	router := createRouter(s.ctx, s.res)
 
 	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Create-Bound-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", template.ID) })
 	templateID := template.ID
 	tomorrow := nextTimetableWorkday()
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
@@ -241,7 +238,6 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 		EndHHMM:         "11:00",
 		Title:           "Template-bound extra slot",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
 	s.mock.createRes = persisted
 
 	body := map[string]any{
@@ -285,7 +281,6 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Where("activity_group_id = ?", template.ID).
 			Where("tenant_id = ?", tenant.FromContext(ctx)).
 			Exec(ctx)
-		testpkg.CleanupActivityFixtures(t, db, template.ID, room.ID)
 	})
 
 	repoFactory := repositories.NewFactory(db)

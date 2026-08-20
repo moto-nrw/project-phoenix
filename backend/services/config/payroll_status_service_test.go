@@ -92,8 +92,7 @@ func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	withNumber := testpkg.CreateTestStaff(t, db, "Payroll", "MitNummer")
-	withoutNumber := testpkg.CreateTestStaff(t, db, "Payroll", "OhneNummer")
-	_ = withoutNumber
+	testpkg.CreateTestStaff(t, db, "Payroll", "OhneNummer")
 
 	number := "90040"
 	withNumber.PersonnelNumber = &number

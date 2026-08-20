@@ -113,7 +113,6 @@ func TestPersonRepository_FindByID(t *testing.T) {
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, db, "FindByID", "Test")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 	t.Run("find existing person", func(t *testing.T) {
 		found, err := repo.FindByID(ctx, person.ID)
@@ -146,7 +145,6 @@ func TestPersonRepository_Update(t *testing.T) {
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, db, "Update", "Original")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 	t.Run("update person name", func(t *testing.T) {
 		person.FirstName = "Updated"
@@ -208,8 +206,7 @@ func TestPersonRepository_List(t *testing.T) {
 	// Create test persons with unique names for filtering
 	uniquePrefix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person1 := testpkg.CreateTestPerson(t, db, "ListAlpha"+uniquePrefix, "Test")
-	person2 := testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test")
-	defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
+	testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test")
 
 	t.Run("list with no filters", func(t *testing.T) {
 		persons, err := repo.List(ctx, nil)
@@ -251,7 +248,6 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 	person1 := testpkg.CreateTestPerson(t, db, "FindByIDs1", "Test")
 	person2 := testpkg.CreateTestPerson(t, db, "FindByIDs2", "Test")
 	person3 := testpkg.CreateTestPerson(t, db, "FindByIDs3", "Test")
-	defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID, person3.ID)
 
 	t.Run("find multiple persons by IDs", func(t *testing.T) {
 		ids := []int64{person1.ID, person2.ID, person3.ID}
@@ -295,7 +291,6 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 	// Create test person and account
 	person := testpkg.CreateTestPerson(t, db, "LinkAccount", "Test")
 	account := testpkg.CreateTestAccount(t, db, "linkaccount")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	t.Run("link person to account", func(t *testing.T) {
 		err := repo.LinkToAccount(ctx, person.ID, account.ID)
@@ -324,7 +319,6 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 
 	// Create person with account
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Unlink", "Account")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	t.Run("unlink person from account", func(t *testing.T) {
 		err := repo.UnlinkFromAccount(ctx, person.ID)
@@ -352,7 +346,6 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 
 	// Create person with account
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "FindByAccount", "Test")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	t.Run("find person by account ID", func(t *testing.T) {
 		found, err := repo.FindByAccountID(ctx, account.ID)
@@ -383,8 +376,6 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	// Create test person and RFID card
 	person := testpkg.CreateTestPerson(t, db, "LinkRFID", "Test")
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "LINK12345678")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
 
 	t.Run("link person to RFID card", func(t *testing.T) {
 		err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
@@ -414,8 +405,6 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	// Create test person with RFID card linked
 	person := testpkg.CreateTestPerson(t, db, "UnlinkRFID", "Test")
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "UNLINK1234567")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
 
 	// Link first
 	err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
@@ -448,8 +437,6 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 	// Create test person with RFID card linked
 	person := testpkg.CreateTestPerson(t, db, "FindByTag", "Test")
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "FINDTAG12345")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
-	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
 
 	// Link card to person
 	err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
@@ -492,7 +479,6 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	t.Run("find person with account", func(t *testing.T) {
 		// Create person with account
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Test")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 		found, err := repo.FindWithAccount(ctx, person.ID)
 		require.NoError(t, err)
@@ -507,7 +493,6 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	t.Run("find person without account", func(t *testing.T) {
 		// Create person without account
 		person := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		found, err := repo.FindWithAccount(ctx, person.ID)
 		require.NoError(t, err)
@@ -534,9 +519,8 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons - one with account, one without
-	personWithAccount, account := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test")
+	personWithAccount, _ := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test")
 	personWithoutAccount := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
-	defer testpkg.CleanupActivityFixtures(t, db, personWithAccount.ID, account.ID, personWithoutAccount.ID)
 
 	t.Run("filter persons with account", func(t *testing.T) {
 		filters := map[string]interface{}{
@@ -578,8 +562,6 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 		// Create person with RFID card
 		personWithCard := testpkg.CreateTestPerson(t, db, "WithTag", "Test")
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "WITHTAG12345")
-		defer testpkg.CleanupActivityFixtures(t, db, personWithCard.ID)
-		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
 
 		err := repo.LinkToRFIDCard(ctx, personWithCard.ID, rfidCard.ID)
 		require.NoError(t, err)
@@ -622,7 +604,6 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)
-		defer cleanupPersonRecords(t, db, person.ID)
 
 		found, err := repo.FindByID(ctx, person.ID)
 		require.NoError(t, err)
@@ -639,7 +620,6 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)
-		defer cleanupPersonRecords(t, db, person.ID)
 
 		found, err := repo.FindByID(ctx, person.ID)
 		require.NoError(t, err)

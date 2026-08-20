@@ -27,8 +27,9 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 	roleRepo := repoFactory.Role
 	ctx := context.Background()
 
-	const homeTenantID int64 = 1
+	homeTenantID := testpkg.UniqueTestTenantID(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, homeTenantID)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")

@@ -1684,10 +1684,6 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", scope.TenantID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", scope.TenantID).Exec(context.Background())
-	})
 
 	profileRepo := repositories.NewFactory(db).GuardianProfile
 	tests := []struct {

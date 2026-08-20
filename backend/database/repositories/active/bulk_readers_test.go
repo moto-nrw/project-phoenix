@@ -45,14 +45,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	require.NoError(t, err)
 
 	openSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	closedSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openSupervision.ID, closedSupervision.ID,
-		openGroup.ID, closedGroup.ID,
-		activityGroup.ID, room.ID, otherRoom.ID,
-	)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
 
 	t.Run("returns the room of an open supervised session", func(t *testing.T) {
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
@@ -163,7 +156,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("does not leak another tenant's supervisions", func(t *testing.T) {
-		const otherTenant int64 = 99042
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignRoom := testpkg.CreateTestRoomForTenant(t, db, otherTenant, "ForeignSupervisedRoom")
@@ -183,10 +176,6 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 			ModelTableExpr("active.group_supervisors").
 			Exec(ctx)
 		require.NoError(t, err)
-
-		defer testpkg.CleanupActivityFixturesForTenant(t, db, otherTenant,
-			foreignSupervision.ID, foreignGroup.ID, foreignActivity.ID, foreignRoom.ID)
-		defer testpkg.CleanupStaffFixtures(t, db, foreignStaff.ID)
 
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
 		require.NoError(t, err)
@@ -217,13 +206,8 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 
 	entry := time.Now().Add(-time.Hour)
 	exit := time.Now().Add(-10 * time.Minute)
-	openVisit := testpkg.CreateTestVisit(t, db, present.ID, openGroup.ID, entry, nil)
-	closedVisit := testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openVisit.ID, closedVisit.ID, openGroup.ID, activityGroup.ID, room.ID,
-		present.ID, departed.ID,
-	)
+	testpkg.CreateTestVisit(t, db, present.ID, openGroup.ID, entry, nil)
+	testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
 
 	t.Run("groups open visits by room and drops checked-out children", func(t *testing.T) {
 		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)

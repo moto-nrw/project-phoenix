@@ -59,8 +59,6 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	companion := testpkg.CreateTestStudent(t, db, "FarEndLocked", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndSubject", "Companion", "1a")
 	require.Less(t, companion.ID, subject.ID, "fixture order no longer yields ascending ids")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -111,8 +109,6 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")

@@ -43,16 +43,13 @@ func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Doku", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryAttest, "attest.pdf", storedName(t))
 	require.NoError(t, repo.Create(ctx, doc))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", doc.ID)
 
 	require.NotZero(t, doc.ID, "Create must hydrate the generated ID")
 	require.False(t, doc.CreatedAt.IsZero(), "Create must hydrate created_at")
@@ -82,18 +79,14 @@ func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Eigen", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	otherStudent := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, otherStudent.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-foreign-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "sonstiges.pdf", storedName(t))
 	require.NoError(t, repo.Create(ctx, doc))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", doc.ID)
 
 	found, err := repo.FindForOwner(ctx, student.ID, doc.ID)
 	require.NoError(t, err)
@@ -111,16 +104,13 @@ func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Lösch", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-del-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryBetreuungsvertrag, "vertrag.pdf", storedName(t))
 	require.NoError(t, repo.Create(ctx, doc))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", doc.ID)
 
 	require.NoError(t, repo.SoftDelete(ctx, doc, account.ID))
 	require.NotNil(t, doc.DeletedAt, "SoftDelete must stamp the in-memory row")
@@ -154,7 +144,6 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Waise", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
@@ -168,7 +157,6 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 	cleanup.RetryAfter = time.Now().Add(time.Hour)
 	require.NoError(t, repo.QueueFileCleanup(ctx, cleanup))
 	require.NotZero(t, cleanup.ID)
-	defer testpkg.CleanupTableRecords(t, db, "users.student_document_file_cleanup", cleanup.ID)
 
 	queued, err := repo.ListQueuedFileCleanups(ctx)
 	require.NoError(t, err)
@@ -210,9 +198,7 @@ func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Ungueltig", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-invalid-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
@@ -232,18 +218,14 @@ func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *test
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Nachlauf", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	otherStudent := testpkg.CreateTestStudent(t, db, "Fremd", "Nachlauf", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, otherStudent.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-retry-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "nachlauf.pdf", storedName(t))
 	require.NoError(t, repo.Create(ctx, doc))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", doc.ID)
 	require.NoError(t, repo.SoftDelete(ctx, doc, account.ID))
 
 	_, err := repo.FindForOwner(ctx, student.ID, doc.ID)
@@ -271,20 +253,16 @@ func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Abbau", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-teardown-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	live := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "aktiv.pdf", storedName(t)+"-live")
 	require.NoError(t, repo.Create(ctx, live))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", live.ID)
 
 	gone := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryAbholvollmacht, "geloescht.pdf", storedName(t)+"-gone")
 	require.NoError(t, repo.Create(ctx, gone))
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", gone.ID)
 	require.NoError(t, repo.SoftDelete(ctx, gone, account.ID))
 
 	pending, err := repo.ListPendingFileCleanupByOwnerID(ctx, student.ID)
@@ -318,9 +296,7 @@ func TestStudentDocumentRepository_QueuedCleanupsAreScopedAndSettleable(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Warteschlange", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	otherStudent := testpkg.CreateTestStudent(t, db, "Warteschlange", "Andere", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, otherStudent.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
@@ -347,7 +323,6 @@ func queueCleanupIntent(t *testing.T, db *bun.DB, repo userModels.StudentDocumen
 	cleanup.FilenameStored = name
 	cleanup.RetryAfter = time.Now().Add(-time.Minute)
 	require.NoError(t, repo.QueueFileCleanup(ctx, cleanup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.student_document_file_cleanup", cleanup.ID) })
 	return cleanup
 }
 
@@ -378,22 +353,18 @@ func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Viele", "Dokumente", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	overBatch := documentModels.CleanupBatchSize + 5
-	ids := make([]int64, 0, overBatch)
 	for i := range overBatch {
 		cleanup := &userModels.StudentDocumentFileCleanup{}
 		cleanup.OwnerID = student.ID
 		cleanup.FilenameStored = fmt.Sprintf("bounded-%d-%d.pdf", time.Now().UnixNano(), i)
 		cleanup.RetryAfter = time.Now().Add(-time.Minute)
 		require.NoError(t, repo.QueueFileCleanup(ctx, cleanup))
-		ids = append(ids, cleanup.ID)
 	}
-	defer testpkg.CleanupTableRecords(t, db, "users.student_document_file_cleanup", ids...)
 
 	queued, err := repo.ListQueuedFileCleanups(ctx)
 	require.NoError(t, err)
@@ -411,15 +382,12 @@ func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Rueckstand", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-backlog-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	overLimit := documentModels.RequestCleanupRetryLimit + 3
-	ids := make([]int64, 0, overLimit)
 	for i := range overLimit {
 		doc := newTestStudentDocument(student.ID, account.ID,
 			userModels.StudentDocumentCategorySonstiges,
@@ -427,9 +395,7 @@ func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
 			fmt.Sprintf("rueckstand-%d-%d.pdf", time.Now().UnixNano(), i))
 		require.NoError(t, repo.Create(ctx, doc))
 		require.NoError(t, repo.SoftDelete(ctx, doc, account.ID))
-		ids = append(ids, doc.ID)
 	}
-	defer testpkg.CleanupTableRecords(t, db, "users.student_documents", ids...)
 
 	pending, err := repo.ListDeletedPendingFileCleanupByOwnerID(ctx, student.ID, userModels.StudentDocumentCategories)
 	require.NoError(t, err)

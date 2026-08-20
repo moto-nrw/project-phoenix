@@ -52,8 +52,6 @@ func TestListGroups(t *testing.T) {
 		group2 := testpkg.CreateTestEducationGroup(t, db, "Science")
 		group3 := testpkg.CreateTestEducationGroup(t, db, "Math") // Another Math group
 
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID, group3.ID)
-
 		// ACT: List all groups (no specific filter - verify our groups exist)
 		groups, err := service.ListGroups(ctx, nil)
 
@@ -81,10 +79,8 @@ func TestListGroups(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// ARRANGE: Create a few groups
-		group1 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
-
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
+		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
+		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
 		options := base.NewQueryOptions().WithPagination(1, 100)
@@ -98,7 +94,6 @@ func TestListGroups(t *testing.T) {
 	t.Run("list with nil options returns all groups", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "NilOptionsTest")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		groups, err := service.ListGroups(ctx, nil)
@@ -136,9 +131,6 @@ func TestListSubstitutions(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubstitutionListGroup")
 		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "ListStaff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "ListStaff")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
 
 		// Create a substitution for future dates (service validates no backdating)
 		tomorrow := timezone.TodayDate().AddDays(1)
@@ -195,20 +187,11 @@ func TestGetGroupTeachers(t *testing.T) {
 		teacher3 := testpkg.CreateTestTeacher(t, db, "Teacher", "Three")
 
 		// Assign teachers to group
-		gt1 := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher1.ID)
-		gt2 := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher2.ID)
-		gt3 := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher3.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher1.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher2.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher3.ID)
 
 		// Get staff IDs for cleanup (teachers depend on staff)
-		staff1ID := teacher1.Staff.ID
-		staff2ID := teacher2.Staff.ID
-		staff3ID := teacher3.Staff.ID
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID,
-			teacher1.ID, teacher2.ID, teacher3.ID,
-			gt1.ID, gt2.ID, gt3.ID,
-			staff1ID, staff2ID, staff3ID)
 
 		// ACT
 		teachers, err := service.GetGroupTeachers(ctx, group.ID)
@@ -229,7 +212,6 @@ func TestGetGroupTeachers(t *testing.T) {
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		teachers, err := service.GetGroupTeachers(ctx, group.ID)
@@ -267,9 +249,6 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		regularStaff := testpkg.CreateTestStaff(t, db, "FutureReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "FutureSub", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
-
 		tomorrow := timezone.TodayDate().AddDays(1)
 		nextWeek := tomorrow.AddDays(7)
 
@@ -295,9 +274,6 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "PastSubGroup")
 		regularStaff := testpkg.CreateTestStaff(t, db, "PastReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "PastSub", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
 
 		yesterday := timezone.TodayDate().AddDays(-1)
 		today := timezone.TodayDate()
@@ -325,9 +301,6 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		regularStaff := testpkg.CreateTestStaff(t, db, "TodayReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "TodaySub", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
-
 		today := timezone.TodayDate()
 		nextWeek := today.AddDays(7)
 
@@ -352,9 +325,6 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "NoRegularStaffGroup")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "OnlySub", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, substituteStaff.ID)
 
 		tomorrow := timezone.TodayDate().AddDays(1)
 		nextWeek := tomorrow.AddDays(7)
@@ -395,9 +365,6 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		regularStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureSub", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
-
 		tomorrow := timezone.TodayDate().AddDays(1)
 		nextWeek := tomorrow.AddDays(7)
 
@@ -433,9 +400,6 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		regularStaff := testpkg.CreateTestStaff(t, db, "BackdateReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "BackdateSub", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
-
 		tomorrow := timezone.TodayDate().AddDays(1)
 		nextWeek := tomorrow.AddDays(7)
 
@@ -466,9 +430,6 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "TodayUpdateGroup")
 		regularStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateReg", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateSub", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, regularStaff.ID, substituteStaff.ID)
 
 		today := timezone.TodayDate()
 		nextWeek := today.AddDays(7)
@@ -525,7 +486,6 @@ func TestGroupOperations(t *testing.T) {
 		assert.NotZero(t, group.ID)
 
 		// Cleanup
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// Verify it can be retrieved
 		retrieved, err := service.GetGroup(ctx, group.ID)
@@ -552,9 +512,6 @@ func TestTeacherGroupOperations(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeacherGroup")
 		teacher := testpkg.CreateTestTeacher(t, db, "RemoveThis", "Teacher")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group.ID, teacher.ID, teacher.Staff.ID)
-
 		// First add the teacher
 		require.NoError(t, service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher.ID}))
 
@@ -575,9 +532,6 @@ func TestTeacherGroupOperations(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup2")
 		teacher := testpkg.CreateTestTeacher(t, db, "MultiGroup", "Teacher")
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			group1.ID, group2.ID, teacher.ID, teacher.Staff.ID)
 
 		// Add teacher to both groups
 		require.NoError(t, service.UpdateGroupTeachers(ctx, group1.ID, []int64{teacher.ID}))
@@ -614,7 +568,6 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "OriginalName")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// Use a unique name to avoid conflicts with other test data
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
@@ -636,7 +589,6 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 		// ARRANGE
 		group1 := testpkg.CreateTestEducationGroup(t, db, "ExistingName")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed")
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
 
 		// Use the actual unique name from group1 (fixtures add timestamps)
 		group2.Name = group1.Name // Try to rename to existing name
@@ -653,7 +605,6 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup")
 		room := testpkg.CreateTestRoom(t, db, "NewRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
 		group.RoomID = &room.ID
 
@@ -704,7 +655,6 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithTeacher")
 		teacher := testpkg.CreateTestTeacher(t, db, "GroupDelete", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
 
 		_ = service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher.ID})
 
@@ -719,7 +669,6 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithStudents")
 		student := testpkg.CreateTestStudent(t, db, "GroupDel", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		// Assign student to group
 		student.GroupID = &group.ID
@@ -760,7 +709,6 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 		// ARRANGE
 		group1 := testpkg.CreateTestEducationGroup(t, db, "GroupByID1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "GroupByID2")
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
 
 		// ACT
 		groups, err := service.GetGroupsByIDs(ctx, []int64{group1.ID, group2.ID})
@@ -795,8 +743,6 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UpdateTeachersGroup")
 		teacher1 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher1")
 		teacher2 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher2")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, teacher1.ID, teacher2.ID,
-			teacher1.Staff.ID, teacher2.Staff.ID)
 
 		// ACT
 		err := service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher1.ID, teacher2.ID})
@@ -815,8 +761,6 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeachersGroup")
 		teacher1 := testpkg.CreateTestTeacher(t, db, "Keep", "Teacher")
 		teacher2 := testpkg.CreateTestTeacher(t, db, "Remove", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, teacher1.ID, teacher2.ID,
-			teacher1.Staff.ID, teacher2.Staff.ID)
 
 		// Add both teachers first
 		_ = service.UpdateGroupTeachers(ctx, group.ID, []int64{teacher1.ID, teacher2.ID})
@@ -855,7 +799,6 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDeleteGroup")
 		staff := testpkg.CreateTestStaff(t, db, "SubDelete", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
@@ -895,7 +838,6 @@ func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "ActiveSubGroup")
 		staff := testpkg.CreateTestStaff(t, db, "ActiveSub", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
@@ -929,7 +871,6 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "StaffSubGroup")
 		staff := testpkg.CreateTestStaff(t, db, "StaffSub", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
@@ -955,7 +896,6 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "RegularStaffSubGroup")
 		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
 		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Staff2")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, regularStaff.ID, substituteStaff.ID)
 
 		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
@@ -997,7 +937,6 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 	t.Run("detects no conflicts for available period", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		future := timezone.TodayDate().AddDays(365)
 
@@ -1023,7 +962,6 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 	t.Run("returns error for invalid date range", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "InvalidRange", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		future := timezone.TodayDate().AddDays(365)
 
@@ -1079,7 +1017,6 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -1093,7 +1030,6 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 	t.Run("rejects duplicate group name", func(t *testing.T) {
 		// ARRANGE
 		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
-		defer testpkg.CleanupActivityFixtures(t, db, existingGroup.ID)
 
 		duplicateGroup := &educationModels.Group{Name: existingGroup.Name}
 
@@ -1116,8 +1052,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 
 	t.Run("lists groups with options", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
 		options := base.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -1143,7 +1078,6 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "FindGroupRoom")
 		group := testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
 		group.RoomID = &room.ID
 		require.NoError(t, service.UpdateGroup(ctx, group))
@@ -1195,7 +1129,6 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestEducationGroup(t, db, "GetSubGroup")
 		staff := testpkg.CreateTestStaff(t, db, "GetSub", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{

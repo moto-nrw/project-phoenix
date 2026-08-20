@@ -62,8 +62,6 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -108,8 +106,6 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
@@ -145,8 +141,6 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -190,8 +184,6 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
-	defer cleanupStudentCompanions(t, db, first.ID, second.ID)
 
 	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
@@ -236,8 +228,6 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
@@ -275,8 +265,6 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")

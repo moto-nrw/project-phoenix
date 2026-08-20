@@ -85,11 +85,6 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
 	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
-		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
 		// active.group cleanup happens via CleanupActivityFixtures below
 	})
 
@@ -122,9 +117,6 @@ func seedInstanceStudent(t *testing.T, s *attendanceSyncSetup, studentID int64, 
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID)
-	})
 	return row
 }
 
@@ -135,7 +127,6 @@ func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Happy", fmt.Sprintf("A-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 
@@ -165,11 +156,9 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NoInstance(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Walk", fmt.Sprintf("W-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	// NEW active.group that is NOT bridged to any instance.
 	orphanGroup := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", orphanGroup.ID) })
 
 	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,
@@ -185,7 +174,6 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	s := buildAttendanceSyncSetup(t)
 	// No instance_students row seeded for this student.
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Unsubbed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,
@@ -199,7 +187,6 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	assert.True(t, row.IsUnplanned)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 }
 
 func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *testing.T) {
@@ -207,7 +194,6 @@ func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *t
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Closed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	entryTime := time.Date(2026, 4, 21, 12, 10, 0, 0, time.UTC)
 	exitTime := entryTime.Add(45 * time.Minute)
@@ -221,7 +207,6 @@ func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *t
 	row, err := s.isRepo.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 	require.NotNil(t, row.CheckedInAt)
 	require.NotNil(t, row.CheckedOutAt)
 	assert.WithinDuration(t, entryTime, *row.CheckedInAt, time.Second)
@@ -243,21 +228,18 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := buildAttendanceSyncSetup(t)
 			student := testpkg.CreateTestStudent(t, s.db, "AS-Bulk", fmt.Sprintf("B-%d", time.Now().UnixNano()), "3a")
-			t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 			row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 			entryTime := time.Now().Add(-time.Hour)
 			require.NotNil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
 				StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: entryTime,
 			}))
-			visit := testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
-			t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
+			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
 			factory, err := services.NewFactory(repositories.NewFactory(s.db), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))
-				t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, device.ID) })
 				_, err = s.db.NewUpdate().
 					Table("active.groups").
 					Set("device_id = ?", device.ID).
@@ -283,7 +265,6 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Slots", fmt.Sprintf("S-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	morning := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 	morningCheckIn := time.Date(2026, 4, 21, 5, 5, 0, 0, time.UTC)
@@ -304,7 +285,6 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	}
 	afternoonInstance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.instRepo.Create(s.ctx, afternoonInstance))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", afternoonInstance.ID) })
 	afternoon := &scheduleModels.InstanceStudent{
 		InstanceID: afternoonInstance.ID, StudentID: student.ID,
 		Status: scheduleModels.AttendanceStatusExpected,
@@ -319,7 +299,6 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 		Source: activeModels.StudentStatusSourceManual,
 	}
 	require.NoError(t, statusRepo.UpsertReported(s.ctx, statusDay))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.student_status_days", statusDay.ID) })
 
 	gotMorning, err := s.isRepo.FindByID(s.ctx, morning.ID)
 	require.NoError(t, err)
@@ -357,7 +336,6 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Dbl", fmt.Sprintf("D-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	firstCheckin := time.Date(2026, 4, 21, 13, 0, 0, 0, time.UTC)
 
@@ -373,7 +351,6 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 
 	// Second check-in — later time. Mirror MUST NOT overwrite checked_in_at
 	// or the substatus.
@@ -401,7 +378,6 @@ func TestAttendanceSync_MirrorCheckIn_NilVisitOrZeroActiveGroup(t *testing.T) {
 	// StudentID is never read in B1 (the ActiveGroupID<=0 check short-circuits
 	// above it), but we still use a real fixture to stay hermetic.
 	student := testpkg.CreateTestStudent(t, s.db, "AS-B1", fmt.Sprintf("B1-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	// Nil visit — B1
 	assert.Nil(t, s.syncer.MirrorCheckInForVisit(s.ctx, nil))
@@ -418,7 +394,6 @@ func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Ten", fmt.Sprintf("T-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 	seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 
 	// Call with tenant 2 context — RLS should hide everything.
@@ -438,7 +413,6 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Load", fmt.Sprintf("L-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	note := "bus verspätet"
 	late := scheduleModels.AttendanceSubstatusLate
@@ -451,7 +425,6 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 
 	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,
@@ -475,7 +448,6 @@ func TestAttendanceSync_LoadAttendance_NoRow(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-NoRow", fmt.Sprintf("N-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
 	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,

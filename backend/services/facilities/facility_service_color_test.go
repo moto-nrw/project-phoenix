@@ -136,7 +136,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 
 	t.Run("rejects color change on Schulhof", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Try to add a color to a system room — should be blocked.
 		newColor := "#A3D977"
@@ -150,7 +149,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 
 	t.Run("rejects color change on WC", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#A3D977"
 		room.Color = &newColor
@@ -166,7 +164,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// still succeed, otherwise admins lose the ability to change any
 		// non-name field on Schulhof.
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 200
 		room.Capacity = &newCapacity
@@ -179,7 +176,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// should not be flagged as a change. equalStringPtr handles this —
 		// without it, every update on a colorless system room would 403.
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Color = nil // unchanged
 		room.Building = "Updated"
@@ -195,7 +191,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// edit. Now the service preserves the existing colour for system
 		// rooms when the request omits it.
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Bypass Validate() (would reject the reserved colour) by writing
 		// the legacy hex directly with a raw UPDATE — this matches what a

@@ -68,8 +68,6 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Test", "Student1", "1a")
 
 	// Cleanup fixtures after test completes (or fails)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		activityGroup.ID, device.ID, staff.ID, student.ID, room.ID)
 
 	// Start a group session using real IDs
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -151,9 +149,6 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, db, "Test", "Student3", "2b")
 
 	// Cleanup all fixtures after test
-	defer testpkg.CleanupActivityFixtures(t, db,
-		activity1.ID, activity2.ID, device1.ID, device2.ID, staff.ID, student1.ID, student2.ID,
-		room1.ID, room2.ID)
 
 	// Start two group sessions with real IDs on SEPARATE devices
 	session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &room1.ID)

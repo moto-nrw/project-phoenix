@@ -30,7 +30,6 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Race", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// The snapshot the handler's pre-transaction gate read: still active, because
 	// the transition had not committed when the request arrived.

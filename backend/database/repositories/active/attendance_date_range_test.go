@@ -41,7 +41,6 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	repo := repositories.NewFactory(db).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
-	defer cleanupAttendanceTestData(t, db, data)
 
 	today := timezone.TodayDate()
 	yesterday := today.AddDays(-1)
@@ -49,19 +48,15 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	threeDaysAgo := today.AddDays(-3)
 
 	// Create records for 4 days
-	a1 := createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, threeDaysAgo)
-	a2 := createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, twoDaysAgo)
-	a3 := createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, yesterday)
-	a4 := createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, today)
+	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, threeDaysAgo)
+	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, twoDaysAgo)
+	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, yesterday)
+	createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, today)
 	defer func() {
-		for _, id := range []int64{a1.ID, a2.ID, a3.ID, a4.ID} {
-			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
-		}
 	}()
 
 	// Also create one for Student2 to verify student isolation
-	a5 := createAttendanceForDate(t, ctx, repo, data.Student2.ID, data.Staff1.ID, data.Device1.ID, today)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", a5.ID)
+	createAttendanceForDate(t, ctx, repo, data.Student2.ID, data.Staff1.ID, data.Device1.ID, today)
 
 	t.Run("returns_all_records_in_range", func(t *testing.T) {
 		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, threeDaysAgo, today)

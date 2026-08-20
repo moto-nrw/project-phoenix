@@ -131,7 +131,14 @@ func ensureSystemRoleExists(t *testing.T, db *bun.DB, name string) {
 		ModelTableExpr(`auth.roles`).
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+	// A system role has no tenant, so the row this test had to create is
+	// shared state for every other test in the binary (#2419).
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("role_id = ?", role.ID).
+			Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", role.ID).
+			Exec(context.Background())
+	})
 }
 
 func loadLatestAuthEvent(
@@ -261,7 +268,6 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-enable")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	state, err := factory.CaregiverCapability.EnableCaregiverCapability(
@@ -289,19 +295,16 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	person, err := factory.Users.FindByAccountID(ctx, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, person)
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, person.ID) })
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
 	staff, err := repositories.NewFactory(db).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID) })
 
 	teacher, err := repositories.NewFactory(db).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.teachers", teacher.ID) })
 	assert.Equal(t, "Betreuungskraft", teacher.Role)
 
 	event := loadLatestAuthEvent(
@@ -342,17 +345,7 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 		jwtPkg.AppClaims{ID: 92, Scope: "tenant", TenantID: testpkg.Tenant(t)},
 	)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Disable", "Caregiver")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Disable", "Caregiver")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "admin")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
@@ -401,17 +394,7 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Scoped", "Caregiver")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Scoped", "Caregiver")
 
 	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenant)
@@ -450,16 +433,6 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	ctx := testpkg.Ctx(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Custom", "Role")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
 
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
@@ -476,7 +449,6 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 		ModelTableExpr(`auth.roles`).
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", customRole.ID) })
 
 	_, err = db.ExecContext(
 		context.Background(),
@@ -515,66 +487,33 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Blocked", "Caregiver")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "admin")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
 
 	group := testpkg.CreateTestEducationGroupForTenant(t, db, testpkg.Tenant(t), "Blocked Group")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "education.groups", group.ID) })
-	groupTeacher := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "education.group_teacher", groupTeacher.ID)
-	})
-	otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(
+	testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+	otherTeacher, _ := testpkg.CreateTestTeacherWithAccount(
 		t,
 		db,
 		"Second",
 		"Leader",
 	)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, otherAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			otherTeacher.ID,
-			otherTeacher.Staff.ID,
-			otherTeacher.Staff.Person.ID,
-		)
-	})
-	otherGroupTeacher := testpkg.CreateTestGroupTeacher(t, db, group.ID, otherTeacher.ID)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "education.group_teacher", otherGroupTeacher.ID)
-	})
+	testpkg.CreateTestGroupTeacher(t, db, group.ID, otherTeacher.ID)
 
 	room := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Blocked Room")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID) })
 	activityGroup := testpkg.CreateTestActivityGroupForTenant(t, db, testpkg.Tenant(t), "Blocked Activity")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "activities.groups", activityGroup.ID) })
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID) })
 
-	supervision := testpkg.CreateTestGroupSupervisor(
+	testpkg.CreateTestGroupSupervisor(
 		t,
 		db,
 		teacher.Staff.ID,
 		activeGroup.ID,
 		"lead",
 	)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervision.ID)
-	})
 
-	substitution := testpkg.CreateTestGroupSubstitution(
+	testpkg.CreateTestGroupSubstitution(
 		t,
 		db,
 		group.ID,
@@ -583,20 +522,14 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		timezone.TodayDate().AddDays(-1),
 		timezone.TodayDate().AddDays(1),
 	)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "education.group_substitution", substitution.ID)
-	})
 
-	plannedSupervisor := insertPlannedSupervisor(
+	insertPlannedSupervisor(
 		t,
 		db,
 		testpkg.Tenant(t),
 		teacher.Staff.ID,
 		activityGroup.ID,
 	)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.supervisors", plannedSupervisor.ID)
-	})
 
 	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
 	require.NoError(t, err)
@@ -628,22 +561,11 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Concurrent", "Disable")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "admin")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
 
 	group := testpkg.CreateTestEducationGroupForTenant(t, db, testpkg.Tenant(t), "Concurrent Group")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "education.groups", group.ID) })
 
 	tx, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
@@ -673,9 +595,6 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 	}
 
 	require.NoError(t, tx.Commit())
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "education.group_teacher", pendingRelation.ID)
-	})
 
 	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
 	err = <-resultCh
@@ -694,11 +613,10 @@ func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
 	t.Parallel()
 
 	db, factory := setupCaregiverFactory(t)
-	var requestedTenantID int64 = 1
-	var mappedTenantID int64 = 2
+	requestedTenantID := testpkg.UniqueTestTenantID(t)
+	mappedTenantID := testpkg.UniqueTestTenantID(t)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-mapping")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	_, err := factory.CaregiverCapability.GetCaregiverCapability(context.Background(), account.ID)
 	require.Error(t, err)
@@ -742,7 +660,6 @@ func TestCaregiverCapability_EnableRequiresNamesWhenProfileDoesNotExist(t *testi
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-missing-names")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 	_, err := factory.CaregiverCapability.EnableCaregiverCapability(
@@ -766,17 +683,15 @@ func TestCaregiverCapability_GetSupportsPersonWithoutStaffProfile(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-person-only")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-	person := testpkg.CreateTestPersonWithAccountID(
+	testpkg.CreateTestPersonWithAccountID(
 		t,
 		db,
 		"Profile",
 		"Only",
 		account.ID,
 	)
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, person.ID) })
 
 	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
 
@@ -796,17 +711,7 @@ func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Admin", "ProfileOnly")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Admin", "ProfileOnly")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "admin")
 
@@ -827,17 +732,7 @@ func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Disable")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Disable")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	ensureSystemRoleExists(t, db, "teacher")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "admin")
@@ -861,17 +756,7 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "TeacherOnly")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "TeacherOnly")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	ensureSystemRoleExists(t, db, "teacher")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "teacher")
@@ -906,87 +791,32 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 	ctx := testpkg.TenantContext(tenantID)
 
 	activeTeacher, activeAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Active", "Caregiver")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, activeAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			activeTeacher.ID,
-			activeTeacher.Staff.ID,
-			activeTeacher.Staff.Person.ID,
-		)
-	})
 	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, tenantID)
 	assignSystemRoleToAccount(t, db, activeAccount.ID, tenantID, "user")
 
 	legacyTeacherRoleTeacher, legacyTeacherRoleAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Legacy", "Teacher")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, legacyTeacherRoleAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			legacyTeacherRoleTeacher.ID,
-			legacyTeacherRoleTeacher.Staff.ID,
-			legacyTeacherRoleTeacher.Staff.Person.ID,
-		)
-	})
 	testpkg.EnsureAccountTenant(t, db, legacyTeacherRoleAccount.ID, tenantID)
 	ensureSystemRoleExists(t, db, "teacher")
 	assignSystemRoleToAccount(t, db, legacyTeacherRoleAccount.ID, tenantID, "teacher")
 
-	adminOnlyTeacher, adminOnlyAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Admin", "Only")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, adminOnlyAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			adminOnlyTeacher.ID,
-			adminOnlyTeacher.Staff.ID,
-			adminOnlyTeacher.Staff.Person.ID,
-		)
-	})
+	_, adminOnlyAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Admin", "Only")
 	testpkg.EnsureAccountTenant(t, db, adminOnlyAccount.ID, tenantID)
 	assignSystemRoleToAccount(t, db, adminOnlyAccount.ID, tenantID, "admin")
 
-	inactiveTeacher, inactiveAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Inactive", "Caregiver")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			inactiveTeacher.ID,
-			inactiveTeacher.Staff.ID,
-			inactiveTeacher.Staff.Person.ID,
-		)
-	})
+	_, inactiveAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Inactive", "Caregiver")
 	testpkg.EnsureAccountTenant(t, db, inactiveAccount.ID, tenantID)
 	assignSystemRoleToAccount(t, db, inactiveAccount.ID, tenantID, "user")
 
 	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = false WHERE id = ?`, inactiveAccount.ID)
 	require.NoError(t, err)
 
-	inactiveMembershipTeacher, inactiveMembershipAccount := createTestTeacherWithAccountForTenant(
+	_, inactiveMembershipAccount := createTestTeacherWithAccountForTenant(
 		t,
 		db,
 		tenantID,
 		"Former",
 		"Member",
 	)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, inactiveMembershipAccount.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			inactiveMembershipTeacher.ID,
-			inactiveMembershipTeacher.Staff.ID,
-			inactiveMembershipTeacher.Staff.Person.ID,
-		)
-	})
 	testpkg.EnsureAccountTenant(t, db, inactiveMembershipAccount.ID, tenantID)
 	assignSystemRoleToAccount(t, db, inactiveMembershipAccount.ID, tenantID, "user")
 	setAccountTenantStatus(
@@ -1037,18 +867,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	teacher, account := createTestTeacherWithAccountForTenant(t, db, tenantID, "Tenant", "UserRole")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(
-			t,
-			db,
-			tenantID,
-			teacher.ID,
-			teacher.Staff.ID,
-			teacher.Staff.Person.ID,
-		)
-	})
+	_, account := createTestTeacherWithAccountForTenant(t, db, tenantID, "Tenant", "UserRole")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	customUserRole := &authModels.Role{
@@ -1062,7 +881,6 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 		ModelTableExpr(`auth.roles`).
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", customUserRole.ID) })
 
 	_, err = db.ExecContext(
 		context.Background(),

@@ -25,7 +25,6 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 
 	t.Run("returns zero for empty room", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "CountEmptyRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
 
@@ -39,9 +38,8 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student1 := testpkg.CreateTestStudent(t, db, "CountRoom1", "Student", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "CountRoom2", "Student", "1a")
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
 
 		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
 
@@ -57,9 +55,8 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "Left", "Student", "1a")
 		entryTime := time.Now().Add(-10 * time.Minute)
 		exitTime := time.Now()
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
 
 		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
 
@@ -75,9 +72,8 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
 		student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Multi2", "Student", "1a")
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup1.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup2.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, activeGroup1.ID, activeGroup2.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup1.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup2.ID, time.Now(), nil)
 
 		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
 
@@ -109,7 +105,6 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "count-empty-group")
 		room := testpkg.CreateTestRoom(t, db, "CountEmptyGroupRoom")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		count, err := service.CountActiveVisitsByActiveGroupID(ctx, activeGroup.ID)
 
@@ -124,10 +119,9 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "GroupCount1", "Student", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "GroupCount2", "Student", "1a")
 		student3 := testpkg.CreateTestStudent(t, db, "GroupCount3", "Student", "1a")
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
-		visit3 := testpkg.CreateTestVisit(t, db, student3.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, student3.ID, visit1.ID, visit2.ID, visit3.ID)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student3.ID, activeGroup.ID, time.Now(), nil)
 
 		count, err := service.CountActiveVisitsByActiveGroupID(ctx, activeGroup.ID)
 
@@ -143,9 +137,8 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "GroupLeft", "Student", "1a")
 		entryTime := time.Now().Add(-10 * time.Minute)
 		exitTime := time.Now()
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
 
 		count, err := service.CountActiveVisitsByActiveGroupID(ctx, activeGroup.ID)
 
@@ -172,7 +165,6 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "WithRoom", "Student", "1a")
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		result, err := service.GetStudentCurrentVisitWithRoom(ctx, student.ID)
 
@@ -187,7 +179,6 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 
 	t.Run("returns error for student with no visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoVisit", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		result, err := service.GetStudentCurrentVisitWithRoom(ctx, student.ID)
 
@@ -225,7 +216,6 @@ func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Current", "Visit", "1a")
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		result, err := service.GetStudentCurrentVisit(ctx, student.ID)
 
@@ -237,7 +227,6 @@ func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 
 	t.Run("returns error for student with no active visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoCurrent", "Visit", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		result, err := service.GetStudentCurrentVisit(ctx, student.ID)
 
@@ -252,8 +241,7 @@ func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Exited", "Visit", "1a")
 		entryTime := time.Now().Add(-10 * time.Minute)
 		exitTime := time.Now()
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, &exitTime)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, &exitTime)
 
 		result, err := service.GetStudentCurrentVisit(ctx, student.ID)
 

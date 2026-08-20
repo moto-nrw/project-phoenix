@@ -79,7 +79,6 @@ func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Budget", "Student", "QB1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	recorder := &informationSchemaRecorder{}
 	tc.db.AddQueryHook(recorder)

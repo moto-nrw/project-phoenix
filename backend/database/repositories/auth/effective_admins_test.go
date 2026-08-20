@@ -115,7 +115,7 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	})
 
 	t.Run("does not leak another tenant's admins", func(t *testing.T) {
-		const otherTenant int64 = 99045
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignAdmin := testpkg.CreateTestAccount(t, db, "effective-foreign@example.test")

@@ -86,11 +86,8 @@ func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data, ok := response["data"].(map[string]interface{})
+	_, ok := response["data"].(map[string]interface{})
 	require.True(t, ok)
-	if id, ok := data["id"].(float64); ok {
-		defer cleanupSubstitution(t, ctx.db, int64(id))
-	}
 
 	assertGroupAccessChanged(t, broadcaster, "substitution_create")
 }
@@ -102,7 +99,6 @@ func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	body := map[string]interface{}{
 		"group_id":            groupID,
@@ -135,7 +131,6 @@ func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	body := map[string]interface{}{
 		"group_id":            groupID,
@@ -160,7 +155,6 @@ func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),

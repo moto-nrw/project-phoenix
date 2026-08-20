@@ -17,7 +17,6 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 	testpkg.EnsureTestTenant(t, db, 1)
 	student := testpkg.CreateTestStudent(t, db, "Legacy", "Contact", "1a")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "legacy-contact")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID) })
 
 	var relationshipID int64
 	require.NoError(t, db.NewRaw(`
@@ -53,7 +52,6 @@ func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPo
 	testpkg.EnsureTestTenant(t, db, 1)
 	student := testpkg.CreateTestStudent(t, db, "Legacy", "Contact", "1a")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "legacy-relative-contact")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID) })
 
 	var relationshipID int64
 	require.NoError(t, db.NewRaw(`

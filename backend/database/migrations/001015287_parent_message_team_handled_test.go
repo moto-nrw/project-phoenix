@@ -20,11 +20,7 @@ func TestParentMessageTeamHandledMigrationLeavesExistingHistoryOpen(t *testing.T
 	t.Cleanup(func() { require.NoError(t, parentMessageTeamHandledUp(ctx, db)) })
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	tenantCtx := tenant.WithTenantID(ctx, chain.TenantID)
 	var threadID int64

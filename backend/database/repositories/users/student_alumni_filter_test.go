@@ -41,7 +41,6 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 
 	activeStudent := testpkg.CreateTestStudent(t, db, "GroupActive", "Kid", fmt.Sprintf("1ga-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "GroupAlumnus", "Kid", fmt.Sprintf("1ga-%s", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, activeStudent.ID, alumnusStudent.ID)
 	defer func() {
 		_, _ = db.NewDelete().
 			TableExpr(`education.groups`).
@@ -103,12 +102,10 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	activeStudent := testpkg.CreateTestStudent(t, db, "InfoActive", "Kid", fmt.Sprintf("1gi-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "InfoAlumnus", "Kid", fmt.Sprintf("1gi-%s", suffix))
 	defer func() {
-		cleanupStudentRecords(t, db, activeStudent.ID, alumnusStudent.ID)
 		_, _ = db.NewDelete().
 			TableExpr("education.group_teacher").
 			Where("id = ?", gt.ID).
 			Exec(ctx)
-		cleanupEducationData(t, db, []int64{group.ID}, []int64{teacher.ID})
 	}()
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
@@ -151,9 +148,8 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	mixedClass := fmt.Sprintf("2mixed-%s", suffix)
 
 	alumnusOnly := testpkg.CreateTestStudent(t, db, "ClassGone", "Kid", alumniOnlyClass)
-	activeMixed := testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
+	testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
 	alumnusMixed := testpkg.CreateTestStudent(t, db, "ClassMixedAlum", "Kid", mixedClass)
-	defer testpkg.CleanupActivityFixtures(t, db, alumnusOnly.ID, activeMixed.ID, alumnusMixed.ID)
 
 	setLifecycle(t, db, alumnusOnly.ID, users.StudentStatusAlumnus, nil, nil)
 	setLifecycle(t, db, alumnusMixed.ID, users.StudentStatusAlumnus, nil, nil)
@@ -181,7 +177,6 @@ func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 	firstName := fmt.Sprintf("Namensvetter%s", suffix)
 
 	graduate := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
-	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
 	setLifecycle(t, db, graduate.ID, users.StudentStatusAlumnus, nil, nil)
 
 	t.Run("graduate does not block a same-name import", func(t *testing.T) {
@@ -192,7 +187,6 @@ func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 
 	t.Run("an active namesake is still detected", func(t *testing.T) {
 		active := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
-		defer testpkg.CleanupActivityFixtures(t, db, active.ID)
 
 		students, err := repos.Student.FindByNameAndClass(ctx, firstName, "Kid", class)
 		require.NoError(t, err)

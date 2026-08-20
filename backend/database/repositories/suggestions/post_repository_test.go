@@ -40,34 +40,6 @@ func createTestVote(t *testing.T, db *bun.DB, postID, voterID int64, direction s
 	return vote
 }
 
-// cleanupPosts removes test posts and their votes.
-func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
-	t.Helper()
-	if len(postIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	// Delete votes first (FK constraint)
-	_, err := db.NewDelete().
-		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.List(postIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup votes: %v", err)
-	}
-
-	_, err = db.NewDelete().
-		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.List(postIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup posts: %v", err)
-	}
-}
-
 func TestPostRepository_Create(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +49,6 @@ func TestPostRepository_Create(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-create")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	t.Run("creates post successfully", func(t *testing.T) {
 		post := &suggestions.Post{
@@ -90,7 +61,6 @@ func TestPostRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, post)
 		require.NoError(t, err)
 		assert.Greater(t, post.ID, int64(0))
-		defer cleanupPosts(t, db, post.ID)
 	})
 
 	t.Run("rejects nil post", func(t *testing.T) {
@@ -119,10 +89,8 @@ func TestPostRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findbyid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("FindByID %d", time.Now().UnixNano()), "Find test")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("finds existing post", func(t *testing.T) {
 		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
@@ -148,10 +116,8 @@ func TestPostRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Update %d", time.Now().UnixNano()), "Original desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("updates post successfully", func(t *testing.T) {
 		post.Title = "Updated Title"
@@ -208,10 +174,8 @@ func TestPostRepository_UpdateStatus(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update-status")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("UpdateStatus %d", time.Now().UnixNano()), "Original desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	err := repo.UpdateStatus(ctx, post.ID, suggestions.StatusDone)
 	require.NoError(t, err)
@@ -231,10 +195,8 @@ func TestPostRepository_UpdateHidden(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update-hidden")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("UpdateHidden %d", time.Now().UnixNano()), "Original desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	err := repo.UpdateHidden(ctx, post.ID, true)
 	require.NoError(t, err)
@@ -254,7 +216,6 @@ func TestPostRepository_Delete(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-delete")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Delete %d", time.Now().UnixNano()), "To be deleted")
 	// No defer cleanup needed since we're testing deletion
@@ -278,11 +239,9 @@ func TestPostRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-list")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	// Create a person linked to the account for author_name resolution
 	person := testpkg.CreateTestPerson(t, db, "List", "Tester")
-	defer testpkg.CleanupTableRecords(t, db, "users.persons", person.ID)
 
 	// Link person to account
 	_, err := db.NewUpdate().
@@ -294,8 +253,7 @@ func TestPostRepository_List(t *testing.T) {
 
 	ts := time.Now().UnixNano()
 	post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("List A %d", ts), "Description A")
-	post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("List B %d", ts), "Description B")
-	defer cleanupPosts(t, db, post1.ID, post2.ID)
+	testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("List B %d", ts), "Description B")
 
 	t.Run("lists posts sorted by score", func(t *testing.T) {
 		posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeUser, "score", "")
@@ -348,7 +306,6 @@ func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-operator-join")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	// The author's person record in the post's own tenant — the only one the
 	// operator board may resolve the display name from.
@@ -357,8 +314,6 @@ func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 	// post's own tenant. Both used to multiply the post.
 	otherPerson := testpkg.CreateTestPersonForTenant(t, db, otherTenantID, "Operator", "Elsewhere")
 	removedPerson := testpkg.CreateTestPersonForTenant(t, db, testpkg.Tenant(t), "Operator", "Removed")
-	defer testpkg.CleanupTableRecords(t, db, "users.persons",
-		homePerson.ID, otherPerson.ID, removedPerson.ID)
 
 	ctx := context.Background()
 
@@ -383,7 +338,6 @@ func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 		fmt.Sprintf("Operator Join Staff %d", ts), "Staff description")
 	parentPost := testpkg.CreateTestPost(t, db, account.ID,
 		fmt.Sprintf("Operator Join Parent %d", ts), "Parent description")
-	defer cleanupPosts(t, db, staffPost.ID, parentPost.ID)
 
 	_, err = db.NewUpdate().
 		TableExpr("suggestions.posts").
@@ -426,10 +380,8 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findwithvote")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("WithVote %d", time.Now().UnixNano()), "Desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns nil user_vote when no vote exists", func(t *testing.T) {
 		found, err := repo.FindByIDWithVote(ctx, post.ID, account.ID, suggestions.ReaderTypeUser)
@@ -472,10 +424,8 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 	account1 := testpkg.CreateTestAccount(t, db, "suggestions-score1")
 	account2 := testpkg.CreateTestAccount(t, db, "suggestions-score2")
 	account3 := testpkg.CreateTestAccount(t, db, "suggestions-score3")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account1.ID, account2.ID, account3.ID)
 
 	post := testpkg.CreateTestPost(t, db, account1.ID, fmt.Sprintf("Score %d", time.Now().UnixNano()), "Desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("score is 0 with no votes", func(t *testing.T) {
 		err := repo.RecalculateScore(ctx, post.ID)

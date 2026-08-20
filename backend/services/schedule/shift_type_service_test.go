@@ -123,7 +123,6 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "ShiftType", "FKNull")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	st, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: uniqueName("ToDelete"), Color: "#F78C10", IsActive: true})
 	require.NoError(t, err)

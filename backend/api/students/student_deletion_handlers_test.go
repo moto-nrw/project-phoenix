@@ -60,13 +60,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	var auditID int64
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, tc.db, "audit.student_deletions", auditID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.instance_students", targetAssignment.ID, sparedAssignment.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.students", target.ID, spared.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", target.PersonID, spared.PersonID)
-		testpkg.CleanupTableRecords(t, tc.db, "facilities.rooms", room.ID)
-		testpkg.CleanupAuthFixtures(t, tc.db, actor.ID)
 	})
 	claims := testutil.AdminTestClaims(int(actor.ID))
 

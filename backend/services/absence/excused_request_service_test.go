@@ -143,7 +143,6 @@ func TestListPending_EnrichedAndScoped(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier")
@@ -170,7 +169,6 @@ func TestListPending_Empty(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, e := svc.ListPending(txCtx)
@@ -189,7 +187,6 @@ func TestPendingByStudentForDate(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	covered := timezone.TodayDate().AddDays(4)
 	createPending(t, svc, db, chain, []timezone.Date{covered}, "Familienfeier")
@@ -216,7 +213,6 @@ func TestListForStudent_FiltersOutcomes(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "bleibt sichtbar")
 	rejected := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(3)}, "wird abgelehnt")
@@ -257,7 +253,6 @@ func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(4)
 	createPending(t, svc, db, chain, []timezone.Date{day}, "aeltere Anfrage")
@@ -280,7 +275,6 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -318,7 +312,6 @@ func TestDecide_NotFoundAndNotPending(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -347,7 +340,6 @@ func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
 
 	svc, bc, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Mark the child live-sick so the approve path has something to clear.
 	_, err := db.NewUpdate().
@@ -396,7 +388,6 @@ func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
 
 	svc, bc, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 	assert.Contains(t, bc.guardianWakeups, chain.AccountID,
@@ -430,7 +421,6 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 
@@ -471,7 +461,6 @@ func TestWithdrawRequest(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -544,7 +533,6 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	d1 := timezone.TodayDate().AddDays(2)
 	d2 := timezone.TodayDate().AddDays(3)
@@ -598,7 +586,6 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
@@ -631,10 +618,6 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	day := timezone.TodayDate().AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
@@ -677,10 +660,6 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	day := timezone.TodayDate().AddDays(4)
 	from := timezone.WallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
@@ -719,7 +698,6 @@ func TestDecide_ApproveOverwritesOlderStatus(t *testing.T) {
 
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	// An older sick status, reported a day BEFORE the request is filed.

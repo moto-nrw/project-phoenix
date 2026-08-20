@@ -107,7 +107,6 @@ func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
 
 	day := createTestClosingDay(t, repo,
 		timezone.NewDate(2026, 7, 20), timezone.NewDate(2026, 8, 7), "Sommerschließung")
-	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
 	contains := func(days []*scheduleModels.ClosingDay) bool {
 		for _, d := range days {
@@ -142,19 +141,19 @@ func TestClosingDayRepository_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	testpkg.EnsureTestTenant(t, db, 2)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
 
 	day := createTestClosingDay(t, repo,
 		timezone.NewDate(2026, 11, 2), timezone.NewDate(2026, 11, 6), "Pädagogische Woche")
-	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
-	ctxT2 := testpkg.TenantContext(2)
+	ctxT2 := testpkg.TenantContext(otherTenantID)
 	days, err := repo.FindByTenantID(ctxT2)
 	require.NoError(t, err)
 	for _, d := range days {
-		assert.NotEqual(t, day.ID, d.ID, "tenant 2 must not see tenant 1 closing days")
+		assert.NotEqual(t, day.ID, d.ID, "the other tenant must not see this tenant's closing days")
 	}
 
 	overlapping, err := repo.FindOverlappingRange(ctxT2, timezone.NewDate(2026, 11, 1), timezone.NewDate(2026, 11, 30))

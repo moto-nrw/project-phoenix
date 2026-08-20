@@ -65,7 +65,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Roundtrip", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.DepartureDays = users.DepartureDays{
 			users.PickupDayMonday:    users.DepartureBus,
@@ -91,7 +90,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Fold", "2a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		// A legacy state can still say bus AND pickup on Monday. The exclusive
 		// departure_days projection uses pickup, but allowed_departure_modes
@@ -121,7 +119,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Merge", "2b")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
 			users.PickupDayMonday: []users.DepartureMode{
@@ -176,7 +173,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Accompanied", "2c")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
 			users.PickupDayMonday:  []users.DepartureMode{users.DepartureAccompanied},
@@ -211,7 +207,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "NoteClear", "2d")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
@@ -247,7 +242,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// on the all-nil plan and leave the orphan note in place (#1694). Loading
 		// fresh mirrors the updateStudent handler, which patches a locked row.
 		student := testpkg.CreateTestStudent(t, db, "Departure", "OrphanNote", "2e")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		fresh, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
@@ -270,7 +264,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// otherwise bucket a child who leaves with a companion as going home alone,
 		// which is safety-sensitive state (#1694).
 		student := testpkg.CreateTestStudent(t, db, "Departure", "AccompaniedStatus", "5a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		note := "Geschwisterkind"
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
@@ -298,7 +291,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// signal and bucket the child as a self-goer (#1694). The companion note must
 		// also survive because an accompanied day remains in the plan.
 		student := testpkg.CreateTestStudent(t, db, "Departure", "BusAndAccompanied", "5c")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
@@ -328,7 +320,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 
 		// Seed an accompanied child with a coupled note.
 		student := testpkg.CreateTestStudent(t, db, "Departure", "LegacyDropAccompanied", "5b")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		note := "Geschwisterkind"
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
@@ -365,7 +356,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Replace", "3a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -391,7 +381,6 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "HydratedReplace", "4a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -452,7 +441,6 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Companion", "Present", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = users.AllowedDepartureModes{
@@ -479,7 +467,6 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		// Create the fixture BEFORE dropping the column: the insert path itself
 		// never references the scanonly note column.
 		student := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Simulate the pre-1.15.138 / post-rollback schema by dropping just the
 		// column. Restore it immediately via Cleanup so the shared DB is left
@@ -531,7 +518,6 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Stale", "3a")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -567,7 +553,6 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Intentional", "3b")
-		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))

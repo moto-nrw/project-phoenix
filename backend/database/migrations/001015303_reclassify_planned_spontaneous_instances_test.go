@@ -36,11 +36,6 @@ func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
 	plannedNormal := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Status: schedule.InstanceStatusPlanned,
 	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-			plannedSpont.ID, activeSpont.ID, completedSpont.ID, plannedNormal.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	require.NoError(t, reclassifyPlannedSpontaneousInstancesUp(ctx, db))
 

@@ -2,7 +2,6 @@ package facilities_test
 
 import (
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,8 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var roomRepositoryTenantCounter int64 = 920_000 + time.Now().UnixNano()%50_000
 
 // ============================================================================
 // CRUD Tests
@@ -44,7 +41,6 @@ func TestRoomRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, room.ID)
 
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	})
 
 	t.Run("create with nil room should fail", func(t *testing.T) {
@@ -81,7 +77,6 @@ func TestRoomRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		found, err := repo.FindByID(ctx, room.ID)
 		require.NoError(t, err)
@@ -114,7 +109,6 @@ func TestRoomRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		room.Capacity = testpkg.IntPtr(35)
 		err = repo.Update(ctx, room)
@@ -132,7 +126,6 @@ func TestRoomRepository_Update(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 		}
 		require.NoError(t, repo.Create(ctx, room))
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		room.Capacity = nil
 		require.NoError(t, repo.Update(ctx, room))
@@ -200,7 +193,6 @@ func TestRoomRepository_FindByName(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		found, err := repo.FindByName(ctx, uniqueName)
 		require.NoError(t, err)
@@ -228,7 +220,6 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByCategory(ctx, uniqueCategory)
 		require.NoError(t, err)
@@ -254,7 +245,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -272,7 +262,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"name_like": "FilterNameRoom",
@@ -293,7 +282,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"building_like": "FilterBldg",
@@ -313,7 +301,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"min_capacity": 140,
@@ -339,7 +326,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"max_capacity": 10,
@@ -364,7 +350,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"category": uniqueCategory,
@@ -384,7 +369,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"floor": 88,
@@ -405,7 +389,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"name": uniqueName,
@@ -426,7 +409,6 @@ func TestRoomRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"building": uniqueBuilding,
@@ -442,11 +424,10 @@ func TestRoomRepository_ListWithOccupancy_GroupsVisibilityInsideTenantScope(t *t
 
 	db := testpkg.SetupTestDB(t)
 
-	tenantA := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
-	tenantB := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
 
 	repo := repositories.NewFactory(db).Room
 	ctxA := testpkg.TenantContext(tenantA)
@@ -510,7 +491,6 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -547,7 +527,6 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := concreteRepo.FindWithCapacity(ctx, 190)
 		require.NoError(t, err)
@@ -584,7 +563,6 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := concreteRepo.SearchByText(ctx, "SearchText")
 		require.NoError(t, err)

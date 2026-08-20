@@ -22,10 +22,8 @@ func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.Ctx(t)
 	device := testpkg.CreateTestDevice(t, db, "unregistered-find")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-FIND", &device.ID, time.Now())
-	defer cleanupUnregisteredTagScans(t, db, scan.ID)
 
 	found, err := repo.FindByID(ctx, scan.ID)
 
@@ -92,14 +90,13 @@ func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testin
 
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.Ctx(t)
-	testpkg.EnsureTestTenant(t, db, 2)
-
 	now := time.Now()
 	oldUnresolved := createTestUnregisteredTagScan(t, repo, ctx, "TAG-OLD", nil, now.Add(-2*time.Hour))
 	newUnresolved := createTestUnregisteredTagScan(t, repo, ctx, "TAG-NEW", nil, now.Add(-time.Hour))
 	resolved := createTestUnregisteredTagScan(t, repo, ctx, "TAG-RESOLVED", nil, now)
-	otherTenant := createTestUnregisteredTagScan(t, repo, testpkg.TenantContext(2), "TAG-OTHER-TENANT", nil, now)
-	defer cleanupUnregisteredTagScans(t, db, oldUnresolved.ID, newUnresolved.ID, resolved.ID, otherTenant.ID)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	createTestUnregisteredTagScan(t, repo, testpkg.TenantContext(otherTenantID), "TAG-OTHER-TENANT", nil, now)
 
 	resolvedAt := now
 	_, err := db.NewUpdate().
@@ -153,10 +150,8 @@ func TestUnregisteredTagScanRepository_Resolve(t *testing.T) {
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.Ctx(t)
 	operator := createAuditTestOperator(t, db)
-	defer cleanupAuditTestOperator(t, db, operator.ID)
 
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-RESOLVE", nil, time.Now())
-	defer cleanupUnregisteredTagScans(t, db, scan.ID)
 	note := "Issued replacement card"
 
 	resolved, err := repo.Resolve(ctx, scan.ID, operator.ID, &note)
@@ -179,9 +174,7 @@ func TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved(t *testin
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.Ctx(t)
 	operator := createAuditTestOperator(t, db)
-	defer cleanupAuditTestOperator(t, db, operator.ID)
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-RESOLVE-ONCE", nil, time.Now())
-	defer cleanupUnregisteredTagScans(t, db, scan.ID)
 
 	_, err := repo.Resolve(ctx, scan.ID, operator.ID, nil)
 	require.NoError(t, err)
@@ -201,7 +194,6 @@ func TestUnregisteredTagScanRepository_DeleteOlderThan(t *testing.T) {
 	now := time.Now()
 	oldScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-OLD", nil, now.Add(-48*time.Hour))
 	newScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-NEW", nil, now)
-	defer cleanupUnregisteredTagScans(t, db, oldScan.ID, newScan.ID)
 
 	deleted, err := repo.DeleteOlderThan(ctx, now.Add(-24*time.Hour))
 
@@ -239,19 +231,12 @@ func createTestUnregisteredTagScan(
 
 func createAuditTestOperator(t *testing.T, db *bun.DB) *platformModels.Operator {
 	t.Helper()
-
-	operator := &platformModels.Operator{
-		Email:        fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()),
-		DisplayName:  "Audit Scan Operator",
-		PasswordHash: "hashed-password",
-		Active:       true,
-	}
-	require.NoError(t, db.NewInsert().
-		Model(operator).
-		ModelTableExpr("platform.operators").
-		Scan(context.Background()))
-	require.NotZero(t, operator.ID)
-	return operator
+	// platform.operators has no tenant, so the row is shared state the
+	// leftover gate counts: take the fixture that deletes itself again
+	// (#2419) instead of inserting one by hand.
+	return testpkg.CreateTestOperatorWithEmail(t, db,
+		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()),
+		"Audit Scan Operator")
 }
 
 func organizationIDForSchool(t *testing.T, db *bun.DB, schoolID int64) int64 {
@@ -264,14 +249,4 @@ func organizationIDForSchool(t *testing.T, db *bun.DB, schoolID int64) int64 {
 	).Scan(context.Background(), &orgID))
 	require.NotZero(t, orgID)
 	return orgID
-}
-
-func cleanupUnregisteredTagScans(t *testing.T, db *bun.DB, ids ...int64) {
-	t.Helper()
-	testpkg.CleanupTableRecords(t, db, "audit.unregistered_tag_scans", ids...)
-}
-
-func cleanupAuditTestOperator(t *testing.T, db *bun.DB, operatorID int64) {
-	t.Helper()
-	testpkg.CleanupTableRecords(t, db, "platform.operators", operatorID)
 }

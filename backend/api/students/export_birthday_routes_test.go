@@ -51,7 +51,6 @@ func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
 
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`
 
@@ -91,12 +90,10 @@ func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
 
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	// Every fixture child is created without a birthday, so a month filter can
 	// never match one — the empty-list path.
-	student := testpkg.CreateTestStudent(t, tc.db, "Birthday", "Nobody", "9z")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	testpkg.CreateTestStudent(t, tc.db, "Birthday", "Nobody", "9z")
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`
 	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),
@@ -116,7 +113,6 @@ func TestBirthdayExportRejectsInvalidMonth(t *testing.T) {
 
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	body := `{"format":"xlsx","preset":"birthday_list","filters":{"months":["13"]}}`
 	rr := authExec(t, tc, birthdayExportRequest(t, body), birthdayExportClaims(t, account.ID),

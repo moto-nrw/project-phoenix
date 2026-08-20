@@ -42,7 +42,6 @@ func assertNoStudentCommittedUnderTenantTx(
 		"400 body should name the offending field, not a generic server error")
 
 	ctx := context.Background()
-	defer cleanupOrphanByName(t, tc, firstName, lastName)
 
 	personCount, err := tc.db.NewSelect().
 		Table("users.persons").
@@ -51,29 +50,6 @@ func assertNoStudentCommittedUnderTenantTx(
 	require.NoError(t, err)
 	assert.Equal(t, 0, personCount,
 		"student/person must NOT be committed when guardian validation fails under TenantTxMiddleware")
-}
-
-// cleanupOrphanByName removes any person/student left behind by a regressed
-// rollback or a prior failed run, keyed by the unique test name.
-func cleanupOrphanByName(t *testing.T, tc *testContext, firstName, lastName string) {
-	t.Helper()
-	ctx := context.Background()
-	var personIDs []int64
-	if err := tc.db.NewSelect().
-		Table("users.persons").
-		Column("id").
-		Where("first_name = ? AND last_name = ?", firstName, lastName).
-		Scan(ctx, &personIDs); err != nil {
-		return
-	}
-	for _, pid := range personIDs {
-		if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
-			t.Logf("cleanup students: %v", err)
-		}
-		if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
-			t.Logf("cleanup persons: %v", err)
-		}
-	}
 }
 
 // TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx is the regression test
@@ -170,7 +146,6 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 
 			var resp createStudentResponse
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-			defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 		})
 	}
 }

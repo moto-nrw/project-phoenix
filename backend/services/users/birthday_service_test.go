@@ -103,8 +103,7 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 	onMonday := testpkg.CreateTestStudent(t, db, "Lina", "Montagskind", "1a")
 	onSaturday := testpkg.CreateTestStudent(t, db, "Mika", "Samstagskind", "1a")
 	onFriday := testpkg.CreateTestStudent(t, db, "Nils", "Freitagskind", "1a")
-	noDate := testpkg.CreateTestStudent(t, db, "Ohne", "Datum", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, onMonday.ID, onSaturday.ID, onFriday.ID, noDate.ID)
+	testpkg.CreateTestStudent(t, db, "Ohne", "Datum", "1a")
 
 	setBirthday(t, db, onMonday.PersonID, timezone.NewDate(2018, monday.Month(), monday.Day()))
 	setBirthday(t, db, onSaturday.PersonID, timezone.NewDate(2019, saturday.Month(), saturday.Day()))
@@ -145,7 +144,6 @@ func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 
 	today := testpkg.CreateTestStudent(t, db, "Emma", "Heutekind", "2b")
 	other := testpkg.CreateTestStudent(t, db, "Paul", "Gesternkind", "2b")
-	defer testpkg.CleanupActivityFixtures(t, db, today.ID, other.ID)
 
 	setBirthday(t, db, today.PersonID, timezone.NewDate(2017, wednesday.Month(), wednesday.Day()))
 	setBirthday(t, db, other.PersonID, timezone.NewDate(2017, yesterday.Month(), yesterday.Day()))
@@ -168,7 +166,6 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Jonas", "Schalttagskind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	setBirthday(t, db, student.PersonID, timezone.NewDate(2020, time.February, 29))
 
 	commonYear := time.Date(2027, time.March, 1, 9, 0, 0, 0, timezone.Berlin)
@@ -200,8 +197,6 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 
 	visible := testpkg.CreateTestStaff(t, db, "Anna", "Sichtbar")
 	optedOut, account := testpkg.CreateTestStaffWithAccount(t, db, "Bea", "Abgemeldet")
-	defer testpkg.CleanupStaffFixtures(t, db, visible.ID, optedOut.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	birthday := timezone.NewDate(1985, today.Month(), today.Day())
 	setBirthday(t, db, visible.PersonID, birthday)
@@ -247,7 +242,6 @@ func TestBirthdayOverviewDisabled(t *testing.T) {
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	student := testpkg.CreateTestStudent(t, db, "Nicht", "Sichtbar", "3c")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	setBirthday(t, db, student.PersonID, timezone.NewDate(2016, today.Month(), today.Day()))
 
 	service := newBirthdayService(db, birthdaySettings(false, true), func() time.Time { return today })
@@ -307,9 +301,7 @@ func TestListStaffBirthdays(t *testing.T) {
 	march := testpkg.CreateTestStaff(t, db, "Clara", "Maerz")
 	augustLate := testpkg.CreateTestStaff(t, db, "Dora", "Spaetaugust")
 	augustEarly, account := testpkg.CreateTestStaffWithAccount(t, db, "Erik", "Fruehaugust")
-	without := testpkg.CreateTestStaff(t, db, "Frank", "Ohnedatum")
-	defer testpkg.CleanupStaffFixtures(t, db, march.ID, augustLate.ID, augustEarly.ID, without.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	testpkg.CreateTestStaff(t, db, "Frank", "Ohnedatum")
 
 	setBirthday(t, db, march.PersonID, timezone.NewDate(1979, time.March, 14))
 	setBirthday(t, db, augustLate.PersonID, timezone.NewDate(1992, time.August, 21))
@@ -370,9 +362,7 @@ func TestBirthdayOptOutRoundTrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Selbst")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Selbst")
 
 	ctx := testpkg.Ctx(t)
 	service := newBirthdayService(db, birthdaySettings(true, true), nil)
@@ -407,7 +397,6 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 
 	t.Run("account without a person", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "birthday-no-person@example.com")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		_, err := service.GetOptOut(ctx, account.ID)
 		require.ErrorIs(t, err, usersService.ErrStaffNotFound)
@@ -416,9 +405,7 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 	})
 
 	t.Run("person without a staff record", func(t *testing.T) {
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Hanna", "Nurperson")
-		defer testpkg.CleanupPerson(t, db, person.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Hanna", "Nurperson")
 
 		_, err := service.GetOptOut(ctx, account.ID)
 		require.ErrorIs(t, err, usersService.ErrStaffNotFound)
@@ -442,12 +429,10 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 
 	// Defers run last-in-first-out: the children go before the groups they
 	// reference, so the FK never blocks the cleanup.
-	defer testpkg.CleanupActivityFixtures(t, db, myGroup.ID, otherGroup.ID)
 
 	mine := testpkg.CreateTestStudent(t, db, "Mein", "Gruppenkind", "1a")
 	foreign := testpkg.CreateTestStudent(t, db, "Fremdes", "Gruppenkind", "1a")
 	groupless := testpkg.CreateTestStudent(t, db, "Ohne", "Gruppenkind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, mine.ID, foreign.ID, groupless.ID)
 
 	for personID := range map[int64]struct{}{
 		mine.PersonID: {}, foreign.PersonID: {}, groupless.PersonID: {},

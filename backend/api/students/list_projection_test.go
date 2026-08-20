@@ -90,7 +90,6 @@ func TestListStudents_SlimProjection(t *testing.T) {
 	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Slim", "Kind", "SL1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	req := testutil.NewRequest("GET", "/?view=slim&include_pickup_times=true&include_arrival_times=true", nil)
@@ -136,7 +135,6 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Wide", "Kind", "WD1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	for _, view := range []string{"", "?view=full"} {
@@ -183,7 +181,6 @@ func TestListStudents_SlimViewSameRows(t *testing.T) {
 		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 		studentIDs = append(studentIDs, student.ID)
 	}
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentIDs...)
 
 	query := "search=SameRows&include_pickup_times=true&include_arrival_times=true&page_size=100"
 
@@ -208,14 +205,11 @@ func TestListStudents_SlimPayloadBudget(t *testing.T) {
 
 	tc := setupTestContext(t)
 
-	var studentIDs []int64
 	const listSize = 30
 	for i := range listSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "Budget", fmt.Sprintf("Produktionskind%02d", i), "BG1")
 		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
-		studentIDs = append(studentIDs, student.ID)
 	}
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentIDs...)
 
 	query := "search=Produktionskind&include_pickup_times=true&include_arrival_times=true&page_size=100"
 

@@ -3,7 +3,6 @@ package facilities_test
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,12 +19,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var facilityTenantCounter int64 = time.Now().UnixNano()
-
 func createFacilityTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 
-	tenantID := atomic.AddInt64(&facilityTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	return tenantID
@@ -55,16 +52,6 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, tenantID int64, name stri
 		Scan(ctx)
 	require.NoError(t, err, "Failed to create room with exact name %q", name)
 	return room
-}
-
-// cleanupRoom removes a room by ID.
-func cleanupRoom(t *testing.T, db *bun.DB, tenantID int64, roomID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(tenantID)
-	_, _ = db.NewDelete().
-		TableExpr("facilities.rooms").
-		Where("id = ?", roomID).
-		Exec(ctx)
 }
 
 // setupFacilitiesService creates a facilities service with real database connection.
@@ -393,7 +380,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Spielplatz"
 
@@ -425,7 +411,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
@@ -524,7 +509,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -539,7 +523,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)

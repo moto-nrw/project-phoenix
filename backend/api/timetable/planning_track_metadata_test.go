@@ -40,7 +40,6 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")
 	repos := repositories.NewFactory(db)
 	track := &scheduleModel.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 3}

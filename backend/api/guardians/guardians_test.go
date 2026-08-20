@@ -97,36 +97,6 @@ func withPerms(claims jwt.AppClaims, perms ...string) jwt.AppClaims {
 	return claims
 }
 
-// cleanupGuardian cleans up a guardian profile and related records
-func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-
-	// Delete phone numbers
-	_, _ = db.NewDelete().
-		TableExpr("users.guardian_phone_numbers").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete student-guardian relationships (column is guardian_profile_id, not guardian_id)
-	_, _ = db.NewDelete().
-		TableExpr("users.students_guardians").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete guardian invitations (column is guardian_profile_id, not guardian_id)
-	_, _ = db.NewDelete().
-		TableExpr("auth.guardian_invitations").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete guardian profile
-	_, _ = db.NewDelete().
-		TableExpr("users.guardian_profiles").
-		Where("id = ?", guardianID).
-		Exec(ctx)
-}
-
 // =============================================================================
 // LIST GUARDIANS TESTS
 // =============================================================================
@@ -237,9 +207,6 @@ func TestCreateGuardian_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup created guardian
-	if id, ok := data["id"].(float64); ok {
-		cleanupGuardian(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
@@ -290,13 +257,6 @@ func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
@@ -322,13 +282,6 @@ func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
@@ -357,13 +310,6 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 	// Should succeed - phone numbers can be added separately
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 // =============================================================================
@@ -508,7 +454,6 @@ func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _ := createLinkedGuardian(t, ctx, "delete-preview")
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -563,7 +508,6 @@ func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _ := createLinkedGuardian(t, ctx, "delete-conflict")
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	sibling := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Sibling", "1a")
 	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
@@ -602,7 +546,6 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "delete-privacy")
-	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Private", "Child", "1a")
 	_, err := ctx.db.NewUpdate().
@@ -645,7 +588,6 @@ func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force")
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -672,7 +614,6 @@ func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force-stale")
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -705,7 +646,6 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "force-forbidden")
-	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Force", "Child", "1a")
 	_, err := ctx.db.NewUpdate().
@@ -1198,7 +1138,6 @@ func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *test
 			viper.Set("app_env", appEnv)
 
 			guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "invite-"+appEnv)
-			defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 			req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/invite", guardian.ID), nil,
 				bearer(t, withPerms(testutil.DefaultTestClaims(), "users:create")),
@@ -1284,7 +1223,6 @@ func TestListGuardianPhoneNumbers_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1342,7 +1280,6 @@ func TestListGuardianPhoneNumbers_EmptyList(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// List phones
 	listReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/%d/phone-numbers", guardianID), nil,
@@ -1385,7 +1322,6 @@ func TestAddPhoneNumber_Success(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// Add phone number
 	phoneReq := map[string]any{
@@ -1459,7 +1395,6 @@ func TestAddPhoneNumber_BadRequest_MissingPhoneNumber(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1483,7 +1418,6 @@ func TestAddPhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1525,7 +1459,6 @@ func TestAddPhoneNumber_DefaultPhoneType(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// Add phone without specifying type
 	phoneReq := map[string]any{
@@ -1554,7 +1487,6 @@ func TestUpdatePhoneNumber_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1605,7 +1537,6 @@ func TestUpdatePhoneNumber_InvalidPhoneID(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1628,7 +1559,6 @@ func TestUpdatePhoneNumber_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1671,7 +1601,6 @@ func TestUpdatePhoneNumber_BadRequest_EmptyPhoneNumber(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1695,7 +1624,6 @@ func TestUpdatePhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1722,8 +1650,7 @@ func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -1740,7 +1667,6 @@ func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to update guardian1's phone via guardian2's endpoint
 	updateReq := map[string]any{
@@ -1764,7 +1690,6 @@ func TestDeletePhoneNumber_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1799,7 +1724,6 @@ func TestDeletePhoneNumber_InvalidPhoneID(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1818,7 +1742,6 @@ func TestDeletePhoneNumber_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1856,8 +1779,7 @@ func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -1874,7 +1796,6 @@ func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to delete guardian1's phone via guardian2's endpoint
 	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/phone-numbers/%d", guardian2ID, phone1ID), nil, adminBearer)
@@ -1894,7 +1815,6 @@ func TestSetPrimaryPhone_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1933,7 +1853,6 @@ func TestSetPrimaryPhone_InvalidPhoneID(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1952,7 +1871,6 @@ func TestSetPrimaryPhone_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1990,8 +1908,7 @@ func TestSetPrimaryPhone_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -2008,7 +1925,6 @@ func TestSetPrimaryPhone_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to set guardian1's phone as primary via guardian2's endpoint
 	setPrimaryReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/phone-numbers/%d/set-primary", guardian2ID, phone1ID), nil, adminBearer)
