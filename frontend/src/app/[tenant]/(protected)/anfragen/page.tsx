@@ -82,8 +82,8 @@ const STATUS_OPTIONS: readonly {
  * nach Herkunft. Der Eltern-Reiter zeigt seit #2432 EINE Liste über alle vier
  * Anfragearten (statt vier Abschnitte), mit serverseitiger Namenssuche,
  * Art-Filter und — in der Historie — Status- und Zeitraum-Filter. Der
- * Mitarbeitende-Reiter ist bis zum Aggregator-Umbau ein Platzhalter und
- * erscheint nur mit Freigaberecht für Abwesenheiten (vacation:approve).
+ * Mitarbeitende-Reiter zeigt seit #2433 die Abwesenheitsanträge (offen und
+ * Historie) und erscheint nur mit Freigaberecht dafür (vacation:approve).
  */
 export default function AnfragenPage() {
   // Die Seite öffnet, wer mindestens einen Reiter sehen darf. Die Regeln
