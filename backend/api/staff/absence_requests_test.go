@@ -22,8 +22,8 @@ import (
 )
 
 type absenceRequestItem struct {
-	ID            int64  `json:"id"`
-	StaffID       int64  `json:"staff_id"`
+	ID            int64  `json:"id,string"`
+	StaffID       int64  `json:"staff_id,string"`
 	AbsenceType   string `json:"absence_type"`
 	Status        string `json:"status"`
 	StaffName     string `json:"staff_name"`
