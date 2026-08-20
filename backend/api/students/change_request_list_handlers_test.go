@@ -554,6 +554,8 @@ func aggDirectCorrection(id int64, name string, changedAt time.Time) *enrollment
 }
 
 func TestAggregatedChangeRequests_HistoryShowsDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
 		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
@@ -581,6 +583,8 @@ func TestAggregatedChangeRequests_HistoryShowsDirectCorrections(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_OpenNeverShowsDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
@@ -595,6 +599,8 @@ func TestAggregatedChangeRequests_OpenNeverShowsDirectCorrections(t *testing.T) 
 }
 
 func TestAggregatedChangeRequests_DirectCorrectionsHonourSearchAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
@@ -614,6 +620,8 @@ func TestAggregatedChangeRequests_DirectCorrectionsHonourSearchAndDateRange(t *t
 }
 
 func TestAggregatedChangeRequests_StatusFilterExcludesDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
 		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
@@ -629,6 +637,8 @@ func TestAggregatedChangeRequests_StatusFilterExcludesDirectCorrections(t *testi
 }
 
 func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),

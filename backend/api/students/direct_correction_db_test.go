@@ -51,9 +51,6 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 	request.TenantID = tenantID
 	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("enrollment.requests").Where("id = ?", request.ID).Exec(context.Background())
-	})
 
 	child := &enrollmentModels.RequestChild{
 		RequestID:        request.ID,
@@ -66,9 +63,6 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 	child.TenantID = tenantID
 	_, err = tc.db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("enrollment.request_children").Where("id = ?", child.ID).Exec(context.Background())
-	})
 
 	for _, offering := range []*enrollmentModels.CareOffering{ganztag, mittag} {
 		link := &enrollmentModels.RequestChildOffering{
@@ -80,14 +74,6 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 			ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(ctx)
 		require.NoError(t, err)
 	}
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("enrollment.request_child_offerings").
-			Where("request_child_id = ?", child.ID).Exec(context.Background())
-	})
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("audit.enrollment_offering_adjustments").
-			Where("request_child_id = ?", child.ID).Exec(context.Background())
-	})
 
 	return &correctionFixture{phase: phase, child: child, ganztag: ganztag, mittag: mittag, tenantID: tenantID}
 }
@@ -97,12 +83,13 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 // very same append-only log does not: that one is already in the list as the
 // decided request, and showing both would double it (#2436).
 func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "CorrectionReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggCorrectionGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Zkorrektur", "Kindlein", "AL3")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -227,9 +214,5 @@ func insertPendingOfferingChangeRequest(
 	_, err := tc.db.NewInsert().Model(row).
 		ModelTableExpr(`enrollment.offering_change_requests AS "offering_change_request"`).Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("enrollment.offering_change_requests").
-			Where("id = ?", row.ID).Exec(context.Background())
-	})
 	return row
 }
