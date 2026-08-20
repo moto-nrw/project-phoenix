@@ -115,8 +115,6 @@ var seedCoverageAllowlist = map[string]string{
 	"platform.operator_passkey_credentials": "GAP: prod has 1 rows",
 	"platform.operator_passkey_sessions":    "GAP: prod has 4 rows",
 
-	"public.bun_migration_locks": "empty in prod too",
-
 	"schedule.activity_exceptions":              "GAP: prod has 2 rows",
 	"schedule.calendar_periods":                 "GAP: prod has 10 rows",
 	"schedule.closing_days":                     "GAP: prod has 3 rows",
@@ -163,14 +161,19 @@ var seedCoverageAllowlist = map[string]string{
 	"users.student_documents":             "empty in prod too",
 }
 
-// tableCoverageQuery lists every application table. Views and system schemas
-// stay out: the ratchet is about data the seeder produces.
+// tableCoverageQuery lists every application table. Views, system schemas, and
+// Bun's migration bookkeeping stay out: the ratchet is about data the seeder
+// produces.
 const tableCoverageQuery = `
 	SELECT table_schema, table_name
 	FROM information_schema.tables
 	WHERE table_type = 'BASE TABLE'
 	  AND table_schema NOT IN ('pg_catalog', 'information_schema')
 	  AND table_schema NOT LIKE 'pg\_%'
+	  AND (table_schema, table_name) NOT IN (
+		('public', 'bun_migrations'),
+		('public', 'bun_migration_locks')
+	)
 	ORDER BY table_schema, table_name`
 
 func TestSeedCoverageRatchet(t *testing.T) {
@@ -206,7 +209,17 @@ func TestSeedCoverageRatchet(t *testing.T) {
 		t.Fatal("no application tables found: is SEED_COVERAGE_DSN pointing at a migrated database?")
 	}
 
-	var uncovered, stale []string
+	discovered := make(map[string]struct{}, len(tables))
+	for _, table := range tables {
+		discovered[table] = struct{}{}
+	}
+
+	var uncovered, stale, unknownAllowlist []string
+	for table := range seedCoverageAllowlist {
+		if _, ok := discovered[table]; !ok {
+			unknownAllowlist = append(unknownAllowlist, table)
+		}
+	}
 	for _, table := range tables {
 		schema, name, _ := strings.Cut(table, ".")
 		var filled bool
@@ -224,6 +237,7 @@ func TestSeedCoverageRatchet(t *testing.T) {
 	}
 	sort.Strings(uncovered)
 	sort.Strings(stale)
+	sort.Strings(unknownAllowlist)
 
 	if len(uncovered) > 0 {
 		t.Errorf("%d table(s) hold no seeded data and are not allowlisted:\n  %s\n\n"+
@@ -235,6 +249,10 @@ func TestSeedCoverageRatchet(t *testing.T) {
 	if len(stale) > 0 {
 		t.Errorf("%d allowlisted table(s) now hold data: remove them from seedCoverageAllowlist:\n  %s",
 			len(stale), strings.Join(stale, "\n  "))
+	}
+	if len(unknownAllowlist) > 0 {
+		t.Errorf("%d seedCoverageAllowlist entry or entries do not name an application table:\n  %s",
+			len(unknownAllowlist), strings.Join(unknownAllowlist, "\n  "))
 	}
 
 	t.Logf("seed coverage: %d/%d tables filled, %d allowlisted",
