@@ -50,14 +50,14 @@ const TYPE_COLOR: Record<RequestRowType, string> = {
 };
 
 /**
- * Spaltenraster der Zeilen. Die Listen rendern damit ihre Kopfzeile, die
- * Karten ihre Zeile — eine Quelle, damit Kopf und Inhalt nicht auseinander
- * laufen. Unterhalb von `sm` gibt es kein Raster: eine echte Tabelle ist auf
- * einem Telefon unbenutzbar, dort stapelt die Zeile.
+ * Spaltenraster der Zeilen. Zeile und Kopfzeile (RequestRowHeader, unten)
+ * teilen sich diese beiden Strings, damit sie nicht auseinander laufen.
+ * Unterhalb von `sm` gibt es kein Raster: eine echte Tabelle ist auf einem
+ * Telefon unbenutzbar, dort stapelt die Zeile.
  */
-export const OPEN_ROW_GRID =
+const OPEN_ROW_GRID =
   "sm:grid sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto_1rem] sm:items-center sm:gap-3";
-export const HISTORY_ROW_GRID =
+const HISTORY_ROW_GRID =
   "sm:grid sm:grid-cols-[5.5rem_minmax(0,10rem)_minmax(0,1fr)_auto_minmax(0,8rem)_1rem] sm:items-center sm:gap-3";
 
 /** Beschriftung der Art-Pille, wenn der Aufrufer keine eigene mitgibt. */
