@@ -138,10 +138,10 @@ func TestWorkSessionRepository_ListByStaffAndDate(t *testing.T) {
 	})
 }
 
-// TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected pins the partial
-// unique index from migration 1.15.305: several CLOSED blocks per day are
-// fine, but at most one block per staff and day may be open.
-func TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected(t *testing.T) {
+// TestWorkSessionRepository_SecondOpenBlockIsRejected pins the partial unique
+// index from migration 1.15.305: several closed blocks per day are fine, but
+// a staff member can never have two open blocks, even across midnight.
+func TestWorkSessionRepository_SecondOpenBlockIsRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -165,13 +165,13 @@ func TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected(t *testing.T) {
 
 	secondOpen := &active.WorkSession{
 		StaffID:     staff.ID,
-		Date:        today,
+		Date:        today.AddDays(1),
 		Status:      active.WorkSessionStatusPresent,
-		CheckInTime: time.Now(),
+		CheckInTime: time.Now().Add(24 * time.Hour),
 		CreatedBy:   staff.ID,
 	}
 	err := repo.Create(ctx, secondOpen)
-	require.Error(t, err, "two OPEN blocks on one day must hit uq_work_sessions_staff_date_open")
+	require.Error(t, err, "two OPEN blocks must hit uq_work_sessions_staff_date_open")
 	if secondOpen.ID != 0 {
 		testpkg.CleanupTableRecords(t, db, "active.work_sessions", secondOpen.ID)
 	}
