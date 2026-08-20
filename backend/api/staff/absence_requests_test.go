@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -35,6 +36,7 @@ type absenceRequestItem struct {
 // createAbsence inserts one absence for the staff member and registers cleanup.
 func createAbsence(t *testing.T, tc *testContext, staffID int64, absenceType, status string, decidedBy *int64) *activeModels.StaffAbsence {
 	t.Helper()
+	tenantID := int64(testutil.DefaultTestClaims().TenantID)
 	start := timezone.TodayDate().AddDays(21)
 	now := time.Now()
 	absence := &activeModels.StaffAbsence{
@@ -51,8 +53,8 @@ func createAbsence(t *testing.T, tc *testContext, staffID int64, absenceType, st
 		absence.ApprovedAt = &now
 		absence.DecisionNote = "Passt so"
 	}
-	absence.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(1), absence))
+	absence.SetTenantID(tenantID)
+	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(tenantID), absence))
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absence.ID)
 	})
