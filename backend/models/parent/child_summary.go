@@ -210,7 +210,7 @@ type EnrollmentRequestRepository interface {
 	// enrollment.requests row with guardian_account_id IS NULL and a
 	// case-insensitive match on guardian_email. Returns how many rows
 	// were updated. Cross-tenant — implementation MUST run under
-	// WithAdminTx. Called after a guardian invitation accept so
+	// WithAdminTx. Called inside a guardian invitation accept so
 	// pre-account submissions surface in /me/enrollments.
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
