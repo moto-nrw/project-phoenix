@@ -11,7 +11,6 @@
 package absencetypes
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -97,18 +96,18 @@ func toAbsenceTypeResponses(types []*activeModels.StaffAbsenceType) []AbsenceTyp
 	return out
 }
 
+var errorRules = []common.ErrorRule{
+	{Target: activeSvc.ErrAbsenceTypeNameTaken, Render: common.ErrorConflict},
+	{Target: activeSvc.ErrAbsenceTypeNameReserved, Render: common.ErrorConflict},
+	{Target: activeSvc.ErrAbsenceTypeInUse, Render: common.ErrorConflict},
+	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorNotFound},
+	{Target: activeSvc.ErrAbsenceTypeInvalid, Render: common.ErrorInvalidRequest},
+}
+
+var errorRenderer = common.RulesRenderer(errorRules, common.ErrorInternalServer)
+
 func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, activeSvc.ErrAbsenceTypeNameTaken),
-		errors.Is(err, activeSvc.ErrAbsenceTypeNameReserved):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, activeSvc.ErrAbsenceTypeNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, activeSvc.ErrAbsenceTypeInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
+	common.RenderError(w, r, errorRenderer(err))
 }
 
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +116,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		renderServiceError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toAbsenceTypeResponses(types), "Absence types retrieved")
+	common.Respond(w, r, http.StatusOK, toAbsenceTypeResponses(types), "Abwesenheitsarten geladen")
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +130,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		renderServiceError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toAbsenceTypeResponse(saved), "Absence type created")
+	common.Respond(w, r, http.StatusCreated, toAbsenceTypeResponse(saved), "Abwesenheitsart erstellt")
 }
 
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
@@ -150,5 +149,5 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		renderServiceError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toAbsenceTypeResponse(saved), "Absence type updated")
+	common.Respond(w, r, http.StatusOK, toAbsenceTypeResponse(saved), "Abwesenheitsart aktualisiert")
 }

@@ -129,6 +129,37 @@ func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Model:    base.Model{ID: customID},
+		Name:     "Regenerationstag",
+		BaseType: activeModels.AbsenceTypeOther,
+		IsActive: true,
+	}}}, nil)
+	repo.listRequestsFunc = func(context.Context, activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+		return []*activeModels.AbsenceRequestRow{{
+			StaffAbsence: &activeModels.StaffAbsence{
+				Model:         base.Model{ID: 100},
+				StaffID:       7,
+				AbsenceType:   activeModels.AbsenceTypeOther,
+				AbsenceTypeID: &customID,
+				DateStart:     timezone.NewDate(2026, 8, 20),
+				DateEnd:       timezone.NewDate(2026, 8, 20),
+				Status:        activeModels.AbsenceStatusRequested,
+				CreatedBy:     7,
+			},
+			StaffName: "Mila Muster",
+		}}, nil
+	}
+
+	items, err := svc.ListAbsenceRequests(context.Background(), AbsenceRequestListQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Regenerationstag", items[0].AbsenceTypeLabel)
+}
+
 // ============================================================================
 // Mocks for StaffAbsenceRepository (prefixed with abs)
 // ============================================================================

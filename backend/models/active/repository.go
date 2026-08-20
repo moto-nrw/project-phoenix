@@ -433,6 +433,9 @@ type StaffAbsenceTypeRepository interface {
 
 	// ListAll returns all absence types for the current tenant, ordered by name.
 	ListAll(ctx context.Context) ([]*StaffAbsenceType, error)
+	// IsInUse reports whether an absence still references the art. Used to keep
+	// historical display names stable when an administrator edits the list.
+	IsInUse(ctx context.Context, id int64) (bool, error)
 }
 
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto

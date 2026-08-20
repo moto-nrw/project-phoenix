@@ -48,16 +48,16 @@ type StaffAbsenceType struct {
 func (t *StaffAbsenceType) Validate() error {
 	t.Name = strings.TrimSpace(t.Name)
 	if t.Name == "" {
-		return errors.New("absence type name is required")
+		return errors.New("Name der Abwesenheitsart fehlt")
 	}
 	if len([]rune(t.Name)) > maxAbsenceTypeNameLength {
-		return errors.New("absence type name must not exceed 100 characters")
+		return errors.New("Name der Abwesenheitsart darf höchstens 100 Zeichen haben")
 	}
 	if t.BaseType == "" {
 		t.BaseType = AbsenceTypeOther
 	}
 	if !slices.Contains(ValidAbsenceTypes, t.BaseType) {
-		return errors.New("invalid absence base type")
+		return errors.New("ungültiger Grundtyp der Abwesenheit")
 	}
 	return nil
 }

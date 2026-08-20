@@ -47,6 +47,22 @@ func (r *StaffAbsenceTypeRepository) ListAll(ctx context.Context) ([]*active.Sta
 	return types, nil
 }
 
+// IsInUse reports whether a staff absence in the current tenant references
+// this art. A used art cannot be renamed, because old entries must retain the
+// name under which they were recorded.
+func (r *StaffAbsenceTypeRepository) IsInUse(ctx context.Context, id int64) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.staff_absences AS "staff_absence"`).
+		Where(`"staff_absence".absence_type_id = ?`, id)
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "check staff absence type usage", Err: err}
+	}
+	return exists, nil
+}
+
 // List applies QueryOptions, tenant-scoped (satisfies base.Repository[T]).
 func (r *StaffAbsenceTypeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsenceType, error) {
 	return r.ListWithOptions(ctx, options)

@@ -780,7 +780,7 @@ export interface StaffAbsenceRow {
   staff_id: number;
   absence_type: string;
   /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
-  absence_type_id?: number | null;
+  absence_type_id?: string | null;
   /** The school's own wording; empty for the standard types. */
   absence_type_label?: string;
   date_start: string;

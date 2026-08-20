@@ -23,9 +23,9 @@ const staffAbsenceTypeNameUniqueIndex = "uniq_staff_absence_types_tenant_name"
 var (
 	// ErrAbsenceTypeNotFound signals that the requested absence type does not
 	// exist for the current tenant.
-	ErrAbsenceTypeNotFound = errors.New("absence type not found")
+	ErrAbsenceTypeNotFound = errors.New("Abwesenheitsart nicht gefunden")
 	// ErrAbsenceTypeInvalid wraps model/input validation failures (maps to 400).
-	ErrAbsenceTypeInvalid = errors.New("invalid absence type")
+	ErrAbsenceTypeInvalid = errors.New("ungültige Abwesenheitsart")
 	// ErrAbsenceTypeNameTaken signals a duplicate name within the tenant.
 	ErrAbsenceTypeNameTaken = errors.New("eine Abwesenheitsart mit diesem Namen gibt es bereits")
 	// ErrAbsenceTypeNameReserved signals a name that collides with one of the
@@ -35,6 +35,9 @@ var (
 	// ErrAbsenceTypeInactive signals an attempt to file a new absence under a
 	// deactivated art.
 	ErrAbsenceTypeInactive = errors.New("diese Abwesenheitsart ist deaktiviert")
+	// ErrAbsenceTypeInUse prevents historical absences from changing their
+	// display name retroactively through a rename of the referenced art.
+	ErrAbsenceTypeInUse = errors.New("eine verwendete Abwesenheitsart kann nicht umbenannt werden")
 )
 
 // standardAbsenceTypeNames are the German labels of the five code-owned
@@ -213,12 +216,22 @@ func (s *staffAbsenceTypeService) UpdateAbsenceType(ctx context.Context, id int6
 	}
 
 	if name != nil {
+		previousName := existing.Name
 		existing.Name = *name
 		if err := existing.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: %s", ErrAbsenceTypeInvalid, err.Error())
 		}
 		if err := s.checkName(ctx, existing.Name, existing.ID); err != nil {
 			return nil, err
+		}
+		if existing.Name != previousName {
+			inUse, err := s.repo.IsInUse(ctx, existing.ID)
+			if err != nil {
+				return nil, fmt.Errorf("check absence type usage: %w", err)
+			}
+			if inUse {
+				return nil, ErrAbsenceTypeInUse
+			}
 		}
 	}
 	if isActive != nil {

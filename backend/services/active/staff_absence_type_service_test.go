@@ -7,12 +7,14 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/stretchr/testify/require"
 )
 
 // absTypeRepoMock is an in-memory StaffAbsenceTypeRepository. Only the three
 // methods the service uses are behavioural; the rest satisfy the interface.
 type absTypeRepoMock struct {
 	rows   []*activeModels.StaffAbsenceType
+	inUse  map[int64]bool
 	nextID int64
 }
 
@@ -61,6 +63,9 @@ func (m *absTypeRepoMock) Update(_ context.Context, at *activeModels.StaffAbsenc
 func (m *absTypeRepoMock) Delete(_ context.Context, _ any) error { return nil }
 func (m *absTypeRepoMock) List(_ context.Context, _ *base.QueryOptions) ([]*activeModels.StaffAbsenceType, error) {
 	return m.ListAll(context.Background())
+}
+func (m *absTypeRepoMock) IsInUse(_ context.Context, id int64) (bool, error) {
+	return m.inUse[id], nil
 }
 func (m *absTypeRepoMock) Count(_ context.Context, _ map[string]any) (int, error) {
 	return len(m.rows), nil
@@ -177,6 +182,19 @@ func TestUpdateAbsenceTypeAllowsRenamingToItsOwnName(t *testing.T) {
 	if _, err := svc.UpdateAbsenceType(ctx, created.ID, &same, nil); err != nil {
 		t.Errorf("renaming an art to its own name must be a no-op, got %v", err)
 	}
+}
+
+func TestUpdateAbsenceTypeRejectsRenamingUsedType(t *testing.T) {
+	svc, repo := newAbsenceTypeService()
+	ctx := context.Background()
+
+	created, err := svc.CreateAbsenceType(ctx, "Regenerationstag")
+	require.NoError(t, err)
+	repo.inUse = map[int64]bool{created.ID: true}
+
+	renamed := "Gesundheitstag"
+	_, err = svc.UpdateAbsenceType(ctx, created.ID, &renamed, nil)
+	require.ErrorIs(t, err, ErrAbsenceTypeInUse)
 }
 
 func TestResolveForAbsenceRejectsDeactivatedArt(t *testing.T) {

@@ -1777,10 +1777,16 @@ func (s *staffAbsenceService) ListAbsenceRequests(ctx context.Context, req Absen
 	if err != nil {
 		return nil, fmt.Errorf("failed to list absence requests: %w", err)
 	}
+	responses := make([]*StaffAbsenceResponse, len(rows))
+	for i, row := range rows {
+		responses[i] = toAbsenceResponse(row.StaffAbsence)
+	}
+	s.withLabels(ctx, responses...)
+
 	items := make([]*StaffAbsenceRequestItem, len(rows))
 	for i, row := range rows {
 		items[i] = &StaffAbsenceRequestItem{
-			StaffAbsenceResponse: toAbsenceResponse(row.StaffAbsence),
+			StaffAbsenceResponse: responses[i],
 			StaffName:            row.StaffName,
 			DecidedByName:        row.DecidedByName,
 		}

@@ -5,8 +5,9 @@ import type {
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
-import type { WorkSessionHistory } from "./time-tracking-helpers";
+import type { StaffAbsence, WorkSessionHistory } from "./time-tracking-helpers";
 import {
+  adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
   computePeriodTotalsFromTargets,
   computeStaffMetrics,
@@ -553,5 +554,39 @@ describe("adaptHistorySessionForMetrics", () => {
       adaptHistorySessionForMetrics(historySession({ source: "unknown" }))
         .source,
     ).toBe("unknown");
+  });
+});
+
+describe("adaptAbsenceForMetrics", () => {
+  it("keeps the custom absence type identity and label", () => {
+    const custom: StaffAbsence = {
+      id: "100",
+      staffId: "200",
+      absenceType: "other",
+      absenceTypeId: "9007199254740993",
+      absenceTypeLabel: "Regenerationstag",
+      dateStart: "2026-08-20",
+      dateEnd: "2026-08-20",
+      halfDay: false,
+      startHalfDay: false,
+      endHalfDay: false,
+      note: "",
+      status: "approved",
+      approvedBy: null,
+      approvedAt: null,
+      createdBy: "200",
+      createdAt: "2026-08-20T08:00:00Z",
+      updatedAt: "2026-08-20T08:00:00Z",
+      durationDays: 1,
+      workingDays: 1,
+      decisionNote: "",
+      requestedAt: "2026-08-20T08:00:00Z",
+      substituteStaffId: null,
+    };
+
+    expect(adaptAbsenceForMetrics(custom)).toMatchObject({
+      absence_type_id: "9007199254740993",
+      absence_type_label: "Regenerationstag",
+    });
   });
 });
