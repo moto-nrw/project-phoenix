@@ -291,19 +291,31 @@ func extractAbsenceID(resp []byte) (int64, error) {
 	return extractWrappedID(resp, "absence")
 }
 
+// extractWrappedID reads the id out of a wrapped success payload. The id is
+// accepted as a JSON number AND as a quoted decimal string: work sessions
+// serialize theirs as a string so an int64 past 2^53 survives JSON.parse in
+// the browser (#2402), while the other endpoints still send a number.
+// json.Number takes both without a second code path.
 func extractWrappedID(resp []byte, entity string) (int64, error) {
 	var payload struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID json.Number `json:"id"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(resp, &payload); err != nil {
 		return 0, err
 	}
-	if payload.Data.ID == 0 {
+	if payload.Data.ID == "" {
 		return 0, fmt.Errorf("response did not include a %s id", entity)
 	}
-	return payload.Data.ID, nil
+	id, err := payload.Data.ID.Int64()
+	if err != nil {
+		return 0, fmt.Errorf("response carried a non-numeric %s id %q: %w", entity, payload.Data.ID, err)
+	}
+	if id == 0 {
+		return 0, fmt.Errorf("response did not include a %s id", entity)
+	}
+	return id, nil
 }
 
 func mostRecentWeekday(from time.Time, target time.Weekday) time.Time {

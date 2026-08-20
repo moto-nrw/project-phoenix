@@ -116,8 +116,24 @@ func TestExtractSessionID(t *testing.T) {
 		assert.Equal(t, int64(42), id)
 	})
 
+	// Work-session responses quote the id so an int64 past 2^53 survives
+	// JSON.parse in the browser (#2402). The seeder walks the same public
+	// endpoints, so it has to read the quoted form.
+	t.Run("extracts id from a string-encoded id", func(t *testing.T) {
+		payload := []byte(`{"status":"success","data":{"id":"9007199254740993","staff_id":1}}`)
+		id, err := extractSessionID(payload)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(9007199254740993), id)
+	})
+
 	t.Run("rejects payload without id", func(t *testing.T) {
 		payload := []byte(`{"status":"success","data":{}}`)
+		_, err := extractSessionID(payload)
+		assert.Error(t, err)
+	})
+
+	t.Run("rejects a non-numeric id", func(t *testing.T) {
+		payload := []byte(`{"status":"success","data":{"id":"abc"}}`)
 		_, err := extractSessionID(payload)
 		assert.Error(t, err)
 	})
