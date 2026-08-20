@@ -20,7 +20,7 @@ const logger = createLogger({ component: "ChangeRequestListApi" });
 
 /**
  * Aggregierte Eltern-Anfragenliste (#2432): ein Endpunkt über die vier
- * Anfragearten (Stammdaten, Betreuungszeiten, Angebote, Entschuldigungen),
+ * Anfragearten (Stammdaten, Betreuungszeiten, Angebote, Abwesenheiten),
  * offen oder Historie, mit serverseitiger Namenssuche, Filtern und
  * Keyset-Pagination. Jedes Item trägt unter `data` die unveränderte
  * Art-Projektion, diskriminiert über `request_type` — die bestehenden

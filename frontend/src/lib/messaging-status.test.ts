@@ -52,6 +52,19 @@ describe("messaging-status — ChatMessage type", () => {
     expect(msg.read_by_staff).toBe(false);
   });
 
+  it("accepts every backend request type on event messages", () => {
+    const requestTypes: NonNullable<ChatMessage["request_type"]>[] = [
+      "care_schedule",
+      "pickup_change",
+      "master_data",
+      "excused_absence",
+      "sick_absence",
+      "care_offering",
+    ];
+
+    expect(requestTypes).toHaveLength(6);
+  });
+
   it("allows optional read-receipt fields to be absent", () => {
     const msg: ChatMessage = {
       id: "3",
@@ -193,6 +206,14 @@ describe("parentEventI18nDescriptor", () => {
         kind: "event",
         event_type: "request_created",
         request_status: "offen",
+        request_type: "sick_absence",
+      }),
+    ).toEqual({ key: "eventRequestCreatedSickAbsence" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_status: "offen",
         request_type: "care_offering",
       }),
     ).toEqual({ key: "eventRequestCreatedCareOffering" });
@@ -207,6 +228,14 @@ describe("parentEventI18nDescriptor", () => {
         request_type: "excused_absence",
       }),
     ).toEqual({ key: "eventRequestConfirmedExcusedAbsence" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "sick_absence",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedSickAbsence" });
   });
 
   it("maps a confirmed care-offering request to its own localized key (#1665)", () => {

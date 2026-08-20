@@ -127,7 +127,11 @@ function ExcusedHistoryCard({
   return (
     <RequestReviewCard
       childName={`${row.first_name} ${row.last_name}`}
-      summary="Entschuldigte Abmeldung"
+      summary={
+        row.absence_status === "sick"
+          ? "Krankmeldung"
+          : "Entschuldigte Abmeldung"
+      }
       submittedAt={row.created_at}
       history={{
         status: row.status,

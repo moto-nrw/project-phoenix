@@ -1584,7 +1584,7 @@ function LimitedAccessView({
               <SectionCard
                 kicker="Kinderkartei"
                 title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Entschuldigungen dieses Kindes geändert hat"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
               >
                 <AggregatedRequestList
                   view="history"
@@ -1863,7 +1863,7 @@ function FullAccessView({
               <SectionCard
                 kicker="Kinderkartei"
                 title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Entschuldigungen dieses Kindes geändert hat"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
               >
                 <AggregatedRequestList
                   view="history"

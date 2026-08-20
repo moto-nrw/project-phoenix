@@ -42,7 +42,7 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "master_data", label: "Stammdaten" },
   { value: "care_schedule", label: "Betreuungszeiten" },
   { value: "offering", label: "Angebote und AGs" },
-  { value: "excused", label: "Entschuldigungen" },
+  { value: "excused", label: "Abwesenheiten" },
 ];
 
 // Anmeldungsänderungen sieht nur, wer sie auch entscheiden darf (#2435).

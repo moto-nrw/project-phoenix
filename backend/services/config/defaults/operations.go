@@ -528,26 +528,35 @@ func init() {
 		SortOrder:       60,
 	})
 
-	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
-	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
-	// excused absence is written straight to the child's status days exactly like
-	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
-	// absence becomes a PENDING request in the change-request queue that staff
-	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
-	// Only meaningful while the sick-note feature above is enabled; DependsOn
-	// hides it otherwise.
+	// Parent-submitted absences require approval by default (#2447/#2449). Schools
+	// can opt out independently for sick and excused reports. Both switches are
+	// only meaningful while the parent absence feature above is enabled.
 	config.Register(config.Definition{
-		Key:             config.KeyParentExcusedRequiresApproval,
-		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
-		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Key:             config.KeyParentSickRequiresApproval,
+		Label:           "Krankmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Krankmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       62,
-		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Abmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
 	})
 
 	config.Register(config.Definition{

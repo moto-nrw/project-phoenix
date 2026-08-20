@@ -2,7 +2,7 @@
 
 /**
  * Aggregierte Eltern-Anfragenliste (#2432): EINE Liste über alle vier
- * Anfragearten (Stammdaten, Betreuungszeiten, Angebote, Entschuldigungen)
+ * Anfragearten (Stammdaten, Betreuungszeiten, Angebote, Abwesenheiten)
  * statt vier gestapelter Abschnitte. Suche und Filter wirken serverseitig;
  * nachgeladen wird über den Keyset-Cursor des Aggregations-Endpunkts.
  *

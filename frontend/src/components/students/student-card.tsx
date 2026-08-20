@@ -570,8 +570,8 @@ export function StudentAbsenceRow({
 }
 
 /**
- * Informational badge for a child with a still-pending "entschuldigt" request
- * covering today (operations.parent_excused_requires_approval). It is NOT an
+ * Informational badge for a child with a still-pending absence request covering
+ * today. It is NOT an
  * absence — the child stays "expected" and keeps its normal arrival/pickup rows
  * until the OGS confirms — so this renders as a single compact amber pill
  * alongside them, not in place of them. The parent's note (if any) is kept to
