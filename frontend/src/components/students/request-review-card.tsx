@@ -413,19 +413,21 @@ function RowButton({
   children: ReactNode;
 }>) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="compact"
       onClick={onToggle}
       aria-expanded={open}
       aria-label={ariaLabel}
-      className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-gray-50/60 sm:px-5 ${grid}`}
+      className={`h-auto w-full flex-wrap justify-start rounded-none px-4 py-3 text-left hover:bg-gray-50/60 sm:px-5 ${grid}`}
     >
       {children}
       <ChevronDown
         className={`ml-auto h-4 w-4 shrink-0 text-gray-400 transition-transform sm:ml-0 ${open ? "rotate-180" : ""}`}
         aria-hidden="true"
       />
-    </button>
+    </Button>
   );
 }
 
