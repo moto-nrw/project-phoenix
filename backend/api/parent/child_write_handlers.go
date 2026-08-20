@@ -61,11 +61,12 @@ func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
 	}
 }
 
-// ParentExcusedRequestResponse is the parent-facing projection of a pending or
-// recently-decided excused-absence approval request (#1845).
+// ParentExcusedRequestResponse is the legacy-named parent projection of a
+// pending or recently decided absence approval request.
 type ParentExcusedRequestResponse struct {
 	ID             string     `json:"id"`
 	StudentID      string     `json:"student_id"`
+	AbsenceStatus  string     `json:"absence_status"`
 	Status         string     `json:"status"`
 	Dates          []string   `json:"dates"`
 	Note           string     `json:"note"`
@@ -87,6 +88,7 @@ func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, acc
 	return ParentExcusedRequestResponse{
 		ID:             strconv.FormatInt(req.ID, 10),
 		StudentID:      strconv.FormatInt(req.StudentID, 10),
+		AbsenceStatus:  req.AbsenceStatus,
 		Status:         req.Status,
 		Dates:          dates,
 		Note:           req.Note,
@@ -143,18 +145,18 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 	// Backward-compatibility (#1845 review): ALWAYS respond with the bare
 	// status-day array — the shape every client (including tabs loaded before the
 	// approval gate was enabled) already calls .map() on. When the school gates an
-	// excused absence the request is created server-side but NOT returned here;
+	// absence the request is created server-side but NOT returned here;
 	// StatusDays is empty and the child stays "expected". New clients discover the
 	// freshly-created pending request via GET .../excused-requests (they refetch
 	// after a submit). Returning a {status_days, pending_request} object on this
 	// path would crash an already-open #1735-era tab — which has the "excused"
 	// option but expects an array — and make it report a false failure, so the
 	// parent could resubmit and create a duplicate pending request.
-	common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
+	common.Respond(w, r, http.StatusCreated, statusDays, "Absence submitted")
 }
 
-// listExcusedRequests returns the child's pending + recently-decided excused
-// approval requests (#1845), so the parent UI can show their status.
+// listExcusedRequests returns the child's pending + recently decided absence
+// approval requests, so the parent UI can show their status.
 func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -266,6 +268,7 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	SickRequiresApproval         bool `json:"sick_requires_approval"`
 	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
 	NotesEnabled                 bool `json:"notes_enabled"`
 	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
@@ -304,6 +307,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
+		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,

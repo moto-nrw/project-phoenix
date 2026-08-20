@@ -1,7 +1,8 @@
 // Deliberately NOT parallel (whole package): these tests apply and roll back
 // migrations, i.e. they change the SCHEMA of the clone every test in the
 // binary shares. Two of them at once would each see the other's half-applied
-// state. Said once here instead of above each of the ~88 tests (#2419).
+// state. The source-only registry collision check is the explicit exception.
+// Said once here instead of above each of the ~88 tests (#2419).
 package migrations
 
 import (

@@ -26,7 +26,7 @@ import (
 
 // Aggregated Eltern request list (#2432): GET /students/change-requests
 // serves all four guardian queues (Stammdaten, Betreuungszeiten, Angebote,
-// Entschuldigungen) as ONE list — open or history — with server-side child
+// Abwesenheiten) as ONE list — open or history — with server-side child
 // name search, request-type filter and, in the history, status and decided-at
 // range filters. The tables stay separate; only the read model is unified.
 // Each item carries the unchanged per-type projection under "data", so the

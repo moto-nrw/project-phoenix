@@ -44,6 +44,7 @@ function makeRequest(over: Partial<ExcusedRequest>): ExcusedRequest {
   return {
     id: "1",
     student_id: "1",
+    absence_status: "excused",
     status: "pending",
     dates: [],
     note: "Termin",
@@ -387,6 +388,81 @@ describe("SickNoteModal — Abmeldegrund", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it("uses neutral copy while the approval settings are unknown", () => {
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    expect(
+      screen.getByText("Für Krankheitstage. Die OGS erhält Ihre Krankmeldung."),
+    ).toBeInTheDocument();
+    // The global next-intl mock does not evaluate ICU plural expressions. Its
+    // raw output proves the neutral plural key was selected.
+    expect(screen.getByText(/Ein Tag ist ausgewählt/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/sieht die Krankmeldung sofort/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains that a gated Krankmeldung stays pending", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Nach dem Senden muss die OGS die Abwesenheit noch bestätigen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die OGS bestätigt die Krankmeldung. Bis dahin gilt Ihr Kind als erwartet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Sie fragen die Abwesenheit für die ausgewählten Tage an.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the pending confirmation after the request was sent", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("pending");
+    const onClose = vi.fn();
+    render(
+      <SickNoteModal
+        onClose={onClose}
+        onSubmit={onSubmit}
+        sickRequiresApproval
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(await screen.findByText("Anfrage gesendet")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Die OGS muss die Abwesenheit noch bestätigen.",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+
+    const closeButtons = screen.getAllByRole("button", { name: "Schließen" });
+    fireEvent.click(closeButtons.at(-1)!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("submits an excused absence with a note when Entschuldigt is chosen", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
@@ -484,6 +560,24 @@ describe("SickStatusSummary — date rendering", () => {
       />,
     );
     expect(screen.getByText(/16\.03\.2026 – 17\.03\.2026/)).toBeInTheDocument();
+  });
+
+  it("labels a pending sickness request as sick", () => {
+    render(
+      <SickStatusSummary
+        sickDays={[]}
+        excusedRequests={[
+          makeRequest({
+            id: "sick-request",
+            absence_status: "sick",
+            dates: ["2026-03-16"],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(/^Krank:/)).toBeInTheDocument();
+    expect(screen.getByText("Freigabe ausstehend")).toBeInTheDocument();
   });
 
   it("shows an out-of-window approved date but not one superseded by a newer status", () => {
@@ -994,7 +1088,7 @@ describe("useChildCare studentId switch", () => {
     );
 
     // Start a same-day sick report for child A (submit is pending).
-    let reportPromise!: Promise<void>;
+    let reportPromise!: Promise<unknown>;
     act(() => {
       reportPromise = result.current.reportSick([today], "", "sick");
     });

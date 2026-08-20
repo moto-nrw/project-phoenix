@@ -462,10 +462,10 @@ export interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
-  // Parent's note for a still-pending "entschuldigt" request covering today
-  // (operations.parent_excused_requires_approval). Informational only — it does
+  // Parent's note for a still-pending absence request covering today.
+  // Informational only — it does
   // NOT change day_planning_status; the child stays "expected" until the OGS
-  // confirms. Absent when there is no pending excused request for today.
+  // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead

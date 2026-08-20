@@ -107,16 +107,47 @@ func adminCtx() context.Context {
 // createPending stores a pending request for the chain's child inside a tenant
 // transaction, mirroring how the parent write service calls CreateRequest.
 func createPending(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note string) *activeModels.ExcusedAbsenceRequest {
+	return createPendingStatus(t, svc, db, chain, dates, note, activeModels.StudentStatusDayExcused)
+}
+
+func createPendingStatus(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note, status string) *activeModels.ExcusedAbsenceRequest {
 	t.Helper()
 	var req *activeModels.ExcusedAbsenceRequest
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
-		req, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, dates, note)
+		req, e = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, dates, note, status)
 		return e
 	})
 	require.NoError(t, err)
 	require.NotNil(t, req)
 	return req
+}
+
+func TestCreateRequestForStatus_DistinguishesSickAndExcusedRetries(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	day := timezone.TodayDate().AddDays(2)
+
+	sick := createPendingStatus(t, svc, db, chain, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sick.AbsenceStatus)
+
+	var retried *activeModels.ExcusedAbsenceRequest
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var createErr error
+		retried, createErr = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+		return createErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, sick.ID, retried.ID, "an identical sick request must be idempotent")
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, createErr := svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin", activeModels.StudentStatusDayExcused)
+		return createErr
+	})
+	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestOverlap,
+		"the same day cannot have pending sick and excused requests")
 }
 
 // TestCreateRequest_Validation covers the three input guards that reject before
