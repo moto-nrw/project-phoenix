@@ -1,3 +1,8 @@
+// Deliberately NOT parallel (whole package): these tests configure JWT
+// lifetimes and secrets through the viper singleton (auth_jwt_expiry,
+// auth_jwt_refresh_expiry, auth_jwt_secret) and then assert on tokens minted
+// from it. A parallel neighbour changing an expiry changes what this test
+// mints. Said once here instead of above each of the ~38 tests (#2419).
 package jwt
 
 import (

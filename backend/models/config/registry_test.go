@@ -1,3 +1,6 @@
+// Deliberately NOT parallel (whole package): the setting registry these tests
+// exercise is a package-global map, and they register and clear entries in it
+// (#2419).
 package config_test
 
 import (

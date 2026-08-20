@@ -1,3 +1,6 @@
+// Deliberately NOT parallel (whole package): the SMTP tests read and write
+// the viper singleton (email_smtp_* keys) to build mailers, so one test's
+// configuration would leak into the next one's (#2419).
 package email
 
 import (

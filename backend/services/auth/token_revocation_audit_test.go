@@ -132,9 +132,11 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 }
 
+// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
+// orphan-push and pending-wipe sweeps across every account and tenant, so
+// beside a parallel test it deletes that test's unbound push rows and
+// tokens (#2419).
 func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

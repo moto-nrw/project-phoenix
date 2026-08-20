@@ -314,9 +314,10 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 	assert.Contains(t, rr.Body.String(), "failed to record audit trail")
 }
 
+// Deliberately NOT parallel: unscoped sweep — the before/after count over
+// audit.data_access_log spans every tenant, so a parallel test that reads a
+// status-day overview lands between the two counts.
 func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T) {
-	t.Parallel()
-
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)

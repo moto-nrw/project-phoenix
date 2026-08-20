@@ -250,9 +250,10 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	assert.Empty(t, pending)
 }
 
+// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
+// queries across all tenants, so a parallel test's revocation event lands in
+// the result and the "recent only" assertion sees it.
 func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent

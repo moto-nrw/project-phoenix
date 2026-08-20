@@ -811,9 +811,11 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 // Token Cleanup Extended Tests (token_cleanup.go)
 // =============================================================================
 
+// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
+// orphan-push and pending-wipe sweeps across every account and tenant, so
+// beside a parallel test it deletes that test's unbound push rows and
+// tokens (#2419).
 func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)

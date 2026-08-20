@@ -909,9 +909,11 @@ func TestAuthService_ListAccounts(t *testing.T) {
 // Token Cleanup Tests
 // =============================================================================
 
+// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
+// orphan-push and pending-wipe sweeps across every account and tenant, so
+// beside a parallel test it deletes that test's unbound push rows and
+// tokens (#2419).
 func TestAuthService_CleanupExpiredTokens(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
@@ -2433,6 +2435,10 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — the rate-limit and
+// password-reset tests switch viper keys (rate_limit_enabled, the reset
+// expiry and URL) on and restore them in t.Cleanup, which would yank the
+// value out from under a test running beside them (#2419).
 func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

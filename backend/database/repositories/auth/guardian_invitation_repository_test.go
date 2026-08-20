@@ -345,9 +345,9 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: unscoped sweep — the delete runs across all
+// tenants, so beside a parallel test it removes that test's rows too.
 func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation

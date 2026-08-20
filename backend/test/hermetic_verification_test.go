@@ -1150,6 +1150,16 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 // Counts may only go DOWN. A package not listed here must have every test
 // parallel. Lower a number when you fix the underlying reason; never raise
 // one to make a new test fit.
+//
+// One deliberate exception, in the same change that introduced this note
+// (#2419): five packages went UP because tests that HAD t.Parallel() were
+// shown not to survive it — every one of them an unscoped sweep or a write to
+// process-global state, each now serial with its reason above it. They were
+// measured, not guessed: services/auth failed roughly one shuffled run in
+// three (CleanupExpiredTokens deletes orphaned push rows across every account
+// and tenant), and the four others were caught in full-suite runs.
+// database/repositories/platform paid for it by making 17 outbox tests
+// parallel.
 var serialTestBaseline = map[string]int{
 	"api":                               20,
 	"api/active":                        2,
@@ -1162,7 +1172,7 @@ var serialTestBaseline = map[string]int{
 	"api/schedules":                     2,
 	"api/staff":                         15,
 	"api/staff-shifts":                  1,
-	"api/students":                      13,
+	"api/students":                      14,
 	"api/suggestions":                   42,
 	"api/timetable":                     2,
 	"api/work-time-models":              1,
@@ -1172,18 +1182,20 @@ var serialTestBaseline = map[string]int{
 	"cmd":                               190,
 	"database":                          8,
 	"database/migrations":               88,
+	"database/repositories/audit":       1,
+	"database/repositories/auth":        4,
 	"database/repositories/enrollment":  3,
-	"database/repositories/platform":    51,
+	"database/repositories/platform":    34,
 	"database/repositories/suggestions": 2,
 	"database/repositories/users":       1,
 	"email":                             12,
 	"integration/phoenixapi":            25,
 	"models/config":                     12,
-	"observability":                     2,
+	"observability":                     4,
 	"seed/api":                          1,
 	"services":                          15,
 	"services/active":                   1,
-	"services/auth":                     15,
+	"services/auth":                     25,
 	"services/config":                   147,
 	"services/education":                1,
 	"services/enrollment":               32,
@@ -1214,17 +1226,10 @@ var serialUnexplainedBaseline = map[string]int{
 	"api/suggestions":        42,
 	"applog":                 1,
 	"auth/device":            12,
-	"auth/jwt":               38,
-	"cmd":                    17,
 	"database":               8,
-	"database/migrations":    88,
-	"email":                  12,
 	"integration/phoenixapi": 25,
-	"models/config":          12,
 	"seed/api":               1,
 	"services":               15,
-	"services/auth":          15,
-	"services/config":        147,
 	"services/enrollment":    13,
 	"services/iot/checkin":   14,
 	"services/scheduler":     45,

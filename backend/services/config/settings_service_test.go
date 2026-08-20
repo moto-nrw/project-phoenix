@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
-	"time"
 
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -2031,23 +2030,27 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	ctx := testpkg.Ctx(t)
 
 	// Create a dedicated org + school to avoid polluting shared test state.
-	now := time.Now().UnixNano()
+	// IDs from the unique-tenant counter, not from time.Now().UnixNano(): two
+	// parallel tests entering this helper in the same microsecond collided on
+	// organizations_pkey (#2419).
+	orgID := testpkg.UniqueTestTenantID(t)
+	schoolID := testpkg.UniqueTestTenantID(t)
 	orgRepo := platformRepo.NewOrganizationRepository(db)
 	org := &platform.Organization{
-		Model:  modelBase.Model{ID: now},
-		Name:   fmt.Sprintf("LoginImgOrg %d", now),
-		Slug:   fmt.Sprintf("loginimg-org-%d", now),
+		Model:  modelBase.Model{ID: orgID},
+		Name:   fmt.Sprintf("LoginImgOrg %d", orgID),
+		Slug:   fmt.Sprintf("loginimg-org-%d", orgID),
 		Active: true,
 	}
 	require.NoError(t, orgRepo.Create(ctx, org))
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	school := &platform.School{
-		Model:          modelBase.Model{ID: now + 1},
+		Model:          modelBase.Model{ID: schoolID},
 		OrganizationID: org.ID,
-		Name:           fmt.Sprintf("LoginImgSchool %d", now),
-		Slug:           fmt.Sprintf("loginimg-%d", now),
-		Subdomain:      fmt.Sprintf("loginimg-%d", now),
+		Name:           fmt.Sprintf("LoginImgSchool %d", schoolID),
+		Slug:           fmt.Sprintf("loginimg-%d", schoolID),
+		Subdomain:      fmt.Sprintf("loginimg-%d", schoolID),
 		Active:         true,
 	}
 	require.NoError(t, schoolRepo.Create(ctx, school))

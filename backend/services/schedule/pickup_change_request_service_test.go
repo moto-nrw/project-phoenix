@@ -15,12 +15,23 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// nextSchoolDay moves a date off the weekend. A pickup schedule only knows
+// Monday to Friday, so a plain "today + 2" made this test fail every Thursday
+// and Friday — the calendar, not the code, decided whether it was green
+// (#2419).
+func nextSchoolDay(d timezone.Date) timezone.Date {
+	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+		d = d.AddDays(1)
+	}
+	return d
+}
+
 func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	t.Parallel()
 
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(2)
+	date := nextSchoolDay(timezone.TodayDate().AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
 	if weekday == 0 {
