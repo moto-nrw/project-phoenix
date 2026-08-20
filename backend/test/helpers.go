@@ -62,6 +62,10 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	}
 	viperHealMu.Unlock()
 
+	if leftoverMode() == "test" {
+		perTestLeftoverCheck(t)
+	}
+
 	return sharedTestDB
 }
 

@@ -1,7 +1,6 @@
 package platform_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -23,5 +22,5 @@ func TestMain(m *testing.M) {
 	viper.Set("auth_jwt_secret", testJWTSecret)
 	viper.Set("auth_jwt_expiry", 15*time.Minute)
 	viper.Set("auth_jwt_refresh_expiry", time.Hour)
-	os.Exit(m.Run())
+	testpkg.Run(m)
 }

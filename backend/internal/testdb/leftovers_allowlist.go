@@ -1,16 +1,14 @@
 package testdb
 
-import (
-	"slices"
-	"sort"
-)
+import "slices"
 
 // LeftoverAllowlist names the (package, table) pairs that are still allowed to
 // differ between a clone's start and end state — shared, tenant-less rows a
 // test writes and does not take back (#2419 goal 2).
 //
-// It is shrink-only. A pair that is not listed fails the sweep, which is what
-// makes the leftover check a gate rather than a report. Removing a pair means
+// It is shrink-only. A pair that is not listed fails the package whose test
+// binary produced it, which is what makes the leftover check a gate rather
+// than a report. Removing a pair means
 // the package's tests stopped writing into shared state (they moved the row
 // under their own tenant, or they delete it again); adding one means the
 // opposite and needs a written reason here.
@@ -99,21 +97,14 @@ func leftoverAllowed(pkg, table string) bool {
 	return slices.Contains(LeftoverAllowlist[pkg], table)
 }
 
-// UnallowedLeftovers filters a sweep result down to the leftovers the
-// allowlist does not cover — the ones that fail the run.
-func UnallowedLeftovers(leftovers []CloneLeftovers) []CloneLeftovers {
-	var out []CloneLeftovers
-	for _, l := range leftovers {
-		var tables []TableDelta
-		for _, d := range l.Tables {
-			if !leftoverAllowed(l.Package, d.Table) {
-				tables = append(tables, d)
-			}
-		}
-		if len(tables) > 0 {
-			out = append(out, CloneLeftovers{Clone: l.Clone, Package: l.Package, Tables: tables})
+// UnallowedTables filters a package's leftovers down to the ones the
+// allowlist does not cover — the ones that fail the package.
+func UnallowedTables(pkg string, deltas []TableDelta) []TableDelta {
+	var out []TableDelta
+	for _, d := range deltas {
+		if !leftoverAllowed(pkg, d.Table) {
+			out = append(out, d)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Package < out[j].Package })
 	return out
 }

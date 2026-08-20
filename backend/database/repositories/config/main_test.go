@@ -11,5 +11,5 @@ import (
 // each other's rows.
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
-	m.Run()
+	testpkg.Run(m)
 }

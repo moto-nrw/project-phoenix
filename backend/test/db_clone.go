@@ -2,11 +2,9 @@ package test
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
@@ -162,8 +160,8 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	}
 
 	// Record the clone's start state — the shared rows every test in this
-	// binary must leave exactly as it found them. The sweep compares the end
-	// state against this snapshot (#2419 goal 2: "Start = Ende").
+	// binary must leave exactly as it found them. The gate in Run compares the
+	// end state against this snapshot (#2419 goal 2: "Start = Ende").
 	if err := testdb.SnapshotSharedBaseline(ctx, packageClone.DSN); err != nil {
 		return fmt.Errorf("snapshot clone baseline: %w", err)
 	}
@@ -206,15 +204,7 @@ const poolSizeCap = 16
 // the tests that actually run at the same time, and `go test -parallel N`
 // changes exactly that number.
 func poolSize() int {
-	parallel := runtime.GOMAXPROCS(0) // what -parallel defaults to
-	if f := flag.Lookup("test.parallel"); f != nil {
-		if g, ok := f.Value.(flag.Getter); ok {
-			if n, ok := g.Get().(int); ok && n > 0 {
-				parallel = n
-			}
-		}
-	}
-	return min(parallel+nestedConnHeadroom, poolSizeCap)
+	return min(parallelism()+nestedConnHeadroom, poolSizeCap)
 }
 
 // initCloneBootstrap seeds the per-package clone once: sequence offsets, the

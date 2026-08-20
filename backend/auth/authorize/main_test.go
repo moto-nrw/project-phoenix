@@ -10,5 +10,5 @@ import (
 // tests in the shared package clone cannot see or overwrite each other's rows.
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
-	m.Run()
+	testpkg.Run(m)
 }

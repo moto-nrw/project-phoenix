@@ -7,13 +7,12 @@
 # `go test ./...` funktioniert weiterhin ohne dieses Skript (selbst-
 # initialisierend); dann räumt erst die Generation-GC des nächsten Laufs auf.
 #
-# Der Sweep ist zugleich das Leftover-Gate: er vergleicht jeden Clone mit dem
-# Startzustand, den er sich selbst gemerkt hat, und lässt den Lauf scheitern,
-# wenn ein Package Zeilen in geteiltem (tenant-losem) Zustand hinterlassen hat.
+# Das Leftover-Gate sitzt NICHT hier, sondern im Testprozess selbst: jedes
+# Test-Binary vergleicht seinen Clone am Ende mit dem Startzustand und lässt
+# das Package scheitern, wenn Zeilen in geteiltem (tenant-losem) Zustand
+# übrig sind. Ein nacktes `go test ./...` ist damit genauso abgesichert.
 #
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
-#   PHX_TEST_LEFTOVERS=1 scripts/test-backend.sh       # zeigt auch die
-#                                                      # geduldeten Restdaten
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)/backend"
 
@@ -22,9 +21,6 @@ export PHX_TEST_RUN_ID
 
 sweep() {
   status=$?
-  # The sweep is also the leftover gate (#2419): it fails the run when a
-  # package left rows in shared state. A test failure still wins — a red
-  # suite must not be relabelled as a leftover problem.
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
     status=1
   fi

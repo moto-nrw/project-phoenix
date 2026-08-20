@@ -15,37 +15,11 @@ type SweepOptions struct {
 	// generation GC's no-connection criterion — the run is over). Empty means
 	// GC-only.
 	RunID string
-	// CheckLeftovers compares each of this run's clones against the start
-	// state it recorded for itself and collects the tables that differ
-	// OUTSIDE the test tenants (see TenantIDBase). Rows a test wrote into its
-	// own tenant are not leftovers — they die with the clone. Rows it wrote
-	// into shared, tenant-less state are, because the next test in the same
-	// binary sees them. The caller decides what to do with the result; the
-	// sweep command fails the run on it.
-	CheckLeftovers bool
-}
-
-// TableDelta describes one table whose clone row count differs from the
-// template's.
-type TableDelta struct {
-	Table        string
-	BaselineRows int64
-	CloneRows    int64
-}
-
-// CloneLeftovers lists the row-count deltas of one clone vs. the template.
-type CloneLeftovers struct {
-	Clone string
-	// Package is the backend-relative package path CreateClone stamped on the
-	// clone; empty for a clone created before the stamp existed.
-	Package string
-	Tables  []TableDelta
 }
 
 // SweepResult summarizes one Sweep run.
 type SweepResult struct {
-	Dropped   []string
-	Leftovers []CloneLeftovers
+	Dropped []string
 }
 
 // Sweep tears down this run's clones and garbage-collects clones of dead
@@ -68,22 +42,6 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 		own, err := listDatabasesByPrefix(ctx, conn, runPrefix)
 		if err != nil {
 			return nil, err
-		}
-		if opts.CheckLeftovers && len(own) > 0 {
-			labels, err := packageLabels(ctx, conn, runPrefix)
-			if err != nil {
-				return nil, err
-			}
-			for _, name := range own {
-				deltas, err := leftoverDeltas(ctx, cfg.DatabaseDSN(name))
-				if err != nil {
-					return nil, fmt.Errorf("diagnose leftovers in %q: %w", name, err)
-				}
-				if len(deltas) > 0 {
-					result.Leftovers = append(result.Leftovers,
-						CloneLeftovers{Clone: name, Package: labels[name], Tables: deltas})
-				}
-			}
 		}
 		for _, name := range own {
 			if err := dropDatabase(ctx, conn, name); err != nil {
@@ -312,19 +270,6 @@ func countSharedRowsDB(ctx context.Context, db sqlExecutor, predicates map[strin
 	return counts, rows.Err()
 }
 
-// packageLabels reads the package stamp off each clone.
-func packageLabels(ctx context.Context, maint sqlExecutor, prefix string) (map[string]string, error) {
-	comments, err := databaseComments(ctx, maint, prefix)
-	if err != nil {
-		return nil, fmt.Errorf("read clone package labels: %w", err)
-	}
-	labels := make(map[string]string, len(comments))
-	for name, comment := range comments {
-		labels[name] = PackageLabelOf(comment)
-	}
-	return labels, nil
-}
-
 // databaseComments returns the shared comment of every database whose name
 // starts with prefix. Both stamps the lifecycle writes live in that comment:
 // a template's migrations hash and a clone's package label.
@@ -355,37 +300,4 @@ func quoteQualified(schemaDotTable string) string {
 		return quoteIdentifier(schema) + "." + quoteIdentifier(table)
 	}
 	return quoteIdentifier(schemaDotTable)
-}
-
-// leftoverDeltas compares a clone's shared-row counts against the start state
-// it recorded for itself (SnapshotSharedBaseline). A clone without a snapshot
-// yields no deltas: there is nothing to compare against, and a missing
-// snapshot must not read as "this package left rows behind".
-func leftoverDeltas(ctx context.Context, cloneDSN string) ([]TableDelta, error) {
-	db := openSQL(cloneDSN)
-	defer func() { _ = db.Close() }()
-
-	baseline, predicates, ok, err := readSharedBaseline(ctx, db)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	cloneCounts, err := countSharedRowsDB(ctx, db, predicates)
-	if err != nil {
-		return nil, err
-	}
-
-	tables := make([]string, 0, len(cloneCounts))
-	for t := range cloneCounts {
-		tables = append(tables, t)
-	}
-	sort.Strings(tables)
-
-	var deltas []TableDelta
-	for _, t := range tables {
-		if cloneCounts[t] != baseline[t] {
-			deltas = append(deltas, TableDelta{Table: t, BaselineRows: baseline[t], CloneRows: cloneCounts[t]})
-		}
-	}
-	return deltas, nil
 }

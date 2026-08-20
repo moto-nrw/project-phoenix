@@ -1,7 +1,6 @@
 package parent_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -19,5 +18,5 @@ func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
 	viper.Set("auth_jwt_secret", testJWTSecret)
 	viper.Set("auth_jwt_expiry", time.Hour)
-	os.Exit(m.Run())
+	testpkg.Run(m)
 }

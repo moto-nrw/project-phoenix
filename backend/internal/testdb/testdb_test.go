@@ -346,7 +346,7 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 	assert.False(t, databaseExists(t, ctx, cfg, handle.Name), "sweep must drop this run's clone")
 }
 
-func TestSweepReportsLeftovers(t *testing.T) {
+func TestLeftoversReportsSharedRows(t *testing.T) {
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -370,21 +370,18 @@ func TestSweepReportsLeftovers(t *testing.T) {
 	require.NoError(t, clone.Close())
 	require.NoError(t, err)
 
-	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, CheckLeftovers: true})
+	deltas, err := Leftovers(ctx, handle.DSN)
 	require.NoError(t, err)
-	require.Len(t, result.Leftovers, 1)
-	assert.Equal(t, handle.Name, result.Leftovers[0].Clone)
-	require.Len(t, result.Leftovers[0].Tables, 1)
-	assert.Equal(t, "public.marker", result.Leftovers[0].Tables[0].Table)
-	assert.EqualValues(t, 0, result.Leftovers[0].Tables[0].BaselineRows)
-	assert.EqualValues(t, 1, result.Leftovers[0].Tables[0].CloneRows)
-	assert.Contains(t, result.Dropped, handle.Name)
+	require.Len(t, deltas, 1)
+	assert.Equal(t, "public.marker", deltas[0].Table)
+	assert.EqualValues(t, 0, deltas[0].BaselineRows)
+	assert.EqualValues(t, 1, deltas[0].CloneRows)
 }
 
 // A row a test wrote into its OWN tenant is not a leftover: it is invisible
 // to every other test and dies with the clone. Only rows outside the
 // test-tenant band count (#2419 goal 2).
-func TestSweepIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
+func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -412,10 +409,9 @@ func TestSweepIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, clone.Close())
 
-	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, CheckLeftovers: true})
+	deltas, err := Leftovers(ctx, handle.DSN)
 	require.NoError(t, err)
-	assert.Empty(t, result.Leftovers, "a row in the test's own tenant is not a leftover")
-	assert.Contains(t, result.Dropped, handle.Name)
+	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
 }
 
 func databaseExists(t *testing.T, ctx context.Context, cfg *Config, name string) bool {

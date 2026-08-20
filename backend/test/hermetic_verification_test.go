@@ -115,6 +115,22 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("db_packages_run_the_leftover_gate", func(t *testing.T) {
+		violations := checkLeftoverGateOptIn(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Found %d test package(s) that open the database without the leftover gate:\n\n%s\n\n"+
+				"The gate compares the package clone's end state against its start\n"+
+				"state and fails the package that left rows in shared state (#2419\n"+
+				"goal 2). It runs from TestMain, so a package that does not call it\n"+
+				"is simply not gated:\n"+
+				"  func TestMain(m *testing.M) {\n"+
+				"      testpkg.PerTestTenants()\n"+
+				"      testpkg.Run(m)\n"+
+				"  }",
+				len(violations), strings.Join(violations, "\n"))
+		}
+	})
+
 	t.Run("no_parallel_test_touching_global_state", func(t *testing.T) {
 		violations := checkParallelGlobalState(t, backendRoot)
 		if len(violations) > 0 {
@@ -1016,6 +1032,38 @@ func formatViolation(file string, line int, content string) string {
 var perTestTenantsOptOut = map[string]string{
 	// test/ imports auth/jwt, so auth/jwt's internal tests cannot import test/.
 	"auth/jwt": "import cycle: test imports auth/jwt",
+}
+
+// checkLeftoverGateOptIn reports test packages that open the test database but
+// never run the leftover gate, i.e. whose TestMain does not end in
+// testpkg.Run(m).
+func checkLeftoverGateOptIn(t *testing.T, root string) []string {
+	t.Helper()
+
+	usesDB, gated := make(map[string]bool), make(map[string]bool)
+	err := walkGoFilesRaw(root, func(rel, pkg string, content []byte) {
+		if !strings.HasSuffix(rel, "_test.go") || strings.HasPrefix(rel, "internal/testdb/") {
+			return
+		}
+		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+			usesDB[pkg] = true
+		}
+		if bytes.Contains(content, []byte("testpkg.Run(m)")) || bytes.Contains(content, []byte("\tRun(m)")) {
+			gated[pkg] = true
+		}
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+
+	var violations []string
+	for pkg := range usesDB {
+		if !gated[pkg] {
+			violations = append(violations, "  "+pkg)
+		}
+	}
+	sort.Strings(violations)
+	return violations
 }
 
 // checkPerTestTenantsOptIn reports test packages that open the test database

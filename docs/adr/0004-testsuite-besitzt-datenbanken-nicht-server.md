@@ -59,11 +59,12 @@ mechanischer Sweep über alle Testdateien):
   und CI sich teilen, und ein Pool, der zur Parallelität passt, wäre ohne sie
   in CI ein "too many clients" statt eines Timeouts. Am CI-Aufbau
   (Service-Container, Snapshot-Cache) ändert sich nichts.
-- **Leftover-Detection ist ein Gate — gemessen gegen den eigenen Start.**
-  Jeder Clone hält seinen Startzustand selbst fest
-  (`testdb.SnapshotSharedBaseline`, direkt nach dem Bootstrap), der Sweep
-  vergleicht am Ende dagegen und lässt den Lauf scheitern, wenn Zeilen übrig
-  sind. Der Maßstab ist ausdrücklich nicht „keine Zeilen": gezählt wird nur,
+- **Leftover-Detection ist ein Gate — gemessen gegen den eigenen Start, im
+  Testprozess.** Jeder Clone hält seinen Startzustand selbst fest
+  (`testdb.SnapshotSharedBaseline`, direkt nach dem Bootstrap); jedes
+  Test-Binary vergleicht am Ende seiner eigenen Tests dagegen
+  (`testpkg.Run(m)` aus dem TestMain) und lässt das PACKAGE scheitern, wenn
+  Zeilen übrig sind. Der Maßstab ist ausdrücklich nicht „keine Zeilen": gezählt wird nur,
   was **außerhalb der Tenants dieses Laufs** liegt (Tenant-ID unter
   `testdb.TenantIDBase` oder gar kein Tenant). Was ein Test in seinen eigenen
   Tenant schreibt, sieht kein anderer Test und stirbt mit dem Clone — 210
@@ -77,13 +78,15 @@ mechanischer Sweep über alle Testdateien):
   bleiben zunächst als Flake-Detektor und werden gestrichen, sobald die Suite
   auf frischen Clones grün ist.
 
-  Zwei Grenzen des Gates, damit niemand mehr hineinliest, als es hergibt: es
-  sitzt im Sweep, läuft also unter `scripts/test-backend.sh` und nicht unter
-  einem nackten `go test ./...`, und es benennt das PACKAGE nach dem Lauf,
-  nicht den einzelnen Test. Und es sieht nur die Clones, die es noch
-  vorfindet: laufen zwei Suiten gleichzeitig, sammelt die eine die fertigen
-  Clones der anderen als totes Generat ein, und der Bericht wird
-  stillschweigend zur Untergrenze. Für eine Messung läuft die Suite allein.
+  Die Kosten sind eine Abfrage pro Package beim Beenden (gemessen 30-70 ms,
+  alle Tabellen in einem Round-Trip), nicht eine pro Test — deshalb sitzt das
+  Gate am Package-Ende. Es benennt damit das PACKAGE, nicht den einzelnen
+  Test; wer den Verursacher sucht, lässt das Package seriell mit
+  `PHX_TEST_LEFTOVERS=test go test -parallel 1` laufen, dann prüft dieselbe
+  Vergleichslogik nach jedem einzelnen Test. Eine Attribution pro Test unter
+  Parallelität gibt es bewusst nicht: pg_stat und Zeilenzählung sind
+  datenbankweit, ein parallel laufender Nachbar wäre nicht vom eigenen Test
+  zu trennen.
 
 Abgewogen: Ein ephemerer Postgres pro Lauf hätte „Start = Ende" trivial wahr
 gemacht, kostet aber pro Lauf den Template-Neubau (~25s) oder einen eigenen

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"os"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,5 +15,5 @@ import (
 func TestMain(m *testing.M) {
 	testpkg.UseCheapArgon2Params()
 	testpkg.PerTestTenants()
-	os.Exit(m.Run())
+	testpkg.Run(m)
 }

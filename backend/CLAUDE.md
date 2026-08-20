@@ -13,7 +13,8 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 # one), and gives each package binary a run-stamped clone.
 ../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
 go test ./...                       # All tests (works standalone; clones are GC'd by the next run)
-PHX_TEST_LEFTOVERS=1 ../scripts/test-backend.sh   # Opt-in: report rows tests left behind (diagnosis, not a gate)
+PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
+PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
 go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
 go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
 go test ./services/active/... -v    # Specific package
@@ -193,15 +194,16 @@ func TestExample(t *testing.T) {
   needs two connections at once — without headroom those tests deadlock and
   every one of them fails on its own 5s deadline, which looks nothing like a
   pool problem.
-- **Leftovers are a gate, not a report (#2419)**: the sweep compares each clone
-  against the start state it recorded for itself and fails the run on rows left
-  in SHARED state — rows outside the tenants this run's tests created. Rows in a
-  test's own tenant are not leftovers. `PHX_TEST_LEFTOVERS=1` also prints the
-  pairs `testdb.LeftoverAllowlist` still tolerates. The gate lives in the sweep,
-  so it runs under `scripts/test-backend.sh`, not under a bare `go test ./...`
-  — and it reports per PACKAGE after the run, not per test. Run the suite alone
-  when you want the number: two overlapping runs collect each other's finished
-  clones and the report silently becomes a lower bound.
+- **Leftovers are a gate, not a report (#2419)**: every test binary compares its
+  clone against the start state it recorded for itself and fails the PACKAGE
+  when rows are left in SHARED state — rows outside the tenants its own tests
+  created. Rows in a test's own tenant are not leftovers. The gate runs from
+  `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
+  so a bare `go test ./...` is gated exactly like a wrapper run; it costs the
+  package one query at exit (~30-70ms measured). `PHX_TEST_LEFTOVERS=1 go test
+  -v` also prints the pairs `testdb.LeftoverAllowlist` still tolerates;
+  `PHX_TEST_LEFTOVERS=test go test -parallel 1 ./pkg` checks after every test
+  and names the culprit instead of the package.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
