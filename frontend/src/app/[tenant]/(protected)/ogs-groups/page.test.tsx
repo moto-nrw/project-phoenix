@@ -201,7 +201,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
     isHomeLocation: vi.fn(() => false),
     isSchoolyardLocation: vi.fn(() => false),
     isTransitLocation: vi.fn(() => false),
-    parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+    parseLocation: actual.parseLocation,
   };
 });
 
