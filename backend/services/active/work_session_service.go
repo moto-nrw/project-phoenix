@@ -1619,6 +1619,11 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 			return nil, fmt.Errorf("failed to get breaks for session %d: %w", session.ID, err)
 		}
 
+		effectiveSession := *session
+		end := BalanceSessionEnd(session, now)
+		if session.CheckOutTime == nil && end.Before(now) {
+			effectiveSession.CheckOutTime = &end
+		}
 		responses[i] = &SessionResponse{
 			WorkSession: session,
 			// A running break is NOT in the BreakMinutes cache, so netMinutes
@@ -1626,10 +1631,10 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 			// would climb while the Monatskarte and the week KPI (which both
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
-			BreakMinutes:     totalBreakMinutes(session, breaks, now),
-			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
-			IsOvertime:       isOvertime(session, breaks, now),
-			IsBreakCompliant: isBreakCompliant(session, breaks, now),
+			BreakMinutes:     totalBreakMinutes(&effectiveSession, breaks, now),
+			NetMinutes:       netMinutesWithBreaks(&effectiveSession, breaks, now),
+			IsOvertime:       isOvertime(&effectiveSession, breaks, now),
+			IsBreakCompliant: isBreakCompliant(&effectiveSession, breaks, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
@@ -1860,13 +1865,17 @@ func staffAnchorOf(staff *userModels.Staff) *timezone.Date {
 func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
 	weekStarts := make([]timezone.Date, 0)
 	seen := make(map[timezone.Date]struct{})
+	now := time.Now()
 	for _, session := range sessions {
-		weekStart := configModels.MondayOf(session.Date)
-		if _, ok := seen[weekStart]; ok {
-			continue
+		end := BalanceSessionEnd(session.WorkSession, now)
+		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+			weekStart := configModels.MondayOf(day)
+			if _, ok := seen[weekStart]; ok {
+				continue
+			}
+			seen[weekStart] = struct{}{}
+			weekStarts = append(weekStarts, weekStart)
 		}
-		seen[weekStart] = struct{}{}
-		weekStarts = append(weekStarts, weekStart)
 	}
 	return weekStarts
 }

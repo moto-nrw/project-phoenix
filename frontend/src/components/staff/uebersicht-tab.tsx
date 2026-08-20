@@ -781,13 +781,24 @@ function countSessionDaysInRange(
 ): { present: number; homeOffice: number } {
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
+  const minutesByDay = new Map<
+    string,
+    { present: number; homeOffice: number }
+  >();
+  for (const session of sessions) {
+    for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
+      if (date < fromKey || date > toKey) continue;
+      const day = minutesByDay.get(date) ?? { present: 0, homeOffice: 0 };
+      if (session.status === "home_office") day.homeOffice += minutes;
+      else day.present += minutes;
+      minutesByDay.set(date, day);
+    }
+  }
   let present = 0;
   let homeOffice = 0;
-  for (const s of sessions) {
-    const key = s.date.slice(0, 10);
-    if (key < fromKey || key > toKey) continue;
-    if (s.status === "home_office") homeOffice += 1;
-    else present += 1;
+  for (const day of minutesByDay.values()) {
+    if (day.homeOffice > day.present) homeOffice += 1;
+    else if (day.present > 0) present += 1;
   }
   return { present, homeOffice };
 }

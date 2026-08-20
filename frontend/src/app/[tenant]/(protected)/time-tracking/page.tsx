@@ -558,6 +558,8 @@ function ClockInCard({
   onStartBreak,
   onEndBreak,
   weeklyMinutes,
+  completedTodayMinutes,
+  completedTodayBreakMinutes,
   onAddAbsence,
   metrics,
   plannedShifts,
@@ -570,6 +572,8 @@ function ClockInCard({
   readonly onStartBreak: (durationMinutes: number) => Promise<void>;
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
+  readonly completedTodayMinutes: number;
+  readonly completedTodayBreakMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
@@ -628,7 +632,9 @@ function ClockInCard({
   const liveBreakMins = calcLiveBreakMins(breakMins, activeBreak, now);
   const grossMinutes = calcGrossMinutes(isCheckedIn, currentSession, now);
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
-  const displayMinutes = isCheckedIn ? netMinutes : 0;
+  const dayNetMinutes = completedTodayMinutes + netMinutes;
+  const dayBreakMinutes = completedTodayBreakMinutes + liveBreakMins;
+  const displayMinutes = isCheckedIn ? dayNetMinutes : 0;
   const activeBreakElapsedSecs = activeBreak
     ? calcElapsedSeconds(activeBreak.startedAt, now)
     : 0;
@@ -716,8 +722,8 @@ function ClockInCard({
   const breakWarning = getBreakWarningIfActive(
     isCheckedIn,
     currentSession,
-    netMinutes,
-    liveBreakMins,
+    dayNetMinutes,
+    dayBreakMinutes,
   );
 
   // Checked-out net
@@ -3403,6 +3409,16 @@ function TimeTrackingContent() {
       if (s.checkOutTime) return sum + s.netMinutes;
       return sum;
     }, 0);
+  const completedToday = history.reduce(
+    (total, session) => {
+      if (session.date !== todayISO || !session.checkOutTime) return total;
+      return {
+        minutes: total.minutes + session.netMinutes,
+        breaks: total.breaks + session.breakMinutes,
+      };
+    },
+    { minutes: 0, breaks: 0 },
+  );
 
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
@@ -3726,6 +3742,8 @@ function TimeTrackingContent() {
           onStartBreak={handleStartBreak}
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
+          completedTodayMinutes={completedToday.minutes}
+          completedTodayBreakMinutes={completedToday.breaks}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics}
           plannedShifts={todayShifts}
