@@ -180,4 +180,39 @@ describe("RequestHistoryItem", () => {
       screen.getByText("20.08.2026, 21.08.2026 · Arzttermin"),
     ).toBeInTheDocument();
   });
+
+  it("zeigt eine Direkt-Korrektur als eigene Zeilen-Art mit vorher → nachher", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      data: {
+        id: "9",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [
+          {
+            offering_id: "3",
+            label: "Mittagessen",
+            old: "Mo",
+            new: "abgemeldet",
+          },
+        ],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    // Keine Anfrage: nichts wurde eingereicht und nichts entschieden.
+    expect(
+      screen.getByText(/^Geändert am 18\.08\.2026 von Olga Office$/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Eingereicht am/)).not.toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mittagessen: Mo → abgemeldet"),
+    ).toBeInTheDocument();
+  });
 });

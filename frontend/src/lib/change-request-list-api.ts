@@ -28,7 +28,31 @@ const logger = createLogger({ component: "ChangeRequestListApi" });
  */
 
 export type AggregatedRequestType =
-  "master_data" | "care_schedule" | "offering" | "excused";
+  | "master_data"
+  | "care_schedule"
+  | "offering"
+  | "excused"
+  | "direct_correction";
+
+/**
+ * Eine Direkt-Korrektur der Verwaltung an den Angebots-Buchungen eines Kindes
+ * (#2436). Keine Anfrage: kein Status, keine Entscheidung, nur in der
+ * Historie.
+ */
+export interface DirectCorrection {
+  readonly id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly changed_at: string;
+  readonly changed_by_name: string;
+  readonly reason: string;
+  readonly diff: readonly {
+    readonly offering_id: string;
+    readonly label: string;
+    readonly old: string;
+    readonly new: string;
+  }[];
+}
 
 export type AggregatedRequestStatus = "approved" | "rejected" | "withdrawn";
 
@@ -37,12 +61,14 @@ export type AggregatedOpenRequest =
   | { request_type: "care_schedule"; data: StaffCareRequest }
   | { request_type: "offering"; data: StaffOfferingRequest }
   | { request_type: "excused"; data: StaffExcusedRequest };
+// Direkt-Korrekturen fehlen hier bewusst: sie haben keinen offenen Zustand.
 
 export type AggregatedHistoryRequest =
   | { request_type: "master_data"; data: StaffMasterDataHistoryEntry }
   | { request_type: "care_schedule"; data: StaffCareRequestHistoryEntry }
   | { request_type: "offering"; data: StaffOfferingRequestHistoryEntry }
-  | { request_type: "excused"; data: StaffExcusedRequestHistoryEntry };
+  | { request_type: "excused"; data: StaffExcusedRequestHistoryEntry }
+  | { request_type: "direct_correction"; data: DirectCorrection };
 
 export interface AggregatedRequestPage<T> {
   readonly items: readonly T[];

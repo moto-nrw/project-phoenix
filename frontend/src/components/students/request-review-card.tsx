@@ -19,9 +19,12 @@ const HISTORY_STATUS_META: Record<
   rejected: { label: "Abgelehnt", tone: "red" },
   withdrawn: { label: "Zurückgezogen", tone: "gray" },
   auto_applied: { label: "Automatisch übernommen", tone: "gray" },
+  // Keine Anfrage, sondern eine Änderung der Verwaltung selbst (#2436).
+  direct_correction: { label: "Direkt-Korrektur", tone: "blue" },
 };
 
 type RequestReviewCardHistory = {
+  /** Ein Anfrage-Status oder „direct_correction" für eine Direkt-Korrektur. */
   readonly status: string;
   readonly decidedAt: string;
   readonly decidedByName?: string;
@@ -88,7 +91,10 @@ export function RequestReviewCard({
         </div>
         <p className="mt-1 text-xs text-gray-500">
           {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
-          Entschieden am {formatDate(history.decidedAt)}
+          {history.status === "direct_correction"
+            ? "Geändert am "
+            : "Entschieden am "}
+          {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>
         {history.reason && (

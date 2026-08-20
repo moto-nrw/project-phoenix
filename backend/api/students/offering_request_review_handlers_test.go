@@ -49,6 +49,10 @@ func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, time.Tim
 	return nil, nil, nil
 }
 
+func (f *fakeOfferingChangeRequestService) ListDirectCorrections(context.Context, time.Time, int64, int) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
+}
+
 func (f *fakeOfferingChangeRequestService) ListPending(context.Context) ([]*enrollmentService.OfferingChangeView, error) {
 	return nil, nil
 }

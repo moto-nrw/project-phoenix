@@ -43,6 +43,13 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "excused", label: "Entschuldigungen" },
 ];
 
+// Direkt-Korrekturen sind keine Anfragen: sie gibt es nur in der Historie,
+// also auch den Filter nur dort (#2436).
+const HISTORY_ONLY_TYPE_OPTIONS: readonly {
+  value: AggregatedRequestType;
+  label: string;
+}[] = [{ value: "direct_correction", label: "Direkt-Korrekturen" }];
+
 // Die Abwesenheitsarten, die Mitarbeitende beantragen können, mit den Namen
 // aus der geteilten Beschriftungstabelle. Freizeitausgleich fehlt bewusst: den
 // trägt die Zeiterfassung ein, er läuft nicht über eine Freigabe.
@@ -117,7 +124,10 @@ export default function AnfragenPage() {
   const filters: AggregatedRequestFilters = useMemo(
     () => ({
       search: deferredSearch,
-      types: typeFilter,
+      types:
+        view === "history"
+          ? typeFilter
+          : typeFilter.filter((type) => type !== "direct_correction"),
       statuses: view === "history" ? statusFilter : [],
       from:
         view === "history" && dateRange?.from
@@ -151,7 +161,10 @@ export default function AnfragenPage() {
                   ? value
                   : [value]) as AggregatedRequestType[],
               ),
-            options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
+            options: [
+              ...REQUEST_TYPE_OPTIONS,
+              ...(view === "history" ? HISTORY_ONLY_TYPE_OPTIONS : []),
+            ].map((option) => ({ ...option })),
           },
         ]
       : [];
@@ -195,9 +208,11 @@ export default function AnfragenPage() {
   const activeFilters = useMemo(() => {
     const chips: ActiveFilter[] = [];
     for (const type of typeFilter) {
-      const label = REQUEST_TYPE_OPTIONS.find(
-        (option) => option.value === type,
-      )?.label;
+      if (type === "direct_correction" && view !== "history") continue;
+      const label = [
+        ...REQUEST_TYPE_OPTIONS,
+        ...HISTORY_ONLY_TYPE_OPTIONS,
+      ].find((option) => option.value === type)?.label;
       if (!label) continue;
       chips.push({
         id: `art-${type}`,

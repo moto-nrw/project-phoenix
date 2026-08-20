@@ -8,7 +8,10 @@
  */
 
 import { formatDate } from "~/lib/date-helpers";
-import type { AggregatedHistoryRequest } from "~/lib/change-request-list-api";
+import type {
+  AggregatedHistoryRequest,
+  DirectCorrection,
+} from "~/lib/change-request-list-api";
 import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api";
 import type { StaffExcusedRequestHistoryEntry } from "~/lib/excused-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
@@ -150,6 +153,39 @@ function ExcusedHistoryCard({
   );
 }
 
+/**
+ * Eine Direkt-Korrektur der Verwaltung (#2436). Sie ist keine Anfrage: es gibt
+ * niemanden, der sie eingereicht hat, und nichts, was entschieden wurde — nur
+ * wer wann was geändert hat und warum.
+ */
+function DirectCorrectionCard({ row }: Readonly<{ row: DirectCorrection }>) {
+  return (
+    <RequestReviewCard
+      childName={row.student_name}
+      summary="Betreuungsangebote und AGs"
+      history={{
+        status: "direct_correction",
+        decidedAt: row.changed_at,
+        decidedByName: row.changed_by_name,
+        reason: row.reason,
+      }}
+    >
+      {row.diff.length > 0 && (
+        <div className="space-y-1 rounded-lg bg-gray-50 p-3">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Änderungen
+          </p>
+          {row.diff.map((line) => (
+            <p key={line.offering_id} className="text-sm text-gray-700">
+              {line.label}: {line.old} → {line.new}
+            </p>
+          ))}
+        </div>
+      )}
+    </RequestReviewCard>
+  );
+}
+
 export function RequestHistoryItem({
   item,
 }: Readonly<{ item: AggregatedHistoryRequest }>) {
@@ -162,5 +198,7 @@ export function RequestHistoryItem({
       return <OfferingHistoryCard row={item.data} />;
     case "excused":
       return <ExcusedHistoryCard row={item.data} />;
+    case "direct_correction":
+      return <DirectCorrectionCard row={item.data} />;
   }
 }
