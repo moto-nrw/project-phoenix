@@ -353,7 +353,10 @@ func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *
 	pageOne := env.fetch(t, "view=history&limit=1")
 	require.Equal(t, []string{idOf(newerDecision)}, idsOf(pageOne))
 	require.Len(t, pageOne.Data.Items, 1)
-	assert.Equal(t, newerDecision.ReviewedAt.UTC(), pageOne.Data.Items[0].OccurredAt.UTC())
+	assert.Equal(t,
+		newerDecision.DecisionInstant().UTC().Truncate(time.Microsecond),
+		pageOne.Data.Items[0].OccurredAt.UTC(),
+	)
 
 	pageTwo := env.fetch(t, "view=history&limit=1&cursor="+url.QueryEscape(pageOne.Data.NextCursor))
 	assert.Equal(t, []string{idOf(olderDecision)}, idsOf(pageTwo))
