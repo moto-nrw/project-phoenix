@@ -39,7 +39,7 @@ export type AggregatedRequestType =
  * (#2436). Keine Anfrage: kein Status, keine Entscheidung, nur in der
  * Historie.
  */
-export interface DirectCorrection {
+interface DirectCorrection {
   readonly id: string;
   readonly student_id: string;
   readonly student_name: string;
