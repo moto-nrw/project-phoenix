@@ -12,7 +12,7 @@
 
 import { sessionFetch } from "./session-cache";
 
-export interface BackendAbsenceType {
+interface BackendAbsenceType {
   id: number;
   name: string;
   base_type: string;
@@ -28,7 +28,7 @@ export interface AbsenceType {
   readonly isActive: boolean;
 }
 
-export function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
+function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
   return {
     id: data.id.toString(),
     name: data.name,
@@ -37,7 +37,7 @@ export function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
   };
 }
 
-export class AbsenceTypeApiError extends Error {
+class AbsenceTypeApiError extends Error {
   readonly status: number;
   readonly detail: string;
 

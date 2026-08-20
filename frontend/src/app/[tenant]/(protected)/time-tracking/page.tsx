@@ -101,7 +101,7 @@ import {
   type WorkSessionBreak,
   type WeeklySummary,
   type WorkSessionHistory,
-  absenceTypeLabels,
+  absenceDisplayLabel,
   formatDuration,
   formatTime,
   getWeekDays,
@@ -109,11 +109,8 @@ import {
   calculateNetMinutes,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
-import {
-  absenceRequestFor,
-  selectValueFor,
-  useAbsenceTypeOptions,
-} from "~/lib/absence-type-select";
+import { useAbsenceTypeOptions } from "~/components/staff/use-absence-type-options";
+import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
@@ -4058,10 +4055,8 @@ function TimeTrackingContent() {
           </div>
           <p className="mt-2 text-gray-600">
             Für heute ist eine Abwesenheit eingetragen
-            {todayAbsence
-              ? ` (${absenceTypeLabels[todayAbsence.absenceType]})`
-              : ""}
-            . Trotzdem einstempeln?
+            {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.
+            Trotzdem einstempeln?
           </p>
         </div>
       </Modal>
