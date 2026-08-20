@@ -204,7 +204,10 @@ func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active
 		query = query.Where(`"staff_absence".absence_type IN (?)`, bun.List(filter.Types))
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
-		pattern := "%" + search + "%"
+		// Escape the LIKE metacharacters so a typed % or _ stays a literal
+		// character of the name instead of silently matching everything.
+		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(search)
+		pattern := "%" + escaped + "%"
 		query = query.Where(
 			`COALESCE("subject_person".first_name || ' ' || "subject_person".last_name, '') ILIKE ?`,
 			pattern,

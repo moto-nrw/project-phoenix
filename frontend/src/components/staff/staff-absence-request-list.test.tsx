@@ -41,6 +41,7 @@ function decidedRow(): StaffAbsenceRequestRow {
     id: 18,
     status: "declined",
     decision_note: "Zu viele Abwesenheiten in der Woche",
+    approved_by: 2,
     approved_at: "2027-06-03T09:00:00Z",
     decided_by_name: "Lea Leitung",
   };
@@ -129,6 +130,32 @@ describe("StaffAbsenceRequestList", () => {
     expect(
       await screen.findByText("Keine offenen Anträge."),
     ).toBeInTheDocument();
+  });
+
+  it("nennt eine gelöschte Entscheiderin Unbekannt, eine Rücknahme niemanden", async () => {
+    listRequests.mockResolvedValue([
+      { ...decidedRow(), approved_by: 9, decided_by_name: "" },
+      {
+        ...decidedRow(),
+        id: 19,
+        status: "canceled",
+        approved_by: null,
+        decided_by_name: "",
+        approved_at: null,
+        updated_at: "2027-06-04T09:00:00Z",
+      },
+    ]);
+
+    render(
+      <StaffAbsenceRequestList
+        view="history"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+
+    expect(await screen.findByText(/von Unbekannt/)).toBeInTheDocument();
+    expect(screen.getByText("Zurückgezogen")).toBeInTheDocument();
+    expect(screen.getAllByText(/von /)).toHaveLength(1);
   });
 
   it("nennt einen leeren Namen Unbekannt", async () => {

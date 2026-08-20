@@ -27,6 +27,7 @@ import {
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
 } from "~/lib/change-request-access";
+import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -42,15 +43,15 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "excused", label: "Entschuldigungen" },
 ];
 
-// Die Abwesenheitsarten, die Mitarbeitende beantragen können. Freizeitausgleich
-// fehlt bewusst: den trägt die Zeiterfassung ein, er läuft nicht über eine
-// Freigabe.
+// Die Abwesenheitsarten, die Mitarbeitende beantragen können, mit den Namen
+// aus der geteilten Beschriftungstabelle. Freizeitausgleich fehlt bewusst: den
+// trägt die Zeiterfassung ein, er läuft nicht über eine Freigabe.
 const ABSENCE_TYPE_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "vacation", label: "Urlaub" },
-  { value: "sick", label: "Krank" },
-  { value: "training", label: "Fortbildung" },
-  { value: "other", label: "Sonstige" },
-];
+  "vacation",
+  "sick",
+  "training",
+  "other",
+].map((value) => ({ value, label: ABSENCE_TYPE_LABEL[value] ?? value }));
 
 const STATUS_OPTIONS: readonly {
   value: AggregatedRequestStatus;

@@ -151,6 +151,15 @@ func TestListAbsenceRequests_SearchesByStaffName(t *testing.T) {
 	assert.Nil(t, findAbsenceRequest(items, other.ID))
 }
 
+func TestListAbsenceRequests_TreatsWildcardsAsLiterals(t *testing.T) {
+	tc, token, mueller, _, _ := setupAbsenceRequestTest(t)
+	mine := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
+
+	// A typed "%" is part of a name, not a wildcard — it must match nothing.
+	items := decodeAbsenceRequests(t, getAbsenceRequests(t, tc, token, "?view=open&search=%25"))
+	assert.Nil(t, findAbsenceRequest(items, mine.ID))
+}
+
 func TestListAbsenceRequests_FiltersByType(t *testing.T) {
 	tc, token, mueller, _, _ := setupAbsenceRequestTest(t)
 	vacation := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)

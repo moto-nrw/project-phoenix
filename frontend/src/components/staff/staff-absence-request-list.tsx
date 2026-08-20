@@ -57,6 +57,14 @@ function staffLabel(row: StaffAbsenceRequestRow): string {
   return row.staff_name.trim() || "Unbekannt";
 }
 
+// Nur entschiedene Anträge haben eine entscheidende Person. Ist das Konto
+// inzwischen gelöscht, steht dort "Unbekannt"; ein zurückgezogener Antrag
+// bekommt gar keinen Namen.
+function decidedByLabel(row: StaffAbsenceRequestRow): string | undefined {
+  if (!row.approved_by) return undefined;
+  return row.decided_by_name?.trim() || "Unbekannt";
+}
+
 export function StaffAbsenceRequestList({
   view,
   filters,
@@ -191,8 +199,10 @@ export function StaffAbsenceRequestList({
             submittedAt={row.requested_at}
             history={{
               status: HISTORY_STATUS[row.status] ?? row.status,
-              decidedAt: row.approved_at ?? row.requested_at ?? "",
-              decidedByName: row.decided_by_name,
+              // Zurückgezogene Anträge haben keinen Entscheidungszeitpunkt;
+              // dort steht die letzte Änderung für die Rücknahme.
+              decidedAt: row.approved_at ?? row.updated_at ?? "",
+              decidedByName: decidedByLabel(row),
               reason: row.decision_note,
             }}
           >

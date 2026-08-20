@@ -793,6 +793,9 @@ export interface StaffAbsenceRow {
 export interface StaffAbsenceRequestRow extends StaffAbsenceRow {
   staff_name: string;
   decided_by_name?: string;
+  /** Zeitpunkt der letzten Änderung; trägt bei zurückgezogenen Anträgen das
+   *  Rücknahme-Datum, für das es kein eigenes Feld gibt. */
+  updated_at?: string;
 }
 
 // Vacation takeover at the moto introduction (#2132): days already taken
