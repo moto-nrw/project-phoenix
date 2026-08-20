@@ -76,24 +76,6 @@ async function readError(
   return new CareRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending parent care-schedule change requests. */
-export async function listCareScheduleChangeRequests(): Promise<
-  StaffCareRequest[]
-> {
-  const response = await fetch("/api/students/care-schedule-change-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Betreuungszeit-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffCareRequest[]>);
-}
-
 /** Approves (applies the weekly plan) or rejects one care-schedule request. */
 export async function decideCareScheduleChangeRequest(
   requestId: string,
@@ -115,13 +97,6 @@ export async function decideCareScheduleChangeRequest(
     );
   }
   return unwrap((await response.json()) as Envelope<StaffCareRequest>);
-}
-
-/** One page of the decided-request history. */
-export interface CareRequestHistoryPage {
-  readonly items: readonly StaffCareRequestHistoryEntry[];
-  /** Absent on the last page. */
-  readonly next_cursor?: string;
 }
 
 /**
@@ -146,23 +121,4 @@ export interface StaffCareRequestHistoryEntry {
   readonly decided_at: string;
   /** Absent for withdrawn rows (no reviewer). */
   readonly decided_by_name?: string;
-}
-
-/** Lists the tenant's decided care-schedule requests, newest decision first. */
-export async function listCareScheduleChangeRequestHistory(
-  cursor?: string,
-): Promise<CareRequestHistoryPage> {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const response = await fetch(
-    `/api/students/care-schedule-change-requests/history${query}`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-    },
-  );
-  if (!response.ok) {
-    throw await readError(response, "Historie konnte nicht geladen werden");
-  }
-  return unwrap((await response.json()) as Envelope<CareRequestHistoryPage>);
 }

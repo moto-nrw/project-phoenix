@@ -177,8 +177,8 @@ func (f *overviewFixture) addShift(t *testing.T, staffID int64, date timezone.Da
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
 		Date:      date,
-		StartTime: time.Date(2000, time.January, 1, 0, 1, 0, 0, time.UTC),
-		EndTime:   time.Date(2000, time.January, 1, 23, 59, 0, 0, time.UTC),
+		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(2000, time.January, 1, 23, 59, 59, 999999000, time.UTC),
 		CreatedBy: staffID,
 	}
 	shift.SetTenantID(f.tenantID)

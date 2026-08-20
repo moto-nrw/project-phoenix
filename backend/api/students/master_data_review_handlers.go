@@ -45,25 +45,6 @@ func toMasterDataChangeRequestResponse(item *userService.MasterDataReviewItem) M
 	}
 }
 
-// listMasterDataChangeRequests returns the tenant's pending parent change
-// requests for the staff review queue.
-func (rs *Resource) listMasterDataChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.MasterDataReviewService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("master data review service not configured")))
-		return
-	}
-	items, err := rs.MasterDataReviewService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]MasterDataChangeRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toMasterDataChangeRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Change requests retrieved")
-}
-
 // DecideMasterDataChangeRequestBody is the body of POST
 // .../master-data-change-requests/{requestId}/decide.
 type DecideMasterDataChangeRequestBody struct {

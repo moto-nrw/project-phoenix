@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
@@ -106,16 +107,47 @@ func adminCtx() context.Context {
 // createPending stores a pending request for the chain's child inside a tenant
 // transaction, mirroring how the parent write service calls CreateRequest.
 func createPending(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note string) *activeModels.ExcusedAbsenceRequest {
+	return createPendingStatus(t, svc, db, chain, dates, note, activeModels.StudentStatusDayExcused)
+}
+
+func createPendingStatus(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note, status string) *activeModels.ExcusedAbsenceRequest {
 	t.Helper()
 	var req *activeModels.ExcusedAbsenceRequest
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
-		req, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, dates, note)
+		req, e = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, dates, note, status)
 		return e
 	})
 	require.NoError(t, err)
 	require.NotNil(t, req)
 	return req
+}
+
+func TestCreateRequestForStatus_DistinguishesSickAndExcusedRetries(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	day := timezone.TodayDate().AddDays(2)
+
+	sick := createPendingStatus(t, svc, db, chain, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sick.AbsenceStatus)
+
+	var retried *activeModels.ExcusedAbsenceRequest
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var createErr error
+		retried, createErr = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+		return createErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, sick.ID, retried.ID, "an identical sick request must be idempotent")
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, createErr := svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin", activeModels.StudentStatusDayExcused)
+		return createErr
+	})
+	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestOverlap,
+		"the same day cannot have pending sick and excused requests")
 }
 
 // TestCreateRequest_Validation covers the three input guards that reject before
@@ -148,7 +180,7 @@ func TestListPending_EnrichedAndScoped(t *testing.T) {
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier")
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 2, "both pending requests must surface in the staff queue")
 		for _, it := range items {
@@ -171,7 +203,7 @@ func TestListPending_Empty(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
 		return nil
@@ -569,7 +601,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	// Exactly two pending rows exist (first + third; the overlap never inserted).
 	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Len(t, items, 2, "only the idempotent-deduped and disjoint requests should remain pending")
 		return nil

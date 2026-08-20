@@ -3,7 +3,9 @@ package notifications_test
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
@@ -30,6 +32,13 @@ func settingsWithWindow(start, end string) *configtest.Mock {
 			return "", nil
 		},
 	}
+}
+
+// inactiveWindow returns a valid one-minute window on the opposite side of
+// the clock. A fixed 00:00-00:01 fixture is active when CI runs at midnight.
+func inactiveWindow() (string, string) {
+	start := timezone.Now().Add(12 * time.Hour)
+	return start.Format("15:04"), start.Add(time.Minute).Format("15:04")
 }
 
 // testTenantID is the school every event in this file belongs to. These tests
@@ -147,8 +156,8 @@ func TestDeliveryWindow(t *testing.T) {
 
 	t.Run("outside the window nothing is dispatched", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
-		// A window that has already closed for every possible current time.
-		svc := notifications.NewService(settingsWithWindow("00:00", "00:01"), nil,
+		start, end := inactiveWindow()
+		svc := notifications.NewService(settingsWithWindow(start, end), nil,
 			notifications.NewSSEChannel(bc))
 
 		err := dispatch(t, func(ctx context.Context) error {

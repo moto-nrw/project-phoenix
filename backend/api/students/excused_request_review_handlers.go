@@ -13,19 +13,20 @@ import (
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 )
 
-// StaffExcusedRequestResponse is the staff-facing projection of one parent
-// excused-absence approval request in the review queue (#1845).
+// StaffExcusedRequestResponse is the legacy-named staff projection of one
+// parent absence approval request in the review queue.
 type StaffExcusedRequestResponse struct {
-	ID         string     `json:"id"`
-	StudentID  string     `json:"student_id"`
-	FirstName  string     `json:"first_name"`
-	LastName   string     `json:"last_name"`
-	Status     string     `json:"status"`
-	Dates      []string   `json:"dates"`
-	Note       string     `json:"note"`
-	Reason     *string    `json:"reason,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
+	ID            string     `json:"id"`
+	StudentID     string     `json:"student_id"`
+	FirstName     string     `json:"first_name"`
+	LastName      string     `json:"last_name"`
+	AbsenceStatus string     `json:"absence_status"`
+	Status        string     `json:"status"`
+	Dates         []string   `json:"dates"`
+	Note          string     `json:"note"`
+	Reason        *string    `json:"reason,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
 }
 
 func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem) StaffExcusedRequestResponse {
@@ -35,36 +36,18 @@ func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem
 		dates = append(dates, d.String())
 	}
 	return StaffExcusedRequestResponse{
-		ID:         strconv.FormatInt(r.ID, 10),
-		StudentID:  strconv.FormatInt(r.StudentID, 10),
-		FirstName:  item.FirstName,
-		LastName:   item.LastName,
-		Status:     r.Status,
-		Dates:      dates,
-		Note:       r.Note,
-		Reason:     r.DecisionReason,
-		CreatedAt:  r.CreatedAt,
-		ReviewedAt: r.ReviewedAt,
+		ID:            strconv.FormatInt(r.ID, 10),
+		StudentID:     strconv.FormatInt(r.StudentID, 10),
+		FirstName:     item.FirstName,
+		LastName:      item.LastName,
+		AbsenceStatus: r.AbsenceStatus,
+		Status:        r.Status,
+		Dates:         dates,
+		Note:          r.Note,
+		Reason:        r.DecisionReason,
+		CreatedAt:     r.CreatedAt,
+		ReviewedAt:    r.ReviewedAt,
 	}
-}
-
-// listExcusedAbsenceRequests returns the tenant's pending parent excused-absence
-// approval requests for the staff review queue.
-func (rs *Resource) listExcusedAbsenceRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.ExcusedRequestService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("excused request service not configured")))
-		return
-	}
-	items, err := rs.ExcusedRequestService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]StaffExcusedRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toStaffExcusedRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Excused absence requests retrieved")
 }
 
 // DecideExcusedRequestBody is the body of POST
@@ -74,7 +57,7 @@ type DecideExcusedRequestBody struct {
 	Reason  string `json:"reason"`
 }
 
-// decideExcusedAbsenceRequest approves (writes the excused status days) or
+// decideExcusedAbsenceRequest approves (writes the requested status days) or
 // rejects (reason required) one pending request.
 func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.Request) {
 	if rs.ExcusedRequestService == nil {

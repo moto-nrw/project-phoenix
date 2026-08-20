@@ -150,8 +150,6 @@ describe("GET /api/active/groups/[id]/supervisors", () => {
   });
 
   it("returns 500 when id parameter is invalid", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Invalid id parameter"));
-
     const request = createMockRequest("/api/active/groups/invalid/supervisors");
     const response = await GET(request, createMockContext({ id: undefined }));
 

@@ -71,13 +71,17 @@ function createMockResponse(
   } as Response;
 }
 
+const originalFetch = global.fetch;
+
 describe("pickup-schedule-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    global.fetch = originalFetch;
   });
 
   describe("bulkUpsertPickupSchedules", () => {

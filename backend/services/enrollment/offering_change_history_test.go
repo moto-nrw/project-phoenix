@@ -2,11 +2,11 @@ package enrollment_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -35,7 +35,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	// While pending, the history is empty.
-	items, next, err := svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, next, err := svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	for _, item := range items {
@@ -46,7 +46,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		RequestID: row.ID, Approve: false, Reason: "Kapazität erschöpft", ReviewedBy: env.creatorID,
 	}))
 
-	items, next, err = svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, next, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	var got *enrollmentService.OfferingChangeHistoryItem
@@ -79,7 +79,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, svc.Withdraw(ctx, withdrawn.ID, env.creatorID, fx.studentID))
 
-	items, _, err = svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, _, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	var withdrawnHistory *enrollmentService.OfferingChangeHistoryItem
 	for _, item := range items {

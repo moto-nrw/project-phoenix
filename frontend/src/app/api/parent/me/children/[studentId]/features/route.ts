@@ -3,6 +3,8 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendChildFeatures {
   sick_note_enabled: boolean;
+  sick_requires_approval: boolean;
+  excused_requires_approval: boolean;
   notes_enabled: boolean;
   request_submit_enabled: boolean;
   pickup_change_enabled: boolean;

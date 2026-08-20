@@ -36,6 +36,22 @@ describe("aggregated change request list route", () => {
     );
   });
 
+  it("forwards the child filter of the Änderungsprotokoll", async () => {
+    vi.mocked(apiGet).mockResolvedValue({ data: { items: [] } });
+
+    await GET(
+      new Request(
+        "http://test.local/api/students/change-requests?view=history&student_id=42",
+      ) as never,
+      {} as never,
+    );
+
+    expect(apiGet).toHaveBeenCalledWith(
+      "/api/students/change-requests?view=history&student_id=42",
+      "staff-token",
+    );
+  });
+
   it("forwards no query string when none is given", async () => {
     vi.mocked(apiGet).mockResolvedValue({ data: { items: [] } });
 

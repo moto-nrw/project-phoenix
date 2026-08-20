@@ -3,7 +3,6 @@ package absence_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,7 +44,7 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 	require.NoError(t, err)
 
 	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, next, e := svc.ListHistory(txCtx, time.Time{}, 0, 25)
+		items, next, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		assert.Nil(t, next)
 
@@ -69,12 +69,12 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 		assert.Empty(t, wd.ReviewerName, "withdrawals carry no reviewer")
 
 		// Keyset pagination: two decided rows, page size 1 → disjoint pages.
-		page1, next1, e := svc.ListHistory(txCtx, time.Time{}, 0, 1)
+		page1, next1, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 1})
 		require.NoError(t, e)
 		require.Len(t, page1, 1)
 		cursor := next1
 		require.NotNil(t, cursor)
-		page2, next2, e := svc.ListHistory(txCtx, cursor.UpdatedAt, cursor.ID, 1)
+		page2, next2, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{BeforeInstant: cursor.UpdatedAt, BeforeID: cursor.ID, Limit: 1})
 		require.NoError(t, e)
 		require.Len(t, page2, 1)
 		assert.NotEqual(t, page1[0].Request.ID, page2[0].Request.ID, "pages must not overlap")

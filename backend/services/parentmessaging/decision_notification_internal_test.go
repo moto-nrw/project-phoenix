@@ -64,6 +64,7 @@ func TestRequestDecisionCopy(t *testing.T) {
 			usersModels.ParentMessageRequestPickupChange:   "Abholzeit",
 			usersModels.ParentMessageRequestMasterData:     "Stammdaten",
 			usersModels.ParentMessageRequestExcusedAbsence: "Abmeldung",
+			usersModels.ParentMessageRequestSickAbsence:    "Krankmeldung",
 		}
 		for requestType, expected := range cases {
 			title, body := requestDecisionCopy("de", requestType, usersModels.ParentMessageRequestStatusDone)

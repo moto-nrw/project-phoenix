@@ -191,6 +191,7 @@ describe("RequestHistoryItem", () => {
         student_id: "42",
         first_name: "Lara",
         last_name: "Lehmann",
+        absence_status: "excused",
         status: "approved",
         dates: ["2026-08-20", "2026-08-21"],
         note: "Arzttermin",
@@ -206,6 +207,29 @@ describe("RequestHistoryItem", () => {
     expect(
       screen.getByText("20.08.2026, 21.08.2026 · Arzttermin"),
     ).toBeInTheDocument();
+  });
+
+  it("zeigt eine entschiedene Krankmeldung als Krankmeldung", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "excused",
+      occurred_at: "2026-08-20T10:00:00Z",
+      data: {
+        id: "sick-1",
+        student_id: "42",
+        first_name: "Lara",
+        last_name: "Lehmann",
+        absence_status: "sick",
+        status: "approved",
+        dates: ["2026-08-20"],
+        note: "Fieber",
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText(/Krankmeldung/)).toBeInTheDocument();
   });
 
   it("zeigt eine Direkt-Korrektur als eigene Zeilen-Art mit vorher → nachher", () => {

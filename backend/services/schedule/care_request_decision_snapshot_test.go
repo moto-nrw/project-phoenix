@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -46,7 +47,7 @@ func upsertMondayPickup(t *testing.T, f *careFixture, hour, minute int) {
 
 func historyItemByID(t *testing.T, f *careFixture, id int64) *schedule.CareRequestHistoryItem {
 	t.Helper()
-	items, _, err := f.svc.ListHistory(f.staffCtx(f.staffAccount), time.Time{}, 0, 25)
+	items, _, err := f.svc.ListHistory(f.staffCtx(f.staffAccount), modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	for _, item := range items {
 		if item.Request.ID == id {
@@ -172,7 +173,7 @@ func TestListPending_FallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 		map[string]any{"weekday": 1, "pickup": "16:00"},
 	))
 
-	items, err := service.ListPending(f.staffCtx(f.staffAccount))
+	items, _, err := service.ListPending(f.staffCtx(f.staffAccount), modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, []schedule.RequestDiffEntry{{

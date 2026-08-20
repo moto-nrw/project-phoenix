@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -108,12 +109,12 @@ func (f *companionErrCareRequestService) GetPendingForStudent(context.Context, i
 	return nil, nil, nil
 }
 
-func (f *companionErrCareRequestService) ListHistory(context.Context, time.Time, int64, int) ([]*scheduleService.CareRequestHistoryItem, *userService.HistoryCursor, error) {
+func (f *companionErrCareRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestHistoryItem, *userService.HistoryCursor, error) {
 	return nil, nil, nil
 }
 
-func (f *companionErrCareRequestService) ListPending(context.Context) ([]*scheduleService.CareRequestReviewItem, error) {
-	return nil, nil
+func (f *companionErrCareRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestReviewItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
 }
 
 func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {

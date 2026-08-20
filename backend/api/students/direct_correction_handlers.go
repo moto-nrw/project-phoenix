@@ -51,6 +51,7 @@ func directCorrectionRow(item *enrollmentService.DirectCorrectionItem) aggregate
 		typ:         requestTypeDirectCorrection,
 		sortTime:    item.Adjustment.ChangedAt,
 		id:          item.Adjustment.ID,
+		studentID:   item.Adjustment.StudentID,
 		studentName: item.StudentName,
 		// A correction has no request status; the date-range filter treats the
 		// moment it was applied as its "decided at".

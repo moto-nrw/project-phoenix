@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -21,7 +22,7 @@ func pendingViewForRequest(
 	requestID int64,
 ) *enrollmentService.OfferingChangeView {
 	t.Helper()
-	views, err := svc.ListPending(offeringChangeAdminContext(t))
+	views, _, err := svc.ListPending(offeringChangeAdminContext(t), modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	for _, view := range views {
 		if view.Request != nil && view.Request.ID == requestID {
