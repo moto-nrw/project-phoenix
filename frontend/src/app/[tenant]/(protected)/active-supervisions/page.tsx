@@ -1939,6 +1939,7 @@ function MeinRaumPageContent() {
         } else {
           await mutateRoster();
         }
+        await mutateDashboard();
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
@@ -1952,7 +1953,12 @@ function MeinRaumPageContent() {
         setIsConfirmingExpected(false);
       }
     },
-    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      mutateDashboard,
+      mutateRoster,
+    ],
   );
 
   const handleAddUnplannedStudent = useCallback(

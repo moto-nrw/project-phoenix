@@ -63,6 +63,26 @@ describe("rate-limit fetch guard", () => {
     expect(backendFetch).toHaveBeenCalledTimes(2);
   });
 
+  it("clears both buckets when the session context changes", async () => {
+    const backendFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "17" },
+        }),
+      )
+      .mockResolvedValue(new Response(null));
+    const rateLimit = await loadGuard(backendFetch);
+
+    await fetch("/api/students/1", { method: "PATCH" });
+    rateLimit.clearRateLimitBackoff();
+    const write = await fetch("/api/students/1", { method: "PATCH" });
+
+    expect(write.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("honors an HTTP-date Retry-After value", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2040-01-01T00:00:00Z"));

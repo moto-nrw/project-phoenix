@@ -65,6 +65,13 @@ export function remainingRateLimitMs(
   return Math.max(0, blockedUntil[rateLimitBucket(method)] - now);
 }
 
+// A session change also changes the backend quota identity (account, scope,
+// or tenant), so no prior session's local lockout may survive it.
+export function clearRateLimitBackoff(): void {
+  blockedUntil.read = 0;
+  blockedUntil.write = 0;
+}
+
 export function rateLimitBlockedError(method?: string): Error | null {
   const remaining = remainingRateLimitMs(method);
   if (typeof window === "undefined" || remaining === 0) {
