@@ -193,19 +193,23 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		twoDaysAgo := today.AddDays(-2)
 
 		// Create sessions across multiple days
+		session1Out := twoDaysAgo.BerlinMidnight().Add(16 * time.Hour)
 		session1 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        twoDaysAgo,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -2),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         twoDaysAgo,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  twoDaysAgo.BerlinMidnight().Add(8 * time.Hour),
+			CheckOutTime: &session1Out,
+			CreatedBy:    staff.ID,
 		}
+		session2Out := yesterday.BerlinMidnight().Add(16 * time.Hour)
 		session2 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        yesterday,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -1),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         yesterday,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  yesterday.BerlinMidnight().Add(8 * time.Hour),
+			CheckOutTime: &session2Out,
+			CreatedBy:    staff.ID,
 		}
 
 		err := repo.Create(ctx, session1)
