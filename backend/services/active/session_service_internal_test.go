@@ -975,11 +975,12 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 // should do in a unit test.
 type activityGroupRepoForRoomUnitTest struct {
 	activitiesModels.GroupRepository
-	group *activitiesModels.Group
+	group   *activitiesModels.Group
+	findErr error
 }
 
 func (a *activityGroupRepoForRoomUnitTest) FindByID(context.Context, any) (*activitiesModels.Group, error) {
-	return a.group, nil
+	return a.group, a.findErr
 }
 
 func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
@@ -1013,6 +1014,18 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
 
 		require.ErrorIs(t, err, ErrNoRoomAvailable)
+		assert.Zero(t, roomID)
+	})
+
+	t.Run("repository error is returned", func(t *testing.T) {
+		lookupErr := errors.New("planned room lookup failed")
+		svc := &service{ServiceDependencies: ServiceDependencies{
+			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{findErr: lookupErr},
+		}}
+
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+
+		require.ErrorIs(t, err, lookupErr)
 		assert.Zero(t, roomID)
 	})
 }
