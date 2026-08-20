@@ -84,3 +84,14 @@ elif ! git diff --quiet "$MB" -- frontend; then
 else
   echo "==> frontend: keine Änderungen"
 fi
+
+# Dieselben Checks, die der pre-push-Hook fährt (tsc, knip, depcruise, go-vet,
+# deadcode, golangci-lint). Ohne sie fällt ein Typfehler oder ein ungenutzter
+# Export erst beim Push auf, also nach allen Review-Runden, und der Lauf ist
+# verloren. lefthook wählt die Kommandos selbst über seine Globs.
+if command -v lefthook >/dev/null 2>&1; then
+  echo "==> lefthook pre-push"
+  lefthook run pre-push
+else
+  echo "==> lefthook nicht installiert, pre-push-Checks übersprungen" >&2
+fi
