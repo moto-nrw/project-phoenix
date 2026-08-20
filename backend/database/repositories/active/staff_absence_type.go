@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -45,6 +46,27 @@ func (r *StaffAbsenceTypeRepository) ListAll(ctx context.Context) ([]*active.Sta
 		return nil, &modelBase.DatabaseError{Op: "list all staff absence types", Err: err}
 	}
 	return types, nil
+}
+
+// LockByID returns one absence type with a transaction-scoped row lock. The
+// caller keeps it through a new reference or lifecycle update, so a retirement
+// or rename cannot race with a newly filed absence.
+func (r *StaffAbsenceTypeRepository) LockByID(ctx context.Context, id int64) (*active.StaffAbsenceType, error) {
+	absenceType := new(active.StaffAbsenceType)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(absenceType).
+		ModelTableExpr(tableExprStaffAbsenceTypesAsAsType).
+		Where(`"staff_absence_type".id = ?`, id).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "staff_absence_type")
+
+	if err := query.Scan(ctx); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "lock staff absence type", Err: err}
+	}
+	return absenceType, nil
 }
 
 // IsInUse reports whether a staff absence in the current tenant references

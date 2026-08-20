@@ -44,6 +44,28 @@ describe("CreatableSelect", () => {
     expect(screen.queryByRole("option", { name: "Krank" })).toBeNull();
   });
 
+  it("moves option focus with the arrow, home, and end keys", () => {
+    render(
+      <CreatableSelect value="sick" options={OPTIONS} onChange={vi.fn()} />,
+    );
+    open();
+
+    const search = screen.getByRole("textbox");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "Urlaub" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("option", { name: "Urlaub" }), {
+      key: "End",
+    });
+    expect(
+      screen.getByRole("option", { name: /Regenerationstag/ }),
+    ).toHaveFocus();
+    fireEvent.keyDown(
+      screen.getByRole("option", { name: /Regenerationstag/ }),
+      { key: "Home" },
+    );
+    expect(screen.getByRole("option", { name: "Krank" })).toHaveFocus();
+  });
+
   it("offers to add a name that does not exist yet and selects it", async () => {
     const onCreate = vi.fn().mockResolvedValue("custom:12");
     const onChange = vi.fn();

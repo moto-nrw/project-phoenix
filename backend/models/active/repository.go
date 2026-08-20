@@ -433,6 +433,9 @@ type StaffAbsenceTypeRepository interface {
 
 	// ListAll returns all absence types for the current tenant, ordered by name.
 	ListAll(ctx context.Context) ([]*StaffAbsenceType, error)
+	// LockByID returns one art with a transaction-scoped row lock. Lifecycle
+	// changes and new references use it to serialize their invariants.
+	LockByID(ctx context.Context, id int64) (*StaffAbsenceType, error)
 	// IsInUse reports whether an absence still references the art. Used to keep
 	// historical display names stable when an administrator edits the list.
 	IsInUse(ctx context.Context, id int64) (bool, error)

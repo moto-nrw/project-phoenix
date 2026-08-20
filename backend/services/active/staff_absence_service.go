@@ -121,7 +121,7 @@ func parseAbsenceTypeID(raw json.RawMessage) (*int64, error) {
 	}
 	id, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid absence_type_id: %w", err)
+		return nil, fmt.Errorf("ungültige Abwesenheitsart-ID: %w", err)
 	}
 	return &id, nil
 }
@@ -926,6 +926,10 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	// unchanged retired art is deliberately preserved: historic entries remain
 	// editable, while resolving a newly selected retired art still rejects it.
 	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
+		if before.AbsenceType == activeModels.AbsenceTypeSick &&
+			!sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
+			return nil, fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
+		}
 		if sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
 			absence.AbsenceTypeID = before.AbsenceTypeID
 			absence.AbsenceType = before.AbsenceType

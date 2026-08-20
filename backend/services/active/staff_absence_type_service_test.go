@@ -38,6 +38,10 @@ func (m *absTypeRepoMock) FindByID(_ context.Context, id any) (*activeModels.Sta
 	return nil, nil
 }
 
+func (m *absTypeRepoMock) LockByID(ctx context.Context, id int64) (*activeModels.StaffAbsenceType, error) {
+	return m.FindByID(ctx, id)
+}
+
 func (m *absTypeRepoMock) Create(_ context.Context, at *activeModels.StaffAbsenceType) error {
 	if err := at.Validate(); err != nil {
 		return err

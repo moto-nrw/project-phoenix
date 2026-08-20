@@ -115,9 +115,15 @@ func (s *staffAbsenceTypeService) GetAbsenceType(ctx context.Context, id int64) 
 }
 
 func (s *staffAbsenceTypeService) ResolveForAbsence(ctx context.Context, id int64) (*activeModels.StaffAbsenceType, error) {
-	absenceType, err := s.GetAbsenceType(ctx, id)
+	if id <= 0 {
+		return nil, ErrAbsenceTypeNotFound
+	}
+	absenceType, err := s.repo.LockByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("lock absence type: %w", err)
+	}
+	if absenceType == nil {
+		return nil, ErrAbsenceTypeNotFound
 	}
 	if !absenceType.IsActive {
 		return nil, ErrAbsenceTypeInactive
@@ -210,9 +216,15 @@ func (s *staffAbsenceTypeService) CreateAbsenceType(ctx context.Context, name st
 }
 
 func (s *staffAbsenceTypeService) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive *bool) (*activeModels.StaffAbsenceType, error) {
-	existing, err := s.GetAbsenceType(ctx, id)
+	if id <= 0 {
+		return nil, ErrAbsenceTypeNotFound
+	}
+	existing, err := s.repo.LockByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("lock absence type: %w", err)
+	}
+	if existing == nil {
+		return nil, ErrAbsenceTypeNotFound
 	}
 
 	if name != nil {

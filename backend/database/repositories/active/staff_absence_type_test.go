@@ -37,7 +37,9 @@ func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
-	ctx := testpkg.TenantContext(1)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
 	zebra := &activeModels.StaffAbsenceType{Name: "Zebra-" + suffix, IsActive: true}
@@ -47,7 +49,7 @@ func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
 	defer cleanupAbsenceTypes(t, repo, ctx, zebra.ID, alpha.ID)
 
 	require.NotZero(t, zebra.ID)
-	assert.Equal(t, int64(1), zebra.TenantID, "tenant_id must be stamped from context")
+	assert.Equal(t, tenantID, zebra.TenantID, "tenant_id must be stamped from context")
 	assert.Equal(t, "Alpha-"+suffix, alpha.Name, "name must be trimmed on create")
 	assert.Equal(t, activeModels.AbsenceTypeOther, zebra.BaseType,
 		"a school-defined art inherits the calculation of Sonstige")
@@ -69,7 +71,9 @@ func TestStaffAbsenceTypeRepository_RejectsDuplicateNameCaseInsensitively(t *tes
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
-	ctx := testpkg.TenantContext(1)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
 	first := &activeModels.StaffAbsenceType{Name: "Regenerationstag-" + suffix, IsActive: true}
@@ -91,7 +95,9 @@ func TestStaffAbsenceTypeRepository_IsolatesTenants(t *testing.T) {
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 	defer testpkg.CleanupTestTenant(t, db, otherTenantID)
 
-	ctxA := testpkg.TenantContext(1)
+	tenantAID, _ := testpkg.CreateTestTenant(t, db)
+	defer testpkg.CleanupTestTenant(t, db, tenantAID)
+	ctxA := testpkg.TenantContext(tenantAID)
 	ctxB := testpkg.TenantContext(otherTenantID)
 
 	suffix := absenceTypeUnique()
@@ -116,7 +122,9 @@ func TestStaffAbsenceTypeRepository_DeactivateKeepsRowReadable(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
-	ctx := testpkg.TenantContext(1)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
 	at := &activeModels.StaffAbsenceType{Name: "Sonderurlaub-" + suffix, IsActive: true}

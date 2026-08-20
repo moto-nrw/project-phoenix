@@ -98,14 +98,17 @@ export function CreatableSelect({
   const [error, setError] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [activeValue, setActiveValue] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       setError(null);
       setEditingValue(null);
+      setActiveValue(null);
     }
   }, [open]);
 
@@ -134,6 +137,71 @@ export function CreatableSelect({
     if (!needle) return visible;
     return visible.filter((option) => normalize(option.label).includes(needle));
   }, [visible, query]);
+
+  const selectableOptions = useMemo(
+    () =>
+      filtered.filter((option) => !option.inactive || option.value === value),
+    [filtered, value],
+  );
+
+  useEffect(() => {
+    if (
+      !open ||
+      selectableOptions.some((option) => option.value === activeValue)
+    ) {
+      return;
+    }
+    setActiveValue(
+      selectableOptions.find((option) => option.value === value)?.value ??
+        selectableOptions[0]?.value ??
+        null,
+    );
+  }, [activeValue, open, selectableOptions, value]);
+
+  const moveActiveOption = (
+    direction: "next" | "previous" | "first" | "last",
+  ) => {
+    if (selectableOptions.length === 0) return;
+    const currentIndex = selectableOptions.findIndex(
+      (option) => option.value === activeValue,
+    );
+    const selectedIndex = selectableOptions.findIndex(
+      (option) => option.value === value,
+    );
+    const initialIndex = currentIndex >= 0 ? currentIndex : selectedIndex;
+    let nextIndex = initialIndex >= 0 ? initialIndex : 0;
+    if (direction === "next") {
+      nextIndex = Math.min(nextIndex + 1, selectableOptions.length - 1);
+    } else if (direction === "previous") {
+      nextIndex = Math.max(nextIndex - 1, 0);
+    } else if (direction === "first") {
+      nextIndex = 0;
+    } else {
+      nextIndex = selectableOptions.length - 1;
+    }
+    const next = selectableOptions[nextIndex];
+    if (!next) return;
+    setActiveValue(next.value);
+    optionRefs.current.get(next.value)?.focus();
+  };
+
+  const handleOptionNavigation = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveActiveOption("next");
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActiveOption("previous");
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      moveActiveOption("first");
+    } else if (event.key === "End") {
+      event.preventDefault();
+      moveActiveOption("last");
+    }
+  };
 
   const trimmedQuery = query.trim();
   const exactExists = options.some(
@@ -247,7 +315,13 @@ export function CreatableSelect({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && canCreate) {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  moveActiveOption("next");
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  moveActiveOption("previous");
+                } else if (event.key === "Enter" && canCreate) {
                   event.preventDefault();
                   void runCreate(close);
                 }
@@ -324,11 +398,17 @@ export function CreatableSelect({
                   className="group flex items-center gap-1"
                 >
                   <button
+                    ref={(node) => {
+                      if (node) optionRefs.current.set(option.value, node);
+                      else optionRefs.current.delete(option.value);
+                    }}
                     type="button"
                     role="option"
+                    tabIndex={option.value === activeValue ? 0 : -1}
                     aria-selected={option.value === value}
                     aria-disabled={option.inactive && option.value !== value}
                     disabled={option.inactive && option.value !== value}
+                    onKeyDown={handleOptionNavigation}
                     onClick={() => {
                       onChange(option.value);
                       close();

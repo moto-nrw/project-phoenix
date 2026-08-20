@@ -129,6 +129,31 @@ func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAbsUpdateAbsenceRejectsSickToCustomType(t *testing.T) {
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:       base.Model{ID: 100},
+		StaffID:     7,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 8, 20),
+		DateEnd:     timezone.NewDate(2026, 8, 20),
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error {
+		t.Fatal("a sick absence must not be converted to a custom type")
+		return nil
+	}
+
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceTypeID:    &customID,
+		AbsenceTypeIDSet: true,
+	})
+	require.ErrorContains(t, err, "sick absences must be deleted and re-created")
+}
+
 func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
