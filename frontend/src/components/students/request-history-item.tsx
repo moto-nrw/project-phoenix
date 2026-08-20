@@ -169,18 +169,22 @@ export function RequestHistoryItem({
             reason: row.reason,
           }}
         >
-          {/* Eine Korrektur, die an den gebuchten Tagen nichts ändert (etwa nur
-              der Wechsel zwischen selbst gesetzt und automatisch), hat keinen
-              Vergleich zu zeigen — dann bleibt die Fläche weg statt leer. */}
-          {row.diff.length > 0 && (
-            <ReviewDiffPanel title="Änderungen">
-              {row.diff.map((line) => (
-                <p key={line.offering_id} className="text-sm text-gray-700">
-                  {line.label}: {line.old} → {line.new}
-                </p>
-              ))}
-            </ReviewDiffPanel>
-          )}
+          <ReviewDiffPanel title="Änderungen">
+            {row.diff.map((line) => (
+              <p key={line.offering_id} className="text-sm text-gray-700">
+                {line.label}: {line.old} → {line.new}
+              </p>
+            ))}
+            {/* Auch eine Korrektur ohne Tagesänderung bleibt in der Historie
+                stehen (etwa nur der Wechsel zwischen selbst gesetzten und
+                automatisch übernommenen Tagen). Sie sagt das hin, statt eine
+                leere Fläche zu zeigen. */}
+            {row.diff.length === 0 && (
+              <p className="text-sm text-gray-600">
+                Keine Änderung an den gebuchten Tagen
+              </p>
+            )}
+          </ReviewDiffPanel>
         </RequestReviewCard>
       );
     }

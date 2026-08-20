@@ -237,7 +237,7 @@ describe("RequestHistoryItem", () => {
     ).toBeInTheDocument();
   });
 
-  it("zeigt eine Korrektur ohne Tagesänderung ohne leere Änderungsfläche", () => {
+  it("hält eine Korrektur ohne Tagesänderung trotzdem fest", () => {
     // Kommt vor, wenn sich nur intern etwas verschiebt (selbst gesetzte gegen
     // automatisch übernommene Tage) und die gebuchten Tage gleich bleiben.
     const item: AggregatedHistoryRequest = {
@@ -255,7 +255,12 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    // Jede Änderung wird dokumentiert, auch die ohne sichtbaren Unterschied
+    // an den Tagen — dann sagt die Karte das ausdrücklich.
     expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
-    expect(screen.queryByText("Änderungen")).not.toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Änderung an den gebuchten Tagen"),
+    ).toBeInTheDocument();
   });
 });
