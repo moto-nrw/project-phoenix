@@ -1578,6 +1578,11 @@ function OwnZeiterfassungSection({
 
   const visibleFromKey = toISODate(visibleFrom);
   const visibleToKey = toISODate(visibleTo);
+  const tableHistoryFromKey = useMemo(() => {
+    const previousDay = new Date(visibleFrom);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toISODate(previousDay);
+  }, [visibleFrom]);
 
   // Dedicated table-range fetches. Independent from the WeekChart's
   // 10-workday history fetch, so navigating the table (especially in
@@ -1586,8 +1591,8 @@ function OwnZeiterfassungSection({
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
-    `time-tracking-table-${visibleFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getHistory(visibleFromKey, visibleToKey),
+    `time-tracking-table-${tableHistoryFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHistory(tableHistoryFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);

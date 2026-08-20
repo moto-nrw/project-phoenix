@@ -615,6 +615,11 @@ func BalanceSessionEnd(session *activeModels.WorkSession, now time.Time) time.Ti
 
 func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
 	end := sessionEndUpTo(session, now)
+	// A completed block is historical fact. Only still-open blocks (or a
+	// malformed future check-out) need a live safety limit.
+	if session.CheckOutTime != nil && !session.CheckOutTime.After(now) {
+		return end
+	}
 	maxEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration)
 	if !end.After(maxEnd) {
 		return end

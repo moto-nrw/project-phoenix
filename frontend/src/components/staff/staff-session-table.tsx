@@ -261,6 +261,17 @@ export function StaffSessionTable({
     }
     return map;
   }, [sessions]);
+  const originalSessionsByID = useMemo(
+    () =>
+      new Map(
+        sessions
+          .filter((session): session is StaffHistorySession & { id: string } =>
+            Boolean(session.id),
+          )
+          .map((session) => [session.id, session]),
+      ),
+    [sessions],
+  );
 
   // Planned Dienstplan shifts per day for the "Plan" column (#1844). Absent
   // unless the caller passes plannedShifts (admin detail view).
@@ -453,6 +464,12 @@ export function StaffSessionTable({
                 // (#2402) aggregate on the day row and list each block in a
                 // sub-row underneath.
                 const session = daySessions[0];
+                const originalSession = session?.id
+                  ? (originalSessionsByID.get(session.id) ?? session)
+                  : session;
+                const originalSessionDate = originalSession
+                  ? parseISODate(originalSession.date)
+                  : day;
                 const hasMultipleBlocks = daySessions.length > 1;
                 const openSession = daySessions.find((s) => !s.check_out_time);
                 const lastSession = daySessions[daySessions.length - 1];
@@ -712,10 +729,10 @@ export function StaffSessionTable({
                                 // own pencil in its sub-row.
                                 const targetSession = hasMultipleBlocks
                                   ? null
-                                  : (session ?? null);
+                                  : (originalSession ?? null);
                                 if (onEditDay) {
                                   onEditDay(
-                                    day,
+                                    targetSession ? originalSessionDate : day,
                                     targetSession,
                                     absence ?? null,
                                   );
@@ -725,7 +742,9 @@ export function StaffSessionTable({
                                       targetSession == null
                                         ? "nachtragen"
                                         : "edit",
-                                    date: day,
+                                    date: targetSession
+                                      ? originalSessionDate
+                                      : day,
                                     session: targetSession,
                                   });
                                 }
@@ -810,13 +829,24 @@ export function StaffSessionTable({
                                   size="icon"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    const originalBlock = block.id
+                                      ? (originalSessionsByID.get(block.id) ??
+                                        block)
+                                      : block;
+                                    const originalBlockDate = parseISODate(
+                                      originalBlock.date,
+                                    );
                                     if (onEditDay) {
-                                      onEditDay(day, block, absence ?? null);
+                                      onEditDay(
+                                        originalBlockDate,
+                                        originalBlock,
+                                        absence ?? null,
+                                      );
                                     } else {
                                       setEditModal({
                                         mode: "edit",
-                                        date: day,
-                                        session: block,
+                                        date: originalBlockDate,
+                                        session: originalBlock,
                                       });
                                     }
                                   }}

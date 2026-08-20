@@ -146,12 +146,23 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   }, [timeTrackingConfig?.accountStartDate, today]);
 
   const accountStartKey = toDateKey(accountAnchor);
+  const accountHistoryStartKey = useMemo(() => {
+    const previousDay = new Date(accountAnchor);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [accountAnchor]);
   const yearEndKey = toDateKey(today);
   const adjustmentHistoryEndKey = "9999-12-31";
   const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
     StaffHistorySession[]
-  >(`staff-history-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
-    staffHistoryService.getHistory(staffId, accountStartKey, yearEndKey),
+  >(
+    `staff-history-account-${staffId}-${accountHistoryStartKey}-${yearEndKey}`,
+    () =>
+      staffHistoryService.getHistory(
+        staffId,
+        accountHistoryStartKey,
+        yearEndKey,
+      ),
   );
   const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
     StaffAbsenceRow[]

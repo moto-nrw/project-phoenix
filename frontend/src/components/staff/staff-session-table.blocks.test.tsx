@@ -173,6 +173,34 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     expect(session?.id).toBe("42");
   });
 
+  it("bearbeitet bei einem Nachtblock immer den vollständigen Originalblock", () => {
+    const onEditDay = vi.fn();
+    const nightBlock: StaffHistorySession = {
+      ...morningHomeOffice,
+      id: "night",
+      date: "2026-01-04",
+      check_in_time: "2026-01-04T22:00:00+01:00",
+      check_out_time: "2026-01-05T02:00:00+01:00",
+      net_minutes: 240,
+    };
+    renderTable({ sessions: [nightBlock], onEditDay });
+
+    fireEvent.click(screen.getByLabelText("Eintrag bearbeiten"));
+
+    const [date, session] = onEditDay.mock.calls[0] as [
+      Date,
+      StaffHistorySession | null,
+      unknown,
+    ];
+    expect(date).toEqual(new Date(2026, 0, 4));
+    expect(session).toMatchObject({
+      id: "night",
+      date: "2026-01-04",
+      check_in_time: "2026-01-04T22:00:00+01:00",
+      check_out_time: "2026-01-05T02:00:00+01:00",
+    });
+  });
+
   it("bietet auf einem Mehrblock-Tag das Nachtragen eines weiteren Blocks an", () => {
     const onEditDay = vi.fn();
     renderTable({ onEditDay });
