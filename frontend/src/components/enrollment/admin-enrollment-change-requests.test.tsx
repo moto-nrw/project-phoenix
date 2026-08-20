@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -174,5 +174,33 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
       screen.queryByRole("button", { name: "Freigeben" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Nachricht an Eltern")).not.toBeInTheDocument();
+  });
+
+  it("refreshes request badges after a decision", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.approveEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      status: "approved",
+    });
+    const refreshListener = vi.fn();
+    window.addEventListener("change-requests-refresh", refreshListener);
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Passt." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    await waitFor(() =>
+      expect(mocks.approveEnrollmentChangeRequest).toHaveBeenCalledWith(
+        "42",
+        "Passt.",
+      ),
+    );
+    expect(refreshListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener("change-requests-refresh", refreshListener);
   });
 });

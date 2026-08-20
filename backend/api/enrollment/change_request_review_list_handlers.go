@@ -40,10 +40,15 @@ const (
 
 var errInvalidReviewListQuery = errors.New("invalid change request list query")
 
-// openReviewStatuses are the rows that still need a decision.
+// openReviewStatuses are the rows the open list displays. A request awaiting a
+// parent response remains visible, but cannot be decided by staff yet.
 var openReviewStatuses = []string{
 	enrollmentModels.ChangeRequestStatusPendingReview,
 	enrollmentModels.ChangeRequestStatusNeedsParentResponse,
+}
+
+var actionableReviewStatuses = []string{
+	enrollmentModels.ChangeRequestStatusPendingReview,
 }
 
 // historyReviewStatuses are the terminal ones.
@@ -217,7 +222,7 @@ func (rs *Resource) pendingChangeRequestReviewCount(w http.ResponseWriter, r *ht
 	}
 	var pending int
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		count, countErr := rs.ChangeRequestService.CountOpenForReview(ctx, openReviewStatuses)
+		count, countErr := rs.ChangeRequestService.CountOpenForReview(ctx, actionableReviewStatuses)
 		pending = count
 		return countErr
 	})

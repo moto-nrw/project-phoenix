@@ -102,6 +102,7 @@ export function AdminEnrollmentChangeRequestDetail({
       setData(fresh);
       setReviewNote("");
       setInfo(approved ? "Änderung freigegeben." : "Änderung abgelehnt.");
+      window.dispatchEvent(new Event("change-requests-refresh"));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("change_request_review_failed", {

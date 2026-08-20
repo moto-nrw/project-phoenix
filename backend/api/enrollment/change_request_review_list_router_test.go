@@ -442,7 +442,7 @@ func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(countRec.Body.Bytes(), &out), countRec.Body.String())
-	assert.Equal(t, 4, out.Data.PendingCount)
+	assert.Equal(t, 3, out.Data.PendingCount)
 
 	// Auch der Zähler hält seine Berechtigungsgrenze.
 	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
