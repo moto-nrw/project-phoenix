@@ -153,7 +153,10 @@ export const STAFF_FLAT_PAGES = {
 /** Unterseiten des Anmeldungen-Akkordeons, in Anzeigereihenfolge. */
 export const ENROLLMENT_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/admin/enrollments", label: "Überblick" },
-  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
+  // Kein eigener Eintrag mehr für Änderungsanfragen: Anmeldungsänderungen
+  // leben seit #2435 im Anfragen-Modul (/anfragen, Reiter „Eltern"). Zwei
+  // gleichnamige Sidebar-Einträge waren genau der Grund, warum Schulen ihre
+  // Anfragen am falschen Ort suchten.
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },

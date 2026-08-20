@@ -73,7 +73,11 @@ var errInvalidAggregatedQuery = errors.New("invalid change request list query")
 // shape for view=history), discriminated by RequestType.
 type AggregatedChangeRequestItem struct {
 	RequestType string `json:"request_type"`
-	Data        any    `json:"data"`
+	// OccurredAt is the instant the row is ordered by: the submission on the
+	// open view, the decision in the history. The client merges this list with
+	// the separately gated Anmeldungsänderungen (#2435) on it.
+	OccurredAt time.Time `json:"occurred_at"`
+	Data       any       `json:"data"`
 }
 
 // AggregatedChangeRequestPage is the cursor envelope of the aggregated list.
@@ -362,6 +366,16 @@ func (rs *Resource) listAggregatedChangeRequests(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, page, "Change requests retrieved")
 }
 
+// newAggregatedItem is the single place a row becomes a wire item, so both
+// views agree on what occurred_at means.
+func newAggregatedItem(row *aggregatedRow) AggregatedChangeRequestItem {
+	return AggregatedChangeRequestItem{
+		RequestType: row.typ,
+		OccurredAt:  row.sortTime,
+		Data:        row.data,
+	}
+}
+
 func removeType(types []string, drop string) []string {
 	kept := make([]string, 0, len(types))
 	for _, typ := range types {
@@ -439,7 +453,7 @@ func paginateOpenRows(rows []aggregatedRow, q *aggregatedListQuery) AggregatedCh
 			return page
 		}
 		row := &rows[i]
-		page.Items = append(page.Items, AggregatedChangeRequestItem{RequestType: row.typ, Data: row.data})
+		page.Items = append(page.Items, newAggregatedItem(row))
 		next[row.typ] = historyCursorPayload{UpdatedAt: row.sortTime, ID: row.id}
 	}
 	return page
@@ -617,7 +631,7 @@ func (rs *Resource) aggregatedHistoryPage(ctx context.Context, q *aggregatedList
 			break
 		}
 		row := best.pop()
-		page.Items = append(page.Items, AggregatedChangeRequestItem{RequestType: row.typ, Data: row.data})
+		page.Items = append(page.Items, newAggregatedItem(&row))
 	}
 	page.NextCursor = aggregatedHistoryNextCursor(sources)
 	return page, nil

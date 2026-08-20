@@ -77,6 +77,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           changeReason,
           t("changeRequestSaveError"),
         );
+        window.dispatchEvent(new Event("change-requests-refresh"));
         return {
           request_id: changeRequest.request_id,
           status_url: statusHref,
