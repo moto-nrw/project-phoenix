@@ -393,6 +393,30 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	assert.Contains(t, idsOf(env.fetch(t, "view=history")), idOf(cancelled))
 }
 
+func TestChangeRequestReviewList_EscapesNameSearchWildcards(t *testing.T) {
+	env := setupReviewListTest(t)
+	base := time.Now().UTC().Add(-2 * time.Hour)
+
+	percent := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, env.childIDs[0], true)
+	underscore := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)
+	_, err := env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("first_name = ?", `Qui%rina\`).
+		Where("id = ?", env.childIDs[0]).
+		Exec(testpkg.TenantContext(env.tenantID))
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("first_name = ?", "Xa_nder").
+		Where("id = ?", env.childIDs[1]).
+		Exec(testpkg.TenantContext(env.tenantID))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{idOf(percent)}, idsOf(env.fetch(t, "view=history&search="+url.QueryEscape("%"))))
+	assert.Equal(t, []string{idOf(underscore)}, idsOf(env.fetch(t, "view=history&search="+url.QueryEscape("_"))))
+	assert.Equal(t, []string{idOf(percent)}, idsOf(env.fetch(t, "view=history&search="+url.QueryEscape(`\`))))
+}
+
 // Der Zähler trägt das Badge am Anfragen-Eintrag; er zählt in der Datenbank,
 // nicht die Länge einer Seite — sonst stünde ab der Seitengröße dauerhaft
 // dieselbe Zahl dort.
