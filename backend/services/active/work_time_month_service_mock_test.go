@@ -527,24 +527,15 @@ func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
 	assert.Equal(t, 120, july.ActualMinutes)
 }
 
-func TestWTMRangeAggregate_DoesNotExtendOpenBlockFromYesterday(t *testing.T) {
+func TestBalanceSessionEnd_AllowsOpenNightBlockButCapsStaleBlock(t *testing.T) {
 	t.Parallel()
-	f := newWTMFixture()
-	today := timezone.TodayDate()
-	yesterday := today.AddDays(-1)
-	f.settings.accountStart = yesterday.String()
-	f.svc.todayFunc = func() timezone.Date { return today }
-	f.sessions.sessions = []*activeModels.WorkSession{{
-		StaffID:     wtmStaffID,
-		Date:        yesterday,
-		Status:      activeModels.WorkSessionStatusPresent,
-		CheckInTime: yesterday.BerlinMidnight().Add(23 * time.Hour),
-	}}
+	yesterday := timezone.NewDate(2026, time.July, 21)
+	now := yesterday.AddDays(1).BerlinMidnight().Add(6 * time.Hour)
+	night := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(22 * time.Hour)}
+	assert.Equal(t, now, balanceSessionEnd(night, now, timezone.DateFromTime(now)))
 
-	aggregate, err := f.svc.GetRangeAggregate(context.Background(), wtmStaffID, today, today)
-	require.NoError(t, err)
-	assert.Zero(t, aggregate.ActualMinutes,
-		"an unchecked-out block from yesterday must not accrue a second day of live balance")
+	stale := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour)}
+	assert.Equal(t, stale.CheckInTime.Add(maxOpenWorkSessionDuration), balanceSessionEnd(stale, now, timezone.DateFromTime(now)))
 }
 
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical
