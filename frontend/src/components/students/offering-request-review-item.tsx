@@ -185,7 +185,7 @@ export function OfferingRequestReviewItem({
     <RequestReviewCard
       type="offering"
       childName={row.student_name}
-      summary={`Betreuungsangebote und AGs · ab ${formatDate(row.effective_from)}`}
+      summary={`ab ${formatDate(row.effective_from)}`}
       badge={
         fullWithdrawal ? (
           <StatusBadge tone="red" label="Komplett-Abmeldung" />

@@ -9,6 +9,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate, relativeDaysLabel } from "~/lib/date-helpers";
 
@@ -21,10 +22,6 @@ const HISTORY_STATUS_META: Record<
   withdrawn: { label: "Zurückgezogen", tone: "gray" },
   auto_applied: { label: "Automatisch übernommen", tone: "gray" },
 };
-
-// Eine Direkt-Korrektur ist keine entschiedene Anfrage, sondern eine Änderung
-// der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
-const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
 
 /** Die Anfragearten, die eine Zeile tragen kann. */
 export type RequestRowType =
@@ -63,15 +60,34 @@ export const OPEN_ROW_GRID =
 export const HISTORY_ROW_GRID =
   "sm:grid sm:grid-cols-[5.5rem_minmax(0,10rem)_minmax(0,1fr)_auto_minmax(0,8rem)_1rem] sm:items-center sm:gap-3";
 
-/** Der farbige Punkt, der die Anfrageart trägt. */
-function TypeDot({ type }: Readonly<{ type?: RequestRowType }>) {
+/** Beschriftung der Art-Pille, wenn der Aufrufer keine eigene mitgibt. */
+const TYPE_LABEL: Record<RequestRowType, string> = {
+  master_data: "Stammdaten",
+  care_schedule: "Betreuungszeiten",
+  offering: "Angebote und AGs",
+  excused: "Entschuldigung",
+  enrollment: "Anmeldung",
+  direct_correction: "Direkt-Korrektur",
+  absence: "Abwesenheit",
+};
+
+/**
+ * Die Art als Pille. Farbe und Standardbeschriftung kommen aus der Art;
+ * `label` überschreibt den Text, wo die Zeile genauer sein kann als die
+ * Kategorie (eine Abwesenheit ist Urlaub, Krank oder Fortbildung).
+ */
+function TypePill({
+  type,
+  label,
+}: Readonly<{ type?: RequestRowType; label?: string }>) {
   if (!type) return null;
   return (
-    <span
-      aria-hidden
-      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-      style={{ backgroundColor: TYPE_COLOR[type] }}
-    />
+    <span className="shrink-0">
+      <StatusDotBadge
+        label={label ?? TYPE_LABEL[type]}
+        color={TYPE_COLOR[type]}
+      />
+    </span>
   );
 }
 
@@ -124,6 +140,7 @@ export function RequestReviewCard({
   childName,
   summary,
   type,
+  typeLabel,
   badge,
   submittedAt,
   submittedByName,
@@ -140,8 +157,10 @@ export function RequestReviewCard({
 }: Readonly<{
   childName: string;
   summary?: string;
-  /** Anfrageart; färbt den Punkt vor der Zusammenfassung. */
+  /** Anfrageart; trägt Farbe und Beschriftung der Art-Pille. */
   type?: RequestRowType;
+  /** Ersetzt die Standardbeschriftung der Art-Pille. */
+  typeLabel?: string;
   /**
    * Hinweis, der schon in der zugeklappten Zeile stehen muss, etwa die
    * Warnung vor einer Komplett-Abmeldung (#2434).
@@ -172,7 +191,7 @@ export function RequestReviewCard({
   const waitingLabel = submittedAt ? relativeDaysLabel(submittedAt) : null;
 
   if (history) {
-    const meta = readOnlyCardMeta(history);
+    const meta = statusMeta(history);
     // Eine Anfrage, über die woanders entschieden wird, steht auch in der
     // Arbeitsliste — dort ist sie noch nicht entschieden und trägt weder
     // Zeitpunkt noch Person. Sie nimmt deshalb das Raster der Arbeitsliste,
@@ -194,13 +213,19 @@ export function RequestReviewCard({
             {childName}
           </span>
           <span className="flex min-w-0 items-center gap-2">
-            <TypeDot type={type} />
+            <TypePill type={type} label={typeLabel} />
             {summary && (
               <span className="truncate text-sm text-gray-600">{summary}</span>
             )}
-            {!decided && <StatusBadge label={meta.label} tone={meta.tone} />}
+            {!decided && meta && (
+              <StatusBadge label={meta.label} tone={meta.tone} />
+            )}
           </span>
-          {decided && <StatusBadge label={meta.label} tone={meta.tone} />}
+          {decided && meta ? (
+            <StatusBadge label={meta.label} tone={meta.tone} />
+          ) : (
+            <span />
+          )}
           <span className="hidden truncate text-xs text-gray-500 sm:block">
             {decided ? (history.decidedByName ?? "") : (waitingLabel ?? "")}
           </span>
@@ -244,7 +269,7 @@ export function RequestReviewCard({
           {childName}
         </span>
         <span className="flex min-w-0 items-center gap-2">
-          <TypeDot type={type} />
+          <TypePill type={type} label={typeLabel} />
           {badge}
           <span className="hidden truncate text-sm text-gray-500 sm:block">
             {summary}
@@ -331,12 +356,17 @@ function RowButton({
   );
 }
 
-/** Beschriftung und Farbe der Lese-Karte, je nach Art der Zeile. */
-function readOnlyCardMeta(history: RequestReviewCardHistory): {
+/**
+ * Beschriftung und Farbe des Status, je nach Art der Zeile. Eine
+ * Direkt-Korrektur hat keinen: sie ist keine entschiedene Anfrage, sondern
+ * eine Änderung der Verwaltung selbst (#2436), und die Art-Pille sagt das
+ * bereits.
+ */
+function statusMeta(history: RequestReviewCardHistory): {
   label: string;
   tone: StatusBadgeTone;
-} {
-  if (history.kind === "correction") return CORRECTION_META;
+} | null {
+  if (history.kind === "correction") return null;
   if (history.kind === "readonly") {
     return { label: history.label, tone: history.tone };
   }

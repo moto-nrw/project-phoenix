@@ -205,8 +205,9 @@ export function StaffAbsenceRequestList({
           <RequestReviewCard
             key={row.id}
             type="absence"
+            typeLabel={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
             childName={staffLabel(row)}
-            summary={`${ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type} · ${formatAbsenceRange(row.date_start, row.date_end)}`}
+            summary={formatAbsenceRange(row.date_start, row.date_end)}
             submittedAt={row.requested_at}
             history={{
               status: HISTORY_STATUS[row.status] ?? row.status,

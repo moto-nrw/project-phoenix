@@ -144,7 +144,7 @@ export function MasterDataReviewItem({
     <RequestReviewCard
       type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
+      summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={setReason}
