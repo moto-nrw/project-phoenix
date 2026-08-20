@@ -32,7 +32,8 @@ export type AggregatedRequestType =
   | "care_schedule"
   | "offering"
   | "excused"
-  | "direct_correction";
+  | "direct_correction"
+  | "enrollment";
 
 /**
  * Eine Direkt-Korrektur der Verwaltung an den Angebots-Buchungen eines Kindes
@@ -54,21 +55,66 @@ interface DirectCorrection {
   }[];
 }
 
+/**
+ * Eine Anmeldungsänderung (#2435): der Wunsch einer Familie, ihre Anmeldung
+ * nach dem Absenden noch zu ändern. Eigener Endpunkt, weil die Freigabe an
+ * config:manage hängt statt an users:update.
+ */
+export interface EnrollmentChangeRequest {
+  readonly id: string;
+  readonly request_id: string;
+  /** "parent" = von der Familie eingereicht, "admin" = Korrektur der OGS. */
+  readonly origin: string;
+  readonly status: string;
+  readonly child_names: readonly string[];
+  readonly guardian_name?: string;
+  readonly parent_note?: string;
+  readonly decision_note?: string;
+  /** Welche Teile der Anmeldung die Anfrage betrifft (Schlüssel der Felder). */
+  readonly changed_fields: readonly string[];
+  readonly created_at: string;
+  readonly decided_at?: string;
+  readonly decided_by_name?: string;
+}
+
 export type AggregatedRequestStatus = "approved" | "rejected" | "withdrawn";
 
+/**
+ * Der Zeitpunkt, nach dem alle Quellen des Eltern-Reiters gemeinsam sortiert
+ * werden: die Einreichung in der Arbeitsliste, die Entscheidung in der
+ * Historie.
+ */
+interface Occurred {
+  readonly occurred_at: string;
+}
+
+/** Eine Anmeldungsänderung als Zeile der gemeinsamen Liste. */
+export type EnrollmentRequestItem = Occurred & {
+  request_type: "enrollment";
+  data: EnrollmentChangeRequest;
+};
+
 export type AggregatedOpenRequest =
-  | { request_type: "master_data"; data: StaffMasterDataChange }
-  | { request_type: "care_schedule"; data: StaffCareRequest }
-  | { request_type: "offering"; data: StaffOfferingRequest }
-  | { request_type: "excused"; data: StaffExcusedRequest };
+  | (Occurred &
+      (
+        | { request_type: "master_data"; data: StaffMasterDataChange }
+        | { request_type: "care_schedule"; data: StaffCareRequest }
+        | { request_type: "offering"; data: StaffOfferingRequest }
+        | { request_type: "excused"; data: StaffExcusedRequest }
+      ))
+  | EnrollmentRequestItem;
 // Direkt-Korrekturen fehlen hier bewusst: sie haben keinen offenen Zustand.
 
 export type AggregatedHistoryRequest =
-  | { request_type: "master_data"; data: StaffMasterDataHistoryEntry }
-  | { request_type: "care_schedule"; data: StaffCareRequestHistoryEntry }
-  | { request_type: "offering"; data: StaffOfferingRequestHistoryEntry }
-  | { request_type: "excused"; data: StaffExcusedRequestHistoryEntry }
-  | { request_type: "direct_correction"; data: DirectCorrection };
+  | (Occurred &
+      (
+        | { request_type: "master_data"; data: StaffMasterDataHistoryEntry }
+        | { request_type: "care_schedule"; data: StaffCareRequestHistoryEntry }
+        | { request_type: "offering"; data: StaffOfferingRequestHistoryEntry }
+        | { request_type: "excused"; data: StaffExcusedRequestHistoryEntry }
+        | { request_type: "direct_correction"; data: DirectCorrection }
+      ))
+  | EnrollmentRequestItem;
 
 export interface AggregatedRequestPage<T> {
   readonly items: readonly T[];
@@ -86,6 +132,8 @@ export interface AggregatedRequestParams {
   /** Nur Historie, YYYY-MM-DD. */
   readonly to?: string;
   readonly cursor?: string;
+  /** Seitengröße; ohne Angabe entscheidet der Endpunkt. */
+  readonly limit?: number;
 }
 
 interface Envelope<T> {
@@ -106,6 +154,7 @@ function buildQuery(
   if (params.from) query.set("from", params.from);
   if (params.to) query.set("to", params.to);
   if (params.cursor) query.set("cursor", params.cursor);
+  if (params.limit) query.set("limit", String(params.limit));
   return `?${query.toString()}`;
 }
 
@@ -149,4 +198,33 @@ export function listAggregatedRequestHistory(
   params: AggregatedRequestParams = {},
 ): Promise<AggregatedRequestPage<AggregatedHistoryRequest>> {
   return fetchPage<AggregatedHistoryRequest>("history", params);
+}
+
+/**
+ * Anmeldungsänderungen, offen oder in der Historie (#2435). Gleiche Antwort-
+ * form wie oben, eigener Endpunkt hinter config:manage. Der Art-Filter wirkt
+ * hier clientseitig: die Quelle wird schlicht weggelassen, wenn die Art nicht
+ * gewählt ist.
+ */
+export async function listEnrollmentChangeRequests(
+  view: "open" | "history",
+  params: AggregatedRequestParams = {},
+): Promise<AggregatedRequestPage<EnrollmentRequestItem>> {
+  // Ohne Art-Filter: diese Quelle kennt nur eine Art.
+  const { types: _types, ...rest } = params;
+  const response = await fetch(
+    `/api/enrollment/admin/change-requests/list${buildQuery(view, rest)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    logger.warn("enrollment_change_request_list_load_failed", {
+      status: response.status,
+      view,
+    });
+    throw new Error("Anmeldungsänderungen konnten nicht geladen werden.");
+  }
+  const envelope = (await response.json()) as Envelope<
+    AggregatedRequestPage<EnrollmentRequestItem>
+  >;
+  return envelope.data;
 }

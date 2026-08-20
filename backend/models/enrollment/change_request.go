@@ -66,6 +66,29 @@ type ChangeRequestListFilters struct {
 	Limit     int
 }
 
+// ChangeRequestReviewFilters selects rows for the request module's Eltern tab
+// (#2435) — either the open working list or the decided history, newest first,
+// keyset-paginated.
+type ChangeRequestReviewFilters struct {
+	// Statuses is the exact status set to return; empty returns nothing,
+	// because "no status" is a caller bug, not "everything".
+	Statuses []string
+	// Search matches the name of an affected child, case-insensitively, as a
+	// substring of "first last".
+	Search string
+	// History switches ordering and the keyset column from created_at (the
+	// submission instant) to updated_at (the decision instant) and enables the
+	// decided-at range below.
+	History bool
+	// From and To bound the decision instant; zero means unbounded. History only.
+	From, To time.Time
+	// BeforeInstant and BeforeID are the keyset position of the last row the
+	// caller consumed. A zero instant returns the first page.
+	BeforeInstant time.Time
+	BeforeID      int64
+	Limit         int
+}
+
 type ChangeRequestRepository interface {
 	Create(ctx context.Context, row *ChangeRequest) error
 	FindByID(ctx context.Context, id int64) (*ChangeRequest, error)
@@ -73,6 +96,7 @@ type ChangeRequestRepository interface {
 	ListByRequestID(ctx context.Context, requestID int64) ([]*ChangeRequest, error)
 	ListOpenByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*ChangeRequest, error)
 	ListAdmin(ctx context.Context, filters ChangeRequestListFilters) ([]*ChangeRequest, error)
+	ListForReview(ctx context.Context, filters ChangeRequestReviewFilters) ([]*ChangeRequest, error)
 	MarkReviewed(ctx context.Context, id int64, status string, note *string, reviewerAccountID int64, reviewedAt time.Time) error
 	SetStatus(ctx context.Context, id int64, status string) error
 }

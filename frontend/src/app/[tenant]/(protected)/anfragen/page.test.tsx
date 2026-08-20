@@ -188,6 +188,46 @@ describe("AnfragenPage", () => {
     expect(listProbe().filters.types).toEqual([]);
   });
 
+  // Anmeldungsänderungen (#2435): eigene Art im selben Reiter, eigenes Recht.
+  it("lädt Anmeldungsänderungen nur mit config:manage mit", () => {
+    render(<AnfragenPage />);
+    expect(listProbe().filters.includeEnrollment).toBe(false);
+
+    mockUseSession.mockReturnValue(
+      sessionWith(["users:update", "config:manage"]),
+    );
+    render(<AnfragenPage />);
+    expect(
+      JSON.parse(
+        screen
+          .getAllByTestId("aggregated-list")[1]!
+          .getAttribute("data-filters") ?? "{}",
+      ),
+    ).toMatchObject({ includeEnrollment: true, includeAggregated: true });
+  });
+
+  it("bietet die Anfrageart Anmeldung nur mit config:manage an", () => {
+    render(<AnfragenPage />);
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    expect(screen.queryByText("Anmeldung")).toBeNull();
+  });
+
+  it("zeigt einer Person mit nur config:manage ausschließlich die Anmeldungen", () => {
+    mockUseSession.mockReturnValue(sessionWith(["config:manage"]));
+
+    render(<AnfragenPage />);
+
+    const probe = listProbe();
+    // Der Aggregator verlangt users:update oder users:absence — ohne beides
+    // darf er gar nicht erst gefragt werden, sonst antwortet er 403.
+    expect(probe.filters.includeAggregated).toBe(false);
+    expect(probe.filters.includeEnrollment).toBe(true);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    expect(screen.getByText("Anmeldung")).toBeInTheDocument();
+    expect(screen.queryByText("Stammdaten")).toBeNull();
+  });
+
   it("zeigt einer Person mit users:absence die Liste ohne Art-Filter", () => {
     mockUseSession.mockReturnValue(
       sessionWith(["users:read", "users:absence"]),

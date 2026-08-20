@@ -20,6 +20,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -109,6 +110,9 @@ type ChangeRequestService interface {
 	Reject(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
 	Approve(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
 	CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error)
+	// ListForReview serves the request module's Eltern tab: open requests
+	// ordered by submission, decided ones by decision, keyset-paginated.
+	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) (items []*ChangeRequestReviewItem, next *usersService.HistoryCursor, err error)
 }
 
 type ChangeRequestServiceConfig struct {
@@ -127,6 +131,10 @@ type ChangeRequestServiceConfig struct {
 	SchoolRepo               platformModels.SchoolRepository
 	GuardianProfileRepo      userModels.GuardianProfileRepository
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
+	// PersonRepo resolves the deciding staffer's display name for the review
+	// list (#2435). Optional: without it the list still renders, just without
+	// reviewer names.
+	PersonRepo userModels.PersonRepository
 	// StudentRepo and GuardianAuthorizer back the existing_students pin
 	// reconciliation on approval (#1663): an approved change request may edit a
 	// child's name/birthday, and the pinned matched student must follow that

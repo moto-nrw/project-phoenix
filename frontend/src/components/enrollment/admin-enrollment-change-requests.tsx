@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,20 +16,17 @@ import {
   approveEnrollmentChangeRequest,
   askEnrollmentChangeRequestQuestion,
   getAdminEnrollmentChangeRequest,
-  listAdminEnrollmentChangeRequests,
   rejectEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequestStatus,
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
-import { CustomSelect } from "~/components/ui/custom-select";
 import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -54,166 +51,6 @@ const CHANGE_REQUEST_STATUS_TONES: Record<
   rejected: "red",
   cancelled: "gray",
 };
-
-const STATUS_OPTIONS: Array<{
-  value: "" | AdminEnrollmentChangeRequestStatus;
-  label: string;
-}> = [
-  { value: "", label: "Alle" },
-  { value: "pending_review", label: "Wartet auf Prüfung" },
-  { value: "needs_parent_response", label: "Rückfrage offen" },
-  { value: "approved", label: "Freigegeben" },
-  { value: "rejected", label: "Abgelehnt" },
-];
-
-export function AdminEnrollmentChangeRequestsList() {
-  const tenantPath = useTenantAwarePath();
-  const [rows, setRows] = useState<AdminEnrollmentChangeRequest[]>([]);
-  const [status, setStatus] = useState<"" | AdminEnrollmentChangeRequestStatus>(
-    "",
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const fresh = await listAdminEnrollmentChangeRequests(
-        status ? { status } : {},
-      );
-      setRows(fresh);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("change_requests_list_failed", { error: message });
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [status]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const stats = useMemo(() => summarizeChangeRequests(rows), [rows]);
-
-  return (
-    <div className="space-y-5">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Anmeldungen
-            </p>
-            <h1 className="mt-1 text-xl font-semibold text-gray-900">
-              Änderungsanfragen
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-              Prüfe Korrekturen von Familien und sieh protokollierte
-              OGS-Korrekturen ein. Freigegebene Änderungen werden in die
-              Anmeldung und bei bestätigten Kindern in die Stammdaten
-              übernommen.
-            </p>
-          </div>
-          <label
-            className="block w-full sm:w-64"
-            htmlFor="change-request-status-filter"
-          >
-            <span className="text-xs font-semibold text-gray-500 uppercase">
-              Status
-            </span>
-            <CustomSelect
-              id="change-request-status-filter"
-              value={status}
-              onChange={(value) =>
-                setStatus(value as "" | AdminEnrollmentChangeRequestStatus)
-              }
-              ariaLabel="Status"
-              className="mt-2"
-              options={STATUS_OPTIONS}
-            />
-          </label>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <Metric label="Offen" value={stats.open} />
-          <Metric label="Rückfragen" value={stats.waitingForParent} />
-          <Metric label="Abgeschlossen" value={stats.closed} />
-        </div>
-      </section>
-
-      {error ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <p className="text-sm text-gray-500">
-          Änderungsanfragen werden geladen...
-        </p>
-      ) : rows.length === 0 ? (
-        <section className="moto-content-surface rounded-2xl border p-5 text-sm text-gray-600 shadow-sm">
-          Keine Änderungsanfragen für den gewählten Status.
-        </section>
-      ) : (
-        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-          <ul className="divide-y divide-gray-100">
-            {rows.map((row) => {
-              const request = row.request;
-              return (
-                <li key={row.id}>
-                  <Link
-                    href={tenantPath(
-                      `/admin/enrollments/change-requests/${encodeURIComponent(row.id)}`,
-                    )}
-                    className="group grid gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ChangeRequestStatusBadge status={row.status} />
-                        {row.origin === "admin" ? (
-                          <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2.5 py-1 text-xs font-medium">
-                            OGS-Korrektur
-                          </span>
-                        ) : null}
-                        <span className="text-xs text-gray-500">
-                          {formatDateTime(row.created_at)}
-                        </span>
-                      </div>
-                      <h2 className="mt-2 text-sm font-semibold text-gray-900">
-                        {request
-                          ? `${request.guardian_first_name} ${request.guardian_last_name}`
-                          : `Anmeldung #${row.request_id}`}
-                      </h2>
-                      <p className="mt-1 truncate text-sm text-gray-600">
-                        {row.parent_note?.trim() ||
-                          row.admin_decision_note?.trim() ||
-                          changedFieldLabels(row).join(", ") ||
-                          "Keine Notiz hinterlegt"}
-                      </p>
-                      {request ? (
-                        <p className="mt-1 text-xs text-gray-500">
-                          {request.phase_name || "Keine Phase"} ·{" "}
-                          {request.children.length} Kind(er)
-                        </p>
-                      ) : null}
-                    </div>
-                    <span className="inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-700 group-hover:bg-white group-hover:shadow-sm">
-                      Öffnen
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-    </div>
-  );
-}
 
 export function AdminEnrollmentChangeRequestDetail({
   changeRequestId,
@@ -324,11 +161,11 @@ export function AdminEnrollmentChangeRequestDetail({
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
           <Link
-            href={tenantPath("/admin/enrollments/change-requests")}
+            href={tenantPath("/anfragen")}
             className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zu Änderungsanfragen
+            Zurück zu den Anfragen
           </Link>
         </div>
 
@@ -601,25 +438,6 @@ function InfoRow({
   );
 }
 
-function Metric({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: number;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2">
-      <span className="block text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </span>
-      <span className="mt-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
-
 function ChangeRequestStatusBadge({
   status,
 }: {
@@ -631,32 +449,6 @@ function ChangeRequestStatusBadge({
       tone={CHANGE_REQUEST_STATUS_TONES[status]}
     />
   );
-}
-
-function changedFieldLabels(request: AdminEnrollmentChangeRequest): string[] {
-  return changedEnrollmentChangeRequestLabels({
-    baseSnapshot: request.base_snapshot,
-    proposedSnapshot: request.proposed_snapshot,
-    diff: request.diff,
-  });
-}
-
-function summarizeChangeRequests(rows: AdminEnrollmentChangeRequest[]) {
-  let open = 0;
-  let waitingForParent = 0;
-  let closed = 0;
-  for (const row of rows) {
-    if (row.status === "pending_review") open += 1;
-    if (row.status === "needs_parent_response") waitingForParent += 1;
-    if (
-      row.status === "approved" ||
-      row.status === "rejected" ||
-      row.status === "cancelled"
-    ) {
-      closed += 1;
-    }
-  }
-  return { open, waitingForParent, closed };
 }
 
 function formatDateTime(value: string): string {
