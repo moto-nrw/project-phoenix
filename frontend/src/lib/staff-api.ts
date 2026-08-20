@@ -804,27 +804,6 @@ export interface StaffAbsenceRequestRow extends Omit<
   updated_at?: string;
 }
 
-interface BackendStaffAbsenceRequestRow extends Omit<
-  StaffAbsenceRequestRow,
-  "id" | "staff_id" | "approved_by"
-> {
-  id: number;
-  staff_id: number;
-  approved_by?: number | null;
-}
-
-function mapStaffAbsenceRequestRow(
-  data: BackendStaffAbsenceRequestRow,
-): StaffAbsenceRequestRow {
-  return {
-    ...data,
-    id: data.id.toString(),
-    staff_id: data.staff_id.toString(),
-    approved_by:
-      data.approved_by == null ? data.approved_by : data.approved_by.toString(),
-  };
-}
-
 // Vacation takeover at the moto introduction (#2132): days already taken
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
@@ -1073,9 +1052,9 @@ class StaffAbsenceService {
       );
     }
     const json = (await response.json()) as {
-      data: BackendStaffAbsenceRequestRow[] | null;
+      data: StaffAbsenceRequestRow[] | null;
     };
-    return (json.data ?? []).map(mapStaffAbsenceRequestRow);
+    return json.data ?? [];
   }
 
   // Rückfrage: moves a requested absence into status "question" with a

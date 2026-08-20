@@ -1749,9 +1749,9 @@ describe("staff-api", () => {
           Promise.resolve({
             data: [
               {
-                id: 9007199254740992,
-                staff_id: 9007199254740992,
-                approved_by: 9007199254740992,
+                id: "9007199254740993",
+                staff_id: "9007199254740993",
+                approved_by: "9007199254740993",
                 staff_name: "Mira Muster",
                 status: "requested",
               },
@@ -1771,9 +1771,9 @@ describe("staff-api", () => {
       expect(result).toHaveLength(1);
       expect(result[0]?.staff_name).toBe("Mira Muster");
       expect(result[0]).toMatchObject({
-        id: "9007199254740992",
-        staff_id: "9007199254740992",
-        approved_by: "9007199254740992",
+        id: "9007199254740993",
+        staff_id: "9007199254740993",
+        approved_by: "9007199254740993",
       });
     });
 
