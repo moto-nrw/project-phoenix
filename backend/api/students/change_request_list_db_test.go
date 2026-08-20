@@ -128,13 +128,6 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	request.TenantID = student.TenantID
 	_, err := tc.db.NewInsert().Model(request).Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, cleanupErr := tc.db.NewDelete().Model((*userModels.StudentDataChangeRequest)(nil)).
-			Where("id = ?", request.ID).Exec(t.Context())
-		if cleanupErr != nil {
-			t.Logf("cleanup of change request %d failed: %v", request.ID, cleanupErr)
-		}
-	})
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 
