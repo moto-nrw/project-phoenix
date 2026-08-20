@@ -61,6 +61,9 @@ export function useUserContext(): UseUserContextReturn {
       }
 
       const json = (await response.json()) as ApiResponse<UserContextResponse>;
+      if (json.data.incomplete) {
+        throw new Error("User context fetch returned incomplete data");
+      }
       return json.data;
     },
   );

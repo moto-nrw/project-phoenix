@@ -176,5 +176,35 @@ describe("useUserContext", () => {
 
       fetchMock.mockRestore();
     });
+
+    it("rejects incomplete user context data", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              educationalGroups: [],
+              supervisedGroups: [],
+              currentStaff: null,
+              educationalGroupIds: [],
+              educationalGroupRoomNames: [],
+              supervisedRoomNames: [],
+              incomplete: true,
+              unavailableSections: ["supervised_groups"],
+            },
+          }),
+      } as Response);
+
+      renderHook(() => useUserContext());
+      const fetcher = vi.mocked(useImmutableSWR).mock.calls[0]?.[1];
+
+      if (fetcher) {
+        await expect(fetcher()).rejects.toThrow(
+          "User context fetch returned incomplete data",
+        );
+      }
+
+      fetchMock.mockRestore();
+    });
   });
 });

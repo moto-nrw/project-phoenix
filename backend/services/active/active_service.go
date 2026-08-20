@@ -1032,13 +1032,16 @@ func (s *service) broadcastVisitMoved(
 	previousVisit, movedVisit *active.Visit,
 	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
 ) {
-	if s.Broadcaster == nil || previousVisit == nil || movedVisit == nil {
+	if previousVisit == nil || movedVisit == nil {
 		return
 	}
 
 	// Moving a visit used to delegate to broadcastVisitCreated, which also
 	// wakes guardians. Keep that side effect while reusing the resolved student.
 	s.wakeGuardiansAfterCommit(ctx, movedVisit.StudentID)
+	if s.Broadcaster == nil {
+		return
+	}
 	studentRec := s.getStudentForSSE(ctx, movedVisit.StudentID)
 	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, studentRec, "")
 	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, studentRec)
