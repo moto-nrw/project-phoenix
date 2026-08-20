@@ -41,11 +41,17 @@ func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int
 }
 
 type wtmMockBreakReader struct {
-	breaks map[int64][]*activeModels.WorkSessionBreak
+	breaks     map[int64][]*activeModels.WorkSessionBreak
+	batchCalls int
 }
 
 func (m *wtmMockBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	return m.breaks[sessionID], nil
+}
+
+func (m *wtmMockBreakReader) GetBySessionIDs(_ context.Context, _ []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	m.batchCalls++
+	return m.breaks, nil
 }
 
 type wtmMockAbsenceReader struct {

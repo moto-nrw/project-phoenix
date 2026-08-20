@@ -130,6 +130,14 @@ func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64
 	return r.p.breaks[sessionID], nil
 }
 
+func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	result := make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		result[sessionID] = r.p.breaks[sessionID]
+	}
+	return result, nil
+}
+
 type prefetchedAbsenceReader struct{ p *monthPrefetch }
 
 func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {

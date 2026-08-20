@@ -932,4 +932,47 @@ describe("indexWorkSessionMinutesByBerlinDate", () => {
       ]),
     );
   });
+
+  it("uses the server net value while a break is still running", () => {
+    const session: WorkSessionHistory = {
+      id: "1",
+      staffId: "1",
+      date: "2026-07-20",
+      status: "present",
+      checkInTime: "2026-07-20T20:00:00.000Z",
+      checkOutTime: null,
+      breakMinutes: 0,
+      notes: "",
+      autoCheckedOut: false,
+      createdBy: "1",
+      updatedBy: null,
+      createdAt: "",
+      updatedAt: "",
+      netMinutes: 90,
+      isOvertime: false,
+      isBreakCompliant: true,
+      restPeriodWarning: null,
+      breaks: [
+        {
+          id: "break",
+          sessionId: "1",
+          startedAt: "2026-07-20T21:30:00.000Z",
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: null,
+        },
+      ],
+      editCount: 0,
+    };
+
+    const indexed = indexWorkSessionMinutesByBerlinDate(
+      [session],
+      new Date("2026-07-20T23:00:00.000Z"),
+    );
+    expect(
+      [...indexed.values()].reduce((sum, day) => sum + day.netMinutes, 0),
+    ).toBe(90);
+    expect(indexed.get("2026-07-20")?.breakMinutes).toBe(30);
+    expect(indexed.get("2026-07-21")?.breakMinutes).toBe(60);
+  });
 });

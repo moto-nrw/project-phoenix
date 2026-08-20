@@ -178,6 +178,7 @@ type monthSessionReader interface {
 // monthBreakReader is implemented by active.WorkSessionBreakRepository.
 type monthBreakReader interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error)
 }
 
 // monthAbsenceReader is implemented by active.StaffAbsenceRepository.
@@ -574,23 +575,38 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
 	now := time.Now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return err
+	}
 	for _, session := range sessions {
 		end := balanceSessionEnd(session, now, today)
 		if !end.After(session.CheckInTime) {
 			continue
 		}
 
-		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
-		if err != nil {
-			return fmt.Errorf("failed to load breaks for work session %d: %w", session.ID, err)
-		}
-		for day, minutes := range netMinutesByDate(session, breaks, end, first, today) {
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
 			if agg, ok := aggregates[monthOf(day)]; ok {
 				agg.actual += minutes
 			}
 		}
 	}
 	return nil
+}
+
+func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions []*activeModels.WorkSession) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	ids := make([]int64, 0, len(sessions))
+	for _, session := range sessions {
+		ids = append(ids, session.ID)
+	}
+	if len(ids) == 0 {
+		return map[int64][]*activeModels.WorkSessionBreak{}, nil
+	}
+	breaks, err := s.breakRepo.GetBySessionIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load work session breaks: %w", err)
+	}
+	return breaks, nil
 }
 
 // sessionEndUpTo clamps a session end at now. This prevents a future
@@ -1294,12 +1310,12 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	}
 	actualByDate := make(map[timezone.Date]int)
 	now := time.Now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return nil, err
+	}
 	for _, session := range sessions {
-		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load breaks for work session %d: %w", session.ID, err)
-		}
-		for day, minutes := range netMinutesByDate(session, breaks, balanceSessionEnd(session, now, timezone.TodayDate()), from, to) {
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], balanceSessionEnd(session, now, timezone.TodayDate()), from, to) {
 			actualByDate[day] += minutes
 		}
 	}

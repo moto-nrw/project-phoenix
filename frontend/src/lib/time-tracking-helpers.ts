@@ -276,13 +276,10 @@ export function indexWorkSessionMinutesByBerlinDate(
       }
     }
 
-    const netTotal = session.checkOutTime
-      ? session.netMinutes
-      : Math.max(
-          0,
-          Math.floor((end.getTime() - start.getTime()) / 60_000) -
-            session.breakMinutes,
-        );
+    // The server's live net_minutes already deducts a currently running
+    // break. Recomputing it from the ended-break cache would make the chart
+    // continue to count work during that break.
+    const netTotal = session.netMinutes;
     const grossTotal = [...grossByDate.values()].reduce(
       (sum, value) => sum + value,
       0,

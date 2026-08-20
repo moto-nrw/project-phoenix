@@ -238,6 +238,28 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.delta).toBe(960 - 1680);
   });
 
+  it("counts only the Monday share of a block started on Sunday", () => {
+    const monday = new Date(2026, 7, 3);
+    const totals = computePeriodTotalsFromTargets(
+      new Map([["2026-08-03", 480]]),
+      [
+        session({
+          date: "2026-08-02",
+          check_in_time: "2026-08-02T20:00:00.000Z", // 22:00 CEST
+          check_out_time: "2026-08-03T00:00:00.000Z", // 02:00 CEST
+          net_minutes: 240,
+        }),
+      ],
+      [],
+      monday,
+      monday,
+      monday,
+    );
+
+    expect(totals.ist).toBe(120);
+    expect(totals.delta).toBe(-360);
+  });
+
   it("prices the delta against the Soll up to today, but Soll for the full week", () => {
     // Tuesday: Wed-Fri have not happened yet and must not read as Minusstunden.
     const tuesday = new Date(2026, 7, 4);

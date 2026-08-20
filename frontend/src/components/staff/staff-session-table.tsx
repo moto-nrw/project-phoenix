@@ -890,17 +890,25 @@ export function StaffSessionTable({
                                 onEdit={
                                   isAdminView
                                     ? () => {
+                                        const originalBlock = block.id
+                                          ? (originalSessionsByID.get(
+                                              block.id,
+                                            ) ?? block)
+                                          : block;
+                                        const originalBlockDate = parseISODate(
+                                          originalBlock.date,
+                                        );
                                         if (onEditDay) {
                                           onEditDay(
-                                            day,
-                                            block,
+                                            originalBlockDate,
+                                            originalBlock,
                                             absence ?? null,
                                           );
                                         } else {
                                           setEditModal({
                                             mode: "edit",
-                                            date: day,
-                                            session: block,
+                                            date: originalBlockDate,
+                                            session: originalBlock,
                                           });
                                         }
                                       }
