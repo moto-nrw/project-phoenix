@@ -1479,6 +1479,7 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 		return nil
 	}
 
+	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
 	if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
 		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
@@ -1486,7 +1487,6 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 	brk.DurationMinutes = bu.DurationMinutes
 	brk.EndedAt = &newEndedAt
 
-	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newVal := strconv.Itoa(bu.DurationMinutes)
 	uc.addAuditEdit(auditModels.FieldBreakDuration, strPtr(oldVal), strPtr(newVal))
 	return nil

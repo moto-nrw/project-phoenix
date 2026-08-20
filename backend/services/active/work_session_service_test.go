@@ -2626,6 +2626,10 @@ func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
 		assert.Equal(t, auditModels.FieldBreakDuration, edits[0].FieldName)
+		require.NotNil(t, edits[0].OldValue)
+		require.NotNil(t, edits[0].NewValue)
+		assert.Equal(t, "30", *edits[0].OldValue)
+		assert.Equal(t, "45", *edits[0].NewValue)
 		return nil
 	}
 
