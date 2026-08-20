@@ -3928,6 +3928,71 @@ describe("TimeTrackingPage", () => {
 
   // ── ClockInCard - checked out state ───────────────────────────────────
 
+  // ── ClockInCard - Blöcke über Mitternacht ─────────────────────────────
+
+  describe("ClockInCard - overnight blocks", () => {
+    // A block that runs past midnight is booked on both Berlin days: the
+    // minutes before midnight belong to yesterday, only the rest to today.
+    // The timer showed the whole elapsed time before #2402.
+    it("counts only today's share of a still-running overnight block", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T01:30:00"));
+      try {
+        setupDefaultMocks({
+          currentSession: {
+            ...mockActiveSession,
+            date: "2026-01-14",
+            checkInTime: "2026-01-14T22:00:00",
+            checkOutTime: null,
+          },
+          history: [],
+        });
+        render(<TimeTrackingPage />);
+
+        // 22:00 → 01:30 is 3h 30min elapsed, 1h 30min of it on 15.01. The
+        // timer is the only element carrying the day total, so a unique
+        // match on it pins the clamp.
+        expect(screen.getByText("1h 30min")).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("adds today's share of a closed overnight block to the running one", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T09:00:00"));
+      try {
+        const closedOvernight: WorkSessionHistory = {
+          ...mockHistorySession,
+          id: "900",
+          date: "2026-01-14",
+          checkInTime: "2026-01-14T22:00:00",
+          checkOutTime: "2026-01-15T02:00:00",
+          breakMinutes: 0,
+          netMinutes: 240,
+          breaks: [],
+        };
+        setupDefaultMocks({
+          currentSession: {
+            ...mockActiveSession,
+            date: "2026-01-15",
+            checkInTime: "2026-01-15T08:00:00",
+            checkOutTime: null,
+          },
+          history: [closedOvernight],
+        });
+        render(<TimeTrackingPage />);
+
+        // 2h of the night block fall on 15.01., plus 1h since 08:00 — the
+        // other 2h stay on 14.01.
+        expect(screen.getByText("3h")).toBeInTheDocument();
+        expect(screen.queryByText("5h")).not.toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("ClockInCard - checked out summary", () => {
     it("shows Arbeit with check-in and check-out times", () => {
       setupDefaultMocks({ currentSession: mockCheckedOutSession });

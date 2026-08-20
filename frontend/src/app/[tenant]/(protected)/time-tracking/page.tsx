@@ -65,6 +65,7 @@ import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  berlinDayStart,
   berlinTodayISO,
   formatDate,
   parseISODate,
@@ -423,14 +424,43 @@ function getTodayDisplayValue(
   return "--";
 }
 
-// Calculate gross minutes for checked-in session
+// Gross minutes of the running block that fall on TODAY. A block started
+// before midnight keeps running past it, but its earlier minutes belong to
+// the previous Berlin day — the page books them there via the Berlin-date
+// split, so counting them again here would credit a whole night to today.
 function calcGrossMinutes(
   isCheckedIn: boolean,
   session: WorkSession | null,
   now: Date,
 ): number {
   if (!isCheckedIn || !session) return 0;
-  return calcElapsedMinutes(session.checkInTime, now);
+  const start = new Date(session.checkInTime);
+  if (Number.isNaN(start.getTime())) return 0;
+  const dayStart = berlinDayStart(now);
+  return calcElapsedMinutes(start > dayStart ? start : dayStart, now);
+}
+
+// Break minutes of the running block that fall inside [from, now]. Used for a
+// block that started before midnight: its cached breakMinutes covers the whole
+// block, and deducting yesterday's pause from today's live figure would
+// understate today's work.
+function calcBreakMinutesSince(
+  breaks: readonly WorkSessionBreak[],
+  from: Date,
+  now: Date,
+): number {
+  let totalMs = 0;
+  for (const workBreak of breaks) {
+    const start = new Date(workBreak.startedAt).getTime();
+    const end = workBreak.endedAt
+      ? new Date(workBreak.endedAt).getTime()
+      : now.getTime();
+    if (Number.isNaN(start) || Number.isNaN(end)) continue;
+    const overlap =
+      Math.min(end, now.getTime()) - Math.max(start, from.getTime());
+    if (overlap > 0) totalMs += overlap;
+  }
+  return Math.floor(totalMs / 60_000);
 }
 
 // Calculate countdown remaining seconds for break timer
@@ -627,9 +657,19 @@ function ClockInCard({
   const now = new Date();
 
   const breakMins = currentSession?.breakMinutes ?? 0;
+  // Same midnight boundary as calcGrossMinutes: for an overnight block the
+  // pauses are re-derived from the break rows so only today's share is
+  // deducted from today's live minutes.
+  const dayStart = berlinDayStart(now);
+  const startedBeforeToday =
+    isCheckedIn &&
+    currentSession !== null &&
+    new Date(currentSession.checkInTime).getTime() < dayStart.getTime();
 
   // Calculate derived time values using extracted helpers
-  const liveBreakMins = calcLiveBreakMins(breakMins, activeBreak, now);
+  const liveBreakMins = startedBeforeToday
+    ? calcBreakMinutesSince(breaks, dayStart, now)
+    : calcLiveBreakMins(breakMins, activeBreak, now);
   const grossMinutes = calcGrossMinutes(isCheckedIn, currentSession, now);
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
   const dayNetMinutes = completedTodayMinutes + netMinutes;
@@ -3402,23 +3442,44 @@ function TimeTrackingContent() {
     });
   }, [fetchBreaks]);
 
-  // Calculate weekly minutes from history (current week only, completed sessions)
-  const weeklyCompletedMinutes = history
-    .filter((s) => s.date >= weekFromDate && s.date <= toDate)
-    .reduce((sum, s) => {
-      if (s.checkOutTime) return sum + s.netMinutes;
-      return sum;
-    }, 0);
-  const completedToday = history.reduce(
-    (total, session) => {
-      if (session.date !== todayISO || !session.checkOutTime) return total;
-      return {
-        minutes: total.minutes + session.netMinutes,
-        breaks: total.breaks + session.breakMinutes,
-      };
-    },
-    { minutes: 0, breaks: 0 },
+  // Weekly and daily minutes for the stamp card. Every block is booked on the
+  // Berlin calendar day its minutes actually fall on — a block from 22:00 to
+  // 02:00 splits across both days — which is what the week chart, the
+  // Monatskarte and the server-side balance do. Summing whole netMinutes onto
+  // the row's check-in date instead would put a whole night on the day it
+  // started and contradict all three.
+  const closedMinutesByDate = useMemo(
+    () =>
+      indexWorkSessionMinutesByBerlinDate(
+        history.filter((session) => session.checkOutTime !== null),
+      ),
+    [history],
   );
+  const allMinutesByDate = useMemo(
+    () => indexWorkSessionMinutesByBerlinDate(history),
+    [history],
+  );
+  // Today counts only closed blocks: ClockInCard adds the running one live
+  // (clamped to today, see calcGrossMinutes). On the earlier days of the week
+  // the running block's minutes are already final, so those do count here.
+  const weeklyCompletedMinutes = useMemo(() => {
+    let sum = 0;
+    for (const [date, minutes] of allMinutesByDate) {
+      if (date < weekFromDate || date > toDate || date === todayISO) continue;
+      sum += minutes.netMinutes;
+    }
+    if (todayISO >= weekFromDate && todayISO <= toDate) {
+      sum += closedMinutesByDate.get(todayISO)?.netMinutes ?? 0;
+    }
+    return sum;
+  }, [allMinutesByDate, closedMinutesByDate, weekFromDate, toDate, todayISO]);
+  const completedToday = useMemo(() => {
+    const today = closedMinutesByDate.get(todayISO);
+    return {
+      minutes: today?.netMinutes ?? 0,
+      breaks: today?.breakMinutes ?? 0,
+    };
+  }, [closedMinutesByDate, todayISO]);
 
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
