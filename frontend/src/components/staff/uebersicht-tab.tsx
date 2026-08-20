@@ -49,7 +49,11 @@ import {
   toDateKey,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
-import { parseISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  endOfBerlinDayISO,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
@@ -868,6 +872,107 @@ interface TrendPoint {
   balance: number;
 }
 
+// Splits each block at Berlin midnight before the chart series aggregate it.
+// History rows retain their original check-in date by design, but the monthly
+// balance books their net time on every Berlin calendar day the interval
+// touches. Charts must use the same allocation or a night block shifts Ist and
+// Saldo into the wrong day/week.
+export function indexSessionNetMinutesByBerlinDate(
+  sessions: readonly StaffHistorySession[],
+): Map<string, number> {
+  const byDate = new Map<string, number>();
+  for (const session of sessions) {
+    for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
+      byDate.set(date, (byDate.get(date) ?? 0) + minutes);
+    }
+  }
+  return byDate;
+}
+
+function splitSessionNetMinutesByBerlinDate(
+  session: StaffHistorySession,
+): Map<string, number> {
+  const start = new Date(session.check_in_time);
+  const end = session.check_out_time
+    ? new Date(session.check_out_time)
+    : new Date();
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    !end.getTime() ||
+    end <= start
+  ) {
+    return new Map([[session.date.slice(0, 10), session.net_minutes]]);
+  }
+
+  const grossByDate = new Map<string, number>();
+  const breakByDate = new Map<string, number>();
+  let cursor = start;
+  while (cursor < end) {
+    const date = berlinTodayISO(cursor);
+    const nextMidnight =
+      new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+    const segmentEnd = new Date(Math.min(nextMidnight, end.getTime()));
+    const grossMinutes = (segmentEnd.getTime() - cursor.getTime()) / 60_000;
+    grossByDate.set(date, (grossByDate.get(date) ?? 0) + grossMinutes);
+
+    for (const workBreak of session.breaks ?? []) {
+      const breakStart = new Date(workBreak.started_at);
+      const breakEnd = workBreak.ended_at ? new Date(workBreak.ended_at) : end;
+      if (
+        Number.isNaN(breakStart.getTime()) ||
+        Number.isNaN(breakEnd.getTime())
+      ) {
+        continue;
+      }
+      const overlapStart = Math.max(cursor.getTime(), breakStart.getTime());
+      const overlapEnd = Math.min(segmentEnd.getTime(), breakEnd.getTime());
+      if (overlapEnd > overlapStart) {
+        breakByDate.set(
+          date,
+          (breakByDate.get(date) ?? 0) + (overlapEnd - overlapStart) / 60_000,
+        );
+      }
+    }
+    cursor = segmentEnd;
+  }
+
+  const rawNetByDate = new Map<string, number>();
+  let totalRawNet = 0;
+  for (const [date, grossMinutes] of grossByDate) {
+    const netMinutes = Math.max(0, grossMinutes - (breakByDate.get(date) ?? 0));
+    rawNetByDate.set(date, netMinutes);
+    totalRawNet += netMinutes;
+  }
+  return distributeNetMinutes(rawNetByDate, totalRawNet, session.net_minutes);
+}
+
+function distributeNetMinutes(
+  rawNetByDate: ReadonlyMap<string, number>,
+  totalRawNet: number,
+  netMinutes: number,
+): Map<string, number> {
+  if (totalRawNet <= 0) {
+    return new Map();
+  }
+
+  const shares = [...rawNetByDate.entries()].map(([date, rawMinutes]) => {
+    const exact = (rawMinutes / totalRawNet) * netMinutes;
+    return { date, minutes: Math.floor(exact), remainder: exact % 1 };
+  });
+  let remaining =
+    netMinutes - shares.reduce((sum, share) => sum + share.minutes, 0);
+  shares.sort(
+    (left, right) =>
+      right.remainder - left.remainder || left.date.localeCompare(right.date),
+  );
+  for (let index = 0; remaining > 0; index = (index + 1) % shares.length) {
+    shares[index]!.minutes += 1;
+    remaining -= 1;
+  }
+  return new Map(shares.map(({ date, minutes }) => [date, minutes]));
+}
+
 // Cumulative weekly balance series over [from, to]. Running total starts at 0
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
@@ -880,12 +985,7 @@ function buildWeeklyBalanceSeriesRange(
   to: Date,
 ): TrendPoint[] {
   const points: TrendPoint[] = [];
-  // Summed per day — a day can carry several work blocks (#2402).
-  const istByDate = new Map<string, number>();
-  for (const s of sessions) {
-    const key = s.date.slice(0, 10);
-    istByDate.set(key, (istByDate.get(key) ?? 0) + s.net_minutes);
-  }
+  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
   // Stundenkonto-Buchungen (#1420) als Stufen am Wirksamkeitstag — gespiegelt
   // zum Server (addAdjustments): der Saldo-Verlauf muss nach einer Auszahlung
@@ -990,12 +1090,7 @@ function buildDailyIstSollSeriesRange(
   from: Date,
   to: Date,
 ): DailyTrendPoint[] {
-  // Summed per day — a day can carry several work blocks (#2402).
-  const istByDate = new Map<string, number>();
-  for (const s of sessions) {
-    const key = s.date.slice(0, 10);
-    istByDate.set(key, (istByDate.get(key) ?? 0) + s.net_minutes);
-  }
+  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
 
   const result: DailyTrendPoint[] = [];
