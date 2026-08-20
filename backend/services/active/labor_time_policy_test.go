@@ -309,6 +309,22 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 		assert.False(t, eval.IsBreakCompliant, "back-to-back blocks earn no gap credit")
 	})
 
+	t.Run("does not combine a short gap with a break", func(t *testing.T) {
+		first := block(1, 8, 0, 12, 0, 0)
+		second := block(2, 12, 5, 15, 30, 25)
+		breakStart := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+		breakEnd := breakStart.Add(25 * time.Minute)
+		breaks := map[int64][]*activeModels.WorkSessionBreak{
+			second.ID: {{StartedAt: breakStart, EndedAt: &breakEnd}},
+		}
+
+		eval := EvaluateDayLaborTime([]*activeModels.WorkSession{first, second}, breaks, fixedNow)
+		assert.Equal(t, 420, eval.NetMinutes)
+		assert.Equal(t, 25, eval.BreakMinutes)
+		assert.Equal(t, 30, eval.RequiredBreakMinutes)
+		assert.False(t, eval.IsBreakCompliant, "a five-minute gap is not a qualifying break interval")
+	})
+
 	t.Run("open second block measures against now", func(t *testing.T) {
 		open := &activeModels.WorkSession{
 			CheckInTime: time.Date(2026, 8, 17, 13, 30, 0, 0, time.UTC),

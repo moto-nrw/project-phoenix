@@ -360,11 +360,12 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		}
 	}
 
-	// The labor-time figures cover the WHOLE day, not just the current block:
+	// The labor-time figures cover the complete workday, not just the current block:
 	// with a Homeoffice morning and an OGS afternoon (#2402) the kiosk must
-	// show the summed work time, and §4 ArbZG judges the day as a whole (the
-	// gap between blocks counts as break for the compliance check).
-	evaluation := activeSvc.EvaluateDayLaborTime(sessions, breaksBySession, now, day)
+	// show the summed work time, and §4 ArbZG judges the day as a whole. A block
+	// that remains open across midnight stays one continuous workday here; its
+	// check-out is still written to the original block.
+	evaluation := activeSvc.EvaluateWorkSessionsLaborTime(sessions, breaksBySession, now)
 	result.NetMinutes = evaluation.NetMinutes
 	result.BreakMinutes = evaluation.BreakMinutes
 	result.RequiredBreakMinutes = evaluation.RequiredBreakMinutes

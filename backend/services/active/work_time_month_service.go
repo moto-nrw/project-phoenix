@@ -606,17 +606,26 @@ func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time 
 
 const maxOpenWorkSessionDuration = 12 * time.Hour
 
+// BalanceSessionEnd applies the live balance limit using the Berlin day of
+// now. Readers outside this package (notably the kiosk) use it so a running
+// block cannot produce a different total from the monthly balance.
+func BalanceSessionEnd(session *activeModels.WorkSession, now time.Time) time.Time {
+	return balanceSessionEnd(session, now, timezone.DateFromTime(now))
+}
+
 func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
 	end := sessionEndUpTo(session, now)
-	if session.Date.Before(today.AddDays(-1)) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+	maxEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration)
+	if !end.After(maxEnd) {
+		return end
+	}
+	if session.Date.Before(today.AddDays(-1)) {
 		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
 			return staleEnd
 		}
 	}
-	if !session.Date.Before(today.AddDays(-1)) && session.Date.Before(today) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
-		if staleEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration); staleEnd.Before(end) {
-			return staleEnd
-		}
+	if !session.Date.Before(today.AddDays(-1)) && session.Date.Before(today) {
+		return maxEnd
 	}
 	return end
 }

@@ -536,6 +536,10 @@ func TestBalanceSessionEnd_AllowsOpenNightBlockButCapsStaleBlock(t *testing.T) {
 
 	stale := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour)}
 	assert.Equal(t, stale.CheckInTime.Add(maxOpenWorkSessionDuration), balanceSessionEnd(stale, now, timezone.DateFromTime(now)))
+
+	lateCheckout := now
+	stale.CheckOutTime = &lateCheckout
+	assert.Equal(t, stale.CheckInTime.Add(maxOpenWorkSessionDuration), balanceSessionEnd(stale, now, timezone.DateFromTime(now)), "a late checkout must not bypass the stale-session limit")
 }
 
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical

@@ -327,6 +327,28 @@ func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
 	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
 }
 
+func TestGetState_OpenNightSessionCountsThroughMidnight(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 21, 23, 45, 0, 0, timezone.Berlin)
+	now := openedAt.Add(45 * time.Minute)
+	open := nightSession(openedAt)
+	breakStart := openedAt.Add(20 * time.Minute)
+	sessions.latestOpen = open
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		open.Date.String(): {WorkSession: open, Breaks: []*activeModels.WorkSessionBreak{{StartedAt: breakStart}}},
+	}
+	setClock(service, sessions, func() time.Time { return now })
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	assert.Equal(t, 20, state.NetMinutes, "the running break after midnight is deducted")
+	assert.Equal(t, 25, state.BreakMinutes)
+}
+
 // The stamp that ends such a night session must be dispatched on the day the
 // session carries. Pinning it to the new day looks up a day the session was
 // never written on and refuses a valid scan with "no active session found".

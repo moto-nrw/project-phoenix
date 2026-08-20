@@ -26,6 +26,9 @@ const (
 	breakShortRequiredMinutes = 30
 	// breakLongRequiredMinutes is the break required above 9h of work.
 	breakLongRequiredMinutes = 45
+	// minimumQualifyingBreakMinutes is the minimum length of one break interval
+	// that may satisfy §4 ArbZG.
+	minimumQualifyingBreakMinutes = 15
 )
 
 // LaborTimeEvaluation is the shared, as-of-now view used by both the web app
@@ -73,29 +76,59 @@ func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession 
 	if len(days) > 0 {
 		day = days[0]
 	}
-	dayStart := day.BerlinMidnight()
-	dayEnd := day.AddDays(1).BerlinMidnight()
-	var net, taken, gaps int
+	return evaluateWorkSessionsLaborTime(sessions, breaksBySession, now, &day)
+}
+
+// EvaluateWorkSessionsLaborTime evaluates a continuous workday carried by the
+// supplied blocks. Unlike EvaluateDayLaborTime it does not split a block at
+// midnight, which lets a kiosk keep showing the complete running night block
+// while the check-out remains attached to its original session.
+func EvaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+	return evaluateWorkSessionsLaborTime(sessions, breaksBySession, now, nil)
+}
+
+func evaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time, day *timezone.Date) LaborTimeEvaluation {
+	var dayStart, dayEnd time.Time
+	if day != nil {
+		dayStart = day.BerlinMidnight()
+		dayEnd = day.AddDays(1).BerlinMidnight()
+	}
+	var net, taken, qualifyingBreaks, qualifyingGaps int
 	var prevEnd *time.Time
 	for _, ws := range sessions {
 		breaks := breaksBySession[ws.ID]
-		end := sessionEndUpTo(ws, now)
-		if !end.After(dayStart) || !ws.CheckInTime.Before(dayEnd) {
+		end := BalanceSessionEnd(ws, now)
+		if day != nil && (!end.After(dayStart) || !ws.CheckInTime.Before(dayEnd)) {
 			continue
 		}
 		start := ws.CheckInTime
-		if start.Before(dayStart) {
+		if day != nil && start.Before(dayStart) {
 			start = dayStart
 		}
-		if end.After(dayEnd) {
+		if day != nil && end.After(dayEnd) {
 			end = dayEnd
 		}
 		gross := int(end.Sub(start).Minutes())
-		worked := netMinutesByDate(ws, breaks, end, day, day)[day]
+		if gross <= 0 {
+			continue
+		}
+		from, to := timezone.DateFromTime(start), timezone.DateFromTime(end)
+		if day != nil {
+			from, to = *day, *day
+		}
+		worked := 0
+		for _, minutes := range netMinutesByDate(ws, breaks, end, from, to) {
+			worked += minutes
+		}
+		breakMinutes := gross - worked
 		net += worked
-		taken += gross - worked
+		taken += breakMinutes
+		qualifyingBreaks += qualifyingBreakMinutes(breaks, start, end, breakMinutes)
 		if prevEnd != nil && start.After(*prevEnd) {
-			gaps += int(start.Sub(*prevEnd).Minutes())
+			gap := int(start.Sub(*prevEnd).Minutes())
+			if gap >= minimumQualifyingBreakMinutes {
+				qualifyingGaps += gap
+			}
 		}
 		if prevEnd == nil || end.After(*prevEnd) {
 			prevEnd = &end
@@ -111,8 +144,34 @@ func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession 
 		NetMinutes:           net,
 		BreakMinutes:         taken,
 		RequiredBreakMinutes: required,
-		IsBreakCompliant:     taken+gaps >= required,
+		IsBreakCompliant:     qualifyingBreaks+qualifyingGaps >= required,
 	}
+}
+
+func qualifyingBreakMinutes(breaks []*activeModels.WorkSessionBreak, start, end time.Time, fallback int) int {
+	if len(breaks) == 0 {
+		// Legacy rows store only an aggregate. Their individual intervals are
+		// unavailable, so retain the established interpretation rather than
+		// retroactively marking otherwise valid historical records invalid.
+		return fallback
+	}
+
+	qualified := 0
+	for _, brk := range breaks {
+		breakStart := brk.StartedAt
+		if breakStart.Before(start) {
+			breakStart = start
+		}
+		breakEnd := end
+		if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
+			breakEnd = *brk.EndedAt
+		}
+		minutes := int(breakEnd.Sub(breakStart).Minutes())
+		if minutes >= minimumQualifyingBreakMinutes {
+			qualified += minutes
+		}
+	}
+	return qualified
 }
 
 // grossMinutes is the wall-clock span of a session. For an open session (no
