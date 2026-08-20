@@ -10,7 +10,7 @@
  * Eltern-Reiter, damit beide Reiter gleich aussehen.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { useSWRConfig } from "swr";
@@ -78,6 +78,7 @@ export function StaffAbsenceRequestList({
   const [rows, setRows] = useState<StaffAbsenceRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadVersion = useRef(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRequestRow | null>(
     null,
@@ -96,14 +97,15 @@ export function StaffAbsenceRequestList({
 
   useEffect(() => {
     let cancelled = false;
+    const version = ++loadVersion.current;
     setLoading(true);
     setError(null);
     load()
       .then((data) => {
-        if (!cancelled) setRows(data);
+        if (!cancelled && version === loadVersion.current) setRows(data);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled || version !== loadVersion.current) return;
         logger.warn("absence_request_list_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -123,8 +125,11 @@ export function StaffAbsenceRequestList({
   // Seitenleiste, Verweis auf der Mitarbeiter-Seite, Reiter der
   // Mitarbeitenden-Detailseite hören auf diese beiden Signale.
   const afterDecision = useCallback(() => {
+    const version = ++loadVersion.current;
     load()
-      .then(setRows)
+      .then((data) => {
+        if (version === loadVersion.current) setRows(data);
+      })
       .catch((err: unknown) => {
         logger.warn("absence_request_list_reload_failed", {
           error: err instanceof Error ? err.message : String(err),
