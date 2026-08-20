@@ -219,7 +219,7 @@ export function OfferingRequestReviewItem({
           />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         {row.diff.length === 0 && (
           <span className="text-sm text-gray-500">—</span>
         )}

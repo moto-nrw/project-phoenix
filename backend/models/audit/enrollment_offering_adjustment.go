@@ -15,6 +15,10 @@ import (
 const (
 	OfferingAdjustmentSourceDirect  = "direct"
 	OfferingAdjustmentSourceRequest = "request"
+	// Unknown marks adjustments recorded before source provenance existed.
+	// They remain available in the child detail but are intentionally excluded
+	// from the central direct-correction history.
+	OfferingAdjustmentSourceUnknown = "unknown"
 )
 
 // EnrollmentOfferingAdjustment records an admin correction to one approved

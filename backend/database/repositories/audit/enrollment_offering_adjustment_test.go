@@ -203,14 +203,15 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	middle := newRow("middle", audit.OfferingAdjustmentSourceDirect, base.Add(time.Hour))
 	oldest := newRow("oldest", audit.OfferingAdjustmentSourceDirect, base)
 	applied := newRow("applied request", audit.OfferingAdjustmentSourceRequest, base.Add(3*time.Hour))
-	for _, row := range []*audit.EnrollmentOfferingAdjustment{newest, middle, oldest, applied} {
+	unknown := newRow("legacy adjustment", audit.OfferingAdjustmentSourceUnknown, base.Add(4*time.Hour))
+	for _, row := range []*audit.EnrollmentOfferingAdjustment{newest, middle, oldest, applied, unknown} {
 		require.NoError(t, repo.Create(ctx, row))
 	}
 	defer testpkg.CleanupTableRecords(t, db, "audit.enrollment_offering_adjustments",
-		newest.ID, middle.ID, oldest.ID, applied.ID)
+		newest.ID, middle.ID, oldest.ID, applied.ID, unknown.ID)
 
-	// First page: newest first, and the request-applied row stays out — the
-	// history already shows that one as the decided request.
+	// First page: newest first; request-applied and unknown legacy rows stay
+	// out because neither is a verified direct correction.
 	first, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 2)
 	require.NoError(t, err)
 	require.Len(t, first, 2)
@@ -223,6 +224,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	assert.Equal(t, oldest.ID, second[0].ID)
 	for _, row := range second {
 		assert.NotEqual(t, applied.ID, row.ID, "request-applied rows never appear")
+		assert.NotEqual(t, unknown.ID, row.ID, "unknown legacy rows never appear")
 	}
 
 	// A non-positive limit asks for nothing and hits no database at all.

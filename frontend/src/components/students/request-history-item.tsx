@@ -20,49 +20,12 @@ import {
   fieldLabel,
   formatValue as formatMasterDataValue,
 } from "~/components/students/master-data-review-item";
-import { RequestReviewCard } from "~/components/students/request-review-card";
-
-/**
- * Die Änderungs-/Beantragt-Liste einer Historien-Karte: eine Zeile je Angebot
- * bzw. Feld, in der ruhigen grauen Fläche der Review-Karten.
- */
-function DiffList({
-  title,
-  lines,
-}: Readonly<{
-  title: string;
-  lines: readonly { key: string; text: string }[];
-}>) {
-  if (lines.length === 0) return null;
-  return (
-    <div className="space-y-1 rounded-lg bg-gray-50 p-3">
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {title}
-      </p>
-      {lines.map((line) => (
-        <p key={line.key} className="text-sm text-gray-700">
-          {line.text}
-        </p>
-      ))}
-    </div>
-  );
-}
+import {
+  RequestReviewCard,
+  ReviewDiffPanel,
+} from "~/components/students/request-review-card";
 
 /** Angebots-Zeilen („Mittagessen: Mo → abgemeldet") aus einem Diff. */
-function offeringDiffLines(
-  diff: readonly {
-    offering_id: string;
-    label: string;
-    old: string;
-    new: string;
-  }[],
-) {
-  return diff.map((line) => ({
-    key: line.offering_id,
-    text: `${line.label}: ${line.old} → ${line.new}`,
-  }));
-}
-
 function MasterDataHistoryCard({
   row,
 }: Readonly<{ row: StaffMasterDataHistoryEntry }>) {
@@ -107,15 +70,20 @@ function CareHistoryCard({
         reason: row.decision_reason,
       }}
     >
-      <DiffList
-        title={showDiff ? "Änderungen" : "Beantragt"}
-        lines={entries.map((entry) => ({
-          key: `${entry.label}-${entry.new}`,
-          text: showDiff
-            ? `${entry.label}: ${entry.old || "—"} → ${entry.new}`
-            : `${entry.label}: ${entry.new}`,
-        }))}
-      />
+      {entries.length > 0 && (
+        <ReviewDiffPanel title={showDiff ? "Änderungen" : "Beantragt"}>
+          {entries.map((entry) => (
+            <p
+              key={`${entry.label}-${entry.new}`}
+              className="text-sm text-gray-700"
+            >
+              {showDiff
+                ? `${entry.label}: ${entry.old || "—"} → ${entry.new}`
+                : `${entry.label}: ${entry.new}`}
+            </p>
+          ))}
+        </ReviewDiffPanel>
+      )}
     </RequestReviewCard>
   );
 }
@@ -135,15 +103,23 @@ function OfferingHistoryCard({
         reason: row.reason,
       }}
     >
-      <DiffList title="Änderungen" lines={offeringDiffLines(row.diff)} />
+      {row.diff.length > 0 && (
+        <ReviewDiffPanel title="Änderungen">
+          {row.diff.map((line) => (
+            <p key={line.offering_id} className="text-sm text-gray-700">
+              {line.label}: {line.old} → {line.new}
+            </p>
+          ))}
+        </ReviewDiffPanel>
+      )}
       {row.diff.length === 0 && (
-        <DiffList
-          title="Beantragt"
-          lines={(row.requested ?? []).map((line) => ({
-            key: line.offering_id,
-            text: `${line.label}: ${line.new}`,
-          }))}
-        />
+        <ReviewDiffPanel title="Beantragt">
+          {(row.requested ?? []).map((line) => (
+            <p key={line.offering_id} className="text-sm text-gray-700">
+              {line.label}: {line.new}
+            </p>
+          ))}
+        </ReviewDiffPanel>
       )}
     </RequestReviewCard>
   );
@@ -189,7 +165,13 @@ function DirectCorrectionCard({ row }: Readonly<{ row: DirectCorrection }>) {
         reason: row.reason,
       }}
     >
-      <DiffList title="Änderungen" lines={offeringDiffLines(row.diff)} />
+      <ReviewDiffPanel title="Änderungen">
+        {row.diff.map((line) => (
+          <p key={line.offering_id} className="text-sm text-gray-700">
+            {line.label}: {line.old} → {line.new}
+          </p>
+        ))}
+      </ReviewDiffPanel>
     </RequestReviewCard>
   );
 }

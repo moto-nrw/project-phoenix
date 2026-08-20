@@ -184,12 +184,13 @@ export function RequestReviewCard({
  * heading). Rows are passed as children so each queue keeps its own layout.
  */
 export function ReviewDiffPanel({
+  title,
   children,
-}: Readonly<{ children: ReactNode }>) {
+}: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
       <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Änderungen
+        {title}
       </p>
       {children}
     </div>
