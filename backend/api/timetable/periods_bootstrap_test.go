@@ -28,7 +28,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	tenantID := int64(910000) + time.Now().UnixNano()%50000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
