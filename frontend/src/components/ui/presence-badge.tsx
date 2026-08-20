@@ -246,7 +246,7 @@ export function PresenceBadge({
     );
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-end">
       {pill}
       {showSinceTime && (
         <span className="mt-0.5 text-[10px] text-gray-500">

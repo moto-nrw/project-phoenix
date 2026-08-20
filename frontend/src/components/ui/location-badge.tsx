@@ -329,7 +329,7 @@ export function LocationBadge({
 
   if (variant === "simple") {
     return (
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-end">
         <span
           className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
           style={{
@@ -359,7 +359,7 @@ export function LocationBadge({
   }
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-end">
       <span
         className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
         style={{
