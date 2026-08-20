@@ -114,6 +114,25 @@ func (rl *RateLimiter) retryAfterSeconds() int {
 	return max(1, int(math.Ceil(1/float64(rl.r))))
 }
 
+func (rl *RateLimiter) reject(w http.ResponseWriter, r *http.Request, bucket string) {
+	retryAfter := rl.retryAfterSeconds()
+	w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
+	w.Header().Set("X-RateLimit-Remaining", "0")
+	w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Duration(retryAfter)*time.Second).Unix()))
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+
+	if rl.rejectObserver != nil {
+		if bucket == "" {
+			bucket = "shared"
+		}
+		rl.rejectObserver(bucket)
+	}
+	if rl.logger != nil {
+		rl.logger.LogRateLimitExceeded(r)
+	}
+	http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+}
+
 // getVisitor returns the rate limiter for the given request key.
 func (rl *RateLimiter) getVisitor(key string) *rate.Limiter {
 	rl.mu.Lock()
@@ -152,27 +171,8 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			bucket := rl.requestBucket(r)
 			limiter := rl.getVisitor(rl.requestKeyForBucket(r, bucket))
-
 			if !limiter.Allow() {
-				retryAfter := rl.retryAfterSeconds()
-				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
-				w.Header().Set("X-RateLimit-Remaining", "0")
-				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Duration(retryAfter)*time.Second).Unix()))
-				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-				if rl.rejectObserver != nil {
-					observedBucket := bucket
-					if observedBucket == "" {
-						observedBucket = "shared"
-					}
-					rl.rejectObserver(observedBucket)
-				}
-
-				// Log rate limit violation if logger is available
-				if rl.logger != nil {
-					rl.logger.LogRateLimitExceeded(r)
-				}
-
-				http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+				rl.reject(w, r, bucket)
 				return
 			}
 

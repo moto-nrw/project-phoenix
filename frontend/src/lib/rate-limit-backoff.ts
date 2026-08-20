@@ -31,20 +31,35 @@ export function remainingRateLimitMs(now = Date.now()): number {
   return Math.max(0, blockedUntil - now);
 }
 
+function startsWithRateLimitCode(suffix: string): boolean {
+  let normalized = suffix.trimStart();
+  if (normalized.startsWith(":")) normalized = normalized.slice(1).trimStart();
+  if (normalized.startsWith("(")) normalized = normalized.slice(1);
+  return /^429(?:\D|$)/.test(normalized);
+}
+
+function hasAdjacentRateLimitCode(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return ["api error", "http", "failed"].some((context) =>
+    normalized
+      .split(context)
+      .slice(1)
+      .some((suffix) => startsWithRateLimitCode(suffix)),
+  );
+}
+
 export function isRateLimitError(error: unknown): boolean {
+  let status: unknown;
   if (typeof error === "object" && error !== null) {
-    const status =
-      "status" in error
-        ? error.status
-        : "httpStatus" in error
-          ? error.httpStatus
-          : undefined;
+    if ("status" in error) {
+      status = error.status;
+    } else if ("httpStatus" in error) {
+      status = error.httpStatus;
+    }
     if (status === 429) return true;
   }
-  return (
-    error instanceof Error &&
-    /(?:API error|HTTP|failed)\s*:?\s*\(?429/i.test(error.message)
-  );
+  if (!(error instanceof Error)) return false;
+  return hasAdjacentRateLimitCode(error.message);
 }
 
 export function installRateLimitFetchGuard(): () => void {

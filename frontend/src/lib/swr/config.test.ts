@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { installRateLimitFetchGuard } from "../rate-limit-backoff";
 import { immutableConfig, swrConfig } from "./config";
 
 // SWR types onError's third argument as a fully-resolved PublicConfiguration.
@@ -6,6 +7,8 @@ import { immutableConfig, swrConfig } from "./config";
 type OnError = NonNullable<typeof swrConfig.onError>;
 type ConfigArg = Parameters<OnError>[2];
 const stubConfig = {} as ConfigArg;
+type OnErrorRetry = NonNullable<typeof swrConfig.onErrorRetry>;
+type RetryOptions = Parameters<OnErrorRetry>[4];
 
 describe("swrConfig.onError", () => {
   afterEach(() => {
@@ -96,6 +99,66 @@ describe("swrConfig defaults", () => {
 
   it("preserves previous data while revalidating", () => {
     expect(swrConfig.keepPreviousData).toBe(true);
+  });
+});
+
+describe("swrConfig.onErrorRetry", () => {
+  let restoreGuard: (() => void) | undefined;
+
+  afterEach(() => {
+    restoreGuard?.();
+    restoreGuard = undefined;
+    vi.useRealTimers();
+  });
+
+  it("waits for the browser rate-limit window before revalidating", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2040-01-01T00:00:00Z"));
+    window.fetch = vi.fn().mockResolvedValue(
+      new Response("rate limited", {
+        status: 429,
+        headers: { "Retry-After": "2" },
+      }),
+    );
+    restoreGuard = installRateLimitFetchGuard();
+    await fetch("/api/active-supervision-dashboard");
+    const revalidate = vi.fn();
+
+    swrConfig.onErrorRetry?.({ status: 429 }, "key", stubConfig, revalidate, {
+      retryCount: 1,
+    } as RetryOptions);
+    vi.advanceTimersByTime(2049);
+    expect(revalidate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(revalidate).toHaveBeenCalledWith({ retryCount: 1 });
+  });
+
+  it("backs off ordinary retries and stops after the configured limit", () => {
+    vi.useFakeTimers();
+    const revalidate = vi.fn();
+
+    swrConfig.onErrorRetry?.(
+      new Error("network down"),
+      "key",
+      stubConfig,
+      revalidate,
+      { retryCount: 2 } as RetryOptions,
+    );
+    vi.advanceTimersByTime(1999);
+    expect(revalidate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(revalidate).toHaveBeenCalledWith({ retryCount: 2 });
+
+    swrConfig.onErrorRetry?.(
+      new Error("network down"),
+      "key",
+      stubConfig,
+      revalidate,
+      { retryCount: 3 } as RetryOptions,
+    );
+    vi.runAllTimers();
+    expect(revalidate).toHaveBeenCalledTimes(1);
   });
 });
 

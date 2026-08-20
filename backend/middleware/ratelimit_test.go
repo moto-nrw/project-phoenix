@@ -628,6 +628,7 @@ func TestRateLimiter_Middleware_SeparatesConfiguredReadAndWriteBuckets(t *testin
 
 	rl := NewRateLimiter(1, 1)
 	classifierCalls := 0
+	var rejectedBucket string
 	rl.SetBucketFunc(func(r *http.Request) string {
 		classifierCalls++
 		if r.Method == http.MethodGet {
@@ -635,6 +636,7 @@ func TestRateLimiter_Middleware_SeparatesConfiguredReadAndWriteBuckets(t *testin
 		}
 		return "write"
 	})
+	rl.SetRejectObserver(func(bucket string) { rejectedBucket = bucket })
 
 	r := chi.NewRouter()
 	r.Use(rl.Middleware())
@@ -655,6 +657,28 @@ func TestRateLimiter_Middleware_SeparatesConfiguredReadAndWriteBuckets(t *testin
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	assert.Equal(t, 3, classifierCalls, "the classifier must run once per request")
+	assert.Equal(t, "read", rejectedBucket)
+}
+
+func TestRateLimiter_Middleware_ReportsSharedZeroRateLimit(t *testing.T) {
+	t.Parallel()
+
+	rl := NewRateLimiter(0, 0)
+	var rejectedBucket string
+	rl.SetRejectObserver(func(bucket string) { rejectedBucket = bucket })
+
+	r := chi.NewRouter()
+	r.Use(rl.Middleware())
+	r.Get("/test", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.1:12345"
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	assert.Equal(t, "60", rr.Header().Get("Retry-After"))
+	assert.Equal(t, "shared", rejectedBucket)
 }
 
 // =============================================================================
