@@ -2266,22 +2266,6 @@ func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
 		return fmt.Errorf("ensure test school: %w", err)
 	}
 
-	// Advance sequences past the explicitly inserted ID so that tests using
-	// auto-generated IDs (nextval) don't collide.
-	if _, err := db.ExecContext(ctx, `
-		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
-			GREATEST((SELECT last_value FROM platform.organizations_id_seq), ?))`,
-		tenantID); err != nil {
-		return fmt.Errorf("advance org sequence past explicit tenant ID: %w", err)
-	}
-
-	if _, err := db.ExecContext(ctx, `
-		SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
-			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
-		tenantID); err != nil {
-		return fmt.Errorf("advance school sequence past explicit tenant ID: %w", err)
-	}
-
 	return nil
 }
 
@@ -2299,8 +2283,8 @@ func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
 // float64, exact only below 2^53), so anything asserting on the tenant_id
 // claim — or any refresh, which compares the claim against the stored tenant —
 // would work off a rounded value. Nor can the ID be left to the sequence:
-// EnsureTestTenant setvals it up to whatever nanosecond ID it was handed, so a
-// nextval-assigned school inherits the same problem.
+// bootstrap advances it past the JWT-safe band, so generated IDs would not
+// identify the tenant this helper just created.
 func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain string) {
 	tb.Helper()
 
@@ -2322,17 +2306,6 @@ func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain stri
 		VALUES (?, ?, ?, ?, ?, true)`,
 		tenantID, tenantID, "Test School "+token, "test-school-"+token, subdomain)
 	require.NoError(tb, err, "Failed to create test school")
-
-	// Push both sequences clear of the WHOLE band, not just past this ID:
-	// setting them to the ID itself would make the next nextval collide with
-	// the next ID this helper hands out.
-	for _, seq := range []string{"platform.organizations", "platform.schools"} {
-		_, err = db.ExecContext(ctx, fmt.Sprintf(`
-			SELECT setval(pg_get_serial_sequence('%s', 'id'),
-				GREATEST((SELECT last_value FROM %s_id_seq), ?))`, seq, seq),
-			testTenantIDCeiling)
-		require.NoError(tb, err, "Failed to advance sequence past the test tenant band")
-	}
 
 	return tenantID, subdomain
 }

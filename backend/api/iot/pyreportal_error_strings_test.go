@@ -77,6 +77,7 @@ var pyreportalErrorStrings = []string{
 	"no active session",
 
 	// Visit / room / activity (POST /checkin)
+	"no room available for this activity",
 	"failed to end visit record",
 	"failed to create visit record",
 	"failed to get room information",

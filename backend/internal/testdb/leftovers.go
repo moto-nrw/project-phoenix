@@ -21,12 +21,14 @@ import (
 // into its own tenant is invisible to every other test and dies with the
 // clone.
 
-// TableDelta describes one table whose end-state row count differs from the
-// start state the clone recorded for itself.
+// TableDelta describes one table whose end state differs from the start state
+// the clone recorded for itself.
 type TableDelta struct {
-	Table        string
-	BaselineRows int64
-	CloneRows    int64
+	Table               string
+	BaselineRows        int64
+	CloneRows           int64
+	BaselineFingerprint string
+	CloneFingerprint    string
 }
 
 // Leftovers compares the clone behind cloneDSN against its own start
@@ -46,21 +48,27 @@ func Leftovers(ctx context.Context, cloneDSN string) ([]TableDelta, error) {
 		return nil, err
 	}
 
-	cloneCounts, err := countSharedRowsDB(ctx, db, predicates)
+	cloneStates, err := sharedTableStatesDB(ctx, db, predicates)
 	if err != nil {
 		return nil, err
 	}
 
-	tables := make([]string, 0, len(cloneCounts))
-	for t := range cloneCounts {
+	tables := make([]string, 0, len(cloneStates))
+	for t := range cloneStates {
 		tables = append(tables, t)
 	}
 	sort.Strings(tables)
 
 	var deltas []TableDelta
 	for _, t := range tables {
-		if cloneCounts[t] != baseline[t] {
-			deltas = append(deltas, TableDelta{Table: t, BaselineRows: baseline[t], CloneRows: cloneCounts[t]})
+		if cloneStates[t] != baseline[t] {
+			deltas = append(deltas, TableDelta{
+				Table:               t,
+				BaselineRows:        baseline[t].Rows,
+				CloneRows:           cloneStates[t].Rows,
+				BaselineFingerprint: baseline[t].Fingerprint,
+				CloneFingerprint:    cloneStates[t].Fingerprint,
+			})
 		}
 	}
 	return deltas, nil
@@ -82,7 +90,11 @@ func FormatLeftovers(pkg string, deltas []TableDelta) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\nleftover gate: FAILED — %s left rows in shared state:\n\n", pkg)
 	for _, d := range deltas {
-		fmt.Fprintf(&b, "    %-56s start=%d end=%d\n", d.Table, d.BaselineRows, d.CloneRows)
+		fmt.Fprintf(&b, "    %-56s start=%d end=%d", d.Table, d.BaselineRows, d.CloneRows)
+		if d.BaselineFingerprint != d.CloneFingerprint {
+			b.WriteString(" content changed")
+		}
+		b.WriteByte('\n')
 	}
 	b.WriteString(`
 A test wrote rows that no tenant of its own owns, so the next test in the same

@@ -85,6 +85,7 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 		{"ErrInvalidTimeRange", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidTimeRange}},
 		{"ErrCannotDeleteActiveGroup", &activeSvc.ActiveError{Err: activeSvc.ErrCannotDeleteActiveGroup}},
 		{"ErrInvalidData", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidData}},
+		{"ErrNoRoomAvailable", &activeSvc.ActiveError{Err: activeSvc.ErrNoRoomAvailable}},
 		// Database errors
 		{"ErrDatabaseOperation", &activeSvc.ActiveError{Err: activeSvc.ErrDatabaseOperation}},
 	}
@@ -95,6 +96,17 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 			assert.NotNil(t, renderer)
 		})
 	}
+}
+
+func TestErrorRenderer_NoRoomAvailableUsesKioskContract(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/sessions", nil)
+	require.NoError(t, render.Render(rec, req, shared.ErrorRenderer(activeSvc.ErrNoRoomAvailable)))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "no room available for this activity")
 }
 
 // Test ErrorRenderer for Feedback Service Errors

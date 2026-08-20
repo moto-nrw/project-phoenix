@@ -384,6 +384,46 @@ func TestLeftoversReportsSharedRows(t *testing.T) {
 	assert.EqualValues(t, 1, deltas[0].CloneRows)
 }
 
+func TestLeftoversReportsSharedRowReplacement(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx, `CREATE TABLE marker (id bigint primary key)`)
+		if err != nil {
+			return err
+		}
+		_, err = db.ExecContext(ctx, `INSERT INTO marker (id) VALUES (1)`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("replacementhash"))
+	require.NoError(t, err)
+
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	_, err = clone.ExecContext(ctx, `DELETE FROM marker WHERE id = 1; INSERT INTO marker (id) VALUES (2)`)
+	require.NoError(t, err)
+	require.NoError(t, clone.Close())
+
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Len(t, deltas, 1)
+	assert.Equal(t, "public.marker", deltas[0].Table)
+	assert.EqualValues(t, 1, deltas[0].BaselineRows)
+	assert.EqualValues(t, 1, deltas[0].CloneRows)
+	assert.NotEqual(t, deltas[0].BaselineFingerprint, deltas[0].CloneFingerprint)
+}
+
 // A row a test wrote into its OWN tenant is not a leftover: it is invisible
 // to every other test and dies with the clone. Only rows outside the
 // test-tenant band count (#2419 goal 2).

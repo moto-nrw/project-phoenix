@@ -405,7 +405,7 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 	const testKey = "checkout.wc_enabled"
 	before, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", int64(1)).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", testKey).
 		Count(context.Background())
 	require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 
 	after, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", int64(1)).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", testKey).
 		Count(context.Background())
 	require.NoError(t, err)

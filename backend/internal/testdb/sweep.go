@@ -221,34 +221,35 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 	return owners, rows.Err()
 }
 
-// countSharedRowsDB is countSharedRows on a pool the caller already has.
-func countSharedRowsDB(ctx context.Context, db sqlExecutor, predicates map[string]string) (map[string]int64, error) {
+func sharedTableStatesDB(ctx context.Context, db sqlExecutor, predicates map[string]string) (map[string]sharedTableState, error) {
 	// One round trip for ~300 tables instead of ~300: the per-table counts are
 	// pushed into the server as query_to_xml sub-selects. The sweep runs this
 	// once per clone (~160 per suite run), so the difference is minutes.
 	values, args := sharedCountValues(predicates)
 	if len(args) == 0 {
-		return map[string]int64{}, nil
+		return map[string]sharedTableState{}, nil
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT v.tbl, (xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint
+		SELECT v.tbl,
+			(xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint,
+			(xpath('/row/f/text()', query_to_xml(v.q, false, true, '')))[1]::text
 		FROM (VALUES `+values+`) AS v(tbl, q)`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("count table rows: %w", err)
+		return nil, fmt.Errorf("snapshot table rows: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := make(map[string]int64, len(predicates))
+	states := make(map[string]sharedTableState, len(predicates))
 	for rows.Next() {
 		var table string
-		var n int64
-		if err := rows.Scan(&table, &n); err != nil {
+		var state sharedTableState
+		if err := rows.Scan(&table, &state.Rows, &state.Fingerprint); err != nil {
 			return nil, err
 		}
-		counts[table] = n
+		states[table] = state
 	}
-	return counts, rows.Err()
+	return states, rows.Err()
 }
 
 func sharedCountValues(predicates map[string]string) (string, []any) {
@@ -262,7 +263,7 @@ func sharedCountValues(predicates map[string]string) (string, []any) {
 	args := make([]any, 0, 2*len(tables))
 	for i, table := range tables {
 		// table and owner come from pg_catalog of the trusted test server.
-		count := `SELECT count(*) AS c FROM ` + quoteQualified(table) + ` AS t`
+		count := `SELECT count(*) AS c, md5(COALESCE(string_agg(md5(row_to_json(t)::text), ',' ORDER BY md5(row_to_json(t)::text)), '')) AS f FROM ` + quoteQualified(table) + ` AS t`
 		if pred := predicates[table]; pred != "" {
 			count += ` WHERE ` + pred
 		}
