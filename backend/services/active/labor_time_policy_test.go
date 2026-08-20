@@ -271,6 +271,7 @@ func TestIsBreakCompliant(t *testing.T) {
 }
 
 func TestEvaluateDayLaborTime(t *testing.T) {
+	t.Parallel()
 	fixedNow := time.Date(2026, 8, 17, 17, 0, 0, 0, time.UTC)
 	block := func(id int64, inHour, inMin, outHour, outMin, breakMin int) *activeModels.WorkSession {
 		checkIn := time.Date(2026, 8, 17, inHour, inMin, 0, 0, time.UTC)

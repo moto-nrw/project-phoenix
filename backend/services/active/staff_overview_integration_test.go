@@ -364,6 +364,7 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
+	t.Parallel()
 	small := newOverviewFixture(t, 1)
 	hook := &countingQueryHook{}
 	small.db.AddQueryHook(hook)

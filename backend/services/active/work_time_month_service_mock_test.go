@@ -506,6 +506,7 @@ func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
 }
 
 func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
+	t.Parallel()
 	f := newWTMFixture()
 	start := timezone.NewDate(2026, time.June, 30).BerlinMidnight().Add(22 * time.Hour)
 	end := start.Add(4 * time.Hour)
@@ -527,6 +528,7 @@ func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
 }
 
 func TestWTMRangeAggregate_DoesNotExtendOpenBlockFromYesterday(t *testing.T) {
+	t.Parallel()
 	f := newWTMFixture()
 	today := timezone.TodayDate()
 	yesterday := today.AddDays(-1)

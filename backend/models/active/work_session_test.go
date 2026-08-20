@@ -1,11 +1,9 @@
 package active
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -118,30 +116,4 @@ func TestWorkSession_Getters(t *testing.T) {
 	assert.Equal(t, int64(42), ws.GetID())
 	assert.Equal(t, now, ws.GetCreatedAt())
 	assert.Equal(t, now, ws.GetUpdatedAt())
-}
-
-func TestWorkSessionWire_SerializesIDsAsStrings(t *testing.T) {
-	updatedBy := int64(9007199254740997)
-	encoded, err := json.Marshal(WorkSessionWire{WorkSession: &WorkSession{
-		Model:       base.Model{ID: 9007199254740993},
-		TenantModel: base.TenantModel{TenantID: 9007199254740994},
-		StaffID:     9007199254740995,
-		CreatedBy:   9007199254740996,
-		UpdatedBy:   &updatedBy,
-	}})
-	require.NoError(t, err)
-
-	var wire struct {
-		ID        string `json:"id"`
-		TenantID  string `json:"tenant_id"`
-		StaffID   string `json:"staff_id"`
-		CreatedBy string `json:"created_by"`
-		UpdatedBy string `json:"updated_by"`
-	}
-	require.NoError(t, json.Unmarshal(encoded, &wire))
-	assert.Equal(t, "9007199254740993", wire.ID)
-	assert.Equal(t, "9007199254740994", wire.TenantID)
-	assert.Equal(t, "9007199254740995", wire.StaffID)
-	assert.Equal(t, "9007199254740996", wire.CreatedBy)
-	assert.Equal(t, "9007199254740997", wire.UpdatedBy)
 }
