@@ -192,6 +192,22 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
+	// Fast path, deliberately WITHOUT the lifecycle lock: a template that is
+	// already stamped with this hash and was touched a moment ago needs
+	// nothing done to it. Every test binary of a run comes through here, and
+	// each one used to take the one lock that also serializes clone creation,
+	// just to re-write a timestamp. The role pin stays — it repairs a
+	// password another worktree may have changed, and ALTER ROLE is
+	// idempotent — but it no longer waits behind the lock.
+	if fresh, err := templateIsFresh(ctx, maint, name, o.hash); err != nil {
+		return nil, err
+	} else if fresh {
+		if err := ensureAuthRolePassword(ctx, maint); err != nil {
+			return nil, err
+		}
+		return tcfg, nil
+	}
+
 	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	if err != nil {
 		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
@@ -235,6 +251,26 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 		return nil, fmt.Errorf("build template database %q: %w", name, err)
 	}
 	return tcfg, stampTemplate(ctx, conn, name, o.hash)
+}
+
+// templateStampInterval is how long a template's "touched" stamp is trusted
+// before EnsureTemplate refreshes it under the lock. It only feeds the
+// template GC (templateMaxIdleAge, a week), so refreshing it once a minute
+// per run instead of once per test binary loses nothing.
+const templateStampInterval = time.Minute
+
+// templateIsFresh reports whether the template exists, carries this
+// migrations hash, and was stamped within templateStampInterval.
+func templateIsFresh(ctx context.Context, maint sqlExecutor, name, hash string) (bool, error) {
+	exists, comment, err := templateState(ctx, maint, name)
+	if err != nil || !exists {
+		return false, err
+	}
+	if !strings.HasPrefix(comment, hashCommentPrefix+hash+touchedCommentKey) {
+		return false, nil
+	}
+	touched, ok := touchedAt(comment)
+	return ok && time.Since(touched) < templateStampInterval, nil
 }
 
 // adoptBaseTemplate copies the legacy base database (the name in

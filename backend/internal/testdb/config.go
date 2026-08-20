@@ -82,6 +82,17 @@ func (c *Config) TemplateDSN() string {
 	return c.DatabaseDSN(c.TemplateName())
 }
 
+// TemplateEnv carries the template name the once-per-run bootstrap resolved,
+// so package binaries can skip EnsureServer and EnsureTemplate. Unset means
+// "resolve it yourself" — what a naked `go test` does.
+const TemplateEnv = "PHX_TEST_TEMPLATE"
+
+// WithTemplate returns a copy of c pinned to an already-resolved template
+// name (the bootstrap's answer), without deriving it from a migrations hash.
+func (c *Config) WithTemplate(name string) *Config {
+	return &Config{templateURL: c.templateURL, templateName: name}
+}
+
 // ForMigrations returns a copy of c whose template database is scoped to the
 // given migrations hash (<base>_<12 hex>). Two worktrees on different
 // migration states therefore build two templates side by side instead of

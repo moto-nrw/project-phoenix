@@ -19,6 +19,13 @@ cd "$(git rev-parse --show-toplevel)/backend"
 PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
 export PHX_TEST_RUN_ID
 
+# Handshake once per run instead of once per test binary: server erreichbar,
+# Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
+# ueber PHX_TEST_TEMPLATE und ueberspringen beide Schritte (#2419). Ein
+# nacktes `go test ./...` ohne diese Zeile macht sie weiterhin selbst.
+PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
+export PHX_TEST_TEMPLATE
+
 sweep() {
   status=$?
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then

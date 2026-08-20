@@ -46,6 +46,14 @@ mechanischer Sweep über alle Testdateien):
   `test/hermetic_verification_test.go` friert die Restmenge pro Package ein,
   neue Tests müssen parallel sein. Per-Row-DELETE-Cleanups (`defer Cleanup*`)
   werden ersatzlos entfernt, die Clone-Isolation macht sie redundant.
+- **Handshake einmal pro Lauf, nicht pro Binary.** Server erreichbar und
+  Template zum Migrations-Hash gebaut prüft der Wrapper einmal
+  (`internal/testdb/cmd/bootstrap`) und reicht den Template-Namen über
+  `PHX_TEST_TEMPLATE` weiter; gemessen kosteten die beiden Schritte über 93
+  Binaries 2,6 s summiert gegen ~0,2 s für den einen Aufruf. Ohne die
+  Variable macht jedes Binary beides selbst — das ist es, was ein nacktes
+  `go test ./...` selbst-initialisierend hält.
+
 - **Ein Pool pro Package, bemessen an der eigenen Parallelität.** Die
   Poolgröße kommt aus `-test.parallel` plus Reserve, nicht aus GOMAXPROCS:
   ein Test, der eine Tenant-Transaktion hält und darin eine zweite öffnet,

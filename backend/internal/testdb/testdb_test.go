@@ -318,7 +318,10 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 	runID := SanitizeRunID("")
 	handle, err := CreateClone(ctx, templateCfg, runID)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = handle.Close() })
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
 
 	require.True(t, strings.HasPrefix(handle.Name, ClonePrefix+runID+"_"))
 	require.True(t, databaseExists(t, ctx, cfg, handle.Name))
@@ -358,7 +361,10 @@ func TestLeftoversReportsSharedRows(t *testing.T) {
 	runID := SanitizeRunID("")
 	handle, err := CreateClone(ctx, templateCfg, runID)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = handle.Close() })
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
 
 	// The gate compares against the clone's own start state, so the clone
 	// has to have recorded one — that is what a test binary does right after
@@ -399,7 +405,10 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	runID := SanitizeRunID("")
 	handle, err := CreateClone(ctx, templateCfg, runID)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = handle.Close() })
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
 
 	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
 
@@ -431,7 +440,10 @@ func TestGCSparesFinishedClonesOfALiveRun(t *testing.T) {
 	runID := SanitizeRunID("")
 	live, err := CreateClone(ctx, templateCfg, runID)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = live.Close() })
+	t.Cleanup(func() {
+		_ = live.Close()
+		dropBareClone(t, cfg, live.Name)
+	})
 
 	// The sibling stands for a package that already finished: same run, no
 	// connection, and no heartbeat of its own.

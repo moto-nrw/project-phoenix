@@ -15,6 +15,7 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 go test ./...                       # All tests (works standalone; each binary drops its own clone at exit)
 PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
 PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
+PHX_TEST_KEEP_CLONE=1 go test ./services/active     # Keep the clone for a post-mortem (psql into it)
 go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
 go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
 go test ./services/active/... -v    # Specific package

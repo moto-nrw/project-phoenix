@@ -116,12 +116,22 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	if err := testdb.EnsureServer(ctx, cfg); err != nil {
-		return err
-	}
-	templateCfg, err := testdb.EnsureTemplate(ctx, cfg)
-	if err != nil {
-		return err
+	// The wrapper does server + template once per run and passes the answer
+	// down (#2419 goal 6); measured, the two steps cost 2,6s summed over the
+	// 93 package binaries. Without the variable — a naked `go test` — every
+	// binary still resolves them itself, which is what keeps that entry point
+	// self-initializing.
+	var templateCfg *testdb.Config
+	if name := os.Getenv(testdb.TemplateEnv); name != "" {
+		templateCfg = cfg.WithTemplate(name)
+	} else {
+		if err := testdb.EnsureServer(ctx, cfg); err != nil {
+			return err
+		}
+		templateCfg, err = testdb.EnsureTemplate(ctx, cfg)
+		if err != nil {
+			return err
+		}
 	}
 	clone, err := testdb.CreateClone(ctx, templateCfg, testdb.RunID())
 	if err != nil {
