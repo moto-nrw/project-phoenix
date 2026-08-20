@@ -23,7 +23,7 @@ const staffAbsenceTypeNameUniqueIndex = "uniq_staff_absence_types_tenant_name"
 var (
 	// ErrAbsenceTypeNotFound signals that the requested absence type does not
 	// exist for the current tenant.
-	ErrAbsenceTypeNotFound = errors.New("Abwesenheitsart nicht gefunden")
+	ErrAbsenceTypeNotFound = errors.New("diese Abwesenheitsart gibt es nicht")
 	// ErrAbsenceTypeInvalid wraps model/input validation failures (maps to 400).
 	ErrAbsenceTypeInvalid = errors.New("ungültige Abwesenheitsart")
 	// ErrAbsenceTypeNameTaken signals a duplicate name within the tenant.
