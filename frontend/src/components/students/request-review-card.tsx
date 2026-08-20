@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -90,6 +90,35 @@ function TypePill({
       />
     </span>
   );
+}
+
+function rowAccessibleLabel({
+  childName,
+  type,
+  typeLabel,
+  summary,
+  status,
+  timing,
+  open,
+}: Readonly<{
+  childName: string;
+  type?: RequestRowType;
+  typeLabel?: string;
+  summary?: string;
+  status?: string;
+  timing?: string | null;
+  open: boolean;
+}>): string {
+  return [
+    `Anfrage für ${childName}`,
+    typeLabel ?? (type ? TYPE_LABEL[type] : undefined),
+    summary,
+    status,
+    timing,
+    open ? "Details ausblenden" : "Details anzeigen",
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(". ");
 }
 
 type RequestReviewCardHistoryBase = {
@@ -188,8 +217,22 @@ export function RequestReviewCard({
   onReject?: () => void;
 }>) {
   const [open, setOpen] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
+
+  // Die aktuelle Zeit erst im Browser lesen: ein während SSR erzeugtes
+  // "heute" kann beim Hydrieren nach Mitternacht schon nicht mehr stimmen.
+  // Danach wird die Beschriftung regelmäßig erneuert, damit sie nicht bis zum
+  // nächsten Listenabruf auf dem Vortag stehen bleibt.
+  useEffect(() => {
+    if (!submittedAt) return;
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [submittedAt]);
+
   // Wie lange die Anfrage schon liegt — die Dringlichkeit der Arbeitsliste.
-  const waitingLabel = submittedAt ? relativeDaysLabel(submittedAt) : null;
+  const waitingLabel =
+    submittedAt && now ? relativeDaysLabel(submittedAt, now) : null;
 
   if (history) {
     const meta = statusMeta(history);
@@ -204,6 +247,15 @@ export function RequestReviewCard({
           open={open}
           onToggle={() => setOpen((o) => !o)}
           grid={decided ? HISTORY_ROW_GRID : OPEN_ROW_GRID}
+          ariaLabel={rowAccessibleLabel({
+            childName,
+            type,
+            typeLabel,
+            summary,
+            status: meta?.label,
+            timing: decided ? history.decidedAt : waitingLabel,
+            open,
+          })}
         >
           {history.decidedAt && (
             <span className="hidden text-xs text-gray-500 sm:block">
@@ -226,11 +278,16 @@ export function RequestReviewCard({
               />
             )}
           </span>
-          {decided && meta ? (
-            <StatusBadge label={meta.label} tone={meta.tone} showDot={false} />
-          ) : (
-            <span />
-          )}
+          {decided &&
+            (meta ? (
+              <StatusBadge
+                label={meta.label}
+                tone={meta.tone}
+                showDot={false}
+              />
+            ) : (
+              <span />
+            ))}
           <span className="hidden truncate text-xs text-gray-500 sm:block">
             {decided ? (history.decidedByName ?? "") : (waitingLabel ?? "")}
           </span>
@@ -269,6 +326,14 @@ export function RequestReviewCard({
         open={open}
         onToggle={() => setOpen((o) => !o)}
         grid={OPEN_ROW_GRID}
+        ariaLabel={rowAccessibleLabel({
+          childName,
+          type,
+          typeLabel,
+          summary,
+          timing: waitingLabel,
+          open,
+        })}
       >
         <span className="truncate text-sm font-semibold text-gray-900">
           {childName}
@@ -338,11 +403,13 @@ function RowButton({
   open,
   onToggle,
   grid,
+  ariaLabel,
   children,
 }: Readonly<{
   open: boolean;
   onToggle: () => void;
   grid: string;
+  ariaLabel: string;
   children: ReactNode;
 }>) {
   return (
@@ -350,6 +417,7 @@ function RowButton({
       type="button"
       onClick={onToggle}
       aria-expanded={open}
+      aria-label={ariaLabel}
       className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-gray-50/60 sm:px-5 ${grid}`}
     >
       {children}
@@ -413,7 +481,6 @@ export function RequestRowHeader({
   const cell = "truncate";
   return (
     <div
-      aria-hidden
       className={`hidden border-b border-gray-100 px-4 py-2.5 text-xs font-medium text-gray-500 sm:px-5 ${
         view === "history" ? HISTORY_ROW_GRID : OPEN_ROW_GRID
       }`}

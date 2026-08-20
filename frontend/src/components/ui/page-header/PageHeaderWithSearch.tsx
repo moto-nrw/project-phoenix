@@ -280,8 +280,10 @@ function TabsSection({
 
   return (
     <div className="mt-4 mb-4 md:mt-0">
-      <div className="flex items-center justify-between gap-2 md:items-end md:gap-4">
-        {tabs ? <NavigationTabs {...tabs} className="min-w-0 flex-1" /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2 md:flex-nowrap md:items-end md:gap-4">
+        {tabs ? (
+          <NavigationTabs {...tabs} className="min-w-0 flex-[1_1_10rem]" />
+        ) : null}
 
         {tabsRowAction ? (
           <div className="flex flex-shrink-0 items-center pb-1 md:pb-3">
