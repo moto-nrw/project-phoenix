@@ -10,25 +10,12 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type { EnrollmentChangeRequest } from "~/lib/change-request-list-api";
 import { formatDate } from "~/lib/date-helpers";
 import { enrollmentChangeRequestFieldLabel } from "~/lib/enrollment-change-request-diff";
+import { enrollmentChangeRequestStatusMeta } from "~/lib/enrollment-change-request-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-
-const STATUS_META: Record<string, { label: string; tone: StatusBadgeTone }> = {
-  pending_review: { label: "Wartet auf Prüfung", tone: "blue" },
-  needs_parent_response: { label: "Rückfrage offen", tone: "orange" },
-  approved: { label: "Freigegeben", tone: "green" },
-  rejected: { label: "Abgelehnt", tone: "red" },
-};
-
-function statusMeta(status: string) {
-  return STATUS_META[status] ?? { label: status, tone: "gray" as const };
-}
 
 /** „Vorname, Telefon" — welche Teile der Anmeldung die Anfrage betrifft. */
 function changedSummary(fields: readonly string[]): string {
@@ -44,12 +31,13 @@ export function EnrollmentRequestItem({
   view: "open" | "history";
 }>) {
   const tenantPath = useTenantAwarePath();
-  const meta = statusMeta(row.status);
+  const meta = enrollmentChangeRequestStatusMeta(row.status);
   const childNames =
     row.child_names.length > 0
       ? row.child_names.join(", ")
       : (row.guardian_name ?? "Anmeldung");
-  const note = row.decision_note?.trim() ?? row.parent_note?.trim();
+  const parentNote = row.parent_note?.trim();
+  const decisionNote = row.decision_note?.trim();
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
@@ -75,7 +63,19 @@ export function EnrollmentRequestItem({
       <p className="mt-2 text-sm text-gray-700">
         Geändert: {changedSummary(row.changed_fields)}
       </p>
-      {note && <p className="mt-1 text-sm text-gray-600 italic">„{note}“</p>}
+      {/* Zwei getrennte Begründungen: die der Familie beim Einreichen und die
+          der Entscheidung. Eine davon zu verschlucken nimmt der Historie
+          genau die Frage, für die es sie gibt. */}
+      {parentNote && (
+        <p className="mt-1 text-sm text-gray-600 italic">
+          Begründung: „{parentNote}“
+        </p>
+      )}
+      {decisionNote && (
+        <p className="mt-1 text-sm text-gray-600 italic">
+          Entscheidung: „{decisionNote}“
+        </p>
+      )}
       <div className="mt-3">
         <Link
           href={tenantPath(

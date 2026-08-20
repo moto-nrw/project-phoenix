@@ -42,8 +42,8 @@ type ChangeRequestReviewItem struct {
 	ChildNames []string
 	// GuardianName is the person who filed the enrollment.
 	GuardianName string
-	// ReviewerName is who decided; empty while undecided, "Unbekannt" when
-	// the deciding account is gone.
+	// ReviewerName is who decided; empty while undecided, "Unbekannt" when the
+	// deciding account is gone.
 	ReviewerName string
 }
 
@@ -149,8 +149,10 @@ func (s *changeRequestService) reviewListLookups(
 		children[child.RequestID] = append(children[child.RequestID], child)
 	}
 
-	// A tenant without a wired person repository still gets the list, just
-	// without reviewer names — a missing name must not swallow the history.
+	// The factory always wires PersonRepo; only narrow test setups leave it
+	// nil. Without it every decided row reads "Unbekannt" (the name reserved
+	// for deleted accounts), which is misleading but still better than
+	// refusing the whole history over a display name.
 	reviewers := map[int64]*userModels.Person{}
 	if s.PersonRepo != nil && len(reviewerIDs) > 0 {
 		reviewers, err = s.PersonRepo.FindByAccountIDs(ctx, reviewerIDs)

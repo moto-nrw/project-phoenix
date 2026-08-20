@@ -12,6 +12,10 @@ const (
 	ChangeRequestStatusNeedsParentResponse = "needs_parent_response"
 	ChangeRequestStatusApproved            = "approved"
 	ChangeRequestStatusRejected            = "rejected"
+	// ChangeRequestStatusCancelled is allowed by the column constraint but
+	// written by nothing today. Readers still have to account for it: a row
+	// that exists must never fall out of every list.
+	ChangeRequestStatusCancelled = "cancelled"
 )
 
 const (

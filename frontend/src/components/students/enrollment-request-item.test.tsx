@@ -1,0 +1,77 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { EnrollmentRequestItem } from "./enrollment-request-item";
+import type { EnrollmentChangeRequest } from "~/lib/change-request-list-api";
+
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (href: string) => `/demo${href}`,
+}));
+
+function request(
+  overrides: Partial<EnrollmentChangeRequest> = {},
+): EnrollmentChangeRequest {
+  return {
+    id: "12",
+    request_id: "57",
+    origin: "parent",
+    status: "pending_review",
+    child_names: ["Lina Beispiel", "Timo Beispiel"],
+    guardian_name: "Anna Beispiel",
+    parent_note: "Bitte Telefonnummer ändern.",
+    changed_fields: ["guardian_phone", "children"],
+    created_at: "2026-08-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("EnrollmentRequestItem", () => {
+  it("zeigt Kinder, Einreichung und die betroffenen Teile der Anmeldung", () => {
+    render(<EnrollmentRequestItem row={request()} view="open" />);
+
+    expect(screen.getByText("Lina Beispiel, Timo Beispiel")).toBeVisible();
+    expect(screen.getByText("Wartet auf Prüfung")).toBeVisible();
+    expect(screen.getByText("Geändert: Telefon, Kinder")).toBeVisible();
+    expect(
+      screen.getByText(/Eingereicht am 19\.08\.2026 von Anna Beispiel/),
+    ).toBeVisible();
+    // Entschieden wird in der Detailansicht mit Rückfrage-Dialog.
+    expect(screen.getByRole("link", { name: /Prüfen/ })).toHaveAttribute(
+      "href",
+      "/demo/admin/enrollments/change-requests/12",
+    );
+  });
+
+  it("zeigt in der Historie beide Begründungen und die Entscheidung", () => {
+    render(
+      <EnrollmentRequestItem
+        row={request({
+          status: "approved",
+          decision_note: "Passt, freigegeben.",
+          decided_at: "2026-08-20T09:00:00Z",
+          decided_by_name: "Anna Müller",
+        })}
+        view="history"
+      />,
+    );
+
+    expect(screen.getByText("Freigegeben")).toBeVisible();
+    expect(
+      screen.getByText(/Entschieden am 20\.08\.2026 von Anna Müller/),
+    ).toBeVisible();
+    // Die Begründung der Familie darf die der Entscheidung nicht verdrängen.
+    expect(screen.getByText(/Bitte Telefonnummer ändern\./)).toBeVisible();
+    expect(screen.getByText(/Passt, freigegeben\./)).toBeVisible();
+  });
+
+  it("kennzeichnet eine Korrektur der OGS als solche", () => {
+    render(
+      <EnrollmentRequestItem
+        row={request({ origin: "admin", status: "approved" })}
+        view="history"
+      />,
+    );
+
+    expect(screen.getByText(/Korrektur der OGS/)).toBeVisible();
+  });
+});

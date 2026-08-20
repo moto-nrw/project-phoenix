@@ -26,6 +26,9 @@ async function fetchPendingEnrollmentRequestCount(): Promise<number> {
  * Kein eigener Zähl-Endpunkt: die offene Liste einer Schule ist kurz, und
  * clientseitig zu zählen erspart es, Rechte- und Statuslogik ein zweites Mal
  * im Backend zu führen — dasselbe Vorgehen wie bei den Abwesenheitsanträgen.
+ * Bewusste Grenze: gezählt wird eine Seite von 100. Wer mehr als 100 offene
+ * Anmeldungsänderungen hat, sieht 100 im Badge und die vollständige Liste auf
+ * der Seite; ab dieser Größenordnung wäre ein Zähl-Endpunkt fällig.
  */
 export function useEnrollmentRequestsPending() {
   const { data: session, status } = useSession();

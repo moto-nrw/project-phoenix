@@ -46,12 +46,11 @@ var openReviewStatuses = []string{
 	enrollmentModels.ChangeRequestStatusNeedsParentResponse,
 }
 
-// historyReviewStatuses are the terminal ones. An enrollment change request is
-// never withdrawn — the shared "withdrawn" status filter simply matches
-// nothing here.
+// historyReviewStatuses are the terminal ones.
 var historyReviewStatuses = []string{
 	enrollmentModels.ChangeRequestStatusApproved,
 	enrollmentModels.ChangeRequestStatusRejected,
+	enrollmentModels.ChangeRequestStatusCancelled,
 }
 
 // ChangeRequestReviewEntry is one Anmeldungsänderung in the shared display
@@ -193,7 +192,9 @@ func parseReviewListStatuses(raw string) ([]string, error) {
 		case "rejected":
 			statuses = append(statuses, enrollmentModels.ChangeRequestStatusRejected)
 		case "withdrawn":
-			// Known and accepted gap: this queue has no withdrawn state.
+			// A cancelled change request is one the family took back — the
+			// shared filter's "zurückgezogen".
+			statuses = append(statuses, enrollmentModels.ChangeRequestStatusCancelled)
 		default:
 			return nil, errInvalidReviewListQuery
 		}

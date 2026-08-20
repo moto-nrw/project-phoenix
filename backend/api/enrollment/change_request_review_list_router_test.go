@@ -345,8 +345,12 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	outsidePeriod := env.fetch(t, "view=history&from="+tomorrow)
 	assert.Empty(t, idsOf(outsidePeriod), "nothing was decided after the window")
 
-	// Withdrawn exists in the merged list but not in this queue.
-	assert.Empty(t, idsOf(env.fetch(t, "view=history&status=withdrawn")))
+	// Eine zurückgezogene Anfrage darf nicht aus jeder Liste fallen: sie steht
+	// in der Historie und trägt in der gemeinsamen Liste den Status
+	// „zurückgezogen".
+	cancelled := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusCancelled, base.Add(-2*time.Minute), 0, true)
+	assert.Equal(t, []string{idOf(cancelled)}, idsOf(env.fetch(t, "view=history&status=withdrawn")))
+	assert.Contains(t, idsOf(env.fetch(t, "view=history")), idOf(cancelled))
 }
 
 func TestChangeRequestReviewList_RefusesBadQueryAndMissingPermission(t *testing.T) {

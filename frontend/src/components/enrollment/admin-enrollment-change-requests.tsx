@@ -22,35 +22,11 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
+import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/lib/enrollment-change-request-status";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
-
-const CHANGE_REQUEST_STATUS_LABELS: Record<
-  AdminEnrollmentChangeRequestStatus,
-  string
-> = {
-  pending_review: "Wartet auf Prüfung",
-  needs_parent_response: "Rückfrage offen",
-  approved: "Freigegeben",
-  rejected: "Abgelehnt",
-  cancelled: "Abgebrochen",
-};
-
-const CHANGE_REQUEST_STATUS_TONES: Record<
-  AdminEnrollmentChangeRequestStatus,
-  StatusBadgeTone
-> = {
-  pending_review: "blue",
-  needs_parent_response: "orange",
-  approved: "green",
-  rejected: "red",
-  cancelled: "gray",
-};
 
 export function AdminEnrollmentChangeRequestDetail({
   changeRequestId,
@@ -445,8 +421,8 @@ function ChangeRequestStatusBadge({
 }) {
   return (
     <StatusBadge
-      label={CHANGE_REQUEST_STATUS_LABELS[status]}
-      tone={CHANGE_REQUEST_STATUS_TONES[status]}
+      label={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].label}
+      tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
     />
   );
 }
