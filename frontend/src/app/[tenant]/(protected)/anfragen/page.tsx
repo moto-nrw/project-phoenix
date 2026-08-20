@@ -4,12 +4,12 @@ import { useDeferredValue, useMemo, useState } from "react";
 
 import { useSession } from "next-auth/react";
 import type { DateRange } from "react-day-picker";
-import { TrayIcon } from "@phosphor-icons/react/ssr";
 
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
+import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-request-list";
+import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absence-request-list";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
-import { EmptyState } from "~/components/ui/empty-state";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
@@ -27,6 +27,7 @@ import {
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
 } from "~/lib/change-request-access";
+import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -41,6 +42,16 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "offering", label: "Angebote und AGs" },
   { value: "excused", label: "Entschuldigungen" },
 ];
+
+// Die Abwesenheitsarten, die Mitarbeitende beantragen können, mit den Namen
+// aus der geteilten Beschriftungstabelle. Freizeitausgleich fehlt bewusst: den
+// trägt die Zeiterfassung ein, er läuft nicht über eine Freigabe.
+const ABSENCE_TYPE_OPTIONS: readonly { value: string; label: string }[] = [
+  "vacation",
+  "sick",
+  "training",
+  "other",
+].map((value) => ({ value, label: ABSENCE_TYPE_LABEL[value] ?? value }));
 
 const STATUS_OPTIONS: readonly {
   value: AggregatedRequestStatus;
@@ -96,6 +107,7 @@ export default function AnfragenPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const deferredSearch = useDeferredValue(searchTerm);
   const [typeFilter, setTypeFilter] = useState<AggregatedRequestType[]>([]);
+  const [absenceTypeFilter, setAbsenceTypeFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<AggregatedRequestStatus[]>(
     [],
   );
@@ -117,6 +129,11 @@ export default function AnfragenPage() {
           : undefined,
     }),
     [deferredSearch, typeFilter, statusFilter, dateRange, view],
+  );
+
+  const staffFilters: StaffAbsenceRequestFilters = useMemo(
+    () => ({ search: deferredSearch, types: absenceTypeFilter }),
+    [deferredSearch, absenceTypeFilter],
   );
 
   const filterConfigs = useMemo(() => {
@@ -213,8 +230,42 @@ export default function AnfragenPage() {
     return chips;
   }, [typeFilter, statusFilter, dateRange, view]);
 
+  const staffFilterConfigs = useMemo<FilterConfig[]>(
+    () => [
+      {
+        id: "abwesenheitsart",
+        label: "Art",
+        type: "buttons",
+        multiSelect: true,
+        value: absenceTypeFilter,
+        onChange: (value) =>
+          setAbsenceTypeFilter(
+            (Array.isArray(value) ? value : [value]) as string[],
+          ),
+        options: ABSENCE_TYPE_OPTIONS.map((option) => ({ ...option })),
+      },
+    ],
+    [absenceTypeFilter],
+  );
+
+  const staffActiveFilters = useMemo<ActiveFilter[]>(
+    () =>
+      absenceTypeFilter.map((type) => ({
+        id: `abwesenheitsart-${type}`,
+        label:
+          ABSENCE_TYPE_OPTIONS.find((option) => option.value === type)?.label ??
+          type,
+        onRemove: () =>
+          setAbsenceTypeFilter((prev) =>
+            prev.filter((value) => value !== type),
+          ),
+      })),
+    [absenceTypeFilter],
+  );
+
   const clearAllFilters = () => {
     setTypeFilter([]);
+    setAbsenceTypeFilter([]);
     setStatusFilter([]);
     setDateRange(undefined);
   };
@@ -230,7 +281,7 @@ export default function AnfragenPage() {
     );
   }
 
-  const elternActive = activeTab === "eltern";
+  const staffActive = activeTab === "mitarbeitende";
 
   return (
     <div className="-mt-1.5 w-full">
@@ -244,32 +295,39 @@ export default function AnfragenPage() {
             ? {
                 items: visibleTabs,
                 activeTab,
-                onTabChange: (tabId) => setSelectedTab(tabId as AnfragenTabId),
+                // Der Suchbegriff des einen Reiters passt nie zum anderen
+                // (Kind gegen Teammitglied), also beim Wechsel leeren.
+                onTabChange: (tabId) => {
+                  setSelectedTab(tabId as AnfragenTabId);
+                  setSearchTerm("");
+                },
               }
             : undefined
         }
-        search={
-          elternActive
-            ? {
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Kind suchen...",
-              }
-            : undefined
-        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: staffActive
+            ? "Teammitglied suchen..."
+            : "Kind suchen...",
+        }}
         filters={
-          elternActive && filterConfigs.length > 0 ? filterConfigs : undefined
+          staffActive
+            ? staffFilterConfigs
+            : filterConfigs.length > 0
+              ? filterConfigs
+              : undefined
         }
-        activeFilters={elternActive ? activeFilters : undefined}
-        onClearAllFilters={elternActive ? clearAllFilters : undefined}
+        activeFilters={staffActive ? staffActiveFilters : activeFilters}
+        onClearAllFilters={clearAllFilters}
         filterVariant="quiet"
         activeFilterDisplay="count"
       />
-      {activeTab === "mitarbeitende" ? (
-        <EmptyState
-          icon={<TrayIcon size={48} aria-hidden="true" />}
-          title="Anträge von Mitarbeitenden ziehen bald hierhin um"
-          description="Urlaubs-, Krank- und Fortbildungsanträge entscheiden Sie bis dahin wie gewohnt auf der Seite Mitarbeiter."
+      {staffActive ? (
+        <MitarbeitendeTab
+          view={view}
+          onViewChange={setView}
+          filters={staffFilters}
         />
       ) : (
         <ElternTab view={view} onViewChange={setView} filters={filters} />
@@ -313,6 +371,44 @@ function ElternTab({
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
       <AggregatedRequestList key={view} view={view} filters={filters} />
+    </div>
+  );
+}
+
+/**
+ * Der Mitarbeitende-Reiter: Abwesenheitsanträge des Teams, offen entscheiden
+ * oder in der Historie nachschlagen. Genehmigen, Ablehnen und Rückfrage
+ * laufen über dieselben Modals wie zuvor auf der Mitarbeiter-Seite.
+ */
+function MitarbeitendeTab({
+  view,
+  onViewChange,
+  filters,
+}: Readonly<{
+  view: "open" | "history";
+  onViewChange: (view: "open" | "history") => void;
+  filters: StaffAbsenceRequestFilters;
+}>) {
+  return (
+    <div className="w-full">
+      <p className="mb-4 max-w-3xl text-sm text-gray-600">
+        {view === "open"
+          ? "Urlaub, Krank, Fortbildung und Sonstige, die eine Freigabe brauchen."
+          : "Bereits entschiedene Anträge mit Datum, Person und Begründung."}
+      </p>
+      <div className="mb-6">
+        <SegmentedControl
+          items={[
+            { value: "open", label: "Offen" },
+            { value: "history", label: "Historie" },
+          ]}
+          value={view}
+          onChange={onViewChange}
+          ariaLabel="Ansicht wählen"
+        />
+      </div>
+      {/* key={view}: die Liste mountet beim Umschalten frisch. */}
+      <StaffAbsenceRequestList key={view} view={view} filters={filters} />
     </div>
   );
 }

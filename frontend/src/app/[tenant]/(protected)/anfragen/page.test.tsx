@@ -34,6 +34,23 @@ vi.mock("~/components/students/aggregated-request-list", () => ({
   ),
 }));
 
+// Ebenso die Abwesenheitsliste des Mitarbeitende-Reiters (#2433).
+vi.mock("~/components/staff/staff-absence-request-list", () => ({
+  StaffAbsenceRequestList: ({
+    view,
+    filters,
+  }: {
+    view: string;
+    filters: { search: string; types: readonly string[] };
+  }) => (
+    <div
+      data-testid="absence-list"
+      data-view={view}
+      data-filters={JSON.stringify(filters)}
+    />
+  ),
+}));
+
 // NavigationTabs beobachtet seine Scroll-Breite; jsdom kennt ResizeObserver
 // nicht (gleiches Muster wie die Master-Detail-Tests).
 class MockResizeObserver {
@@ -63,7 +80,16 @@ function listProbe() {
   };
 }
 
-const PLACEHOLDER_TITLE = "Anträge von Mitarbeitenden ziehen bald hierhin um";
+function absenceProbe() {
+  const probe = screen.getByTestId("absence-list");
+  return {
+    view: probe.getAttribute("data-view"),
+    filters: JSON.parse(probe.getAttribute("data-filters") ?? "{}") as {
+      search: string;
+      types: string[];
+    },
+  };
+}
 
 describe("AnfragenPage", () => {
   beforeEach(() => {
@@ -158,10 +184,10 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     expect(screen.queryByRole("button", { name: "Mitarbeitende" })).toBeNull();
-    expect(screen.queryByText(PLACEHOLDER_TITLE)).toBeNull();
+    expect(screen.queryByTestId("absence-list")).toBeNull();
   });
 
-  it("zeigt mit vacation:approve beide Reiter und wechselt zum Platzhalter", () => {
+  it("zeigt mit vacation:approve beide Reiter und wechselt zu den Anträgen", () => {
     mockUseSession.mockReturnValue(
       sessionWith(["users:update", "vacation:approve"]),
     );
@@ -173,20 +199,43 @@ describe("AnfragenPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mitarbeitende" }));
 
-    expect(screen.getByText(PLACEHOLDER_TITLE)).toBeInTheDocument();
+    expect(absenceProbe().view).toBe("open");
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
   });
 
-  it("zeigt mit nur vacation:approve den Platzhalter ohne Reiterleiste", () => {
+  it("sucht im Mitarbeitende-Reiter nach Teammitgliedern und filtert nach Art", () => {
     mockUseSession.mockReturnValue(sessionWith(["vacation:approve"]));
 
     render(<AnfragenPage />);
 
-    expect(screen.getByText(PLACEHOLDER_TITLE)).toBeInTheDocument();
+    const [input] = screen.getAllByPlaceholderText("Teammitglied suchen...");
+    fireEvent.change(input!, { target: { value: "Mira" } });
+    expect(absenceProbe().filters.search).toBe("Mira");
+
+    // Der Art-Filter der Kopfzeile reicht die gewählte Abwesenheitsart durch.
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Fortbildung" }));
+    expect(absenceProbe().filters.types).toEqual(["training"]);
+  });
+
+  it("schaltet den Mitarbeitende-Reiter auf die Historie um", () => {
+    mockUseSession.mockReturnValue(sessionWith(["vacation:approve"]));
+
+    render(<AnfragenPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    expect(absenceProbe().view).toBe("history");
+  });
+
+  it("zeigt mit nur vacation:approve die Anträge ohne Reiterleiste", () => {
+    mockUseSession.mockReturnValue(sessionWith(["vacation:approve"]));
+
+    render(<AnfragenPage />);
+
+    expect(screen.getByTestId("absence-list")).toBeInTheDocument();
     // Nur ein sichtbarer Reiter → keine Reiterleiste, kein Eltern-Inhalt.
     expect(screen.queryByRole("button", { name: "Eltern" })).toBeNull();
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
   });
 
   it("zeigt Admins beide Reiter", () => {

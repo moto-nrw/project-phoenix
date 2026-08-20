@@ -324,6 +324,10 @@ func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*act
 	return nil, nil
 }
 
+func (m *mockStaffAbsenceService) ListAbsenceRequests(_ context.Context, _ activeSvc.AbsenceRequestListQuery) ([]*activeSvc.StaffAbsenceRequestItem, error) {
+	return nil, nil
+}
+
 // newMockSettingsService builds a configtest.Mock reproducing the former
 // hand-rolled mockSettingsService stub: Resolve/ResolveString/
 // ResolveStringForTenant all return the same (stringVal, stringErr) pair,
