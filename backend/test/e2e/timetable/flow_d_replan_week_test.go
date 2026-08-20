@@ -35,14 +35,11 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowD-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowD", "Staff")
 	student := testpkg.CreateTestStudent(t, s.db, "Dora", "FlowD", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", student.ID)
 	})
 
 	// Four templates at distinct times on Thursday.

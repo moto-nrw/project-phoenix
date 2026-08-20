@@ -293,7 +293,6 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 	// Tokens require an account (accounts are not tenant-scoped).
 	acctA := CreateTestAccount(t, db, "token-isolation-a")
 	acctB := CreateTestAccount(t, db, "token-isolation-b")
-	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
 
 	tkA := CreateTestTokenForTenant(t, db, tenantA, acctA.ID)
 	tkB := CreateTestTokenForTenant(t, db, tenantB, acctB.ID)
@@ -489,7 +488,6 @@ func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
 	// Posts require an author (account_id). Accounts are not tenant-scoped.
 	acctA := CreateTestAccount(t, db, "suggestion-isolation-a")
 	acctB := CreateTestAccount(t, db, "suggestion-isolation-b")
-	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
 
 	postA := CreateTestSuggestionPostForTenant(t, db, tenantA, acctA.ID)
 	postB := CreateTestSuggestionPostForTenant(t, db, tenantB, acctB.ID)

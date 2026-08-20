@@ -33,12 +33,10 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	date := timezone.TodayDate().AddDays(7)
 	room := testpkg.CreateTestRoom(t, s.db, "Flow-I-Raum")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	mover := testpkg.CreateTestStaff(t, s.db, "Ina", "Umzieherin")
 	free := testpkg.CreateTestStaff(t, s.db, "Frido", "Verfuegbar")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupActivityFixtures(t, s.db, mover.ID, free.ID)
 	})
 
 	schulhof := testpkg.CreateTestActivityInstance(t, s.db, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -51,10 +49,9 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 
 	row := testpkg.CreateTestInstanceStaff(t, s.db, schulhof.ID, mover.ID, testpkg.InstanceStaffOpts{})
 	s.registerCleanup("schedule.instance_staff", row.ID)
-	shiftMover := testpkg.CreateTestStaffShift(t, s.db, mover.ID, date, testpkg.StaffShiftOpts{})
-	shiftFree := testpkg.CreateTestStaffShift(t, s.db, free.ID, date, testpkg.StaffShiftOpts{})
+	testpkg.CreateTestStaffShift(t, s.db, mover.ID, date, testpkg.StaffShiftOpts{})
+	testpkg.CreateTestStaffShift(t, s.db, free.ID, date, testpkg.StaffShiftOpts{})
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.staff_shifts", shiftMover.ID, shiftFree.ID)
 	})
 
 	claims := s.primaryAdminClaims()

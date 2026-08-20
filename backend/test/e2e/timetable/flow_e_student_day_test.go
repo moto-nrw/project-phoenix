@@ -39,15 +39,12 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowE-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowE", "Staff")
 	studentA := testpkg.CreateTestStudent(t, s.db, "Alice", "FlowE", "3a")
 	studentB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowE", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", studentA.ID, studentB.ID)
 	})
 
 	// Two templates on the target weekday. studentA is enrolled in both,
@@ -70,7 +67,6 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 		staffIDs:   []int64{staff.ID},
 		studentIDs: []int64{studentA.ID}, // studentB NOT enrolled in Y
 	})
-	_ = tmplY
 
 	// --- Materialize + start both instances --------------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}

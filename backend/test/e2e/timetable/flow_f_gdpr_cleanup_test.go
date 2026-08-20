@@ -34,13 +34,11 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Fixtures: students, room, old + fresh instances -------------------
 	room := testpkg.CreateTestRoom(t, s.db, "FlowF-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	studA := testpkg.CreateTestStudent(t, s.db, "Anna", "FlowF", "3a")
 	studB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowF", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.students", studA.ID, studB.ID)
 	})
 
 	// Old instance: 60 days ago. Should be deleted.
@@ -214,7 +212,6 @@ func studAStaffProxy(t *testing.T, s *scenario) int64 {
 	t.Helper()
 	st := testpkg.CreateTestStaff(t, s.db, "FlowF", fmt.Sprintf("Proxy-%d", time.Now().UnixNano()))
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, st.ID)
 	})
 	return st.ID
 }

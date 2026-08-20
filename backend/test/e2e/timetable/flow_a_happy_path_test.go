@@ -36,7 +36,6 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "Frau", "Schmidt")
@@ -45,8 +44,6 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", "B", "3a")
 	student3 := testpkg.CreateTestStudent(t, s.db, "Cleo", "C", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff1.ID, staff2.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", student1.ID, student2.ID, student3.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{
@@ -58,7 +55,6 @@ func TestFlowA_PlanToReport(t *testing.T) {
 		staffIDs:   []int64{staff1.ID, staff2.ID},
 		studentIDs: []int64{student1.ID, student2.ID, student3.ID},
 	})
-	_ = tmpl
 
 	// --- Step 1: materialize the target week -------------------------------
 	fromS := target.String()

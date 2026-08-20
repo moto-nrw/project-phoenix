@@ -116,13 +116,6 @@ func CleanupTableRecords[ID int64 | string](tb testing.TB, db *bun.DB, table str
 	}
 }
 
-// CleanupTableRecordsByStringID is CleanupTableRecords for string keys. It
-// exists only so the ~14 existing call sites keep compiling.
-func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids ...string) {
-	tb.Helper()
-	CleanupTableRecords(tb, db, table, ids...)
-}
-
 // CleanupRateLimitsByEmail removes password reset rate limit records by email.
 // Use this for cleaning up after password reset rate limit tests.
 // The rate limit table uses email as the primary key, not an integer ID.

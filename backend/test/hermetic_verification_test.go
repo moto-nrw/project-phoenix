@@ -528,46 +528,36 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 // cleanupCallBaseline is the shrink-only per-package baseline of Cleanup*
 // fixture calls in _test.go files (#2419). The clone-per-package lifecycle
-// makes them redundant; packages are migrated tranche by tranche (leftover-
-// tolerant packages are already at zero). Counts may only go DOWN. A package
-// not listed here must stay at zero.
+// makes a teardown redundant for every row that belongs to a tenant: it dies
+// with the clone, and no other test ever sees it. 5120 such calls are gone.
+//
+// What is left — and what the numbers below still allow — is the teardown the
+// lifecycle does NOT cover:
+//
+//   - rows in tenant-less tables (auth.accounts, the RBAC catalog, the
+//     platform/operator tables, password-reset and MFA rows). The leftover
+//     gate counts those as shared state, so a test that creates one has to
+//     take it back.
+//   - state reset BETWEEN subtests of one test: a unique index or a
+//     tenant-wide count that the next subtest would trip over. The better fix
+//     is testpkg.OwnTenant for that subtest; the teardown is the fallback
+//     where the subtests deliberately build on each other.
+//   - the delete that IS the test: an ID the code under test must report as
+//     missing, or a row a global sweep must not find.
+//
+// Counts may only go DOWN. A package not listed here must stay at zero.
 var cleanupCallBaseline = map[string]int{
-	"api/groups":                        93,
-	"api/staff":                         84,
-	"api/students":                      435,
-	"api/timetable":                     295,
-	"database/migrations":               106,
-	"database/repositories/active":      289,
-	"database/repositories/activities":  196,
-	"database/repositories/audit":       95,
-	"database/repositories/auth":        157,
-	"database/repositories/config":      7,
-	"database/repositories/education":   90,
-	"database/repositories/enrollment":  1,
-	"database/repositories/facilities":  19,
-	"database/repositories/feedback":    33,
-	"database/repositories/iot":         45,
-	"database/repositories/parent":      17,
-	"database/repositories/schedule":    336,
-	"database/repositories/suggestions": 33,
-	"database/repositories/users":       315,
-	"models/base":                       3,
-	"services/absence":                  21,
-	"services/active":                   383,
-	"services/activities":               98,
-	"services/auth":                     273,
-	"services/calendar":                 175,
-	"services/config":                   2,
-	"services/education":                262,
-	"services/enrollment":               101,
-	"services/messaging":                11,
-	"services/parent":                   252,
-	"services/schedule":                 380,
-	"services/slotlists":                146,
-	"services/users":                    304,
-	"test":                              22,
-	"test/e2e/calendar":                 13,
-	"test/e2e/timetable":                28,
+	"api/groups":                     2,
+	"api/staff":                      2,
+	"database/migrations":            58,
+	"database/repositories/auth":     121,
+	"database/repositories/iot":      6,
+	"database/repositories/schedule": 125,
+	"services/active":                1,
+	"services/activities":            1,
+	"services/auth":                  269,
+	"services/education":             1,
+	"services/users":                 1,
 }
 
 // tenantContext1Baseline is the shrink-only per-package baseline of
@@ -1110,8 +1100,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 		if optedIn[pkg] {
 			continue
 		}
-		if reason, ok := perTestTenantsOptOut[pkg]; ok {
-			_ = reason
+		if _, ok := perTestTenantsOptOut[pkg]; ok {
 			continue
 		}
 		violations = append(violations, "  "+pkg)

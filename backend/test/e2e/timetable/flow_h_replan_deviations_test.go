@@ -36,12 +36,10 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH", "Bravo")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staffA.ID, staffB.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{
@@ -130,13 +128,11 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH2-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Bravo")
 	subC := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Charlie") // not on the template
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staffA.ID, staffB.ID, subC.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{
@@ -196,12 +192,10 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH3-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH3", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH3", "Bravo")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staffA.ID, staffB.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{

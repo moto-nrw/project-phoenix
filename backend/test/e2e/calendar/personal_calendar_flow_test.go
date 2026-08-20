@@ -97,12 +97,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Invitee")
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, invitee.ID, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, inviteeAccount.ID, organizerAccount.ID)
-	})
 
 	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
@@ -124,7 +120,6 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	var created createAppointmentE2EResponse
 	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
 	require.Greater(t, created.Data.Appointment.ID, int64(0))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", created.Data.Appointment.ID) })
 	require.Len(t, created.Data.Recipients, 1)
 	recipientID := created.Data.Recipients[0].ID
 	assert.Equal(t, "pending", created.Data.Recipients[0].Status)
@@ -160,12 +155,8 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleInv")
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, invitee.ID, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, inviteeAccount.ID, organizerAccount.ID)
-	})
 	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
 
@@ -183,7 +174,6 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
 	apptID := created.Data.Appointment.ID
 	require.Greater(t, apptID, int64(0))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
 	path := "/calendar/appointments/" + strconv.FormatInt(apptID, 10)
 	listPath := "/calendar/my?from=2026-05-01&to=2026-05-10"
 
@@ -242,12 +232,8 @@ func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")
 	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OtherMgr")
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, other.ID, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, otherAccount.ID, organizerAccount.ID)
-	})
 	ownerToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	otherToken := calendarToken(t, otherAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 
@@ -264,7 +250,6 @@ func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 	var created createAppointmentE2EResponse
 	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
 	apptID := created.Data.Appointment.ID
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
 	path := "/calendar/appointments/" + strconv.FormatInt(apptID, 10)
 
 	// A different manager (an invitee here) may not delete it.

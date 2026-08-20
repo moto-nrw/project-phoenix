@@ -35,7 +35,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowC-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S1-Primary")
@@ -45,8 +44,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	staff5 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S5-GapOnly")
 	student := testpkg.CreateTestStudent(t, s.db, "Anna", "FlowC", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff1.ID, staff2.ID, staff3.ID, staff4.ID, staff5.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", student.ID)
 	})
 
 	// Two templates on the same weekday at different times.

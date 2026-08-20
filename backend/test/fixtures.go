@@ -63,6 +63,12 @@ func uniqueFixtureSuffix() int64 {
 	return time.Now().UnixNano() + atomic.AddInt64(&fixtureSeq, 1)
 }
 
+// UniqueSuffix is uniqueFixtureSuffix for tests that build their own unique
+// names (e-mails, usernames, slugs). Reach for it instead of
+// time.Now().UnixNano(): two parallel tests can read the same nanosecond, and
+// the collision surfaces on whatever unique index the name happens to hit.
+func UniqueSuffix() int64 { return uniqueFixtureSuffix() }
+
 // cleanupDelete executes a delete query and logs any errors.
 // This provides visibility into cleanup failures without causing test failures.
 func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
@@ -782,22 +788,6 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 		"auth.accounts_parents")
 }
 
-// CleanupRFIDCards removes RFID cards by their string IDs.
-func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
-	tb.Helper()
-
-	if len(tagIDs) == 0 {
-		return
-	}
-
-	for _, tagID := range tagIDs {
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersRFIDCards).
-			Where(whereIDEquals, tagID),
-			tableUsersRFIDCards)
-	}
-}
-
 // ============================================================================
 // Education Domain Fixtures
 // ============================================================================
@@ -980,16 +970,6 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	require.NoError(tb, err, "Failed to create test group supervisor")
 
 	return supervisor
-}
-
-// CleanupPerson removes a person from the database by ID.
-func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
-	tb.Helper()
-
-	cleanupDelete(tb, db.NewDelete().
-		TableExpr(tableUsersPersons).
-		Where(whereIDEquals, personID),
-		tableUsersPersons)
 }
 
 // CleanupAccount removes an account and related auth records from the database.
@@ -1656,6 +1636,10 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test system role")
 
+	// A system role has tenant_id NULL — shared state for every test in the
+	// binary, so it goes away again with the test that made it (#2419).
+	tb.Cleanup(func() { CleanupRoleRecords(tb, db, role.ID) })
+
 	return role
 }
 
@@ -1715,6 +1699,11 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 		ModelTableExpr(`auth.permissions`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test permission")
+
+	// auth.permissions is part of the clone-wide RBAC catalog and carries no
+	// tenant, so this row is shared state: the fixture takes it back itself
+	// (#2419).
+	tb.Cleanup(func() { CleanupPermissionRecords(tb, db, permission.ID) })
 
 	return permission
 }
@@ -1993,22 +1982,6 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 // Schedule Domain Fixtures
 // ============================================================================
 
-// CleanupScheduleFixtures removes schedule-related fixtures from the database.
-func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
-	tb.Helper()
-
-	if len(timeframeIDs) == 0 {
-		return
-	}
-
-	for _, id := range timeframeIDs {
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("schedule.timeframes").
-			Where(whereIDEquals, id),
-			"schedule.timeframes")
-	}
-}
-
 // ============================================================================
 // Auth Domain Extended Fixtures (Invitations)
 // ============================================================================
@@ -2103,20 +2076,41 @@ func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64
 	}
 }
 
-// GetOrCreateTestRole gets an existing role by name or creates a test role.
-// This is useful for invitation tests that need a valid role.
+// GetOrCreateTestRole returns the role called name: this tenant's own if it
+// has one, otherwise the system role of that name (the RBAC catalog every
+// clone inherits from the template), and it creates a tenant-owned one when
+// neither exists.
+//
+// The order matters (#2419). A created role is now tenant-owned and carries
+// the plain name — auth.roles is unique on (tenant_id, name) for tenant
+// roles, so no two tests collide, and no test creates a role that another
+// test can see. What stays shared is the catalog itself, which tests read and
+// no longer delete: the per-row teardowns that used to remove a role fetched
+// through this helper are gone, and with them the cascade onto other tests'
+// invitation tokens that made TestInvitationService_ValidateInvitation/expired
+// fail about one package run in six.
+//
+// The system role is deliberately preferred over creating a fresh one: the
+// callers ask for "admin"/"user"/"teacher" and mean the privilege tier those
+// carry. A freshly created stand-in has base_role "user" and fails every
+// role-grant check the tests are actually about.
 func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Try to find existing role first
+	tenantID := fixtureTenantID(tb)
+
+	// This tenant's own role first, the shared system role second.
 	var role auth.Role
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
 		Where(`"role".name = ?`, name).
+		Where(`"role".tenant_id = ? OR "role".tenant_id IS NULL`, tenantID).
+		OrderExpr(`"role".tenant_id NULLS LAST`).
+		Limit(1).
 		Scan(ctx)
 
 	if err == nil {
@@ -2124,13 +2118,12 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	}
 
 	// Create a new role if not found
-	tenantID := fixtureTenantID(tb)
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
 	baseRole := auth.BaseRoleUser
 	role = auth.Role{
-		Name:        fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix()),
+		Name:        name,
 		Description: "Test role for " + name,
 		IsSystem:    false,
 		TenantID:    &tenantID,
@@ -2240,37 +2233,6 @@ func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID in
 	require.NoError(tb, err, "Failed to create test grade transition mapping")
 
 	return mapping
-}
-
-// CleanupGradeTransitionFixtures removes grade transition fixtures from the database.
-// Pass transition IDs and it will clean up the transition, mappings, and history.
-func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...int64) {
-	tb.Helper()
-
-	if len(transitionIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Delete history first (depends on transition)
-	_, _ = db.NewDelete().
-		TableExpr("education.grade_transition_history").
-		Where("transition_id IN (?)", bun.List(transitionIDs)).
-		Exec(ctx)
-
-	// Delete mappings (depends on transition)
-	_, _ = db.NewDelete().
-		TableExpr("education.grade_transition_mappings").
-		Where("transition_id IN (?)", bun.List(transitionIDs)).
-		Exec(ctx)
-
-	// Delete transitions
-	_, _ = db.NewDelete().
-		TableExpr(tableEducationGradeTransition).
-		Where(whereIDIn, bun.List(transitionIDs)).
-		Exec(ctx)
 }
 
 // ============================================================================
@@ -3350,12 +3312,6 @@ func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date
 	return row
 }
 
-// CleanupStudentStatusDays removes status-day rows by ID. Safe to defer.
-func CleanupStudentStatusDays(tb testing.TB, db *bun.DB, ids ...int64) {
-	tb.Helper()
-	CleanupTableRecords(tb, db, "active.student_status_days", ids...)
-}
-
 // InstanceStaffOpts controls optional fields for CreateTestInstanceStaff.
 type InstanceStaffOpts struct {
 	RoomID       *int64
@@ -3389,62 +3345,6 @@ func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int6
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to create test instance staff")
 	return row
-}
-
-// CleanupInstanceStaffFixtures removes instance_staff rows by ID. Callers may
-// pass zero IDs (skipped silently).
-func CleanupInstanceStaffFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
-	tb.Helper()
-	nonzero := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id > 0 {
-			nonzero = append(nonzero, id)
-		}
-	}
-	if len(nonzero) == 0 {
-		return
-	}
-	CleanupTableRecords(tb, db, "schedule.instance_staff", nonzero...)
-}
-
-// CleanupScheduleFixturesB11 drops arrival/pickup/instance fixtures by ID.
-// Table cleanup order matters: instance_students before activity_instances
-// (FK), arrival/pickup exceptions before their student rows. Callers can
-// pass zero IDs (skipped silently).
-func CleanupScheduleFixturesB11(
-	tb testing.TB, db *bun.DB,
-	arrivalScheduleIDs, arrivalExceptionIDs, pickupScheduleIDs, pickupExceptionIDs []int64,
-	instanceStudentIDs, activityInstanceIDs []int64,
-) {
-	tb.Helper()
-
-	nonzero := func(ids []int64) []int64 {
-		out := make([]int64, 0, len(ids))
-		for _, id := range ids {
-			if id > 0 {
-				out = append(out, id)
-			}
-		}
-		return out
-	}
-
-	byTable := []struct {
-		table string
-		ids   []int64
-	}{
-		{"schedule.instance_students", nonzero(instanceStudentIDs)},
-		{"schedule.activity_instances", nonzero(activityInstanceIDs)},
-		{"schedule.student_arrival_exceptions", nonzero(arrivalExceptionIDs)},
-		{"schedule.student_arrival_schedules", nonzero(arrivalScheduleIDs)},
-		{"schedule.student_pickup_exceptions", nonzero(pickupExceptionIDs)},
-		{"schedule.student_pickup_schedules", nonzero(pickupScheduleIDs)},
-	}
-	for _, g := range byTable {
-		if len(g.ids) == 0 {
-			continue
-		}
-		CleanupTableRecords(tb, db, g.table, g.ids...)
-	}
 }
 
 // ParentChain bundles the IDs of a fully-wired loginable-parent → child
@@ -3542,68 +3442,6 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		StudentID:         student.ID,
 		PersonID:          student.PersonID,
 		Email:             account.Email,
-	}
-}
-
-// CleanupParentGuardianChain removes every row created by
-// CreateTestParentGuardianChain plus any parent notes / status days that
-// tests attached to the chain's student. Safe to defer.
-func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
-	tb.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	exec := func(query string, arg int64) {
-		if _, err := db.ExecContext(ctx, query, arg); err != nil {
-			tb.Logf("cleanup warning: %v", err)
-		}
-	}
-	exec(`DELETE FROM users.student_data_change_requests WHERE student_id = ?`, c.StudentID)
-	exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, c.GuardianProfileID)
-	// Parent messaging rows FIRST: threads reference users.students and
-	// auth.accounts WITHOUT ON DELETE CASCADE, so any thread/message/read a test
-	// created on this chain blocks the student/account deletes below with an FK
-	// violation (and leaks rows into the shared test DB). Deleting the threads
-	// would cascade messages + reads via their thread_id FK, but delete all three
-	// explicitly by student so a stray row never survives.
-	exec(`DELETE FROM users.parent_message_reads WHERE thread_id IN (SELECT id FROM users.parent_message_threads WHERE student_id = ?)`, c.StudentID)
-	exec(`DELETE FROM users.parent_messages WHERE student_id = ?`, c.StudentID)
-	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
-	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
-	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
-	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)
-	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
-	exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, c.GuardianProfileID)
-	exec(`DELETE FROM users.students WHERE id = ?`, c.StudentID)
-	exec(`DELETE FROM users.persons WHERE id = ?`, c.PersonID)
-	exec(`DELETE FROM auth.accounts WHERE id = ?`, c.AccountID)
-}
-
-// CleanupParentMessagingForAccount removes parent-messaging rows that reference
-// an account directly: message reads keyed by account_id and messages sent by
-// the account (sender_account_id). Both columns FK auth.accounts(id) WITHOUT ON
-// DELETE CASCADE, so a test that sends a message or records a read from a
-// SEPARATE staff/reader account (distinct from the guardian chain) must clear
-// those rows before deleting that account — otherwise CleanupAuthFixtures hits
-// an FK violation and leaks the account into the shared test DB.
-//
-// CleanupParentGuardianChain already deletes these rows by student_id, but defers
-// run LIFO: the staff-account cleanup is registered last and so runs first.
-// Register this helper as the LAST defer (it then runs FIRST) so it clears the
-// FK ahead of the account delete.
-func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...int64) {
-	tb.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	exec := func(query string, arg int64) {
-		if _, err := db.ExecContext(ctx, query, arg); err != nil {
-			tb.Logf("cleanup warning: %v", err)
-		}
-	}
-	for _, id := range accountIDs {
-		exec(`DELETE FROM users.parent_message_reads WHERE account_id = ?`, id)
-		exec(`DELETE FROM users.parent_messages WHERE sender_account_id = ?`, id)
 	}
 }
 

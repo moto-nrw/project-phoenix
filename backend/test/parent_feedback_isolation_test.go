@@ -54,10 +54,8 @@ func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	account := CreateTestAccount(t, db, "feedback-isolation@example.test")
-	defer CleanupAccount(t, db, account.ID)
 	EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	parentPost := createBoardPost(t, db, tenantID, account.ID, suggestions.PostAuthorParent, "Elternsicht auf die App")
@@ -125,10 +123,8 @@ func TestParentPostRejectedInStaffTransaction(t *testing.T) {
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	account := CreateTestAccount(t, db, "feedback-wrong-tx@example.test")
-	defer CleanupAccount(t, db, account.ID)
 	EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -156,7 +152,6 @@ func TestNestedActorMismatchRejected(t *testing.T) {
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	err := tenant.WithTenantTx(context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return tenant.WithParentTx(txCtx, db, tenantID, func(context.Context, bun.Tx) error {

@@ -40,7 +40,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowB-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowB", "Staff1")
@@ -49,8 +48,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	bob := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowB", "3a")
 	cleo := testpkg.CreateTestStudent(t, s.db, "Cleo", "FlowB", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff1.ID, staff2.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", alice.ID, bob.ID, cleo.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{

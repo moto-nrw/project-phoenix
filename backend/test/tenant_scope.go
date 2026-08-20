@@ -84,11 +84,49 @@ func fixtureTenantID(tb testing.TB) int64 {
 	return legacyBootstrapTenantID
 }
 
-// topLevelTestName strips subtest path segments so a parent and its subtests
-// resolve to the same tenant.
+// OwnTenant gives THIS test its own tenant, even when it is a subtest, and
+// returns the ID. Everything the same tb creates afterwards lands there, and
+// its own subtests share it.
+//
+// The default — subtests share the parent's tenant — is right whenever the
+// parent builds the fixtures its subtests read. It is wrong for the other
+// common shape: a table of subtests that each create the same kind of row and
+// then assert something tenant-wide about it. Those used to stay apart
+// because each subtest deleted its rows again; without the per-row teardowns
+// (#2419) the second subtest sees the first one's row and hits a unique
+// index, an overlap check, or a count that is one too high. Calling OwnTenant
+// first is the fix, not putting the deletes back.
+func OwnTenant(tb testing.TB) int64 {
+	tb.Helper()
+	ownTenantScopes.Store(tb.Name(), struct{}{})
+	return Tenant(tb)
+}
+
+// OwnCtx is OwnTenant plus the context scoped to it.
+func OwnCtx(tb testing.TB) context.Context {
+	tb.Helper()
+	return TenantContext(OwnTenant(tb))
+}
+
+// ownTenantScopes holds the full names of the subtests that claimed a tenant
+// of their own via OwnTenant.
+var ownTenantScopes sync.Map // string -> struct{}
+
+// topLevelTestName resolves a test to the name that owns its tenant: the
+// longest prefix of tb.Name() that claimed one via OwnTenant, and otherwise
+// the top-level test — so a parent and its subtests share one tenant.
 func topLevelTestName(tb testing.TB) string {
-	name, _, _ := strings.Cut(tb.Name(), "/")
-	return name
+	name := tb.Name()
+	for {
+		if _, ok := ownTenantScopes.Load(name); ok {
+			return name
+		}
+		cut := strings.LastIndex(name, "/")
+		if cut < 0 {
+			return name
+		}
+		name = name[:cut]
+	}
 }
 
 // RebaseTenantID maps the bootstrap tenant onto the tenant this test owns and

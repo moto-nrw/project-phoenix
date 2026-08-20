@@ -25,7 +25,6 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, s.db, "FlowG-Room")
 	category := testpkg.CreateTestActivityCategory(t, s.db, "FlowG-Category")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	s.registerCleanup("activities.categories", category.ID)
 

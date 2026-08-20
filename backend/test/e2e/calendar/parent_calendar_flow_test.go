@@ -78,13 +78,8 @@ func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	router := setupParentE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
@@ -101,7 +96,6 @@ func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
 	apptID := created.Data.Appointment.ID
 	require.Greater(t, apptID, int64(0))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
 
 	parentToken := parentCalendarToken(t, chain.AccountID)
 

@@ -34,7 +34,6 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 	tenantB := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 
 	// Same class name in both schools — the realistic collision: "1a" exists
 	// everywhere, and a leak would surface exactly here.
@@ -86,7 +85,6 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	tenantB := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 
 	repo := repoUsers.NewClassListEntryRepository(db)
 	smuggled := &userModels.ClassListEntry{
@@ -102,7 +100,4 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 		return repo.Create(txCtx, smuggled)
 	})
 	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")
-	if smuggled.ID != 0 {
-		CleanupClassListEntryFixtures(t, db, smuggled.ID)
-	}
 }
