@@ -33,7 +33,6 @@ import (
 // the check.
 var seedCoverageAllowlist = map[string]string{
 	"active.combined_groups":               "empty in prod too",
-	"active.excused_absence_requests":      "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
 	"active.staff_balance_adjustments":     "GAP: prod has 9 rows",
