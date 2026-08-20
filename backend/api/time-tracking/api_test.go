@@ -121,6 +121,10 @@ func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, 
 	}
 	return nil, nil
 }
+
+func (m *mockWorkSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+	return m.GetHistory(ctx, staffID, from, to)
+}
 func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
 	if m.getSessionEditsFn != nil {
 		return m.getSessionEditsFn(ctx, staffID, sessionID)
