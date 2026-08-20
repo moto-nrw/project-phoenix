@@ -169,13 +169,18 @@ export function RequestHistoryItem({
             reason: row.reason,
           }}
         >
-          <ReviewDiffPanel title="Änderungen">
-            {row.diff.map((line) => (
-              <p key={line.offering_id} className="text-sm text-gray-700">
-                {line.label}: {line.old} → {line.new}
-              </p>
-            ))}
-          </ReviewDiffPanel>
+          {/* Eine Korrektur, die an den gebuchten Tagen nichts ändert (etwa nur
+              der Wechsel zwischen selbst gesetzt und automatisch), hat keinen
+              Vergleich zu zeigen — dann bleibt die Fläche weg statt leer. */}
+          {row.diff.length > 0 && (
+            <ReviewDiffPanel title="Änderungen">
+              {row.diff.map((line) => (
+                <p key={line.offering_id} className="text-sm text-gray-700">
+                  {line.label}: {line.old} → {line.new}
+                </p>
+              ))}
+            </ReviewDiffPanel>
+          )}
         </RequestReviewCard>
       );
     }

@@ -236,4 +236,26 @@ describe("RequestHistoryItem", () => {
       screen.getByText("Mittagessen: Mo → abgemeldet"),
     ).toBeInTheDocument();
   });
+
+  it("zeigt eine Korrektur ohne Tagesänderung ohne leere Änderungsfläche", () => {
+    // Kommt vor, wenn sich nur intern etwas verschiebt (selbst gesetzte gegen
+    // automatisch übernommene Tage) und die gebuchten Tage gleich bleiben.
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      data: {
+        id: "10",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    expect(screen.queryByText("Änderungen")).not.toBeInTheDocument();
+  });
 });
