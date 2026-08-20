@@ -3,10 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Alert } from "~/components/ui/alert";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type {
@@ -29,11 +31,9 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
-import {
-  StaffPendingInbox,
-  useStaffPendingInbox,
-} from "~/components/staff/staff-pending-inbox";
+import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
 import {
@@ -144,6 +144,7 @@ function StaffPageContent() {
   });
 
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   // Custom roles can carry the same wildcard permissions as the built-in
   // admin role. Keep the client-side navigation model aligned with backend
   // authorization, which treats both forms as full access.
@@ -367,10 +368,11 @@ function StaffPageContent() {
     [accounts?.rows, canReadUsers, staffData],
   );
 
-  // Open absence requests (#1419): feeds the inbox above the grid and the
-  // per-card pending indicators. Fetches only with vacation:approve.
+  // Open absence requests (#1419): feeds the per-card pending indicators and
+  // the counter on the pointer to the Anfragen module (#2433). Fetches only
+  // with vacation:approve.
   const { rows: pendingAbsences, canReview: canReviewAbsences } =
-    useStaffPendingInbox();
+    useStaffPendingAbsences();
   const pendingByStaff = useMemo(() => {
     const map = new Map<number, number>();
     for (const row of pendingAbsences) {
@@ -637,12 +639,35 @@ function StaffPageContent() {
         <StaffCardsSkeleton />
       ) : (
         <>
-          {/* Sektion 1 — Eingehende Anfragen (#1419), nur für Genehmigende. Die
-              Inbox trägt die offenen Anträge samt Detail; das aggregierte
-              pending_requests_count aus dem Dashboard-Endpoint wäre daneben eine
-              zweite, ärmere Anzeige derselben Zahl und bleibt deshalb ungenutzt. */}
+          {/* Sektion 1 — Verweis auf das Anfragen-Modul (#2433). Die frühere
+              Inbox stand hier; entschieden wird jetzt zentral unter Anfragen,
+              der Zähler zeigt weiter, ob Arbeit wartet. */}
           {canReviewAbsences && (
-            <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
+            <Link
+              href={tenantPath("/anfragen")}
+              className="moto-content-surface mb-6 flex items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm transition-colors hover:bg-gray-50/60 sm:p-5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">
+                  Anträge von Mitarbeitenden
+                </p>
+                <p className="text-sm text-gray-600">
+                  Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <NotificationBadge
+                  count={pendingAbsences.length}
+                  tone="staff"
+                  ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
+                />
+                <CaretRightIcon
+                  size={18}
+                  className="text-gray-400"
+                  aria-hidden="true"
+                />
+              </div>
+            </Link>
           )}
 
           {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}

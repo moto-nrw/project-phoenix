@@ -29,9 +29,8 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("~/components/staff/staff-pending-inbox", () => ({
-  StaffPendingInbox: () => null,
-  useStaffPendingInbox: vi.fn(() => ({ rows: [], canReview: false })),
+vi.mock("~/lib/hooks/use-staff-pending-absences", () => ({
+  useStaffPendingAbsences: vi.fn(() => ({ rows: [], canReview: false })),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -85,7 +84,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
-import { useStaffPendingInbox } from "~/components/staff/staff-pending-inbox";
+import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 
 const mockStaff = [
   {
@@ -117,7 +116,7 @@ const mockStaff = [
 describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useStaffPendingInbox).mockReturnValue({
+    vi.mocked(useStaffPendingAbsences).mockReturnValue({
       rows: [],
       canReview: false,
     });
@@ -297,7 +296,7 @@ describe("StaffPage", () => {
       isLoading: false,
       error: null,
     } as never);
-    vi.mocked(useStaffPendingInbox).mockReturnValue({
+    vi.mocked(useStaffPendingAbsences).mockReturnValue({
       rows: [{ staff_id: 1 }, { staff_id: 1 }] as never,
       canReview: true,
     });
@@ -318,6 +317,44 @@ describe("StaffPage", () => {
     );
     expect(within(requestLabel).getByText("2")).toHaveClass("font-semibold");
     expect(screen.queryByText("2 Anfragen")).not.toBeInTheDocument();
+  });
+
+  it("points approvers to the Anfragen module with the open count", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockStaff,
+      isLoading: false,
+      error: null,
+    } as never);
+    vi.mocked(useStaffPendingAbsences).mockReturnValue({
+      rows: [{ staff_id: 1 }, { staff_id: 2 }] as never,
+      canReview: true,
+    });
+
+    render(<StaffPage />);
+
+    const link = screen.getByRole("link", {
+      name: /Anträge von Mitarbeitenden/,
+    });
+    expect(link).toHaveAttribute("href", "/test-tenant/anfragen");
+    expect(screen.getByLabelText("2 offene Anträge")).toBeInTheDocument();
+  });
+
+  it("hides the Anfragen pointer without vacation:approve", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockStaff,
+      isLoading: false,
+      error: null,
+    } as never);
+    vi.mocked(useStaffPendingAbsences).mockReturnValue({
+      rows: [],
+      canReview: false,
+    });
+
+    render(<StaffPage />);
+
+    expect(
+      screen.queryByRole("link", { name: /Anträge von Mitarbeitenden/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows loading state while data is loading", () => {

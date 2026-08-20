@@ -788,6 +788,13 @@ export interface StaffAbsenceRow {
   duration_days?: number;
 }
 
+// Eine Zeile des Anfragen-Moduls (#2433): der Antrag plus die Namen, die die
+// Liste anzeigt. Leere Namen heißen "Unbekannt" (gelöschtes Konto).
+export interface StaffAbsenceRequestRow extends StaffAbsenceRow {
+  staff_name: string;
+  decided_by_name?: string;
+}
+
 // Vacation takeover at the moto introduction (#2132): days already taken
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
@@ -1010,6 +1017,31 @@ class StaffAbsenceService {
       );
     }
     const json = (await response.json()) as { data: StaffAbsenceRow[] | null };
+    return json.data ?? [];
+  }
+
+  // Anfragen-Modul, Reiter Mitarbeitende (#2433): offene Anträge oder die
+  // Historie der entschiedenen, jeweils mit den Namen, die die Liste zeigt.
+  // Suche und Art-Filter wirken serverseitig.
+  async listRequests(
+    view: "open" | "history",
+    filters: { search?: string; types?: readonly string[] } = {},
+  ): Promise<StaffAbsenceRequestRow[]> {
+    const params = new URLSearchParams({ view });
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    if (filters.types && filters.types.length > 0)
+      params.set("types", filters.types.join(","));
+    const response = await sessionFetch(
+      `/api/staff/absences/requests?${params.toString()}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch absence requests: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: StaffAbsenceRequestRow[] | null;
+    };
     return json.data ?? [];
   }
 

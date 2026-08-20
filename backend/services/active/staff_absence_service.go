@@ -60,6 +60,30 @@ type StaffAbsenceResponse struct {
 	DurationDays int `json:"duration_days"`
 }
 
+// StaffAbsenceRequestItem is one absence request in the Anfragen module's
+// display format: the request itself plus the person it belongs to and, in
+// the history, who decided it.
+type StaffAbsenceRequestItem struct {
+	*StaffAbsenceResponse
+	StaffName     string `json:"staff_name"`
+	DecidedByName string `json:"decided_by_name,omitempty"`
+}
+
+// AbsenceRequestListQuery is what the Anfragen module asks for: the open work
+// list or the decided history, narrowed by absence type and staff name.
+type AbsenceRequestListQuery struct {
+	// History selects decided requests instead of the open work list.
+	History bool
+	Types   []string
+	Search  string
+}
+
+// absenceHistoryLimit caps the decided-requests list. Known ceiling: a school
+// with more decided requests than this sees only the newest ones; search and
+// type filter still run server-side over all of them. Upgrade path when that
+// bites: keyset pagination like the aggregated parent list (#2432).
+const absenceHistoryLimit = 200
+
 // StaffAbsenceListFilter selects a staff member's absences by overlapping date
 // range, status, or both. From and To must either both be set or both be nil.
 type StaffAbsenceListFilter struct {
@@ -153,6 +177,10 @@ type StaffAbsenceService interface {
 	// contract because the import lives in another package.
 	ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
+	// ListAbsenceRequests serves the Mitarbeitende-Reiter of the Anfragen
+	// module (#2433): the open work list or the decided history, both with
+	// the names the list shows, filtered by absence type and staff name.
+	ListAbsenceRequests(ctx context.Context, req AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error)
 }
 
 // GetTodayAbsenceMap returns staff ID -> absence type for today.
@@ -1502,6 +1530,43 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return nil
+}
+
+func (s *staffAbsenceService) ListAbsenceRequests(ctx context.Context, req AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error) {
+	filter := activeModels.AbsenceRequestFilter{
+		Types:   req.Types,
+		Search:  req.Search,
+		Decided: req.History,
+	}
+	if req.History {
+		// Only requests that went through the approval flow have a history.
+		// Admin-direct entries (status "reported") were never requested.
+		filter.Statuses = []string{
+			activeModels.AbsenceStatusApproved,
+			activeModels.AbsenceStatusDeclined,
+			activeModels.AbsenceStatusCanceled,
+		}
+		filter.Limit = absenceHistoryLimit
+	} else {
+		filter.Statuses = []string{
+			activeModels.AbsenceStatusRequested,
+			activeModels.AbsenceStatusQuestion,
+		}
+	}
+
+	rows, err := s.absenceRepo.ListRequests(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list absence requests: %w", err)
+	}
+	items := make([]*StaffAbsenceRequestItem, len(rows))
+	for i, row := range rows {
+		items[i] = &StaffAbsenceRequestItem{
+			StaffAbsenceResponse: toAbsenceResponse(row.StaffAbsence),
+			StaffName:            row.StaffName,
+			DecidedByName:        row.DecidedByName,
+		}
+	}
+	return items, nil
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {
