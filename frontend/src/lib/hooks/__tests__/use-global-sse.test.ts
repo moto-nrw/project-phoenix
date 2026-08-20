@@ -59,6 +59,7 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import {
   clearOwnAttendanceMutation,
+  isOwnAttendanceEvent,
   markOwnAttendanceMutation,
 } from "~/lib/sse-optimistic-mutations";
 
@@ -371,6 +372,7 @@ describe("useGlobalSSE", () => {
           matcher("tenant:active-supervision-dashboard-0"),
         ),
       ).toHaveLength(1);
+      expect(isOwnAttendanceEvent("student_checkin", "42")).toBe(false);
 
       clearOwnAttendanceMutation("student_checkin", "42");
     });

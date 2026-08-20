@@ -127,8 +127,9 @@ async function runOwnAttendanceMutation<T>(
   markOwnAttendanceMutation(eventType, studentId);
   try {
     return await request();
-  } finally {
+  } catch (error) {
     clearOwnAttendanceMutation(eventType, studentId);
+    throw error;
   }
 }
 

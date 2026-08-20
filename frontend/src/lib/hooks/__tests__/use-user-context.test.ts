@@ -177,7 +177,7 @@ describe("useUserContext", () => {
       fetchMock.mockRestore();
     });
 
-    it("rejects incomplete user context data", async () => {
+    it("returns partial user context data with unavailable sections", async () => {
       const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
         json: () =>
@@ -199,9 +199,10 @@ describe("useUserContext", () => {
       const fetcher = vi.mocked(useImmutableSWR).mock.calls[0]?.[1];
 
       if (fetcher) {
-        await expect(fetcher()).rejects.toThrow(
-          "User context fetch returned incomplete data",
-        );
+        await expect(fetcher()).resolves.toMatchObject({
+          incomplete: true,
+          unavailableSections: ["supervised_groups"],
+        });
       }
 
       fetchMock.mockRestore();

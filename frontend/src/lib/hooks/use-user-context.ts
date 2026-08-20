@@ -35,6 +35,10 @@ interface UseUserContextReturn {
   isLoading: boolean;
   /** Error object if the fetch failed */
   error: Error | undefined;
+  /** True when one or more optional navigation sections are unavailable */
+  isIncomplete: boolean;
+  /** Navigation sections unavailable in the current response */
+  unavailableSections: string[];
   /** True once data has been fetched (even if empty) */
   isReady: boolean;
 }
@@ -61,9 +65,6 @@ export function useUserContext(): UseUserContextReturn {
       }
 
       const json = (await response.json()) as ApiResponse<UserContextResponse>;
-      if (json.data.incomplete) {
-        throw new Error("User context fetch returned incomplete data");
-      }
       return json.data;
     },
   );
@@ -72,6 +73,8 @@ export function useUserContext(): UseUserContextReturn {
     userContext: data,
     isLoading,
     error,
+    isIncomplete: data?.incomplete === true,
+    unavailableSections: data?.unavailableSections ?? [],
     isReady: data !== undefined || error !== undefined,
   };
 }

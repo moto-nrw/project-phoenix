@@ -38,5 +38,6 @@ export function isOwnAttendanceEvent(
     pending.delete(mutationKey);
     return false;
   }
+  pending.delete(mutationKey);
   return true;
 }
