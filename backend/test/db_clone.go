@@ -27,8 +27,13 @@ var (
 
 	// packageClone pins this binary's clone via a keeper connection for the
 	// whole process lifetime, so the cross-run generation GC never collects
-	// a clone whose tests are still running. Deliberately never closed.
+	// a clone whose tests are still running. Released by dropPackageClone at
+	// the very end of the run.
 	packageClone *testdb.CloneHandle
+
+	// packageCloneCfg is the resolved lifecycle config the clone was created
+	// from; dropPackageClone needs its maintenance DSN.
+	packageCloneCfg *testdb.Config
 
 	// sharedTestDB is the one connection pool per test binary (#2419 PR 2).
 	// Every SetupTestDB call returns this handle; tests never close it — the
@@ -123,6 +128,7 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 		return err
 	}
 	packageClone = clone
+	packageCloneCfg = templateCfg
 
 	applyViperTestConfig()
 

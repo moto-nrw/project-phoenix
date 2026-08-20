@@ -21,11 +21,13 @@ mechanischer Sweep über alle Testdateien):
   Migrations-Hash prüfen und neu bauen), ein Make-/devbox-Target liefert nur
   Komfort obendrauf (gotestsum, sofortiges Teardown). CI behält Service-
   Container und Snapshot-Cache unverändert.
-- **Kein TestMain in den 62 Packages.** Das Prozess-einmalige Setup wandert in
-  ein `sync.Once` innerhalb von `SetupTestDB`; Clone-Teardown übernimmt der
-  Wrapper nach dem Gesamtlauf, eine Generation-GC (läuft über alle Worktrees)
-  fängt abgebrochene Läufe. Ein nacktes `go test ./pkg` darf seinen Clone bis
-  zur nächsten GC liegen lassen.
+- **Prozess-einmaliges Setup in einem `sync.Once`** innerhalb von
+  `SetupTestDB`. Das TestMain pro Package kam später doch — es trägt den
+  per-Test-Tenant-Schalter und das Leftover-Gate — und mit ihm der
+  Clone-Teardown: jedes Binary droppt seinen Clone am Ende selbst, ein
+  nacktes `go test ./...` räumt also genauso auf wie der Wrapper. Der Sweep
+  des Wrappers macht nur noch GC; abgebrochene Läufe (Panik, Ctrl-C, Kill)
+  fängt weiterhin die Generation-GC, die über alle Worktrees läuft.
 - **Isolation pro Test über Fixtures, nicht über Transaktions-Rollback.**
   Jeder Test erzeugt seinen eigenen Tenant statt des fixen Bootstrap-Tenants 1;
   der geteilte Package-Clone bleibt. Rollback-pro-Test scheitert an Code, der

@@ -30,6 +30,10 @@ import (
 //	             would be attributed to whichever test finishes next
 const leftoverModeEnv = "PHX_TEST_LEFTOVERS"
 
+// keepCloneEnv suppresses the self-drop at the end of a run, so the clone
+// survives for inspection.
+const keepCloneEnv = "PHX_TEST_KEEP_CLONE"
+
 // Run executes the package's tests, then the leftover gate, and exits with the
 // resulting status. Every TestMain in the backend ends in this call.
 func Run(m *testing.M) {
@@ -41,6 +45,11 @@ func Run(m *testing.M) {
 			fmt.Fprint(os.Stderr, msg)
 			code = 1
 		}
+	}
+	// PHX_TEST_KEEP_CLONE keeps the database around for a post-mortem (psql
+	// into it, or measure what the sweep still finds).
+	if os.Getenv(keepCloneEnv) == "" {
+		dropPackageClone()
 	}
 	os.Exit(code)
 }
@@ -79,6 +88,34 @@ func packageLeftovers() string {
 		return ""
 	}
 	return testdb.FormatLeftovers(pkg, failing)
+}
+
+// dropPackageClone hands the clone back at the end of the run, so a naked
+// `go test ./...` cleans up after itself instead of leaving its databases to
+// the next run's GC (#2419 goal 3). The wrapper's sweep then finds nothing of
+// its own left to drop and does GC only.
+//
+// Best-effort by design: a panicking or killed binary never gets here, which
+// is exactly the case the generation GC exists for. A failure to drop is
+// therefore not worth failing a green run over — it is one database the next
+// GC pass collects.
+func dropPackageClone() {
+	if packageClone == nil || packageCloneCfg == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// The keeper and the shared pool hold connections to the clone; DROP
+	// DATABASE ... WITH (FORCE) would terminate them, but closing first keeps
+	// the server log free of "terminating connection" noise.
+	if sharedTestDB != nil {
+		_ = sharedTestDB.Close()
+	}
+	_ = packageClone.Close()
+	if err := testdb.DropClone(ctx, packageCloneCfg, packageClone.Name); err != nil {
+		fmt.Fprintf(os.Stderr, "testdb: could not drop package clone %s: %v\n", packageClone.Name, err)
+	}
 }
 
 // perTestLeftoverCheck is what PHX_TEST_LEFTOVERS=test buys: the same

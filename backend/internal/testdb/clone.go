@@ -307,6 +307,18 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	return handle, nil
 }
 
+// DropClone drops one clone by name. Deliberately WITHOUT the lifecycle
+// lock: a test binary drops its own clone at exit, and 90 of those queueing
+// behind the lock would serialize against the clone creation of every package
+// still starting up. Nothing else can be doing anything with this clone —
+// dropping is idempotent (IF EXISTS), and a concurrent GC pass that listed it
+// a moment ago simply finds it gone.
+func DropClone(ctx context.Context, cfg *Config, name string) error {
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+	return dropDatabase(ctx, maint, name)
+}
+
 // gcLocked drops the clones of DEAD runs. A run is alive while any of its
 // clones has a live connection or a fresh heartbeat — not just the clone
 // being looked at. That distinction is the whole point: a clone is pinned by

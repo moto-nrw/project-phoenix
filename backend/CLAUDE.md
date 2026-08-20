@@ -12,7 +12,7 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 # migrations hash (phoenix_test_<hash>, so parallel worktrees never share
 # one), and gives each package binary a run-stamped clone.
 ../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
-go test ./...                       # All tests (works standalone; clones are GC'd by the next run)
+go test ./...                       # All tests (works standalone; each binary drops its own clone at exit)
 PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
 PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
 go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
