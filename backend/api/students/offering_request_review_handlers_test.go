@@ -140,3 +140,57 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 	assert.Equal(t, "Mo, Mi", response.Diff[0].NewWhenExcluded)
 	assert.True(t, response.Diff[0].Optoutable)
 }
+
+func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *testing.T) {
+	t.Parallel()
+
+	view := &enrollmentService.OfferingChangeView{
+		Request:        &enrollmentModels.OfferingChangeRequest{},
+		FullWithdrawal: true,
+		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+			OfferingID: 3,
+			Label:      "Regelbetreuung",
+			OldState:   "booked",
+			OldDays:    []string{"mon", "tue"},
+			NewState:   "removed",
+		}},
+		Unchanged: []enrollmentService.OfferingChangeDiffEntry{{
+			OfferingID: 4,
+			Label:      "Mittagessen",
+			OldState:   "booked",
+			OldDays:    []string{"mon"},
+			NewState:   "booked",
+			NewDays:    []string{"mon"},
+		}},
+	}
+
+	resp := toOfferingRequestResponse(view)
+
+	assert.True(t, resp.FullWithdrawal)
+	assert.Equal(t, "abgemeldet", resp.Diff[0].New)
+	require.Len(t, resp.Unchanged, 1)
+	assert.Equal(t, "4", resp.Unchanged[0].OfferingID)
+	assert.Equal(t, "Mittagessen", resp.Unchanged[0].Label)
+	assert.Equal(t, "Mo", resp.Unchanged[0].Days)
+}
+
+func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *testing.T) {
+	t.Parallel()
+
+	view := &enrollmentService.OfferingChangeView{
+		Request: &enrollmentModels.OfferingChangeRequest{},
+		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+			OfferingID: 3,
+			Label:      "Regelbetreuung",
+			OldState:   "booked",
+			OldDays:    []string{"mon", "tue"},
+			NewState:   "booked",
+			NewDays:    []string{"mon"},
+		}},
+	}
+
+	resp := toOfferingRequestResponse(view)
+
+	assert.False(t, resp.FullWithdrawal)
+	assert.Empty(t, resp.Unchanged)
+}

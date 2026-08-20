@@ -391,6 +391,11 @@ type StaffAbsenceRepository interface {
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
+	// ListRequests returns absence requests together with the names the
+	// Anfragen module shows (#2433): the person the absence belongs to and,
+	// once decided, the deciding person.
+	ListRequests(ctx context.Context, filter AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
+
 	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
 	// pending/question rows or absences whose end date has not passed.
 	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)

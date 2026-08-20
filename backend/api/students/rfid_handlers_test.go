@@ -39,6 +39,8 @@ func deviceExec(t *testing.T, tc *testContext, req *http.Request, device *iotMod
 	return testutil.ExecuteRequest(tc.resource.Router(), req)
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -102,6 +104,8 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -169,6 +173,8 @@ func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -197,6 +203,8 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -236,6 +244,8 @@ func TestRFIDTagValidation(t *testing.T) {
 // a bracelet created a tag the kiosk could see but never release. Releasing must
 // therefore work on an alumnus, while assigning a NEW tag to a soft-deleted
 // child stays blocked.
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 	tc := setupTestContext(t)
 

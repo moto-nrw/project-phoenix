@@ -36,6 +36,7 @@ func (a pinAccountStub) VerifyPIN(pin string) bool {
 	return false
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_GetLogger(t *testing.T) {
 	t.Parallel()
 
@@ -45,6 +46,7 @@ func TestResource_GetLogger(t *testing.T) {
 	assert.NotNil(t, (&Resource{}).getLogger())
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_Router(t *testing.T) {
 	viper.Set("auth_jwt_secret", "test-jwt-secret-for-staff-router-32-chars")
 	viper.Set("auth_jwt_expiry", "15m")
@@ -57,6 +59,7 @@ func TestResource_Router(t *testing.T) {
 // Deliberately NOT parallel: the test reaches process-global state (env
 // variables, viper keys, the settings registry, os.Stdout) that the whole
 // test binary shares.
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	claims := testutil.DefaultTestClaims()
@@ -87,6 +90,7 @@ func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 	t.Parallel()
 
@@ -105,6 +109,7 @@ func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 // leaves as a decimal string so a bigint survives the JSON.parse in the Next.js
 // proxy — as a number, an id past 2^53 would be rounded into a valid id for a
 // different person before any mapper could preserve it (#2222).
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +128,7 @@ func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
 	assert.Equal(t, bigPersonID, decoded.PersonID)
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *testing.T) {
 	t.Parallel()
 
@@ -134,6 +140,7 @@ func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *tes
 	assert.Contains(t, err.Error(), "caregiver directory")
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestBuildSubstitutionInfoList(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +173,7 @@ func TestBuildSubstitutionInfoList(t *testing.T) {
 	assert.Equal(t, "", result[1].GroupName)
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_CheckAccountLocked(t *testing.T) {
 	t.Parallel()
 
@@ -185,6 +193,7 @@ func TestResource_CheckAccountLocked(t *testing.T) {
 		&authmodel.Account{PINLockedUntil: &future}))
 }
 
+// Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestVerifyCurrentPIN(t *testing.T) {
 	t.Parallel()
 

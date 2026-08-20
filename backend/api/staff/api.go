@@ -209,6 +209,10 @@ func (rs *Resource) Router() chi.Router {
 
 		// Vacation workflow admin-side (Tranche 4)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
+		// Anfragen-Modul, Reiter Mitarbeitende (#2433): open work list and
+		// decided history in one display format, with name search and type
+		// filter. Same vacation:approve gate as the decision endpoints.
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/requests", rs.listAbsenceRequests)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)

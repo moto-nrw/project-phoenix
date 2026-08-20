@@ -247,15 +247,16 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 
 		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 
-		countBefore, err := repo.CountTotalUnread(ctx, account.ID, "user")
-		require.NoError(t, err)
+		countBefore := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountTotalUnread(ctx, account.ID, "user")
+		})
 
 		commentRepo := repoSuggestions.NewCommentRepository(db)
-		err = commentRepo.Delete(ctx, comment.ID)
-		require.NoError(t, err)
+		require.NoError(t, commentRepo.Delete(ctx, comment.ID))
 
-		countAfter, err := repo.CountTotalUnread(ctx, account.ID, "user")
-		require.NoError(t, err)
+		countAfter := countInTenantTx(t, db, func(ctx context.Context) (int, error) {
+			return repo.CountTotalUnread(ctx, account.ID, "user")
+		})
 
 		assert.Equal(t, countBefore-1, countAfter)
 	})

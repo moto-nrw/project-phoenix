@@ -1150,10 +1150,12 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 // database/repositories/platform paid for it by making 17 outbox tests
 // parallel.
 var serialTestBaseline = map[string]int{
-	"api":                               20,
-	"api/active":                        2,
-	"api/auth":                          1,
-	"api/enrollment":                    1,
+	"api":        20,
+	"api/active": 2,
+	"api/auth":   1,
+	// 1 -> 3 beim Merge von development: #2434 bringt zwei serielle Tests mit,
+	// deren Fixture SeedTestJWTConfig ruft (Begruendung steht ueber den Tests).
+	"api/enrollment":                    3,
 	"api/guardians":                     1,
 	"api/iot":                           7,
 	"api/iot/checkin":                   14,

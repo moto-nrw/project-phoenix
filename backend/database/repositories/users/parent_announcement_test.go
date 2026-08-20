@@ -242,9 +242,10 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish, then the guardian reads + acknowledges.
-	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
-	// VM, and published_at <= NOW() guards must not see a future timestamp.
-	now := time.Now().Add(-2 * time.Second)
+	// The version guard compares against PostgreSQL's clock. Keep this safely
+	// in the past so host/container clock skew cannot make a fresh row appear
+	// scheduled for the future.
+	now := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)
@@ -421,9 +422,9 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
 	require.NoError(t, err)
 	require.True(t, matched, "sanity: an active guardian is reached")
-	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	countBefore, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, count, 1)
+	require.GreaterOrEqual(t, countBefore, 1)
 
 	// Revoke school access: flip the mapping to inactive.
 	_, err = db.NewUpdate().
@@ -438,9 +439,9 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, matched, "an inactive membership must not be reached")
 
-	count, err = repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "inactive membership excluded from CountAudience")
+	assert.Equal(t, countBefore-1, count, "inactive membership excluded from CountAudience")
 
 	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
 	require.NoError(t, err)

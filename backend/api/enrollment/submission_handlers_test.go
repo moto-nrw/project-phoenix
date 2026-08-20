@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -96,6 +98,27 @@ func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(payload, &decoded))
 	assert.Equal(t, float64(13), decoded["grade_level_max"])
+}
+
+func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	studentID := int64(42)
+	responses := toEditDraftChildResponses(&enrollmentService.EditDraft{
+		Children: []*enrollmentModels.RequestChild{
+			{Model: base.Model{ID: 1}},
+			{Model: base.Model{ID: 2}, CreatedStudentID: &studentID},
+		},
+		OfferingsByChild: map[int64][]*enrollmentModels.RequestChildOffering{
+			1: {{CareOfferingID: 6}},
+			2: {{CareOfferingID: 7}},
+		},
+	})
+
+	require.Len(t, responses, 2)
+	assert.Empty(t, responses[0].OfferingIDs)
+	assert.True(t, responses[1].Locked)
+	assert.Equal(t, []string{"7"}, responses[1].OfferingIDs)
 }
 
 func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {

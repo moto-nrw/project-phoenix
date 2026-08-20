@@ -483,6 +483,9 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	requestRow, err := env.repos.Request.FindByID(ctx, requestID)
 	require.NoError(t, err)
 
+	// The reopened form and the change request below predate the takeover
+	// (ADR 0003); after the takeover both paths are closed for this child.
+	restoreTakeover := liftTakeoverStamp(t, env, requestID)
 	draft, err := env.requestSvc.GetEditDraft(ctx, requestRow.StatusToken)
 	require.NoError(t, err)
 	draftLinks := draft.OfferingsByChild[childID]
@@ -522,6 +525,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 		ParentNote: "Bitte den Vornamen des Elternteils korrigieren.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 
 	// The base the staff diff is rendered against is today's booking. Pinned to
 	// the service start it would report an offering change the parent never

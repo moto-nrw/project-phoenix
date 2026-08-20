@@ -64,7 +64,12 @@ func newGoldenAPI(t *testing.T) *API {
 	// forces APP_ENV=test, and points viper's test_db_dsn at the
 	// package-isolated clone — api.New's DBConnForServe resolves through the
 	// same viper key, so the whole router builds against the clone.
-	_ = testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
+	// The pool belongs to the package, not to this test — never close it
+	// (#2419, gate no_shared_pool_close).
+	password := strings.ReplaceAll(os.Getenv("PHOENIX_AUTH_PASSWORD"), "'", "''")
+	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
+	require.NoError(t, err, "sync phoenix_auth password for the API test database")
 
 	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
 

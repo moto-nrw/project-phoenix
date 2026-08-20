@@ -63,6 +63,8 @@ func TestPhotoUnlinker_NilLoggerSafe(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — os.Chdir into a temp
+// directory.
 func TestPhotoUnlinker_RemovesExistingFile(t *testing.T) {
 	// publicPhotoBaseDir is relative to CWD; create a temp file under it,
 	// invoke through a URL that ResolveStoredPath accepts, assert removal.
