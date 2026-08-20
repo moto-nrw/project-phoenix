@@ -130,6 +130,12 @@ export interface AggregatedRequestPage<T> {
 
 export interface AggregatedRequestParams {
   readonly search?: string;
+  /**
+   * Nur die Einträge eines Kindes — das Änderungsprotokoll der Kinderkartei
+   * (#2437). Die Anmeldungsänderungen kennen diesen Filter nicht; ihre Quelle
+   * lässt ihn weg (siehe listEnrollmentChangeRequests).
+   */
+  readonly studentId?: string;
   readonly types?: readonly AggregatedRequestType[];
   /** Nur Historie. */
   readonly statuses?: readonly AggregatedRequestStatus[];
@@ -151,6 +157,7 @@ function buildQuery(
   const query = new URLSearchParams();
   query.set("view", view);
   if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.studentId) query.set("student_id", params.studentId);
   if (params.types && params.types.length > 0)
     query.set("types", params.types.join(","));
   if (params.statuses && params.statuses.length > 0)
@@ -234,8 +241,9 @@ export async function listEnrollmentChangeRequests(
   view: "open" | "history",
   params: AggregatedRequestParams = {},
 ): Promise<AggregatedRequestPage<EnrollmentRequestItem>> {
-  // Ohne Art-Filter: diese Quelle kennt nur eine Art.
-  const { types: _types, ...rest } = params;
+  // Ohne Art-Filter: diese Quelle kennt nur eine Art. Und ohne Kind-Filter:
+  // dieser Endpunkt kennt ihn nicht, würde also ungefiltert antworten.
+  const { types: _types, studentId: _studentId, ...rest } = params;
   const response = await fetch(
     `/api/enrollment/admin/change-requests/list${buildQuery(view, rest)}`,
     { cache: "no-store" },

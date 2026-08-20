@@ -48,6 +48,11 @@ const logger = createLogger({ component: "AggregatedRequestList" });
 export interface AggregatedRequestFilters {
   readonly search: string;
   /**
+   * Nur die Einträge dieses Kindes — das Änderungsprotokoll der Kinderkartei
+   * (#2437). Ohne Angabe: alle Kinder, die die Person sehen darf.
+   */
+  readonly studentId?: string;
+  /**
    * Darf der Aggregator über die vier Kinderdaten-Arten abgefragt werden? Er
    * verlangt users:update oder users:absence; wer nur Anmeldungsänderungen
    * entscheidet, bekäme sonst für die ganze Liste einen 403. Ohne Angabe ja —
@@ -104,6 +109,7 @@ export function AggregatedRequestList({
   const sources = useMemo<FeedSource<AnyItem>[]>(() => {
     const params: AggregatedRequestParams = {
       search: filters.search,
+      studentId: filters.studentId,
       ...(view === "history"
         ? { statuses: filters.statuses, from: filters.from, to: filters.to }
         : {}),
@@ -284,6 +290,9 @@ export function AggregatedRequestList({
     );
   }
 
+  // filters.studentId zählt bewusst NICHT als aktiver Filter: im
+  // Änderungsprotokoll eines Kindes ist es der Kontext, kein Suchkriterium.
+  // "Keine Treffer für Suche und Filter" wäre dort nur verwirrend.
   const hasActiveFilters =
     filters.search.trim() !== "" ||
     filters.types.length > 0 ||
@@ -298,15 +307,22 @@ export function AggregatedRequestList({
       {items.length === 0 && !error ? (
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}
+          // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
+          // noch ältere Seiten da, wäre „noch nichts entschieden“ schlicht
+          // falsch — dann sagt der Text, dass weitergesucht werden kann.
           title={
-            view === "open"
-              ? "Keine offenen Anfragen."
-              : "Noch keine entschiedenen Anfragen."
+            hasMore
+              ? "Hier ist noch nichts gefunden."
+              : view === "open"
+                ? "Keine offenen Anfragen."
+                : "Noch keine entschiedenen Anfragen."
           }
           description={
-            hasActiveFilters
-              ? "Für die aktuelle Suche und Filter gibt es keine Treffer."
-              : undefined
+            hasMore
+              ? "Ältere Einträge sind noch nicht geladen. Mit „Weitere Einträge laden“ weitersuchen."
+              : hasActiveFilters
+                ? "Für die aktuelle Suche und Filter gibt es keine Treffer."
+                : undefined
           }
           variant="compact"
         />

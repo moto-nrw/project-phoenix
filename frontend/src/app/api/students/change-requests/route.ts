@@ -14,6 +14,7 @@ interface BackendEnvelope<T> {
 const FORWARDED_PARAMS = [
   "view",
   "search",
+  "student_id",
   "types",
   "status",
   "from",
