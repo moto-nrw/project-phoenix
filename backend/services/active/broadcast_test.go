@@ -101,9 +101,10 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
 	assert.Equal(t, []string{eduGroupIDStr}, *refreshes[0].Event.Data.GroupIDs)
 	require.NotNil(t, refreshes[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), "the old paired tenant refresh doubles client requests")
-	assert.Len(t, broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged), 2,
-		"one compatibility frame per topic keeps an older roster live during rolling deploys")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"CreateVisit must preserve the legacy tenant supervision refresh")
+	assert.Len(t, broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged), 3,
+		"topic and tenant compatibility frames keep older roster clients live during rolling deploys")
 
 	// The scoped student_checkin carries the edu group id too, so the client's
 	// backpressure fallback path (checkin delivered, counts event dropped)
@@ -158,7 +159,8 @@ func TestBroadcast_EndVisitSendsOnePreciseRefresh(t *testing.T) {
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
 	assert.Equal(t, []string{eduGroupIDStr}, *refreshes[0].Event.Data.GroupIDs)
 	require.NotNil(t, refreshes[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), "the old paired tenant refresh doubles client requests")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"EndVisit must preserve the legacy tenant supervision refresh")
 
 	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
 	require.NotEmpty(t, checkouts)
@@ -219,8 +221,8 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 2,
 		"source checkout and target checkin each need one precise aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
-		"visit move must not emit the old paired active refreshes")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2,
+		"visit move must preserve one legacy refresh per attendance change")
 }
 
 func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {

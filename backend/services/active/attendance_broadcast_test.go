@@ -206,8 +206,8 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
 	require.NotNil(t, counts[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
-		"the old paired active refresh doubles client requests")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"checkout must preserve the legacy tenant supervision refresh")
 
 	// #2085: the child id rides the group-scoped topics only.
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -262,7 +262,7 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 		"the healed visit must emit an educational-group checkout")
 	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"the healed visit must emit one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1)
 	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"ending the orphaned visit changed the room roster")
 
@@ -418,7 +418,7 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 
 	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"the daily checkout must emit one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1)
 }
 
 // =============================================================================
@@ -568,5 +568,5 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 		"exactly one student_checkin on the edu:{id} topic")
 	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"exactly one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1)
 }

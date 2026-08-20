@@ -1136,7 +1136,6 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
 		s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
-		s.broadcastLegacySupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	}
 }
 
@@ -1168,7 +1167,6 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
 	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
-	s.broadcastLegacySupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.

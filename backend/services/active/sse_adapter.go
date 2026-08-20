@@ -10,10 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// broadcastSupervisionRefresh sends the combined tenant-wide refresh used by
-// attendance and activity changes. It keeps the legacy dashboard event type so
-// clients from the previous frontend release still refresh during a rolling
-// deploy; current clients recognize Reason as the combined supervision signal.
+// broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
+// and activity changes. It preserves both legacy event types during a rolling
+// deploy: older clients use active_supervision_changed for supervision rosters,
+// while current clients recognize dashboard_counts_changed with Reason.
 //
 // Carries no child identity (#2085). The scoped student_checkin /
 // student_checkout emitted alongside it still carry the id.
@@ -39,24 +39,9 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 			slog.Int64("tenant_id", tenantID),
 		)
 	}
-}
 
-// broadcastLegacySupervisionRefresh keeps zero-topic clients from the
-// previous frontend release current while activity lifecycle and batch events
-// are rolling out. Single-student moves retain their more precise topic frames.
-func (s *service) broadcastLegacySupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
-	if s.Broadcaster == nil {
-		return
-	}
-
-	data := realtime.EventData{Reason: &reason}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-
-	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
-	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+	legacyEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, legacyEvent); err != nil {
 		s.getLogger().Warn("SSE legacy supervision broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("active_group_id", activeGroupID),
