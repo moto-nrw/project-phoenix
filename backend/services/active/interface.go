@@ -390,6 +390,14 @@ type AttendanceStatus struct {
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
 }
 
+// IsCurrentlyPresent reports whether the attendance row represents a child
+// who is still on school premises. A completed attendance keeps its historical
+// check-in time but is no longer current presence.
+func (s *AttendanceStatus) IsCurrentlyPresent() bool {
+	return s != nil && s.CheckInTime != nil &&
+		(s.Status == "checked_in" || s.Status == "on_yard")
+}
+
 // DailyCheckoutResult represents the outcome of confirming a deferred daily
 // checkout from an IoT device.
 type DailyCheckoutResult struct {

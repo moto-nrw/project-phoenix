@@ -158,18 +158,20 @@ export function LocationBadge({
     supervisedRooms,
   );
 
-  // Check sick / class trip / excused / notArrival status display modes.
-  // Priority: sick > class trip > excused > notArrival. Only one replace-mode applies at a time.
-  const sickMode = getSickDisplayMode(student);
+  // An actual presence that contradicts the plan is the actionable state.
+  // At home, the specific absence status keeps its existing precedence.
+  const notArrivalMode = getNotArrivalDisplayMode(student);
+  const sickMode =
+    notArrivalMode === "additional" ? "none" : getSickDisplayMode(student);
   const classTripMode =
-    sickMode === "none" ? getClassTripDisplayMode(student) : "none";
-  const excusedMode =
-    sickMode === "none" && classTripMode === "none"
-      ? getExcusedDisplayMode(student)
+    notArrivalMode !== "additional" && sickMode === "none"
+      ? getClassTripDisplayMode(student)
       : "none";
-  const notArrivalMode =
-    sickMode === "none" && classTripMode === "none" && excusedMode === "none"
-      ? getNotArrivalDisplayMode(student)
+  const excusedMode =
+    notArrivalMode !== "additional" &&
+    sickMode === "none" &&
+    classTripMode === "none"
+      ? getExcusedDisplayMode(student)
       : "none";
 
   // Determine color based on display mode and permissions
@@ -321,7 +323,7 @@ export function LocationBadge({
         className={`${sizeConfig.dot} rounded-full`}
         style={{ backgroundColor: notArrivalTone.dotColor }}
       />
-      {LOCATION_STATUSES.NOT_ARRIVAL}
+      {LOCATION_STATUSES.UNPLANNED_PRESENT}
     </span>
   );
 

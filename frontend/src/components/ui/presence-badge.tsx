@@ -143,6 +143,12 @@ function resolveBadgeStyle(
   if (student.excused && atHome) {
     return { label: LOCATION_STATUSES.EXCUSED, color: LOCATION_COLORS.EXCUSED };
   }
+  if (student.not_arrival_today && atHome) {
+    return {
+      label: LOCATION_STATUSES.NOT_ARRIVAL,
+      color: LOCATION_COLORS.NOT_ARRIVAL,
+    };
+  }
 
   switch (state) {
     case "anwesend":
@@ -173,14 +179,21 @@ export function PresenceBadge({
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
   const tone = getLocationBadgeTone(color);
 
-  // "Additional" sick/excused overlays — only when the student is present
-  // (not already shown as Krank/Entschuldigt via the replace path above).
-  const showSickOverlay = student.sick && state !== "abwesend";
+  // A contradiction between actual presence and the plan is more actionable
+  // than the underlying absence reason (krank, entschuldigt, etc.).
+  const showUnplannedOverlay =
+    student.not_arrival_today && state !== "abwesend";
+  const showSickOverlay =
+    student.sick && state !== "abwesend" && !showUnplannedOverlay;
   const showClassTripOverlay =
-    student.class_trip && state !== "abwesend" && !showSickOverlay;
+    student.class_trip &&
+    state !== "abwesend" &&
+    !showUnplannedOverlay &&
+    !showSickOverlay;
   const showExcusedOverlay =
     student.excused &&
     state !== "abwesend" &&
+    !showUnplannedOverlay &&
     !showSickOverlay &&
     !showClassTripOverlay;
 
@@ -240,6 +253,13 @@ export function PresenceBadge({
           seit {formattedTime} Uhr
         </span>
       )}
+      {showUnplannedOverlay &&
+        renderOverlayBadge({
+          overlayLabel: LOCATION_STATUSES.UNPLANNED_PRESENT,
+          overlayColor: LOCATION_COLORS.NOT_ARRIVAL,
+          dataAttr: "data-not-arrival-indicator",
+          sizeConfig,
+        })}
       {showSickOverlay &&
         renderOverlayBadge({
           overlayLabel: LOCATION_STATUSES.SICK,

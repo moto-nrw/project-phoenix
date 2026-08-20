@@ -2,6 +2,7 @@ type DayPlanningStatus = "comes_today" | "not_coming_today";
 
 export interface DayPlanningStudent {
   day_planning_status?: DayPlanningStatus;
+  day_planning_reason?: string;
   day_planning_label?: string;
   arrival_is_exception?: boolean;
   arrival_time?: string;
@@ -38,6 +39,16 @@ export function getStudentPresenceBadgePlanning(student: DayPlanningStudent): {
   notArrivalToday: boolean;
   notArrivalReason: string | null;
 } {
+  if (
+    student.day_planning_reason === "unplanned_attendance" &&
+    hasActualAttendance(student)
+  ) {
+    return {
+      notArrivalToday: true,
+      notArrivalReason: student.day_planning_label ?? "ungeplant anwesend",
+    };
+  }
+
   const dayPlanningLabel = getDayPlanningNotComingLabel(student);
   const arrivalExceptionAbsent =
     (student.arrival_is_exception ?? false) && !student.arrival_time;
@@ -51,7 +62,7 @@ export function getStudentPresenceBadgePlanning(student: DayPlanningStudent): {
 function hasActualAttendance(
   student: Pick<DayPlanningStudent, "actual_arrival_time" | "current_location">,
 ): boolean {
-  if (student.actual_arrival_time) return true;
   const location = student.current_location?.trim().toLowerCase();
-  return !!location && location !== "zuhause" && location !== "abwesend";
+  if (location) return location !== "zuhause" && location !== "abwesend";
+  return !!student.actual_arrival_time;
 }

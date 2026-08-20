@@ -119,6 +119,7 @@ func TestSlimStudentResponseWireContract(t *testing.T) {
 		"current_location",
 		"current_room_color",
 		"day_planning_label",
+		"day_planning_reason",
 		"day_planning_status",
 		"departure_modes",
 		"excused",
@@ -171,6 +172,7 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 	assert.Equal(t, full.ClassTrip, got.ClassTrip)
 	assert.Equal(t, full.ClassTripSince, got.ClassTripSince)
 	assert.Equal(t, full.DayPlanningStatus, got.DayPlanningStatus)
+	assert.Equal(t, full.DayPlanningReason, got.DayPlanningReason)
 	assert.Equal(t, full.DayPlanningLabel, got.DayPlanningLabel)
 	assert.Equal(t, full.PendingExcusedNote, got.PendingExcusedNote)
 	assert.Equal(t, []users.DepartureMode{users.DeparturePickup}, got.DepartureModes)
