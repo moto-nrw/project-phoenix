@@ -922,13 +922,24 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 	// A re-pointed Abwesenheitsart (#2403) also re-pins the canonical type, so
-	// the name and the arithmetic can never drift apart on an edit either.
+	// the name and the arithmetic can never drift apart on an edit either. An
+	// unchanged retired art is deliberately preserved: historic entries remain
+	// editable, while resolving a newly selected retired art still rejects it.
 	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
-		typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
-		if err != nil {
-			return nil, err
+		if sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
+			absence.AbsenceTypeID = before.AbsenceTypeID
+			absence.AbsenceType = before.AbsenceType
+		} else {
+			typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
+			if err != nil {
+				return nil, err
+			}
+			absence.AbsenceTypeID, absence.AbsenceType = typeID, baseType
 		}
-		absence.AbsenceTypeID, absence.AbsenceType = typeID, baseType
+	} else if req.AbsenceType != nil && before.AbsenceTypeID != nil {
+		// A canonical type update without an art ID means the standard type. Do
+		// not retain the old custom ID, as that pair violates the DB constraint.
+		absence.AbsenceTypeID = nil
 	}
 	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err

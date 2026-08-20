@@ -75,6 +75,60 @@ func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		require.Equal(t, activeModels.AbsenceTypeOther, got.AbsenceType)
+		require.Equal(t, customID, *got.AbsenceTypeID)
+		return nil
+	}
+
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceTypeID:    &customID,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+}
+
+func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		require.Equal(t, activeModels.AbsenceTypeTraining, got.AbsenceType)
+		require.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	canonical := activeModels.AbsenceTypeTraining
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType: &canonical,
+	})
+	require.NoError(t, err)
+}
+
 // ============================================================================
 // Mocks for StaffAbsenceRepository (prefixed with abs)
 // ============================================================================

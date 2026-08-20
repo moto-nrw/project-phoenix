@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -38,11 +37,7 @@ func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
 	// Tenant-defined absence names (#2403). Only a school's OWN additions live
 	// here — the five standard types stay code constants, so every tenant has
@@ -77,15 +72,6 @@ func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
 		BEFORE UPDATE ON active.staff_absence_types
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
-
-		ALTER TABLE active.staff_absence_types ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE active.staff_absence_types FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_active_staff_absence_types ON active.staff_absence_types;
-		CREATE POLICY tenant_isolation_active_staff_absence_types ON active.staff_absence_types
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
 
 		GRANT SELECT, INSERT, UPDATE, DELETE ON active.staff_absence_types TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE active.staff_absence_types_id_seq TO phoenix_tenant;
@@ -124,7 +110,11 @@ func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating active.staff_absence_types: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit active.staff_absence_types migration: %w", err)
+	}
+
+	return provisionTenantRLS(ctx, db, "active.staff_absence_types")
 }
 
 func staffAbsenceTypesDown(ctx context.Context, db *bun.DB) error {
@@ -134,11 +124,7 @@ func staffAbsenceTypesDown(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE active.staff_absences DROP CONSTRAINT IF EXISTS chk_sa_custom_type_is_other;

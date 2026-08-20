@@ -193,4 +193,30 @@ describe("CreatableSelect", () => {
 
     expect(screen.queryByRole("option", { name: /Sonderurlaub/ })).toBeNull();
   });
+
+  it("keeps a retired option available for reactivation but not for selection", () => {
+    const onChange = vi.fn();
+    const withRetired: CreatableSelectOption[] = [
+      ...OPTIONS,
+      { value: "custom:9", label: "Sonderurlaub", inactive: true },
+    ];
+    render(
+      <CreatableSelect
+        value="sick"
+        options={withRetired}
+        onChange={onChange}
+        onSetActive={vi.fn()}
+      />,
+    );
+    open();
+
+    const option = screen.getByRole("option", { name: /Sonderurlaub/ });
+    expect(option).toBeDisabled();
+    expect(option).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("button", { name: "Sonderurlaub wieder aktivieren" }),
+    ).toBeTruthy();
+    fireEvent.click(option);
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

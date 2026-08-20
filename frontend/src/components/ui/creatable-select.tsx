@@ -327,6 +327,8 @@ export function CreatableSelect({
                     type="button"
                     role="option"
                     aria-selected={option.value === value}
+                    aria-disabled={option.inactive && option.value !== value}
+                    disabled={option.inactive && option.value !== value}
                     onClick={() => {
                       onChange(option.value);
                       close();
@@ -335,7 +337,7 @@ export function CreatableSelect({
                       option.value === value
                         ? "bg-gray-50 font-medium text-gray-900"
                         : "text-gray-700 hover:bg-gray-50"
-                    }`}
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
                   >
                     <span className="min-w-0 flex-1 truncate">
                       {option.label}
