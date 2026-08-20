@@ -3492,6 +3492,10 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 	exec(`DELETE FROM users.parent_message_reads WHERE thread_id IN (SELECT id FROM users.parent_message_threads WHERE student_id = ?)`, c.StudentID)
 	exec(`DELETE FROM users.parent_messages WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
+	// Parent announcements reference their creator account. Tests often register
+	// announcement cleanup with t.Cleanup while this fixture is deferred, so
+	// clear them here as well before deleting the account.
+	exec(`DELETE FROM users.parent_announcements WHERE created_by = ?`, c.AccountID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)

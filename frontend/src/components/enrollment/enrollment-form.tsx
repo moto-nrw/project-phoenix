@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
@@ -45,6 +46,8 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
+import { formatDate } from "~/lib/date-helpers";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import {
   copyStableObjectKey,
@@ -113,6 +116,18 @@ interface ChildDraft {
    */
   offering_days: Record<string, Set<string>>;
   custom: Record<string, unknown>;
+  /**
+   * Taken over into care (ADR 0003): the card renders read-only and the
+   * values travel back unchanged, because the backend refuses a change
+   * request that touches this child.
+   */
+  locked?: boolean;
+  /**
+   * The bootstrap wire representation of a taken-over child. It bypasses
+   * normal form serialization so catalog changes cannot turn an unchanged,
+   * read-only child into a rejected change request.
+   */
+  lockedPayload?: SubmitChildPayload;
 }
 
 // GuardianDraft is one ADDITIONAL guardian (co-guardian) the parent can
@@ -889,6 +904,7 @@ export function EnrollmentForm({
       }
     }
     for (const [i, c] of children.entries()) {
+      if (c.locked) continue;
       const childCtx = childConditionCtx(c);
       const childOfferings = availableCareOfferings(
         offerings,
@@ -1020,6 +1036,7 @@ export function EnrollmentForm({
     // "at least one" / "exactly one"; otherwise a required base offering
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
+      if (c.locked) continue;
       const childOfferings = availableCareOfferings(
         offerings,
         c.target_grade_level,
@@ -1149,6 +1166,7 @@ export function EnrollmentForm({
     // selections for parent_choice offerings are guaranteed present by the
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
+      if (c.lockedPayload) return c.lockedPayload;
       const childOfferings = availableCareOfferings(
         offerings,
         c.target_grade_level,
@@ -1724,6 +1742,56 @@ export function EnrollmentForm({
             child,
             childOfferings,
           );
+          if (child.locked) {
+            const name = `${child.first_name} ${child.last_name}`.trim();
+            const booked = offerings
+              .filter((offering) => child.offering_ids.has(offering.id))
+              .map((offering) => offering.name);
+            return (
+              <InfoCard
+                key={child.clientId}
+                title={name || tr("structured.child")}
+                icon={
+                  <Lock className="h-5 w-5 text-gray-600" aria-hidden="true" />
+                }
+              >
+                <StatusBadge label={tr("locked.badge")} tone="green" />
+                <InfoItem
+                  label={tr("locked.birthday")}
+                  value={
+                    child.date_of_birth
+                      ? formatDate(child.date_of_birth, false, activeLocale)
+                      : "-"
+                  }
+                />
+                {collectGradeLevel && child.target_grade_level ? (
+                  <InfoItem
+                    label={tr("locked.grade")}
+                    value={tr("fields.grade", {
+                      grade: child.target_grade_level,
+                    })}
+                  />
+                ) : null}
+                <InfoItem
+                  label={tr("locked.care")}
+                  value={
+                    booked.length > 0
+                      ? booked.join(", ")
+                      : child.offering_ids.size > 0
+                        ? "-"
+                        : tr("locked.noCare")
+                  }
+                />
+                <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
+                  {tr("locked.hint", {
+                    name: name || tr("structured.child"),
+                  })}
+                  <br />
+                  {tr("locked.noAccess")}
+                </p>
+              </InfoCard>
+            );
+          }
           return (
             <div
               key={child.clientId}
@@ -2363,6 +2431,23 @@ function draftChildren(
       offering_ids: offeringIDs,
       offering_days: offeringDays,
       custom: child.custom_data ?? {},
+      locked: child.locked ?? false,
+      lockedPayload: child.locked
+        ? {
+            id: child.id,
+            first_name: child.first_name,
+            last_name: child.last_name,
+            date_of_birth: child.date_of_birth,
+            target_grade_level: child.target_grade_level,
+            target_school_class: child.target_school_class,
+            custom_data: child.custom_data,
+            offering_ids: child.offering_ids.map(Number),
+            offering_days: child.offering_days?.map((row) => ({
+              offering_id: Number(row.offering_id),
+              selected_days: row.selected_days,
+            })),
+          }
+        : undefined,
     };
   });
 }
@@ -2480,6 +2565,7 @@ function seedRequiredAvailableOfferings(
   offerings: readonly PublicCareOffering[],
 ): ChildDraft[] {
   return children.map((c) => {
+    if (c.locked) return c;
     const nextIDs = new Set(c.offering_ids);
     availableCareOfferings(offerings, c.target_grade_level)
       .filter((offering) => offering.is_required)
