@@ -113,6 +113,8 @@ type ChangeRequestService interface {
 	// ListForReview serves the request module's Eltern tab: open requests
 	// ordered by submission, decided ones by decision, keyset-paginated.
 	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) (items []*ChangeRequestReviewItem, next *usersService.HistoryCursor, err error)
+	// CountOpenForReview counts the rows in the given statuses for the badge.
+	CountOpenForReview(ctx context.Context, statuses []string) (int, error)
 }
 
 type ChangeRequestServiceConfig struct {

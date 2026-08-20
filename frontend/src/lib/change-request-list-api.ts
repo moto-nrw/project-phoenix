@@ -70,8 +70,14 @@ export interface EnrollmentChangeRequest {
   readonly guardian_name?: string;
   readonly parent_note?: string;
   readonly decision_note?: string;
-  /** Welche Teile der Anmeldung die Anfrage betrifft (Schlüssel der Felder). */
-  readonly changed_fields: readonly string[];
+  /**
+   * Die Anmeldung wie eingereicht und wie beantragt, plus die Liste der
+   * geänderten Schlüssel — dieselben drei Felder, aus denen die Detailansicht
+   * ihren Vergleich baut. Die Zeile zeigt daraus das echte vorher → nachher.
+   */
+  readonly base_snapshot: Record<string, unknown>;
+  readonly proposed_snapshot: Record<string, unknown>;
+  readonly diff: Record<string, unknown>;
   readonly created_at: string;
   readonly decided_at?: string;
   readonly decided_by_name?: string;
@@ -132,8 +138,6 @@ export interface AggregatedRequestParams {
   /** Nur Historie, YYYY-MM-DD. */
   readonly to?: string;
   readonly cursor?: string;
-  /** Seitengröße; ohne Angabe entscheidet der Endpunkt. */
-  readonly limit?: number;
 }
 
 interface Envelope<T> {
@@ -154,7 +158,6 @@ function buildQuery(
   if (params.from) query.set("from", params.from);
   if (params.to) query.set("to", params.to);
   if (params.cursor) query.set("cursor", params.cursor);
-  if (params.limit) query.set("limit", String(params.limit));
   return `?${query.toString()}`;
 }
 
@@ -198,6 +201,27 @@ export function listAggregatedRequestHistory(
   params: AggregatedRequestParams = {},
 ): Promise<AggregatedRequestPage<AggregatedHistoryRequest>> {
   return fetchPage<AggregatedHistoryRequest>("history", params);
+}
+
+/**
+ * Zahl der offenen Anmeldungsänderungen für das Badge (#2435). Wie die übrigen
+ * Badge-Abrufe: ein Fehler ergibt 0, damit ein Zähler nie die Seitenleiste
+ * beschädigt.
+ */
+export async function fetchPendingEnrollmentChangeRequestCount(): Promise<number> {
+  try {
+    const response = await fetch(
+      "/api/enrollment/admin/change-requests/pending-count",
+      { cache: "no-store" },
+    );
+    if (!response.ok) return 0;
+    const envelope = (await response.json()) as Envelope<{
+      pending_count?: number;
+    }>;
+    return envelope.data?.pending_count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**

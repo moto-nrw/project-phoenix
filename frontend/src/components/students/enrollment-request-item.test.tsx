@@ -19,7 +19,21 @@ function request(
     child_names: ["Lina Beispiel", "Timo Beispiel"],
     guardian_name: "Anna Beispiel",
     parent_note: "Bitte Telefonnummer ändern.",
-    changed_fields: ["guardian_phone", "children"],
+    base_snapshot: {
+      guardian_phone: "0221 12345",
+      children: [
+        { first_name: "Lina" },
+        { first_name: "Timo", target_grade_level: 1 },
+      ],
+    },
+    proposed_snapshot: {
+      guardian_phone: "0231 98765",
+      children: [
+        { first_name: "Lina" },
+        { first_name: "Timo", target_grade_level: 2 },
+      ],
+    },
+    diff: { changed: ["guardian_phone", "children"] },
     created_at: "2026-08-19T09:00:00Z",
     ...overrides,
   };
@@ -31,7 +45,10 @@ describe("EnrollmentRequestItem", () => {
 
     expect(screen.getByText("Lina Beispiel, Timo Beispiel")).toBeVisible();
     expect(screen.getByText("Wartet auf Prüfung")).toBeVisible();
-    expect(screen.getByText("Geändert: Telefon, Kinder")).toBeVisible();
+    // Das echte vorher → nachher, nicht nur die Namen der Bereiche.
+    expect(screen.getByText("Änderungen")).toBeVisible();
+    expect(screen.getByText("Telefon: 0221 12345 → 0231 98765")).toBeVisible();
+    expect(screen.getByText("Kind 2 · Zielklasse: 1 → 2")).toBeVisible();
     expect(
       screen.getByText(/Eingereicht am 19\.08\.2026 von Anna Beispiel/),
     ).toBeVisible();
@@ -62,6 +79,29 @@ describe("EnrollmentRequestItem", () => {
     // Die Begründung der Familie darf die der Entscheidung nicht verdrängen.
     expect(screen.getByText(/Bitte Telefonnummer ändern\./)).toBeVisible();
     expect(screen.getByText(/Passt, freigegeben\./)).toBeVisible();
+  });
+
+  it("kürzt sehr viele Feldänderungen und sagt, wie viele fehlen", () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 9 }, (_, index) => [
+        `feld_${index}`,
+        `alt-${index}`,
+      ]),
+    );
+    render(
+      <EnrollmentRequestItem
+        row={request({
+          base_snapshot: many,
+          proposed_snapshot: Object.fromEntries(
+            Object.keys(many).map((key) => [key, "neu"]),
+          ),
+          diff: { changed: Object.keys(many) },
+        })}
+        view="open"
+      />,
+    );
+
+    expect(screen.getByText("und 3 weitere Änderungen")).toBeVisible();
   });
 
   it("kennzeichnet eine Korrektur der OGS als solche", () => {

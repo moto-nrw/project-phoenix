@@ -101,6 +101,7 @@ type ChangeRequestRepository interface {
 	ListOpenByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*ChangeRequest, error)
 	ListAdmin(ctx context.Context, filters ChangeRequestListFilters) ([]*ChangeRequest, error)
 	ListForReview(ctx context.Context, filters ChangeRequestReviewFilters) ([]*ChangeRequest, error)
+	CountForReview(ctx context.Context, statuses []string) (int, error)
 	MarkReviewed(ctx context.Context, id int64, status string, note *string, reviewerAccountID int64, reviewedAt time.Time) error
 	SetStatus(ctx context.Context, id int64, status string) error
 }

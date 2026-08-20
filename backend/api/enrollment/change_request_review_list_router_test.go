@@ -239,17 +239,28 @@ type reviewListEnvelope struct {
 			RequestType string    `json:"request_type"`
 			OccurredAt  time.Time `json:"occurred_at"`
 			Data        struct {
-				ID            string   `json:"id"`
-				Status        string   `json:"status"`
-				ChildNames    []string `json:"child_names"`
-				GuardianName  string   `json:"guardian_name"`
-				DecidedByName string   `json:"decided_by_name"`
-				ChangedFields []string `json:"changed_fields"`
-				DecidedAt     *string  `json:"decided_at"`
+				ID               string         `json:"id"`
+				Status           string         `json:"status"`
+				ChildNames       []string       `json:"child_names"`
+				GuardianName     string         `json:"guardian_name"`
+				DecidedByName    string         `json:"decided_by_name"`
+				BaseSnapshot     map[string]any `json:"base_snapshot"`
+				ProposedSnapshot map[string]any `json:"proposed_snapshot"`
+				Diff             map[string]any `json:"diff"`
+				DecidedAt        *string        `json:"decided_at"`
 			} `json:"data"`
 		} `json:"items"`
 		NextCursor string `json:"next_cursor"`
 	} `json:"data"`
+}
+
+func (env *reviewListEnv) getPath(t *testing.T, path string, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	return rec
 }
 
 func (env *reviewListEnv) get(t *testing.T, query string, token string) *httptest.ResponseRecorder {
@@ -297,8 +308,11 @@ func TestChangeRequestReviewList_OpenShowsUndecidedNewestFirst(t *testing.T) {
 	assert.Equal(t, []string{"Quirina Zoffenbach", "Xander Zoffenbach"}, page.Data.Items[0].Data.ChildNames)
 	assert.Equal(t, "Annegret Zoffenbach", page.Data.Items[0].Data.GuardianName)
 	assert.Nil(t, page.Data.Items[0].Data.DecidedAt, "an open request has no decision")
-	assert.Equal(t, []string{"guardian_first_name"}, page.Data.Items[0].Data.ChangedFields,
-		"the list says which part of the enrollment the request touches")
+	// The list carries what the detail view compares, so it can show the real
+	// before → after instead of only naming the changed areas.
+	assert.Equal(t, "Annegret", page.Data.Items[0].Data.BaseSnapshot["guardian_first_name"])
+	assert.Equal(t, "Anne", page.Data.Items[0].Data.ProposedSnapshot["guardian_first_name"])
+	assert.Equal(t, []any{"guardian_first_name"}, page.Data.Items[0].Data.Diff["changed"])
 }
 
 func TestChangeRequestReviewList_HistoryCarriesDecisionAndCursor(t *testing.T) {
@@ -351,6 +365,46 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	cancelled := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusCancelled, base.Add(-2*time.Minute), 0, true)
 	assert.Equal(t, []string{idOf(cancelled)}, idsOf(env.fetch(t, "view=history&status=withdrawn")))
 	assert.Contains(t, idsOf(env.fetch(t, "view=history")), idOf(cancelled))
+}
+
+// Der Zähler trägt das Badge am Anfragen-Eintrag; er zählt in der Datenbank,
+// nicht die Länge einer Seite — sonst stünde ab der Seitengröße dauerhaft
+// dieselbe Zahl dort.
+func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
+	env := setupReviewListTest(t)
+	base := time.Now().UTC().Add(-3 * time.Hour)
+
+	for i := range 3 {
+		env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusPendingReview, base.Add(time.Duration(i)*time.Minute), 0, false)
+	}
+	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusNeedsParentResponse, base.Add(-time.Minute), 0, false)
+	// Entschiedene zählen nicht mit: da wartet keine Arbeit mehr.
+	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
+
+	rec := env.get(t, "", env.token)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	countRec := env.getPath(t, "/admin/change-requests/pending-count", env.token)
+	require.Equal(t, http.StatusOK, countRec.Code, countRec.Body.String())
+	var out struct {
+		Data struct {
+			PendingCount int `json:"pending_count"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(countRec.Body.Bytes(), &out), countRec.Body.String())
+	assert.Equal(t, 4, out.Data.PendingCount)
+
+	// Auch der Zähler hält seine Berechtigungsgrenze.
+	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
+		ID:          int(env.accountID),
+		Sub:         "review-list@example.com",
+		Username:    "reviewer",
+		Roles:       []string{"user"},
+		Permissions: []string{"users:read", "users:update"},
+		TenantID:    env.tenantID,
+	})
+	denied := env.getPath(t, "/admin/change-requests/pending-count", withoutPermission)
+	assert.Equal(t, http.StatusForbidden, denied.Code, denied.Body.String())
 }
 
 func TestChangeRequestReviewList_RefusesBadQueryAndMissingPermission(t *testing.T) {

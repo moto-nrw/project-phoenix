@@ -102,6 +102,17 @@ func (s *changeRequestService) ListForReview(
 	return items, next, nil
 }
 
+// CountOpenForReview is the number of Anmeldungsänderungen still waiting for a
+// decision — the badge's number, counted in the database instead of by the
+// length of one page.
+func (s *changeRequestService) CountOpenForReview(ctx context.Context, statuses []string) (int, error) {
+	count, err := s.ChangeRequestRepo.CountForReview(ctx, statuses)
+	if err != nil {
+		return 0, fmt.Errorf("change request review count: %w", err)
+	}
+	return count, nil
+}
+
 // reviewListLookups batch-loads everything the page needs: one query per kind,
 // never one per row.
 func (s *changeRequestService) reviewListLookups(

@@ -169,6 +169,7 @@ GET /api/display/
 GET /api/display/dashboard
 GET /api/enrollment/admin/change-requests/
 GET /api/enrollment/admin/change-requests/list
+GET /api/enrollment/admin/change-requests/pending-count
 GET /api/enrollment/admin/change-requests/{id}/
 GET /api/enrollment/admin/reports/care-usage
 GET /api/enrollment/admin/requests/

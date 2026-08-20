@@ -7,23 +7,32 @@
  * dorthin, statt die Freigabe ein zweites Mal nachzubauen.
  *
  * Sie nutzt dieselbe Lese-Karte wie die übrigen Zeilen der Liste, damit die
- * Arten nebeneinander gleich aussehen.
+ * Arten nebeneinander gleich aussehen, und zeigt wie diese das echte
+ * vorher → nachher statt nur der Namen der geänderten Bereiche.
  */
 
+import { useMemo } from "react";
 import { ArrowRight } from "lucide-react";
 
-import { RequestReviewCard } from "~/components/students/request-review-card";
+import { enrollmentChangeRequestStatusMeta } from "~/components/enrollment/enrollment-change-request-status";
+import {
+  RequestReviewCard,
+  ReviewDiffPanel,
+} from "~/components/students/request-review-card";
 import { ButtonLink } from "~/components/ui/button";
 import type { EnrollmentChangeRequest } from "~/lib/change-request-list-api";
-import { enrollmentChangeRequestFieldLabel } from "~/lib/enrollment-change-request-diff";
-import { enrollmentChangeRequestStatusMeta } from "~/components/enrollment/enrollment-change-request-status";
+import {
+  buildEnrollmentChangeRequestDiffGroups,
+  formatEnrollmentChangeRequestValue,
+} from "~/lib/enrollment-change-request-diff";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
-/** „Vorname, Telefon" — welche Teile der Anmeldung die Anfrage betrifft. */
-function changedSummary(fields: readonly string[]): string {
-  if (fields.length === 0) return "Keine Angabe";
-  return fields.map(enrollmentChangeRequestFieldLabel).join(", ");
-}
+/**
+ * Wie viele geänderte Felder eine Zeile zeigt. Eine Anmeldungsänderung kann
+ * das ganze Formular betreffen; ungekürzt füllte eine einzige Zeile die
+ * Liste. Der Rest steht in der Detailansicht.
+ */
+const MAX_DIFF_ROWS = 6;
 
 export function EnrollmentRequestItem({
   row,
@@ -39,6 +48,20 @@ export function EnrollmentRequestItem({
       ? row.child_names.join(", ")
       : (row.guardian_name ?? "Anmeldung");
   const parentNote = row.parent_note?.trim();
+
+  // Dieselbe Aufbereitung wie in der Detailansicht — ein zweiter Vergleich
+  // wäre ein zweites Verständnis davon, was sich geändert hat.
+  const rows = useMemo(
+    () =>
+      buildEnrollmentChangeRequestDiffGroups({
+        baseSnapshot: row.base_snapshot,
+        proposedSnapshot: row.proposed_snapshot,
+        diff: row.diff,
+      }).flatMap((group) => group.rows),
+    [row.base_snapshot, row.proposed_snapshot, row.diff],
+  );
+  const shown = rows.slice(0, MAX_DIFF_ROWS);
+  const hidden = rows.length - shown.length;
 
   return (
     <RequestReviewCard
@@ -71,9 +94,24 @@ export function EnrollmentRequestItem({
         </ButtonLink>
       }
     >
-      <p className="text-sm text-gray-700">
-        Geändert: {changedSummary(row.changed_fields)}
-      </p>
+      {shown.length > 0 ? (
+        <ReviewDiffPanel title="Änderungen">
+          {shown.map((entry) => (
+            <p key={entry.id} className="text-sm text-gray-700">
+              {entry.label}:{" "}
+              {formatEnrollmentChangeRequestValue(entry.before, "leer")} →{" "}
+              {formatEnrollmentChangeRequestValue(entry.after, "leer")}
+            </p>
+          ))}
+          {hidden > 0 && (
+            <p className="text-sm text-gray-500">
+              und {hidden} weitere {hidden === 1 ? "Änderung" : "Änderungen"}
+            </p>
+          )}
+        </ReviewDiffPanel>
+      ) : (
+        <p className="text-sm text-gray-600">Keine erkennbare Feldänderung</p>
+      )}
       {parentNote && (
         <p className="mt-1 text-sm text-gray-600 italic">„{parentNote}“</p>
       )}

@@ -189,6 +189,25 @@ func (r *ChangeRequestRepository) ListForReview(ctx context.Context, filters enr
 	return rows, nil
 }
 
+// CountForReview counts the rows ListForReview would return, ignoring the
+// keyset and the page size. It backs the badge, which needs the true number
+// rather than the size of one page.
+func (r *ChangeRequestRepository) CountForReview(ctx context.Context, statuses []string) (int, error) {
+	if len(statuses) == 0 {
+		return 0, nil
+	}
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.ChangeRequest)(nil)).
+		ModelTableExpr(changeRequestTableExpr).
+		Where(`"change_request".status IN (?)`, bun.List(statuses))
+	q = base.WithTenantFilter(ctx, q, "change_request")
+	count, err := q.Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count enrollment change requests for review: %w", err)
+	}
+	return count, nil
+}
+
 func (r *ChangeRequestRepository) MarkReviewed(ctx context.Context, id int64, status string, note *string, reviewerAccountID int64, reviewedAt time.Time) error {
 	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*enrollment.ChangeRequest)(nil)).

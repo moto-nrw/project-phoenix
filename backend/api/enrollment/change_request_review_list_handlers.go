@@ -64,11 +64,14 @@ type ChangeRequestReviewEntry struct {
 	GuardianName string   `json:"guardian_name,omitempty"`
 	ParentNote   *string  `json:"parent_note,omitempty"`
 	DecisionNote *string  `json:"decision_note,omitempty"`
-	// ChangedFields names the parts of the enrollment this request touches
-	// (guardian_phone, children, …). The list shows them as a one-line
-	// summary; the full before/after stays in the detail view.
-	ChangedFields []string  `json:"changed_fields"`
-	CreatedAt     time.Time `json:"created_at"`
+	// BaseSnapshot, ProposedSnapshot and Diff are the same three fields the
+	// detail view compares, so the list can show the real before → after
+	// instead of only naming the changed areas: the enrollment as filed and as
+	// proposed, plus the changed-key list. The client derives the field rows.
+	BaseSnapshot     map[string]any `json:"base_snapshot"`
+	ProposedSnapshot map[string]any `json:"proposed_snapshot"`
+	Diff             map[string]any `json:"diff"`
+	CreatedAt        time.Time      `json:"created_at"`
 	// DecidedAt and DecidedByName are set once the request is decided.
 	DecidedAt     *time.Time `json:"decided_at,omitempty"`
 	DecidedByName string     `json:"decided_by_name,omitempty"`
@@ -178,8 +181,8 @@ func parseReviewListHistoryFilters(q *enrollmentService.ChangeRequestReviewQuery
 }
 
 // parseReviewListStatuses maps the shared status filter onto this queue's own
-// statuses. "withdrawn" is valid in the merged list but has no counterpart
-// here, so asking only for it yields an empty page instead of an error.
+// statuses: the merged list speaks approved/rejected/withdrawn, this queue
+// stores approved/rejected/cancelled.
 func parseReviewListStatuses(raw string) ([]string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return historyReviewStatuses, nil
@@ -200,6 +203,31 @@ func parseReviewListStatuses(raw string) ([]string, error) {
 		}
 	}
 	return statuses, nil
+}
+
+// pendingChangeRequestReviewCount serves
+// GET /admin/change-requests/pending-count: how many Anmeldungsänderungen still
+// wait for a decision. It backs the badge on the Anfragen sidebar entry, which
+// sums it with the other queues the caller may open. Counted in the database,
+// so the number stays true past any page size.
+func (rs *Resource) pendingChangeRequestReviewCount(w http.ResponseWriter, r *http.Request) {
+	if rs.ChangeRequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("change request service not configured")))
+		return
+	}
+	var pending int
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		count, countErr := rs.ChangeRequestService.CountOpenForReview(ctx, openReviewStatuses)
+		pending = count
+		return countErr
+	})
+	if err != nil {
+		mapChangeRequestError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{
+		"pending_count": pending,
+	}, "Pending enrollment change request count retrieved")
 }
 
 // listChangeRequestReviewEntries serves GET /admin/change-requests/list.
@@ -247,35 +275,30 @@ func encodeReviewListCursor(cursor *usersService.HistoryCursor) string {
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-// changedFieldsOf reads the "changed" key snapshotDiff writes. Anything else
-// in that jsonb is ignored rather than guessed at.
-func changedFieldsOf(diff map[string]any) []string {
-	raw, ok := diff["changed"].([]any)
-	if !ok {
-		return []string{}
+// orEmptyMap keeps a nil jsonb out of the wire: the client walks these maps,
+// and "absent" and "empty" mean the same thing to it.
+func orEmptyMap(value map[string]any) map[string]any {
+	if value == nil {
+		return map[string]any{}
 	}
-	fields := make([]string, 0, len(raw))
-	for _, value := range raw {
-		if field, ok := value.(string); ok {
-			fields = append(fields, field)
-		}
-	}
-	return fields
+	return value
 }
 
 func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, history bool) ChangeRequestReviewItem {
 	row := item.ChangeRequest
 	entry := ChangeRequestReviewEntry{
-		ID:            strconv.FormatInt(row.ID, 10),
-		RequestID:     strconv.FormatInt(row.RequestID, 10),
-		Origin:        row.Origin,
-		Status:        row.Status,
-		ChildNames:    item.ChildNames,
-		GuardianName:  item.GuardianName,
-		ParentNote:    row.ParentNote,
-		DecisionNote:  row.AdminDecisionNote,
-		ChangedFields: changedFieldsOf(row.Diff),
-		CreatedAt:     row.CreatedAt,
+		ID:               strconv.FormatInt(row.ID, 10),
+		RequestID:        strconv.FormatInt(row.RequestID, 10),
+		Origin:           row.Origin,
+		Status:           row.Status,
+		ChildNames:       item.ChildNames,
+		GuardianName:     item.GuardianName,
+		ParentNote:       row.ParentNote,
+		DecisionNote:     row.AdminDecisionNote,
+		BaseSnapshot:     orEmptyMap(row.BaseSnapshot),
+		ProposedSnapshot: orEmptyMap(row.ProposedSnapshot),
+		Diff:             orEmptyMap(row.Diff),
+		CreatedAt:        row.CreatedAt,
 	}
 	if entry.ChildNames == nil {
 		entry.ChildNames = []string{}

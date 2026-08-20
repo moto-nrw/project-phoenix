@@ -349,14 +349,6 @@ function snapshotLabel(
   return copy.snapshotLabels[key] ?? key;
 }
 
-/**
- * Der deutsche Name eines geänderten Anmeldungsteils, für Listen, die nur die
- * betroffenen Bereiche nennen statt den ganzen Vergleich zu zeigen (#2435).
- */
-export function enrollmentChangeRequestFieldLabel(key: string): string {
-  return snapshotLabel(key, DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY);
-}
-
 function formatArrayValue(
   value: readonly unknown[],
   emptyLabel: string,
