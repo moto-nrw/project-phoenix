@@ -25,15 +25,23 @@ const HISTORY_STATUS_META: Record<
 // der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
 const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
 
-type RequestReviewCardHistory = {
-  /** „decision" (Standard) oder „correction" für eine Direkt-Korrektur. */
-  readonly kind?: "decision" | "correction";
-  /** Anfrage-Status; bei einer Direkt-Korrektur leer. */
-  readonly status?: string;
+type RequestReviewCardHistoryBase = {
   readonly decidedAt: string;
   readonly decidedByName?: string;
   readonly reason?: string;
 };
+
+/**
+ * Eine entschiedene Anfrage (mit Status) oder eine Direkt-Korrektur der
+ * Verwaltung (ohne). Als Union, damit einer Anfrage-Karte der Status nicht
+ * fehlen kann.
+ */
+type RequestReviewCardHistory =
+  | (RequestReviewCardHistoryBase & {
+      readonly kind?: "decision";
+      readonly status: string;
+    })
+  | (RequestReviewCardHistoryBase & { readonly kind: "correction" });
 
 /**
  * One pending parent change request in the staff Änderungsanfragen queue, in the
@@ -80,13 +88,13 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   if (history) {
-    const correction = history.kind === "correction";
-    const meta = correction
-      ? CORRECTION_META
-      : (HISTORY_STATUS_META[history.status ?? ""] ?? {
-          label: history.status ?? "",
-          tone: "gray" as const,
-        });
+    const meta =
+      history.kind === "correction"
+        ? CORRECTION_META
+        : (HISTORY_STATUS_META[history.status] ?? {
+            label: history.status,
+            tone: "gray" as const,
+          });
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -98,7 +106,7 @@ export function RequestReviewCard({
         </div>
         <p className="mt-1 text-xs text-gray-500">
           {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
-          {correction ? "Geändert am " : "Entschieden am "}
+          {history.kind === "correction" ? "Geändert am " : "Entschieden am "}
           {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>

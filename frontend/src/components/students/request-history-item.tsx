@@ -22,7 +22,6 @@ import {
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 
-/** Angebots-Zeilen („Mittagessen: Mo → abgemeldet") aus einem Diff. */
 function MasterDataHistoryCard({
   row,
 }: Readonly<{ row: StaffMasterDataHistoryEntry }>) {
