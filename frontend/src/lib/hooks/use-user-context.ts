@@ -28,6 +28,12 @@ interface ApiResponse<T> {
   message: string;
 }
 
+export class IncompleteUserContextError extends Error {
+  constructor(readonly userContext: UserContextResponse) {
+    super("User context fetch returned incomplete data");
+  }
+}
+
 interface UseUserContextReturn {
   /** The user context data, undefined while loading */
   userContext: UserContextResponse | undefined;
@@ -65,16 +71,23 @@ export function useUserContext(): UseUserContextReturn {
       }
 
       const json = (await response.json()) as ApiResponse<UserContextResponse>;
+      if (json.data.incomplete) {
+        throw new IncompleteUserContextError(json.data);
+      }
       return json.data;
     },
   );
 
+  const incompleteContext =
+    error instanceof IncompleteUserContextError ? error.userContext : undefined;
+  const userContext = incompleteContext ?? data;
+
   return {
-    userContext: data,
+    userContext,
     isLoading,
     error,
-    isIncomplete: data?.incomplete === true,
-    unavailableSections: data?.unavailableSections ?? [],
+    isIncomplete: userContext?.incomplete === true,
+    unavailableSections: userContext?.unavailableSections ?? [],
     isReady: data !== undefined || error !== undefined,
   };
 }

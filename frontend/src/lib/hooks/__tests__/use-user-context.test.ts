@@ -20,7 +20,10 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 // Import after mocking
-import { useUserContext } from "../use-user-context";
+import {
+  IncompleteUserContextError,
+  useUserContext,
+} from "../use-user-context";
 import { useImmutableSWR } from "~/lib/swr";
 
 describe("useUserContext", () => {
@@ -177,7 +180,7 @@ describe("useUserContext", () => {
       fetchMock.mockRestore();
     });
 
-    it("returns partial user context data with unavailable sections", async () => {
+    it("does not cache incomplete user context data", async () => {
       const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
         json: () =>
@@ -199,13 +202,38 @@ describe("useUserContext", () => {
       const fetcher = vi.mocked(useImmutableSWR).mock.calls[0]?.[1];
 
       if (fetcher) {
-        await expect(fetcher()).resolves.toMatchObject({
-          incomplete: true,
-          unavailableSections: ["supervised_groups"],
-        });
+        await expect(fetcher()).rejects.toBeInstanceOf(
+          IncompleteUserContextError,
+        );
       }
 
       fetchMock.mockRestore();
+    });
+
+    it("exposes partial user context data from an incomplete response", () => {
+      const partialContext = {
+        educationalGroups: [],
+        supervisedGroups: [],
+        currentStaff: { id: "100", personId: "200" },
+        educationalGroupIds: [],
+        educationalGroupRoomNames: [],
+        supervisedRoomNames: [],
+        incomplete: true,
+        unavailableSections: ["supervised_groups"],
+      };
+      vi.mocked(useImmutableSWR).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new IncompleteUserContextError(partialContext),
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUserContext());
+
+      expect(result.current.userContext).toEqual(partialContext);
+      expect(result.current.isIncomplete).toBe(true);
+      expect(result.current.unavailableSections).toEqual(["supervised_groups"]);
     });
   });
 });
