@@ -110,7 +110,8 @@ func gcTemplatesLocked(ctx context.Context, maint sqlExecutor, cfg *Config, now 
 }
 
 // touchedAt reads the last-used timestamp out of a template comment
-// ("phx-migrations-hash:<hash> touched:<unix>").
+// ("phx-migrations-hash:<hash> touched:<unix>"). Clone heartbeats use the
+// same key but a different prefix — see heartbeatAt.
 func touchedAt(comment string) (time.Time, bool) {
 	if !strings.HasPrefix(comment, hashCommentPrefix) {
 		return time.Time{}, false

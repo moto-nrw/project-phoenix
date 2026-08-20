@@ -414,6 +414,102 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
 }
 
+// Two suites running at the same time used to collect each other's clones:
+// a clone is pinned by a keeper connection only while ITS package binary
+// runs, so every finished package of the other run looked like a dead
+// generation. Liveness is per RUN now — one live clone vouches for its
+// siblings (#2419).
+func TestGCSparesFinishedClonesOfALiveRun(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	builds := 0
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("hash1"))
+	require.NoError(t, err)
+
+	runID := SanitizeRunID("")
+	live, err := CreateClone(ctx, templateCfg, runID)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = live.Close() })
+
+	// The sibling stands for a package that already finished: same run, no
+	// connection, and no heartbeat of its own.
+	finished := ClonePrefix + runID + "_finishedpkg"
+	createBareClone(t, ctx, cfg, finished, pkgCommentPrefix+"services/finished")
+	t.Cleanup(func() { dropBareClone(t, cfg, finished) })
+
+	runGC(t, ctx, cfg, templateCfg)
+	assert.True(t, databaseExists(t, ctx, cfg, finished),
+		"a finished clone of a live run must survive a foreign GC")
+}
+
+// The tail of a run — every binary gone, sweep not started yet — is covered
+// by the heartbeat, and a run that died long ago is still collected.
+func TestGCUsesTheHeartbeatWhenNoConnectionIsLeft(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	builds := 0
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("hash1"))
+	require.NoError(t, err)
+
+	fresh := ClonePrefix + SanitizeRunID("") + "_freshbeat"
+	createBareClone(t, ctx, cfg, fresh, cloneComment("services/fresh", time.Now()))
+	t.Cleanup(func() { dropBareClone(t, cfg, fresh) })
+
+	stale := ClonePrefix + SanitizeRunID("") + "_stalebeat"
+	createBareClone(t, ctx, cfg, stale, cloneComment("services/stale", time.Now().Add(-2*runGracePeriod)))
+	t.Cleanup(func() { dropBareClone(t, cfg, stale) })
+
+	// Asserted on existence, not on who dropped it: the suite around this test
+	// runs GC passes of its own, and any of them may collect the stale clone
+	// first.
+	runGC(t, ctx, cfg, templateCfg)
+	assert.True(t, databaseExists(t, ctx, cfg, fresh),
+		"a run whose heartbeat is inside the grace period is still alive")
+	assert.False(t, databaseExists(t, ctx, cfg, stale),
+		"a run that stopped beating long ago must be collected")
+}
+
+// runGC runs one generation GC pass as a FOREIGN run would: nothing spared
+// except the ambient suite's own clones, which the caller is running inside.
+func runGC(t *testing.T, ctx context.Context, cfg, templateCfg *Config) {
+	t.Helper()
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
+	require.NoError(t, err)
+	defer unlock()
+
+	_, err = gcLocked(ctx, conn, templateCfg.TemplateName(), ClonePrefix+RunID()+"_")
+	require.NoError(t, err)
+}
+
+func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name, comment string) {
+	t.Helper()
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
+	require.NoError(t, err)
+	defer unlock()
+
+	_, err = conn.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(name))
+	require.NoError(t, err)
+	_, err = conn.ExecContext(ctx, `COMMENT ON DATABASE `+quoteIdentifier(name)+` IS `+quoteLiteral(comment))
+	require.NoError(t, err)
+}
+
+func dropBareClone(t *testing.T, cfg *Config, name string) {
+	t.Helper()
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+	require.NoError(t, dropDatabase(context.Background(), maint, name))
+}
+
 func databaseExists(t *testing.T, ctx context.Context, cfg *Config, name string) bool {
 	t.Helper()
 	maint := openSQL(cfg.MaintenanceDSN())

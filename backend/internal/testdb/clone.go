@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -62,7 +63,19 @@ func randomRunID() string {
 }
 
 // pkgCommentPrefix marks a clone's package label ("phx-pkg:services/active").
+// The comment also carries the run's heartbeat, in the same shape the
+// template stamp uses: "phx-pkg:<label> touched:<unix>".
 const pkgCommentPrefix = "phx-pkg:"
+
+// heartbeatInterval is how often a live clone refreshes the timestamp in its
+// comment, and runGracePeriod is how long after the last refresh a run still
+// counts as alive. The gap between them is what a run needs to survive the
+// window between its last binary exiting and its sweep starting — the sweep
+// is a `go run`, so that window includes a compile.
+const (
+	heartbeatInterval = 20 * time.Second
+	runGracePeriod    = 90 * time.Second
+)
 
 // packageLabel turns a package's working directory into the backend-relative
 // path the leftover report names. Outside a recognizable checkout it falls
@@ -83,7 +96,50 @@ func PackageLabelOf(comment string) string {
 	if !strings.HasPrefix(comment, pkgCommentPrefix) {
 		return ""
 	}
-	return strings.TrimPrefix(comment, pkgCommentPrefix)
+	label := strings.TrimPrefix(comment, pkgCommentPrefix)
+	if idx := strings.Index(label, touchedCommentKey); idx >= 0 {
+		label = label[:idx]
+	}
+	return label
+}
+
+// cloneComment renders a clone's stamp: which package it belongs to, and when
+// its run was last seen alive.
+func cloneComment(label string, now time.Time) string {
+	return pkgCommentPrefix + label + touchedCommentKey + strconv.FormatInt(now.Unix(), 10)
+}
+
+// heartbeatAt reads the trailing "touched:<unix>" out of a CLONE comment.
+// Deliberately separate from the template's touchedAt: the two stamps share
+// the key but not the prefix, and a template must never be mistaken for a
+// clone or the other way round.
+func heartbeatAt(comment string) (time.Time, bool) {
+	if !strings.HasPrefix(comment, pkgCommentPrefix) {
+		return time.Time{}, false
+	}
+	idx := strings.Index(comment, touchedCommentKey)
+	if idx < 0 {
+		return time.Time{}, false
+	}
+	unix, err := strconv.ParseInt(comment[idx+len(touchedCommentKey):], 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(unix, 0), true
+}
+
+// runIDOf reads the run identifier out of a clone name
+// (phx_test_pkg_<runID>_<sha1(workdir)[:12]>). Empty for anything else.
+func runIDOf(name string) string {
+	rest, ok := strings.CutPrefix(name, ClonePrefix)
+	if !ok {
+		return ""
+	}
+	runID, _, ok := strings.Cut(rest, "_")
+	if !ok {
+		return ""
+	}
+	return runID
 }
 
 // CloneName derives the database name for this run's clone of the package
@@ -97,12 +153,18 @@ func CloneName(runID, workdir string) string {
 // CloneHandle is a live package clone. The keeper connection pins the clone
 // in pg_stat_activity so the cross-run GC never collects a clone whose test
 // binary is still alive; it is released when the process exits (or Close is
-// called). The keeper is the single liveness signal the generation model
-// rests on, so a background loop pings it and reconnects if the session ever
-// dies (idle-session timeout, pg_terminate_backend, server hiccup).
+// called). A background loop pings it and reconnects if the session ever
+// dies (idle-session timeout, pg_terminate_backend, server hiccup), and
+// refreshes the heartbeat in the clone's comment — the two together are what
+// tells a foreign GC that this clone's RUN is alive, including for the
+// sibling clones whose binaries have already exited.
 type CloneHandle struct {
 	Name string
 	DSN  string
+
+	// label is the package stamp the heartbeat rewrites along with the
+	// timestamp; the comment carries both.
+	label string
 
 	mu         sync.Mutex // guards keeperConn against the keepAlive loop
 	keeperDB   *sql.DB
@@ -129,11 +191,11 @@ func (h *CloneHandle) Close() error {
 	return nil
 }
 
-// keepAlive pings the keeper connection every 30s (keeping the session
-// non-idle) and replaces it when it died. Best-effort: if the clone itself is
-// gone, tests are failing loudly anyway.
+// keepAlive pings the keeper connection (keeping the session non-idle),
+// replaces it when it died, and refreshes the clone's heartbeat. Best-effort:
+// if the clone itself is gone, tests are failing loudly anyway.
 func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -157,6 +219,13 @@ func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
 				}
 			} else if replacement != nil {
 				_ = replacement.Close()
+			}
+			if h.keeperConn != nil {
+				// COMMENT ON DATABASE writes a shared catalog, so the clone's
+				// own connection can stamp it — no maintenance connection and
+				// no lifecycle lock needed for a heartbeat.
+				_, _ = h.keeperConn.ExecContext(ctx, `COMMENT ON DATABASE `+quoteIdentifier(h.Name)+
+					` IS `+quoteLiteral(cloneComment(h.label, time.Now())))
 			}
 			h.mu.Unlock()
 			cancel()
@@ -207,15 +276,16 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 		`CREATE DATABASE `+quoteIdentifier(name)+` TEMPLATE `+quoteIdentifier(cfg.TemplateName())); err != nil {
 		return nil, fmt.Errorf("clone test database %q from %q: %w", name, cfg.TemplateName(), err)
 	}
-	// Stamp which package this clone belongs to. The clone name is a hash of
-	// the working directory, so without the stamp the sweep can report a
-	// leftover but not say who left it behind.
+	// Stamp which package this clone belongs to, plus the run's first
+	// heartbeat. The clone name is a hash of the working directory, so without
+	// the stamp the gate can report a leftover but not say who left it behind.
+	label := packageLabel(wd)
 	if _, err := conn.ExecContext(ctx, `COMMENT ON DATABASE `+quoteIdentifier(name)+` IS `+
-		quoteLiteral(pkgCommentPrefix+packageLabel(wd))); err != nil {
+		quoteLiteral(cloneComment(label, time.Now()))); err != nil {
 		return nil, fmt.Errorf("stamp package label on clone %q: %w", name, err)
 	}
 
-	handle := &CloneHandle{Name: name, DSN: cfg.DatabaseDSN(name)}
+	handle := &CloneHandle{Name: name, DSN: cfg.DatabaseDSN(name), label: label}
 	handle.keeperDB = openSQL(handle.DSN)
 	handle.keeperDB.SetMaxOpenConns(2)
 	handle.keeperDB.SetConnMaxLifetime(0)
@@ -237,53 +307,91 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	return handle, nil
 }
 
-// gcLocked drops every clone-prefixed database that has no live connection
-// and starts with none of sparePrefixes. templateName is never dropped, even
-// if the configured template happens to carry the clone prefix. Callers must
-// hold the lifecycle lock.
+// gcLocked drops the clones of DEAD runs. A run is alive while any of its
+// clones has a live connection or a fresh heartbeat — not just the clone
+// being looked at. That distinction is the whole point: a clone is pinned by
+// a keeper connection only while ITS package binary runs, so a run of 90
+// packages has, at any moment, 89 finished clones with nothing holding them.
+// Judging each clone on its own connection made two concurrent suites collect
+// each other's finished clones, which left the leftover gate inspecting a
+// handful of packages and calling the rest clean (#2419).
+//
+// The heartbeat (CloneHandle.keepAlive, refreshed every heartbeatInterval)
+// covers the tail: between the last binary exiting and the sweep starting,
+// the run has no live connection at all, and without a grace period a
+// concurrent run would collect it in that window.
+//
+// templateName is never dropped, even if the configured template happens to
+// carry the clone prefix, and clones under sparePrefixes are kept regardless.
+// Callers must hold the lifecycle lock.
 func gcLocked(ctx context.Context, maint sqlExecutor, templateName string, sparePrefixes ...string) ([]string, error) {
-	rows, err := maint.QueryContext(ctx, `
-		SELECT d.datname
-		FROM pg_database d
-		WHERE LEFT(d.datname, char_length($1)) = $1
-		  AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)`,
-		ClonePrefix)
+	clones, err := listClones(ctx, maint)
 	if err != nil {
-		return nil, fmt.Errorf("list orphaned test database clones: %w", err)
+		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 
-	var orphans []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("scan orphaned clone name: %w", err)
-		}
-		if name == templateName {
+	now := time.Now()
+	liveRuns := make(map[string]bool)
+	for _, c := range clones {
+		if c.connected {
+			liveRuns[runIDOf(c.name)] = true
 			continue
 		}
-		spared := false
-		for _, prefix := range sparePrefixes {
-			if prefix != "" && strings.HasPrefix(name, prefix) {
-				spared = true
-				break
-			}
+		if beat, ok := heartbeatAt(c.comment); ok && now.Sub(beat) < runGracePeriod {
+			liveRuns[runIDOf(c.name)] = true
 		}
-		if spared {
-			continue
-		}
-		orphans = append(orphans, name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list orphaned test database clones: %w", err)
 	}
 
 	var dropped []string
-	for _, name := range orphans {
-		if err := dropDatabase(ctx, maint, name); err != nil {
-			return dropped, fmt.Errorf("drop orphaned clone %q: %w", name, err)
+	for _, c := range clones {
+		if c.name == templateName || liveRuns[runIDOf(c.name)] || hasAnyPrefix(c.name, sparePrefixes) {
+			continue
 		}
-		dropped = append(dropped, name)
+		if err := dropDatabase(ctx, maint, c.name); err != nil {
+			return dropped, fmt.Errorf("drop orphaned clone %q: %w", c.name, err)
+		}
+		dropped = append(dropped, c.name)
 	}
 	return dropped, nil
+}
+
+func hasAnyPrefix(name string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if prefix != "" && strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// cloneState is what the GC needs to know about one clone database.
+type cloneState struct {
+	name      string
+	comment   string
+	connected bool
+}
+
+func listClones(ctx context.Context, maint sqlExecutor) ([]cloneState, error) {
+	rows, err := maint.QueryContext(ctx, `
+		SELECT d.datname,
+		       COALESCE(sd.description, ''),
+		       EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)
+		FROM pg_database d
+		LEFT JOIN pg_shdescription sd ON sd.objoid = d.oid AND sd.classoid = 'pg_database'::regclass
+		WHERE LEFT(d.datname, char_length($1)) = $1
+		ORDER BY d.datname`, ClonePrefix)
+	if err != nil {
+		return nil, fmt.Errorf("list test database clones: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var clones []cloneState
+	for rows.Next() {
+		var c cloneState
+		if err := rows.Scan(&c.name, &c.comment, &c.connected); err != nil {
+			return nil, fmt.Errorf("scan clone state: %w", err)
+		}
+		clones = append(clones, c)
+	}
+	return clones, rows.Err()
 }
