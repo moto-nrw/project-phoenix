@@ -45,13 +45,6 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 	request.UpdatedAt = decidedAt
 	_, err := tc.db.NewInsert().Model(request).Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, cleanupErr := tc.db.NewDelete().Model((*userModels.StudentDataChangeRequest)(nil)).
-			Where("id = ?", request.ID).Exec(t.Context())
-		if cleanupErr != nil {
-			t.Logf("cleanup of change request %d failed: %v", request.ID, cleanupErr)
-		}
-	})
 	return request
 }
 
@@ -171,6 +164,8 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 // request, so the test proves the filter selects and — more importantly —
 // excludes.
 func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "ProtocolReviewer")
