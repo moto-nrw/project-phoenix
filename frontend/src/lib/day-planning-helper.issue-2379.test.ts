@@ -46,6 +46,35 @@ describe("getStudentPresenceBadgePlanning unplanned presence", () => {
     });
   });
 
+  it("restores the planned absence for composite home locations after checkout", () => {
+    expect(
+      getStudentPresenceBadgePlanning({
+        current_location: "Zuhause - Abgeholt",
+        day_planning_status: "not_coming_today",
+        day_planning_reason: "arrival_exception",
+        day_planning_label: "Kommt heute nicht",
+        actual_arrival_time: "08:30",
+      }),
+    ).toEqual({
+      notArrivalToday: true,
+      notArrivalReason: "Kommt heute nicht",
+    });
+  });
+
+  it("keeps an active transit check-in marked as unplanned", () => {
+    expect(
+      getStudentPresenceBadgePlanning({
+        current_location: "Unterwegs",
+        day_planning_status: "comes_today",
+        day_planning_reason: "unplanned_attendance",
+        day_planning_label: "ungeplant anwesend",
+      }),
+    ).toEqual({
+      notArrivalToday: true,
+      notArrivalReason: "ungeplant anwesend",
+    });
+  });
+
   it("does not mark a normally planned check-in as unplanned", () => {
     expect(
       getStudentPresenceBadgePlanning({

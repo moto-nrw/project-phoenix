@@ -1,3 +1,5 @@
+import { LOCATION_STATUSES, parseLocation } from "./location-helper";
+
 type DayPlanningStatus = "comes_today" | "not_coming_today";
 
 export interface DayPlanningStudent {
@@ -62,7 +64,13 @@ export function getStudentPresenceBadgePlanning(student: DayPlanningStudent): {
 function hasActualAttendance(
   student: Pick<DayPlanningStudent, "actual_arrival_time" | "current_location">,
 ): boolean {
-  const location = student.current_location?.trim().toLowerCase();
-  if (location) return location !== "zuhause" && location !== "abwesend";
+  if (student.current_location?.trim()) {
+    const { status } = parseLocation(student.current_location);
+    return (
+      status === LOCATION_STATUSES.PRESENT ||
+      status === LOCATION_STATUSES.SCHOOLYARD ||
+      status === LOCATION_STATUSES.TRANSIT
+    );
+  }
   return !!student.actual_arrival_time;
 }
