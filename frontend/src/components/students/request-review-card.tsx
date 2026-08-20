@@ -21,12 +21,27 @@ const HISTORY_STATUS_META: Record<
   auto_applied: { label: "Automatisch übernommen", tone: "gray" },
 };
 
-type RequestReviewCardHistory = {
-  readonly status: string;
+// Eine Direkt-Korrektur ist keine entschiedene Anfrage, sondern eine Änderung
+// der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
+const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
+
+type RequestReviewCardHistoryBase = {
   readonly decidedAt: string;
   readonly decidedByName?: string;
   readonly reason?: string;
 };
+
+/**
+ * Eine entschiedene Anfrage (mit Status) oder eine Direkt-Korrektur der
+ * Verwaltung (ohne). Als Union, damit einer Anfrage-Karte der Status nicht
+ * fehlen kann.
+ */
+type RequestReviewCardHistory =
+  | (RequestReviewCardHistoryBase & {
+      readonly kind?: "decision";
+      readonly status: string;
+    })
+  | (RequestReviewCardHistoryBase & { readonly kind: "correction" });
 
 /**
  * One pending parent change request in the staff Änderungsanfragen queue, in the
@@ -40,6 +55,8 @@ type RequestReviewCardHistory = {
 export function RequestReviewCard({
   childName,
   summary,
+  badge,
+  submittedAt,
   children,
   history,
   reason,
@@ -52,6 +69,13 @@ export function RequestReviewCard({
 }: Readonly<{
   childName: string;
   summary?: string;
+  /**
+   * Hinweis, der schon in der zugeklappten Zeile stehen muss, etwa die
+   * Warnung vor einer Komplett-Abmeldung (#2434).
+   */
+  badge?: ReactNode;
+  /** Einreichungszeitpunkt (ISO); rendert „Eingereicht am …" (#2432). */
+  submittedAt?: string;
   children?: ReactNode;
   history?: RequestReviewCardHistory;
   reason?: string;
@@ -64,10 +88,13 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   if (history) {
-    const meta = HISTORY_STATUS_META[history.status] ?? {
-      label: history.status,
-      tone: "gray" as const,
-    };
+    const meta =
+      history.kind === "correction"
+        ? CORRECTION_META
+        : (HISTORY_STATUS_META[history.status] ?? {
+            label: history.status,
+            tone: "gray" as const,
+          });
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -78,7 +105,9 @@ export function RequestReviewCard({
           <StatusBadge label={meta.label} tone={meta.tone} />
         </div>
         <p className="mt-1 text-xs text-gray-500">
-          Entschieden am {formatDate(history.decidedAt)}
+          {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
+          {history.kind === "correction" ? "Geändert am " : "Entschieden am "}
+          {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>
         {history.reason && (
@@ -102,6 +131,7 @@ export function RequestReviewCard({
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
           {childName}
         </span>
+        {badge}
         <span className="hidden shrink-0 truncate text-sm text-gray-500 sm:block">
           {summary}
         </span>
@@ -112,6 +142,11 @@ export function RequestReviewCard({
       </button>
       {open && (
         <div className="border-t border-gray-100 px-4 pb-4 sm:px-5">
+          {submittedAt && (
+            <p className="mt-3 text-xs text-gray-500">
+              Eingereicht am {formatDate(submittedAt)}
+            </p>
+          )}
           {children}
           <div className="mt-4 space-y-2">
             <Input
@@ -157,12 +192,13 @@ export function RequestReviewCard({
  * heading). Rows are passed as children so each queue keeps its own layout.
  */
 export function ReviewDiffPanel({
+  title,
   children,
-}: Readonly<{ children: ReactNode }>) {
+}: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
       <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Änderungen
+        {title}
       </p>
       {children}
     </div>

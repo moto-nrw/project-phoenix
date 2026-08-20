@@ -50,6 +50,30 @@ type CareScheduleChangeRequest struct {
 	ReviewedBy     *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	ReviewedAt     *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	AppliedAt      *time.Time     `bun:"applied_at" json:"applied_at,omitempty"`
+	// DecisionSnapshot freezes the "alt → neu" diff the reviewer saw when
+	// deciding (ADR 0002, #2430). NULL on pending, withdrawn, and pre-#2430
+	// rows — history readers fall back to the payload-derived requested
+	// summary there.
+	DecisionSnapshot *CareRequestDecisionSnapshot `bun:"decision_snapshot,type:jsonb" json:"decision_snapshot,omitempty"`
+}
+
+// CareRequestDecisionSnapshot is the frozen review diff stored on a decided
+// request (see the DecisionSnapshot field).
+type CareRequestDecisionSnapshot struct {
+	Diff []CareRequestSnapshotEntry `json:"diff"`
+}
+
+// CareRequestSnapshotEntry is one frozen "alt → neu" comparison row. It
+// mirrors the service-level RequestDiffEntry wire shape so decided rows
+// replay exactly what the reviewer saw.
+type CareRequestSnapshotEntry struct {
+	Label    string   `json:"label"`
+	Old      string   `json:"old,omitempty"`
+	New      string   `json:"new,omitempty"`
+	Weekday  int      `json:"weekday,omitempty"`
+	CareKind string   `json:"care_kind,omitempty"`
+	OldModes []string `json:"old_modes,omitempty"`
+	NewMode  string   `json:"new_mode,omitempty"`
 }
 
 // IsTerminal reports whether the row is in a final state. Only pending rows
@@ -108,4 +132,9 @@ type CareScheduleChangeRequestRepository interface {
 	// decision_reason, reviewed_by, reviewed_at and (for approvals)
 	// applied_at. Withdrawals carry no reviewer stamp.
 	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error
+
+	// UpdateDecisionSnapshot stores the frozen review diff on a decided row
+	// (ADR 0002, #2430). Separate from Decide so the race-guarded transition
+	// keeps its signature; callers write the snapshot in the same transaction.
+	UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *CareRequestDecisionSnapshot) error
 }

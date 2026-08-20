@@ -19,11 +19,11 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate().AddDays(2)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
-	if weekday == 0 {
-		weekday = 7
-	}
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,

@@ -794,6 +794,22 @@ export interface StaffAbsenceRow {
   duration_days?: number;
 }
 
+// Eine Zeile des Anfragen-Moduls (#2433): der Antrag plus die Namen, die die
+// Liste anzeigt. Leere Namen heißen "Unbekannt" (gelöschtes Konto).
+export interface StaffAbsenceRequestRow extends Omit<
+  StaffAbsenceRow,
+  "id" | "staff_id" | "approved_by"
+> {
+  id: string;
+  staff_id: string;
+  approved_by?: string | null;
+  staff_name: string;
+  decided_by_name?: string;
+  /** Zeitpunkt der letzten Änderung; trägt bei zurückgezogenen Anträgen das
+   *  Rücknahme-Datum, für das es kein eigenes Feld gibt. */
+  updated_at?: string;
+}
+
 // Vacation takeover at the moto introduction (#2132): days already taken
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
@@ -990,7 +1006,10 @@ class StaffAbsenceService {
     }
   }
 
-  async approve(absenceId: number, decisionNote?: string): Promise<void> {
+  async approve(
+    absenceId: number | string,
+    decisionNote?: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/approve`,
       {
@@ -1019,9 +1038,37 @@ class StaffAbsenceService {
     return json.data ?? [];
   }
 
+  // Anfragen-Modul, Reiter Mitarbeitende (#2433): offene Anträge oder die
+  // Historie der entschiedenen, jeweils mit den Namen, die die Liste zeigt.
+  // Suche und Art-Filter wirken serverseitig.
+  async listRequests(
+    view: "open" | "history",
+    filters: { search?: string; types?: readonly string[] } = {},
+  ): Promise<StaffAbsenceRequestRow[]> {
+    const params = new URLSearchParams({ view });
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    if (filters.types && filters.types.length > 0)
+      params.set("types", filters.types.join(","));
+    const response = await sessionFetch(
+      `/api/staff/absences/requests?${params.toString()}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch absence requests: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: StaffAbsenceRequestRow[] | null;
+    };
+    return json.data ?? [];
+  }
+
   // Rückfrage: moves a requested absence into status "question" with a
   // mandatory note from the Leitung (#1419).
-  async question(absenceId: number, decisionNote: string): Promise<void> {
+  async question(
+    absenceId: number | string,
+    decisionNote: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/question`,
       {
@@ -1036,7 +1083,7 @@ class StaffAbsenceService {
     }
   }
 
-  async deny(absenceId: number, decisionNote: string): Promise<void> {
+  async deny(absenceId: number | string, decisionNote: string): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/deny`,
       {

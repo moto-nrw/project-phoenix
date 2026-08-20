@@ -32,6 +32,13 @@ export interface OfferingRequestDiffLine {
   readonly optoutable?: boolean;
 }
 
+/** One booking the request leaves exactly as it is. */
+interface OfferingRequestUnchangedLine {
+  readonly offering_id: string;
+  readonly label: string;
+  readonly days: string;
+}
+
 /**
  * One offering change request in the staff queue. Mirrors
  * api/students.OfferingRequestResponse.
@@ -45,6 +52,10 @@ export interface StaffOfferingRequest {
   readonly effective_from: string;
   readonly note?: string;
   readonly diff: readonly OfferingRequestDiffLine[];
+  /** Bookings this request does not touch, for the complete after picture. */
+  readonly unchanged?: readonly OfferingRequestUnchangedLine[];
+  /** True when approving would leave the child without any offering (#2434). */
+  readonly full_withdrawal?: boolean;
   readonly reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;

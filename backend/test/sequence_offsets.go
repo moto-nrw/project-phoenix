@@ -2,40 +2,33 @@ package test
 
 import (
 	"context"
-	"sync"
-	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-var sequenceOffsetsOnce sync.Once
-
 // applySequenceOffsets moves every table's PK sequence into its own disjoint
 // numeric range (Nth sequence by schema+name starts at N*10M), so IDs from
-// different tables can never collide numerically.
+// different tables can never collide numerically. It runs once per package
+// clone from the process-once bootstrap in db_clone.go.
 //
 // Why: the generic cleanup helpers (CleanupActivityFixtures and friends) try
 // each passed ID against many tables with `id = ?` arms. With all sequences
-// starting near 1, a staff PK from one test package regularly equals an
-// activity-group or supervisor PK from another package running concurrently
-// against the shared test DB, and the cleanup deletes the foreign row
+// starting near 1, a staff PK regularly equals an activity-group or
+// supervisor PK from another test, and the cleanup deletes the foreign row
 // mid-test. Disjoint ranges kill the whole collision class without touching
-// any call site.
+// any call site. The offsets stay in place as a flake detector until the
+// PR-2 sweep removes the cleanup helpers (ADR 0004); then they go too.
 //
 // Properties:
 //   - Idempotent and monotonic: setval(GREATEST(last_value, offset)) never
-//     moves a sequence backward, so concurrent test binaries all converge.
+//     moves a sequence backward.
 //   - Explicit-ID system fixtures (schools.id=1, rooms.id=1, staff.id=1)
 //     are unaffected; offsets only change nextval.
 //   - Max offset stays far below the int4 ceiling (2.1B) up to ~200 tables.
-//   - Ordinals are positional: adding a migration with a new table can shift
-//     assignments on a long-lived local DB. CI databases are fresh per run;
-//     locally, `APP_ENV=test go run main.go migrate reset` re-baselines.
-func applySequenceOffsets(tb testing.TB, db *bun.DB) {
-	tb.Helper()
-	sequenceOffsetsOnce.Do(func() {
-		_, err := db.ExecContext(context.Background(), `
+//   - Ordinals are positional, but every package clone is created fresh from
+//     the template per run, so assignments cannot drift between runs.
+func applySequenceOffsets(ctx context.Context, db *bun.DB) error {
+	_, err := db.ExecContext(ctx, `
 DO $$
 DECLARE
   seq record;
@@ -56,6 +49,5 @@ BEGIN
   END LOOP;
 END $$;
 `)
-		require.NoError(tb, err, "Failed to apply test sequence offsets")
-	})
+	return err
 }

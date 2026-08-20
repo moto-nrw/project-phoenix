@@ -56,7 +56,7 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 }
 
 func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
-	result, err := s.updateChildOfferings(ctx, input, true)
+	result, err := s.updateChildOfferings(ctx, input, auditModels.OfferingAdjustmentSourceDirect)
 	if err != nil {
 		return nil, err
 	}
@@ -80,15 +80,21 @@ func (s *decisionService) applyApprovedChangeRequestOfferingsWithResult(
 	ctx context.Context,
 	input UpdateChildOfferingsInput,
 ) (*appliedOfferingAdjustment, error) {
-	return s.updateChildOfferings(ctx, input, false)
+	return s.updateChildOfferings(ctx, input, auditModels.OfferingAdjustmentSourceRequest)
 }
 
+// updateChildOfferings performs the booking switch and records it. source
+// tells the two entry points apart: a direct correction by the office is
+// subject to the live care-offerings setting and shows up in the central
+// history as its own row kind (#2436), while a request-applied change carries
+// the capability frozen when the parent submitted and is already visible there
+// as the decided request.
 func (s *decisionService) updateChildOfferings(
 	ctx context.Context,
 	input UpdateChildOfferingsInput,
-	enforceLiveCapability bool,
+	source string,
 ) (*appliedOfferingAdjustment, error) {
-	if enforceLiveCapability {
+	if source == auditModels.OfferingAdjustmentSourceDirect {
 		enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 		if err != nil {
 			return nil, fmt.Errorf("offering adjustment: resolve care offerings setting: %w", err)
@@ -298,6 +304,7 @@ func (s *decisionService) updateChildOfferings(
 		ActorNameSnapshot:  actorName,
 		ActorEmailSnapshot: actorEmail,
 		Reason:             reason,
+		Source:             source,
 		Before:             beforeJSON,
 		After:              afterJSON,
 	}

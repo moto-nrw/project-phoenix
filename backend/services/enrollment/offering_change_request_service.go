@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -168,6 +169,14 @@ type OfferingChangeView struct {
 	// portal already knows whose child it is.
 	StudentName string
 	Diff        []OfferingChangeDiffEntry
+	// Unchanged lists the bookings this request leaves exactly as they are, so
+	// the staff review card can show the child's complete picture after the
+	// decision instead of only the changed lines (#2434). Staff queue only.
+	Unchanged []OfferingChangeDiffEntry
+	// FullWithdrawal is true when approving would leave the child with no
+	// offering at all — the case that looked like an ordinary request in the
+	// OGS-am-Berg incident (#2434). Staff queue only.
+	FullWithdrawal bool
 	// LastDecision is the most recent decided request inside the recency window,
 	// so a guardian learns the outcome (and a rejection's reason) on the page
 	// they submitted from instead of only in the chat.
@@ -274,6 +283,10 @@ type OfferingChangeRequestService interface {
 	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
 	// page; next is nil when no older rows exist beyond this page.
 	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*OfferingChangeHistoryItem, next *usersService.HistoryCursor, err error)
+	// ListDirectCorrections returns the office's own corrections to bookings,
+	// newest change first, keyset paginated on (changed_at, id). They are not
+	// requests: no pending state, nothing to decide (#2436).
+	ListDirectCorrections(ctx context.Context, beforeChangedAt time.Time, beforeID int64, limit int) (items []*DirectCorrectionItem, next *usersService.HistoryCursor, err error)
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
 	// PreviewDecision materializes a pending approval with the supplied
@@ -298,7 +311,10 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
-	UserContext              authorize.StudentAccessUserContext
+	// OfferingAdjustmentRepo backs the direct-correction feed of the central
+	// history (#2436); the same append-only log the decision service writes.
+	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
+	UserContext            authorize.StudentAccessUserContext
 	// Applier performs the dated adjustment on approval. It is the decision
 	// service, reached through the same narrow interface the change-request
 	// service uses.
@@ -950,7 +966,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student persons: %w", err)
 	}
-	diffs, applied, diffErr := s.pendingDiffs(ctx, visibleRows)
+	reviews, diffErr := s.pendingReviews(ctx, visibleRows)
 	if diffErr != nil {
 		s.Logger.Warn("offering change: preload pending diffs failed", slog.String("error", diffErr.Error()))
 	}
@@ -963,15 +979,18 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 		// diverges once a phase's service start moves after the request was
 		// filed.
 		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom)
-		if date, ok := applied[row.ID]; ok {
-			reviewRow.EffectiveFrom = date
+		review := reviews[row.ID]
+		if review != nil {
+			reviewRow.EffectiveFrom = review.AppliedDate
 		}
 		view := &OfferingChangeView{Request: &reviewRow}
 		if person := persons[student.PersonID]; person != nil {
 			view.StudentName = strings.TrimSpace(person.GetFullName())
 		}
-		if diffErr == nil {
-			view.Diff = diffs[row.ID]
+		if diffErr == nil && review != nil {
+			view.Diff = review.Diff
+			view.Unchanged = review.Unchanged
+			view.FullWithdrawal = review.FullWithdrawal
 		}
 		views = append(views, view)
 	}
@@ -1089,13 +1108,23 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 	return count, nil
 }
 
-// pendingDiffs preloads the queue's aggregate data in bounded queries. The
+// pendingReview is what the staff queue shows for one pending row: the changed
+// lines, the bookings that stay untouched, whether approving would leave the
+// child with nothing (#2434), and the date the approval would actually apply.
+type pendingReview struct {
+	Diff           []OfferingChangeDiffEntry
+	Unchanged      []OfferingChangeDiffEntry
+	FullWithdrawal bool
+	AppliedDate    timezone.Date
+}
+
+// pendingReviews preloads the queue's aggregate data in bounded queries. The
 // review page and its badge both call ListPending, so loading a complete
 // request aggregate per row would turn an ordinary queue into an N+1 query.
-func (s *offeringChangeRequestService) pendingDiffs(
+func (s *offeringChangeRequestService) pendingReviews(
 	ctx context.Context,
 	rows []*enrollmentModels.OfferingChangeRequest,
-) (map[int64][]OfferingChangeDiffEntry, map[int64]timezone.Date, error) {
+) (map[int64]*pendingReview, error) {
 	childIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
@@ -1105,7 +1134,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	children, err := s.RequestChildRepo.ListByIDs(ctx, childIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load request children: %w", err)
+		return nil, fmt.Errorf("load request children: %w", err)
 	}
 	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
 	requestIDs := make([]int64, 0, len(children))
@@ -1118,7 +1147,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	requests, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load enrollment requests: %w", err)
+		return nil, fmt.Errorf("load enrollment requests: %w", err)
 	}
 	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
 	phaseIDs := make([]int64, 0, len(requests))
@@ -1131,7 +1160,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	phases, err := s.PhaseRepo.ListByIDs(ctx, phaseIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load phases: %w", err)
+		return nil, fmt.Errorf("load phases: %w", err)
 	}
 	phasesByID := make(map[int64]*enrollmentModels.Phase, len(phases))
 	for _, phase := range phases {
@@ -1142,7 +1171,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	// The snapshot has to be read on the date the approval would use, phase
 	// clamp included, or the diff describes a booking outside the care period.
 	dates := make(map[int64]timezone.Date, len(rows))
-	appliedByRow := make(map[int64]timezone.Date, len(rows))
+	reviews := make(map[int64]*pendingReview, len(rows))
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
 			continue
@@ -1156,11 +1185,11 @@ func (s *offeringChangeRequestService) pendingDiffs(
 		}
 		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 		dates[row.RequestChildID] = date
-		appliedByRow[row.ID] = date
+		reviews[row.ID] = &pendingReview{AppliedDate: date}
 	}
 	active, err := s.CareOfferingRepo.ListActiveByPhaseIDs(ctx, phaseIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load active offerings: %w", err)
+		return nil, fmt.Errorf("load active offerings: %w", err)
 	}
 	activeByPhase := make(map[int64]map[int64]*enrollmentModels.CareOffering)
 	allOfferingIDs := make([]int64, 0, len(active))
@@ -1176,7 +1205,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load current offerings: %w", err)
+		return nil, fmt.Errorf("load current offerings: %w", err)
 	}
 	currentByChild := make(map[int64][]*enrollmentModels.RequestChildOffering)
 	for _, link := range current {
@@ -1201,7 +1230,7 @@ func (s *offeringChangeRequestService) pendingDiffs(
 	}
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, allOfferingIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load queue offerings: %w", err)
+		return nil, fmt.Errorf("load queue offerings: %w", err)
 	}
 	offeringsByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings)+len(active))
 	for _, offering := range offerings {
@@ -1215,7 +1244,6 @@ func (s *offeringChangeRequestService) pendingDiffs(
 		}
 	}
 
-	diffs := make(map[int64][]OfferingChangeDiffEntry, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -1267,13 +1295,57 @@ func (s *offeringChangeRequestService) pendingDiffs(
 			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
+		review := reviews[row.ID]
+		if review == nil {
+			continue
+		}
+		review.FullWithdrawal = leavesNoOfferings(entries)
+		review.Unchanged = unchangedBookings(entries, changedByOfferingID)
 		entries = slices.DeleteFunc(entries, func(entry OfferingChangeDiffEntry) bool {
 			return !changedByOfferingID[entry.OfferingID] && len(entry.NewRuleDays) == 0
 		})
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-		diffs[row.ID] = entries
+		review.Diff = entries
 	}
-	return diffs, appliedByRow, nil
+	return reviews, nil
+}
+
+// leavesNoOfferings reports the Komplett-Abmeldung: the child holds bookings
+// today and would hold none after the change. Judged on the full entry list
+// (both sides of every offering), never on the changed lines alone — a request
+// that drops one of two offerings also has only "removed" lines in its diff.
+func leavesNoOfferings(entries []OfferingChangeDiffEntry) bool {
+	held := false
+	for _, entry := range entries {
+		if entry.NewState == "booked" {
+			return false
+		}
+		if entry.OldState == "booked" {
+			held = true
+		}
+	}
+	return held
+}
+
+// unchangedBookings returns the bookings the request leaves exactly as they
+// are. Lines with a rule-added share stay in the diff itself (they carry the
+// Mitbuchungs-Erklärung), so they are not repeated here.
+func unchangedBookings(
+	entries []OfferingChangeDiffEntry,
+	changedByOfferingID map[int64]bool,
+) []OfferingChangeDiffEntry {
+	unchanged := make([]OfferingChangeDiffEntry, 0, len(entries))
+	for _, entry := range entries {
+		if changedByOfferingID[entry.OfferingID] || len(entry.NewRuleDays) > 0 {
+			continue
+		}
+		if entry.NewState != "booked" {
+			continue
+		}
+		unchanged = append(unchanged, entry)
+	}
+	sort.SliceStable(unchanged, func(i, j int) bool { return unchanged[i].Label < unchanged[j].Label })
+	return unchanged
 }
 
 func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideOfferingChangeInput) error {
