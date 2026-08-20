@@ -48,25 +48,6 @@ func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem
 	}
 }
 
-// listExcusedAbsenceRequests returns the tenant's pending parent excused-absence
-// approval requests for the staff review queue.
-func (rs *Resource) listExcusedAbsenceRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.ExcusedRequestService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("excused request service not configured")))
-		return
-	}
-	items, err := rs.ExcusedRequestService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]StaffExcusedRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toStaffExcusedRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Excused absence requests retrieved")
-}
-
 // DecideExcusedRequestBody is the body of POST
 // .../excused-absence-requests/{requestId}/decide.
 type DecideExcusedRequestBody struct {

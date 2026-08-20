@@ -82,69 +82,25 @@ func reviewRow(status string) *usersModels.StudentDataChangeRequest {
 	}
 }
 
-func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
-	t.Parallel()
-
-	svc := &fakeMasterDataReviewService{
-		items: []*userService.MasterDataReviewItem{{
-			Request:   reviewRow(usersModels.DataChangeStatusPending),
-			FirstName: "Lara",
-			LastName:  "Beispiel",
-		}},
-	}
-	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
-	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
-	w := httptest.NewRecorder()
-
-	rs.listMasterDataChangeRequests(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	body := w.Body.String()
-	assert.Contains(t, body, `"id":"100"`)
-	assert.Contains(t, body, `"student_id":"42"`)
-	assert.Contains(t, body, `"first_name":"Lara"`)
-	assert.Contains(t, body, `"field_key":"first_name"`)
-}
-
 // Deliberately NOT parallel: the test reaches process-global state (env
 // variables, viper keys, the settings registry, os.Stdout) that the whole
 // test binary shares.
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
-	// The queue + decide routes now gate on users:update (deciding a request is
-	// the same child write as editing the child directly), with per-child scope
-	// enforced in the service. A caller with only users:read cannot reach them.
+	// The decide route gates on users:update (deciding a request is the same
+	// child write as editing the child directly), with per-child scope enforced
+	// in the service. A caller with only users:read cannot reach it.
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{permissions.UsersRead}
 	claims.IsAdmin = false
 	token := testutil.MintTestJWT(t, claims)
 
-	for _, tc := range []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{method: http.MethodGet, path: "/master-data-change-requests"},
-		{method: http.MethodPost, path: "/master-data-change-requests/100/decide", body: `{"approve":true}`},
-	} {
-		req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, strings.NewReader(tc.body), testutil.WithJWTBearer(token))
-		rr := testutil.ExecuteRequest(router, req)
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/master-data-change-requests/100/decide",
+		strings.NewReader(`{"approve":true}`), testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
 
-		require.Equal(t, http.StatusForbidden, rr.Code)
-	}
-}
-
-func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
-	w := httptest.NewRecorder()
-
-	rs.listMasterDataChangeRequests(w, req)
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {

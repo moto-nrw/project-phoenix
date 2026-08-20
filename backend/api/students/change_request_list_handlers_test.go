@@ -430,6 +430,30 @@ func TestAggregatedChangeRequests_HistoryMergesAndPaginates(t *testing.T) {
 	assert.Equal(t, consumedRow.ID, fakes.master.gotBeforeID[1])
 }
 
+// An auto-applied row was never stamped by a reviewer: its decision instant
+// falls back to updated_at and no reviewer name reaches the wire.
+func TestAggregatedChangeRequests_HistoryDecidedAtFallsBackToUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	decidedAt := aggBase.Add(90 * time.Minute)
+	fakes.master.rows = []*userService.MasterDataHistoryItem{
+		aggMasterHistory(7, "Emil", "Ohne", "auto_applied", decidedAt),
+	}
+	require.Nil(t, fakes.master.rows[0].Request.ReviewedAt, "fixture must carry no reviewer stamp")
+
+	rr, page := execAggregated(t, rs, "view=history&types=master_data", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Len(t, page.Items, 1)
+
+	var payload struct {
+		DecidedAt time.Time `json:"decided_at"`
+	}
+	require.NoError(t, json.Unmarshal(page.Items[0].Data, &payload))
+	assert.True(t, payload.DecidedAt.Equal(decidedAt), "without reviewed_at the decision instant is updated_at")
+	assert.NotContains(t, string(page.Items[0].Data), `"decided_by_name"`, "an empty reviewer name is omitted")
+}
+
 func TestAggregatedChangeRequests_HistoryStatusFilter(t *testing.T) {
 	t.Parallel()
 

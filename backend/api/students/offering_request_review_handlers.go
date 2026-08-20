@@ -150,25 +150,6 @@ func germanOfferingDiffLabel(state string, days []string) string {
 	return strings.Join(parts, ", ")
 }
 
-// listOfferingChangeRequests returns the tenant's pending offering-change
-// requests, soonest effective date first.
-func (rs *Resource) listOfferingChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.OfferingChangeService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("offering change service not configured")))
-		return
-	}
-	items, err := rs.OfferingChangeService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]OfferingRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toOfferingRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Offering change requests retrieved")
-}
-
 // DecideOfferingRequestBody is the body of POST
 // .../offering-change-requests/{requestId}/decide.
 type DecideOfferingRequestBody struct {
