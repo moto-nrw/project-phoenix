@@ -19,13 +19,17 @@ const HISTORY_STATUS_META: Record<
   rejected: { label: "Abgelehnt", tone: "red" },
   withdrawn: { label: "Zurückgezogen", tone: "gray" },
   auto_applied: { label: "Automatisch übernommen", tone: "gray" },
-  // Keine Anfrage, sondern eine Änderung der Verwaltung selbst (#2436).
-  direct_correction: { label: "Direkt-Korrektur", tone: "blue" },
 };
 
+// Eine Direkt-Korrektur ist keine entschiedene Anfrage, sondern eine Änderung
+// der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
+const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
+
 type RequestReviewCardHistory = {
-  /** Ein Anfrage-Status oder „direct_correction" für eine Direkt-Korrektur. */
-  readonly status: string;
+  /** „decision" (Standard) oder „correction" für eine Direkt-Korrektur. */
+  readonly kind?: "decision" | "correction";
+  /** Anfrage-Status; bei einer Direkt-Korrektur leer. */
+  readonly status?: string;
   readonly decidedAt: string;
   readonly decidedByName?: string;
   readonly reason?: string;
@@ -76,10 +80,13 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   if (history) {
-    const meta = HISTORY_STATUS_META[history.status] ?? {
-      label: history.status,
-      tone: "gray" as const,
-    };
+    const correction = history.kind === "correction";
+    const meta = correction
+      ? CORRECTION_META
+      : (HISTORY_STATUS_META[history.status ?? ""] ?? {
+          label: history.status ?? "",
+          tone: "gray" as const,
+        });
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -91,9 +98,7 @@ export function RequestReviewCard({
         </div>
         <p className="mt-1 text-xs text-gray-500">
           {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
-          {history.status === "direct_correction"
-            ? "Geändert am "
-            : "Entschieden am "}
+          {correction ? "Geändert am " : "Entschieden am "}
           {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>

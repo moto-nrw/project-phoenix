@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,57 +18,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// insertAdjustment writes one row of the append-only booking log the office's
-// corrections land in, with a controlled instant so the keyset order is
-// deterministic.
-func insertAdjustment(
-	t *testing.T,
-	tc *testContext,
-	child *enrollmentModels.RequestChild,
-	studentID, tenantID, accountID int64,
-	source, reason string,
-	changedAt time.Time,
-) *auditModels.EnrollmentOfferingAdjustment {
-	t.Helper()
-	actor := "Olga Office"
-	entry := &auditModels.EnrollmentOfferingAdjustment{
-		RequestID:         child.RequestID,
-		RequestChildID:    child.ID,
-		StudentID:         studentID,
-		ActorAccountID:    accountID,
-		ActorRole:         "admin",
-		ActorNameSnapshot: &actor,
-		Reason:            reason,
-		Source:            source,
-		Before:            json.RawMessage(`[{"offering_id":"1","offering_name":"Mittagessen","days_of_week_mode":"fixed","selected_days":["mon"]}]`),
-		After:             json.RawMessage(`[]`),
-		ChangedAt:         changedAt,
-	}
-	entry.TenantID = tenantID
-	_, err := tc.db.NewInsert().Model(entry).
-		ModelTableExpr(`audit.enrollment_offering_adjustments AS "enrollment_offering_adjustment"`).
-		Exec(t.Context())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// context.Background(), not t.Context(): the test context is already
-		// canceled when cleanups run.
-		_, cleanupErr := tc.db.NewDelete().TableExpr("audit.enrollment_offering_adjustments").
-			Where("id = ?", entry.ID).Exec(context.Background())
-		if cleanupErr != nil {
-			t.Logf("cleanup of offering adjustment %d failed: %v", entry.ID, cleanupErr)
-		}
-	})
-	return entry
+// correctionFixture is the approved enrollment child a booking correction acts
+// on: phase, request, child linked to an enrolled student, plus two offerings
+// the child is booked into.
+type correctionFixture struct {
+	phase    *enrollmentModels.Phase
+	child    *enrollmentModels.RequestChild
+	ganztag  *enrollmentModels.CareOffering
+	mittag   *enrollmentModels.CareOffering
+	tenantID int64
 }
 
-// insertApprovedRequestChild creates the enrollment request and approved child
-// the booking log hangs off, linked to an already enrolled student.
-func insertApprovedRequestChild(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *enrollmentModels.RequestChild {
+func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *correctionFixture {
 	t.Helper()
+	ctx := t.Context()
 	phase := testpkg.CreateTestEnrollmentPhase(t, tc.db)
+	ganztag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Ganztag")
+	mittag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Mittagessen")
+
 	request := &enrollmentModels.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Erzieh",
@@ -75,7 +49,7 @@ func insertApprovedRequestChild(t *testing.T, tc *testContext, studentID, tenant
 		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
 	}
 	request.TenantID = tenantID
-	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(t.Context())
+	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().TableExpr("enrollment.requests").Where("id = ?", request.ID).Exec(context.Background())
@@ -90,18 +64,38 @@ func insertApprovedRequestChild(t *testing.T, tc *testContext, studentID, tenant
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = tenantID
-	_, err = tc.db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(t.Context())
+	_, err = tc.db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().TableExpr("enrollment.request_children").Where("id = ?", child.ID).Exec(context.Background())
 	})
-	return child
+
+	for _, offering := range []*enrollmentModels.CareOffering{ganztag, mittag} {
+		link := &enrollmentModels.RequestChildOffering{
+			RequestChildID: child.ID,
+			CareOfferingID: offering.ID,
+		}
+		link.TenantID = tenantID
+		_, err = tc.db.NewInsert().Model(link).
+			ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(ctx)
+		require.NoError(t, err)
+	}
+	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().TableExpr("enrollment.request_child_offerings").
+			Where("request_child_id = ?", child.ID).Exec(context.Background())
+	})
+	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().TableExpr("audit.enrollment_offering_adjustments").
+			Where("request_child_id = ?", child.ID).Exec(context.Background())
+	})
+
+	return &correctionFixture{phase: phase, child: child, ganztag: ganztag, mittag: mittag, tenantID: tenantID}
 }
 
-// A correction the office made itself shows up in the central history as its
-// own row kind, while the adjustment an approved parent request writes on the
-// side does not — that one is already in the list as the decided request
-// (#2436).
+// A correction the office makes itself shows up in the central history as its
+// own row kind. The booking change an approved parent request writes into the
+// very same append-only log does not: that one is already in the list as the
+// decided request, and showing both would double it (#2436).
 func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -112,13 +106,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
-	child := insertApprovedRequestChild(t, tc, student.ID, student.TenantID, "Kindlein")
-	base := time.Now().UTC().Add(-time.Hour)
-	direct := insertAdjustment(t, tc, child, student.ID, student.TenantID, account.ID,
-		auditModels.OfferingAdjustmentSourceDirect, "Telefonisch gemeldet", base)
-	insertAdjustment(t, tc, child, student.ID, student.TenantID, account.ID,
-		auditModels.OfferingAdjustmentSourceRequest, "Elternanfrage #1 freigegeben", base.Add(-time.Minute))
-
+	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Kindlein")
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
@@ -131,8 +119,25 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 		return env
 	}
 
+	// ARRANGE 1 — the office corrects the booking itself, through the very
+	// service the admin route calls: the child stays in Ganztag and is taken
+	// out of Mittagessen. The frozen before/after snapshots must show that.
+	err := tenant.WithTenantTx(t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		_, updateErr := tc.services.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+			RequestID:      fixture.child.RequestID,
+			ChildID:        fixture.child.ID,
+			Offerings:      []enrollmentService.OfferingAdjustmentSelection{{OfferingID: fixture.ganztag.ID}},
+			Reason:         "Telefonisch gemeldet",
+			ActorAccountID: account.ID,
+			ActorRole:      "admin",
+		})
+		return updateErr
+	})
+	require.NoError(t, err)
+
+	// ASSERT 1 — the correction is in the history, as its own row kind.
 	history := fetch(t, "view=history&search=Zkorrektur")
-	require.Len(t, history.Data.Items, 1, "only the direct correction belongs in the history")
+	require.Len(t, history.Data.Items, 1)
 	assert.Equal(t, "direct_correction", history.Data.Items[0].RequestType)
 
 	var row struct {
@@ -147,16 +152,84 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 		} `json:"diff"`
 	}
 	require.NoError(t, json.Unmarshal(history.Data.Items[0].Data, &row))
-	assert.Equal(t, strconv.FormatInt(direct.ID, 10), row.ID)
 	assert.Equal(t, "Zkorrektur Kindlein", row.StudentName)
-	assert.Equal(t, "Olga Office", row.ChangedByName)
+	assert.Equal(t, "Agg CorrectionReviewer", row.ChangedByName)
 	assert.Equal(t, "Telefonisch gemeldet", row.Reason)
-	require.Len(t, row.Diff, 1)
-	assert.Equal(t, "Mittagessen", row.Diff[0].Label)
-	assert.Equal(t, "Mo", row.Diff[0].Old)
-	assert.Equal(t, "abgemeldet", row.Diff[0].New)
+	require.NotEmpty(t, row.Diff)
+	byLabel := map[string]string{}
+	for _, line := range row.Diff {
+		byLabel[line.Label] = line.Old + " → " + line.New
+	}
+	// Only what actually changed: Ganztag stayed, so it carries no line.
+	assert.Equal(t, map[string]string{
+		fixture.mittag.Name: "alle Betreuungstage → abgemeldet",
+	}, byLabel)
+
+	// ARRANGE 2 — a parent asks for a change and the office approves it through
+	// the production decide route. That apply writes into the same log.
+	pending := insertPendingOfferingChangeRequest(t, tc, fixture, student.ID, account.ID)
+	body := strings.NewReader(`{"approve":true,"reason":"Passt"}`)
+	rr := authExec(t, tc,
+		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
+		claims, perms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	// ASSERT 2 — the approval appears exactly once, as the decided request; its
+	// side effect on the booking log stays out of the correction feed.
+	after := fetch(t, "view=history&search=Zkorrektur")
+	types := make([]string, 0, len(after.Data.Items))
+	for _, item := range after.Data.Items {
+		types = append(types, item.RequestType)
+	}
+	assert.Equal(t, []string{"offering", "direct_correction"}, types)
+
+	var sources []string
+	require.NoError(t, tc.db.NewSelect().TableExpr("audit.enrollment_offering_adjustments").
+		Column("source").Where("request_child_id = ?", fixture.child.ID).
+		OrderExpr("id").Scan(t.Context(), &sources))
+	assert.Equal(t, []string{
+		auditModels.OfferingAdjustmentSourceDirect,
+		auditModels.OfferingAdjustmentSourceRequest,
+	}, sources, "the two write paths must stamp different sources")
 
 	// The working list never shows corrections, not even when asked for them.
-	assert.Empty(t, fetch(t, "search=Zkorrektur").Data.Items)
 	assert.Empty(t, fetch(t, "types=direct_correction&search=Zkorrektur").Data.Items)
+	openTypes := fetch(t, "search=Zkorrektur").Data.Items
+	for _, item := range openTypes {
+		assert.NotEqual(t, "direct_correction", item.RequestType)
+	}
+}
+
+// insertPendingOfferingChangeRequest stores the parent's submission. Creating
+// it is the parents portal's job, out of this router's scope; the decision is
+// what this test drives through the production route.
+func insertPendingOfferingChangeRequest(
+	t *testing.T,
+	tc *testContext,
+	fixture *correctionFixture,
+	studentID, submittedBy int64,
+) *enrollmentModels.OfferingChangeRequest {
+	t.Helper()
+	row := &enrollmentModels.OfferingChangeRequest{
+		StudentID:      studentID,
+		RequestChildID: fixture.child.ID,
+		SubmittedBy:    submittedBy,
+		Payload: map[string]any{
+			"offerings": []any{
+				map[string]any{"offering_id": fixture.ganztag.ID},
+				map[string]any{"offering_id": fixture.mittag.ID},
+			},
+		},
+		EffectiveFrom: timezone.TodayDate().AddDays(30),
+		Status:        enrollmentModels.OfferingChangeStatusPending,
+	}
+	row.TenantID = fixture.tenantID
+	_, err := tc.db.NewInsert().Model(row).
+		ModelTableExpr(`enrollment.offering_change_requests AS "offering_change_request"`).Exec(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().TableExpr("enrollment.offering_change_requests").
+			Where("id = ?", row.ID).Exec(context.Background())
+	})
+	return row
 }

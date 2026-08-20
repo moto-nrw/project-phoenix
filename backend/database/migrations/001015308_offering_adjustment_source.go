@@ -33,13 +33,17 @@ func offeringAdjustmentSourceUp(ctx context.Context, db *bun.DB) error {
 	`); err != nil {
 		return fmt.Errorf("add offering adjustment source column: %w", err)
 	}
-	// Existing rows carry no marker except the reason the request-approval path
-	// writes. It is the only signal available for the backfill; rows written by
-	// the generic Anmeldungsänderung approval have none and stay 'direct'.
+	// Existing rows carry no marker except the reason the offering-request
+	// approval generates, so the backfill matches that generated shape exactly
+	// ("Elternanfrage #12 freigegeben (gültig ab 01.09.2026)") rather than a
+	// loose prefix — a hand-typed correction reason cannot collide with it.
+	// Known and accepted gap: rows an approved Anmeldungsänderung wrote carry
+	// the reviewer's free-text note and stay 'direct', so a handful of legacy
+	// rows may read as corrections. New rows are stamped at both write sites.
 	if _, err := db.ExecContext(ctx, `
 		UPDATE audit.enrollment_offering_adjustments
 			SET source = 'request'
-			WHERE reason LIKE 'Elternanfrage #%';
+			WHERE reason ~ '^Elternanfrage #[0-9]+ freigegeben \(gültig ab [0-9]{2}\.[0-9]{2}\.[0-9]{4}\)';
 	`); err != nil {
 		return fmt.Errorf("backfill offering adjustment source: %w", err)
 	}
