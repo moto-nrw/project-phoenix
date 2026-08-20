@@ -378,16 +378,24 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	if s.Broadcaster == nil {
 		return
 	}
+	s.emitVisitCreated(ctx, visit, snapshot, s.getStudentForSSE(ctx, visit.StudentID))
+}
+
+// emitVisitCreated publishes a visit using routing data already resolved in
+// the request transaction. Move events reuse the same student record for their
+// checkout and check-in halves.
+func (s *service) emitVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot, studentRec *userModels.Student) {
+	if s.Broadcaster == nil || visit == nil {
+		return
+	}
 
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", visit.StudentID)
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
-		StudentID:   &studentID,
-		StudentName: &studentName,
+		StudentID: &studentID,
 	}
 	if len(eduGroupIDs) > 0 {
 		data.GroupIDs = &eduGroupIDs
@@ -400,7 +408,11 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		data,
 	)
 
-	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
+	topics := []string{activeGroupID}
+	if studentRec != nil && studentRec.GroupID != nil {
+		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
+	}
+	if err := s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -409,25 +421,17 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		)
 	}
 
-	s.broadcastToEducationalGroup(ctx, studentRec, event)
-
-	// Notify every client of the tenant so dashboard counts refresh, scoped to
-	// the affected educational group when known (#2057).
-	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
+	// One precise tenant event replaces the old dashboard_counts_changed +
+	// active_supervision_changed pair.
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
-// getStudentDisplayData fetches student name for display
-func (s *service) getStudentDisplayData(ctx context.Context, studentID int64) (string, *userModels.Student) {
+// getStudentForSSE resolves only routing data. Names are never consumed by SSE
+// clients and used to cost an additional person query per attendance change.
+func (s *service) getStudentForSSE(ctx context.Context, studentID int64) *userModels.Student {
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
-		return "", nil
+		return nil
 	}
-
-	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
-	if err != nil || person == nil {
-		return "", student
-	}
-
-	return fmt.Sprintf("%s %s", person.FirstName, person.LastName), student
+	return student
 }

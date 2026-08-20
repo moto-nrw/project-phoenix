@@ -47,6 +47,16 @@ func (b *RecordingBroadcaster) BroadcastToGroup(tenantID int64, topic string, ev
 	return b.record(BroadcastCall{Method: "group", TenantID: tenantID, Topic: topic, Event: event})
 }
 
+// BroadcastToGroups implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastToGroups(tenantID int64, topics []string, event realtime.Event) error {
+	for _, topic := range topics {
+		if err := b.record(BroadcastCall{Method: "group", TenantID: tenantID, Topic: topic, Event: event}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // BroadcastToTenant implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "tenant", TenantID: tenantID, Event: event})
@@ -194,7 +204,6 @@ func assertCarriesNoIdentity(tb testing.TB, event realtime.Event) {
 
 	assert.Nil(tb, event.Data.StudentID, "tenant-wide %s must not carry a student id", event.Type)
 	assert.Nil(tb, event.Data.StudentIDs, "tenant-wide %s must not carry student ids", event.Type)
-	assert.Nil(tb, event.Data.StudentName, "tenant-wide %s must not carry a student name", event.Type)
 	assert.Nil(tb, event.Data.SupervisorIDs, "tenant-wide %s must not carry staff identity", event.Type)
 }
 

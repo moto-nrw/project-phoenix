@@ -18,13 +18,16 @@ import (
 // Carries no child identity — see realtime.EventActiveSupervisionChanged for
 // why (#2085). The scoped student_checkin / student_checkout emitted alongside
 // it still carry the id.
-func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string) {
+func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
 	if s.Broadcaster == nil {
 		return
 	}
 
 	data := realtime.EventData{
 		Reason: &reason,
+	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
 	}
 
 	tenantID := tenant.FromContext(ctx)
@@ -70,8 +73,8 @@ func (s *service) broadcastDashboardCountsChanged(ctx context.Context, eduGroupI
 }
 
 // eduGroupIDsOf returns the educational group id of a student as a slice for
-// broadcastDashboardCountsChanged / EventData.GroupIDs, or nil when unknown
-// (nil student — e.g. a repo error during display-data lookup — or a student
+// tenant invalidations / EventData.GroupIDs, or nil when unknown
+// (nil student — e.g. a repository error during routing-data lookup — or a student
 // without an OGS group). nil keeps the field absent so clients fall back to a
 // broad refresh instead of scoping to nothing.
 func eduGroupIDsOf(student *userModels.Student) []string {

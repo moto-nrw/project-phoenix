@@ -7,6 +7,12 @@ type Broadcaster interface {
 	// This is a fire-and-forget operation - errors are logged but don't affect service execution.
 	BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error
 
+	// BroadcastToGroups sends one identical event to the union of subscribers
+	// for the supplied topics. A client subscribed to more than one topic is
+	// notified once. Callers with topic-specific payloads must keep using
+	// BroadcastToGroup separately.
+	BroadcastToGroups(tenantID int64, topics []string, event Event) error
+
 	// BroadcastToTenant sends an event to every client whose Client.TenantID
 	// matches the supplied tenantID, regardless of group subscriptions.
 	// Used for tenant-wide invalidations (e.g. tenant_settings_changed,

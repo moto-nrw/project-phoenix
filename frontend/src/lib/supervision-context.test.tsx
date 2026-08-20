@@ -281,7 +281,7 @@ describe("SupervisionProvider", () => {
     expect(mockFetch.mock.calls.length).toBe(initialFetchCount);
   });
 
-  it("should setup periodic refresh when token exists", async () => {
+  it("does not setup the former periodic refresh when token exists", async () => {
     // Mock setInterval to verify it's called
     const intervalSpy = vi.spyOn(global, "setInterval");
 
@@ -296,8 +296,7 @@ describe("SupervisionProvider", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    // Verify that setInterval was called with 60000ms (1 minute)
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
+    expect(intervalSpy).not.toHaveBeenCalledWith(expect.any(Function), 60000);
 
     unmount();
     intervalSpy.mockRestore();
@@ -1935,7 +1934,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
   });
 });
 
-describe("SupervisionProvider periodic interval setup", () => {
+describe("SupervisionProvider refresh scheduling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1944,11 +1943,11 @@ describe("SupervisionProvider periodic interval setup", () => {
     vi.restoreAllMocks();
   });
 
-  it("should cleanup interval on unmount", async () => {
-    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+  it("does not install the former one-minute polling interval", async () => {
+    const setIntervalSpy = vi.spyOn(global, "setInterval");
     setupFetchMock();
 
-    const { unmount } = renderHook(() => useSupervision(), {
+    renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
     });
 
@@ -1956,11 +1955,10 @@ describe("SupervisionProvider periodic interval setup", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    unmount();
-
-    // clearInterval should have been called during cleanup
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    clearIntervalSpy.mockRestore();
+    expect(setIntervalSpy).not.toHaveBeenCalledWith(
+      expect.any(Function),
+      60000,
+    );
   });
 });
 

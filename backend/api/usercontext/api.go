@@ -63,6 +63,7 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	r.router.With(withTx).Delete("/profile/avatar", r.deleteAvatar)
 	r.router.With(withTx).Get("/profile/avatar/{filename}", r.serveAvatar)
 	r.router.With(withTx).Get("/staff", r.getCurrentStaff)
+	r.router.With(withTx).Get("/navigation", r.getNavigationContext)
 	r.router.With(withTx).Get("/teacher", r.getCurrentTeacher)
 
 	// Group endpoints - authenticated users can access their own groups
@@ -81,6 +82,16 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	})
 
 	return r
+}
+
+func (res *Resource) getNavigationContext(w http.ResponseWriter, r *http.Request) {
+	data, err := res.service.GetNavigationContext(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
+	render.Status(r, http.StatusOK)
+	common.RenderError(w, r, common.NewResponse(data, "Navigation context retrieved successfully"))
 }
 
 // Router returns the router for this resource

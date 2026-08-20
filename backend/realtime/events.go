@@ -225,8 +225,7 @@ type Event struct {
 // event-specific GDPR contract and must not expose sensitive data.
 type EventData struct {
 	// Student-related fields (for check-in/check-out events)
-	StudentID   *string `json:"student_id,omitempty"`
-	StudentName *string `json:"student_name,omitempty"`
+	StudentID *string `json:"student_id,omitempty"`
 
 	// StudentIDs carries the affected students on a bulk_student_checkout or
 	// bulk_student_checkin event. The client adds each to its per-student
@@ -234,7 +233,7 @@ type EventData struct {
 	StudentIDs *[]string `json:"student_ids,omitempty"`
 
 	// GroupIDs carries the affected educational (OGS) group ids on
-	// dashboard_counts_changed / student_checkin / student_checkout /
+	// active_supervision_changed / dashboard_counts_changed / student_checkin / student_checkout /
 	// bulk_student_checkout / bulk_student_checkin (#2057). Group ids only — NEVER student identity —
 	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
 	// student read access: it reveals "counts in group X changed", nothing

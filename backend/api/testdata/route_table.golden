@@ -258,6 +258,7 @@ GET /api/me/groups/activity
 GET /api/me/groups/supervised
 GET /api/me/groups/{groupID}/students
 GET /api/me/groups/{groupID}/visits
+GET /api/me/navigation
 GET /api/me/profile
 GET /api/me/profile/avatar/{filename}
 GET /api/me/staff

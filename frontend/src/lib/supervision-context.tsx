@@ -104,6 +104,7 @@ export function SupervisionProvider({
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
   const pendingGroupsRefreshRef = React.useRef(false);
+  const pendingFullRefreshRef = React.useRef(false);
 
   // Store token and admin status in refs to avoid dependency loops.
   // Any admin (including dual-role teacher-admins) tries the admin-overview
@@ -542,7 +543,11 @@ export function SupervisionProvider({
         : [checkGroups(), checkSupervision()];
       await Promise.all(work).finally(() => {
         isRefreshingRef.current = false;
-        if (pendingGroupsRefreshRef.current) {
+        if (pendingFullRefreshRef.current) {
+          pendingFullRefreshRef.current = false;
+          pendingGroupsRefreshRef.current = false;
+          void refreshRef.current?.({ silent: true, force: true });
+        } else if (pendingGroupsRefreshRef.current) {
           pendingGroupsRefreshRef.current = false;
           void refreshRef.current?.({
             silent: true,
@@ -585,30 +590,24 @@ export function SupervisionProvider({
     }
   }, [session?.user?.token]); // Only depend on token
 
-  // A group handover or Vertretung changed which groups this account may open
-  // (#2084). This provider holds its group list in local state behind its own
-  // fetch, not SWR, so the global SSE cache invalidation cannot reach it — and
-  // the sidebar's "Meine Gruppen" list is exactly what a colleague looks at
-  // after a handover. useGlobalSSE announces the change on this window event
-  // (mirroring the reminders / care-schedule decoupling) and the provider owns
-  // the refetch. force: true bypasses the 5-second throttle, which a handover
-  // arriving right after another refresh would otherwise swallow, leaving the
-  // group invisible until the next minute tick.
+  // SSE announces access changes and activity lifecycle changes. The provider
+  // owns these raw fetches, so it also owns the precise refresh scope.
   useEffect(() => {
     if (!session?.user?.token) return;
 
-    const handleStale = () => {
-      // groupsOnly: a group-access change cannot touch the supervision half.
-      // checkSupervision reads active.supervisors and active.groups (Schulhof
-      // status), neither of which education.group_teacher or
-      // education.group_substitution writes — running it here would fire two
-      // guaranteed-no-op requests per client on every handover.
+    const handleStale = (event: Event) => {
+      const groupsOnly =
+        !(event instanceof CustomEvent) || event.detail?.groupsOnly !== false;
       if (isRefreshingRef.current) {
-        pendingGroupsRefreshRef.current = true;
+        if (groupsOnly) {
+          pendingGroupsRefreshRef.current = true;
+        } else {
+          pendingFullRefreshRef.current = true;
+        }
         return;
       }
       refreshRef
-        .current?.({ silent: true, force: true, groupsOnly: true })
+        .current?.({ silent: true, force: true, groupsOnly })
         .catch(() => {
           // Intentionally ignored - silent background refresh
         });
@@ -617,25 +616,10 @@ export function SupervisionProvider({
     window.addEventListener("phoenix:supervision-stale", handleStale);
     return () => {
       pendingGroupsRefreshRef.current = false;
+      pendingFullRefreshRef.current = false;
       window.removeEventListener("phoenix:supervision-stale", handleStale);
     };
   }, [session?.user?.token]);
-
-  // Periodic refresh every minute for timely supervision updates (silent mode)
-  useEffect(() => {
-    if (!session?.user?.token) return;
-
-    const interval = setInterval(() => {
-      // Use silent refresh to avoid UI flicker - errors handled internally
-      if (refreshRef.current) {
-        refreshRef.current({ silent: true }).catch(() => {
-          // Intentionally ignored - silent background refresh
-        });
-      }
-    }, 60000); // 1 minute - ensures supervision changes are reflected quickly
-
-    return () => clearInterval(interval);
-  }, [session?.user?.token]); // Only depend on token
 
   const value = useMemo<SupervisionContextType>(
     () => ({ ...state, refresh }),

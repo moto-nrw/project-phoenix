@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,13 +20,15 @@ import (
 // environment; before scaling to multiple replicas, a shared store (e.g.
 // Redis) is required if aggregate limits must hold (#2064).
 type RateLimiter struct {
-	visitors map[string]*visitor
-	mu       sync.RWMutex
-	r        rate.Limit // requests per second
-	b        int        // burst size
-	ttl      time.Duration
-	logger   *SecurityLogger // optional security logger
-	keyFunc  func(*http.Request) string
+	visitors       map[string]*visitor
+	mu             sync.RWMutex
+	r              rate.Limit // requests per second
+	b              int        // burst size
+	ttl            time.Duration
+	logger         *SecurityLogger // optional security logger
+	keyFunc        func(*http.Request) string
+	bucketFunc     func(*http.Request) string
+	rejectObserver func(bucket string)
 }
 
 // visitor tracks rate limiting for a single request key.
@@ -62,19 +66,43 @@ func (rl *RateLimiter) SetKeyFunc(keyFunc func(*http.Request) string) {
 	rl.keyFunc = keyFunc
 }
 
+// SetBucketFunc partitions one identity's quota into independent buckets.
+// The general API limiter uses this to keep SSE-driven reads from consuming
+// the write budget. Auth limiters intentionally leave it unset.
+func (rl *RateLimiter) SetBucketFunc(bucketFunc func(*http.Request) string) {
+	rl.bucketFunc = bucketFunc
+}
+
+// SetRejectObserver records rejected requests without coupling this generic
+// middleware to a metrics implementation.
+func (rl *RateLimiter) SetRejectObserver(observer func(bucket string)) {
+	rl.rejectObserver = observer
+}
+
 func defaultRateLimitKey(r *http.Request) string {
 	return "ip:" + GetClientIP(r)
 }
 
 func (rl *RateLimiter) requestKey(r *http.Request) string {
+	key := defaultRateLimitKey(r)
 	if rl.keyFunc == nil {
-		return defaultRateLimitKey(r)
+		// Keep the IP key.
+	} else if customKey := rl.keyFunc(r); customKey != "" {
+		key = customKey
 	}
-	key := rl.keyFunc(r)
-	if key == "" {
-		return defaultRateLimitKey(r)
+	if rl.bucketFunc != nil {
+		if bucket := rl.bucketFunc(r); bucket != "" {
+			return key + ":" + bucket
+		}
 	}
 	return key
+}
+
+func (rl *RateLimiter) retryAfterSeconds() int {
+	if rl.r <= 0 {
+		return 60
+	}
+	return max(1, int(math.Ceil(1/float64(rl.r))))
 }
 
 // getVisitor returns the rate limiter for the given request key.
@@ -116,10 +144,20 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 			limiter := rl.getVisitor(rl.requestKey(r))
 
 			if !limiter.Allow() {
+				retryAfter := rl.retryAfterSeconds()
 				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
 				w.Header().Set("X-RateLimit-Remaining", "0")
-				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Minute).Unix()))
-				w.Header().Set("Retry-After", "60")
+				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Duration(retryAfter)*time.Second).Unix()))
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+				if rl.rejectObserver != nil {
+					bucket := "shared"
+					if rl.bucketFunc != nil {
+						if classified := rl.bucketFunc(r); classified != "" {
+							bucket = classified
+						}
+					}
+					rl.rejectObserver(bucket)
+				}
 
 				// Log rate limit violation if logger is available
 				if rl.logger != nil {

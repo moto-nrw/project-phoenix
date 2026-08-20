@@ -39,6 +39,12 @@ interface BackendStaff {
   email?: string;
 }
 
+interface BackendNavigationContext {
+  educational_groups: BackendEducationalGroup[];
+  supervised_groups: BackendActiveGroup[];
+  current_staff: BackendStaff | null;
+}
+
 /**
  * Transform backend educational group to frontend format
  */
@@ -78,46 +84,28 @@ function mapSupervisedGroup(data: BackendActiveGroup): SupervisedGroup {
  * GET /api/user-context
  *
  * BFF endpoint that fetches user context data needed across multiple pages.
- * This eliminates 3+ separate auth() calls by making one auth() call
- * and then fetching data in parallel from the Go backend.
+ * The Go backend returns one complete projection, so one browser request maps
+ * to one backend request and partial access data cannot be hidden as empty.
  *
  * Used by: /students/search, and potentially other pages that need user context
  *
- * Performance improvement: ~900ms → ~350ms (60% faster)
  */
 export const GET = createGetHandler<UserContextResponse>(
   async (_request: NextRequest, token: string) => {
-    // Fetch all three endpoints in parallel
-    const [groupsResult, supervisedResult, staffResult] = await Promise.all([
-      // Fetch user's educational groups (OGS groups)
-      apiGet<{ data: BackendEducationalGroup[] }>(
-        "/api/me/groups",
-        token,
-      ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
-
-      // Fetch user's supervised groups (active sessions)
-      apiGet<{ data: BackendActiveGroup[] | null }>(
-        "/api/me/groups/supervised",
-        token,
-      ).catch(() => ({ data: null as BackendActiveGroup[] | null })),
-
-      // Fetch current staff info
-      apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch(() => ({
-        data: null as BackendStaff | null,
-      })),
-    ]);
+    const result = await apiGet<{ data: BackendNavigationContext }>(
+      "/api/me/navigation",
+      token,
+    );
 
     // Transform backend data to frontend format
-    const educationalGroups = (groupsResult.data ?? []).map(
-      mapEducationalGroup,
-    );
-    const supervisedGroups = Array.isArray(supervisedResult.data)
-      ? supervisedResult.data.map(mapSupervisedGroup)
-      : [];
-    const currentStaff = staffResult.data
+    const educationalGroups =
+      result.data.educational_groups.map(mapEducationalGroup);
+    const supervisedGroups =
+      result.data.supervised_groups.map(mapSupervisedGroup);
+    const currentStaff = result.data.current_staff
       ? {
-          id: staffResult.data.id.toString(),
-          personId: staffResult.data.person_id.toString(),
+          id: result.data.current_staff.id.toString(),
+          personId: result.data.current_staff.person_id.toString(),
         }
       : null;
 

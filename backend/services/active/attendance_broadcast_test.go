@@ -198,15 +198,15 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 
 	// Tenant-wide invalidation, group-scoped so clients skip every other group.
-	counts := dashboardCountsTenantCalls(broadcaster)
-	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
+	counts := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	require.Len(t, counts, 1, "expected exactly one tenant-scoped aggregate refresh")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
-		"a room roster changed, so active_supervision_changed must fire")
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged),
+		"the old paired dashboard refresh doubles client requests")
 
 	// #2085: the child id rides the group-scoped topics only.
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -259,8 +259,9 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 	assert.Equal(t, f.activeGroupTopic(), roomEvents[0].ActiveGroupID)
 	assert.Len(t, checkoutEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"the healed visit must emit an educational-group checkout")
-	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
-		"the healed visit must refresh dashboard counts")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"the healed visit must emit one aggregate refresh")
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"ending the orphaned visit changed the room roster")
 
@@ -291,7 +292,7 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 	require.NotNil(t, eduEvents[0].Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 
-	counts := dashboardCountsTenantCalls(broadcaster)
+	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
@@ -306,7 +307,7 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 // with it, the trap the implementation has to avoid: the student display data
 // must be read INSIDE the transaction, because the tx carried in ctx is closed
 // by the time the after-commit hook runs. A hook that did its own repository
-// read would emit an event without a name or a group scope — or fail outright.
+// read would emit an event without its group scope — or fail outright.
 func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	t.Parallel()
 
@@ -330,9 +331,6 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 
 	eduEvents := checkoutEventsOnTopic(broadcaster, f.eduTopic())
 	require.Len(t, eduEvents, 1, "the checkout must reach the SSE bus once the tx committed")
-	require.NotNil(t, eduEvents[0].Data.StudentName)
-	assert.NotEmpty(t, *eduEvents[0].Data.StudentName,
-		"the student name proves the repository read happened inside the transaction")
 	require.NotNil(t, eduEvents[0].Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 }
@@ -378,7 +376,7 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	assert.Equal(t, "daily_checkout", *checkouts[0].Data.Source,
 		"the historical source label of the kiosk flow must survive the move")
 
-	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"a daily checkout must emit exactly one dashboard_counts_changed")
 }
 
@@ -417,8 +415,9 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 	require.NotNil(t, eduEvents[0].Data.Source)
 	assert.Equal(t, "daily_checkout", *eduEvents[0].Data.Source)
 
-	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
-		"the daily checkout must emit one dashboard_counts_changed")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"the daily checkout must emit one aggregate refresh")
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
 }
 
 // =============================================================================
@@ -459,7 +458,7 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 	assert.Empty(t, checkinEventsOnTopic(broadcaster, f.activeGroupTopic()),
 		"a roomless check-in must not address an active-group topic")
 
-	counts := dashboardCountsTenantCalls(broadcaster)
+	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
@@ -528,9 +527,6 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 
 	eduEvents := checkinEventsOnTopic(broadcaster, f.eduTopic())
 	require.Len(t, eduEvents, 1, "the check-in must reach the SSE bus once the tx committed")
-	require.NotNil(t, eduEvents[0].Data.StudentName)
-	assert.NotEmpty(t, *eduEvents[0].Data.StudentName,
-		"the student name proves the repository read happened inside the transaction")
 	require.NotNil(t, eduEvents[0].Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 }
@@ -569,6 +565,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 		"exactly one student_checkin on the active-group topic")
 	assert.Len(t, checkinEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"exactly one student_checkin on the edu:{id} topic")
-	assert.Len(t, dashboardCountsTenantCalls(broadcaster), 1,
-		"exactly one dashboard_counts_changed")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+		"exactly one aggregate refresh")
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
 }

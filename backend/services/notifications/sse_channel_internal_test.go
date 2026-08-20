@@ -52,6 +52,9 @@ func (b *recordingGuardianBroadcaster) BroadcastToGuardian(_, guardianAccountID 
 func (b *recordingGuardianBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error {
 	return nil
 }
+func (b *recordingGuardianBroadcaster) BroadcastToGroups(int64, []string, realtime.Event) error {
+	return nil
+}
 func (b *recordingGuardianBroadcaster) BroadcastToTenant(int64, realtime.Event) error { return nil }
 func (b *recordingGuardianBroadcaster) BroadcastToTenantAdmins(int64, realtime.Event) error {
 	return nil

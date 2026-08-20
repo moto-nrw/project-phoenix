@@ -477,8 +477,7 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 	}
 
 	tenant.RegisterAfterCommit(ctx, func() {
-		// One event per active group whose roster changed, plus the
-		// supervision-changed invalidation those rosters hang on.
+		// One event per active group whose roster changed.
 		for groupID, ids := range activeGroups {
 			studentIDs := ids
 			groupIDStr := strconv.FormatInt(groupID, 10)
@@ -488,7 +487,6 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 			}
 			event := realtime.NewEvent(eventType, groupIDStr, data)
 			s.broadcastWithLogging(ctx, groupIDStr, "", event, string(eventType))
-			s.broadcastActiveSupervisionChanged(ctx, groupIDStr, activeSupervisionReasonStudentMoved)
 		}
 
 		// One event per distinct educational group, carrying only that
@@ -504,9 +502,9 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 			s.broadcastToEducationalGroup(ctx, eduReps[gid], event)
 		}
 
-		// Single tenant-wide dashboard refresh for the entire batch, scoped
-		// to the affected educational groups when known (#2057).
-		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
+		// Single tenant-wide refresh for the entire batch. The group-specific
+		// events above carry the individual roster topics.
+		s.broadcastActiveSupervisionChanged(ctx, "", activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	})
 }
 

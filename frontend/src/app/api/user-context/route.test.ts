@@ -92,29 +92,19 @@ describe("GET /api/user-context", () => {
     ];
     const staff = { id: 5, person_id: 7 };
 
-    mockApiGet
-      .mockResolvedValueOnce({ data: groups })
-      .mockResolvedValueOnce({ data: supervised })
-      .mockResolvedValueOnce({ data: staff });
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        educational_groups: groups,
+        supervised_groups: supervised,
+        current_staff: staff,
+      },
+    });
 
     const request = createMockRequest("/api/user-context");
     const response = await GET(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      1,
-      "/api/me/groups",
-      "test-token",
-    );
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      2,
-      "/api/me/groups/supervised",
-      "test-token",
-    );
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      3,
-      "/api/me/staff",
-      "test-token",
-    );
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/me/navigation", "test-token");
 
     const json = await parseJsonResponse<
       ApiResponse<{
@@ -162,31 +152,12 @@ describe("GET /api/user-context", () => {
     expect(json.data.supervisedRoomNames).toEqual(["Room 11"]);
   });
 
-  it("falls back to empty data when backend calls fail", async () => {
-    mockApiGet
-      .mockRejectedValueOnce(new Error("Groups failed"))
-      .mockRejectedValueOnce(new Error("Supervised failed"))
-      .mockRejectedValueOnce(new Error("API error (404)"));
+  it("surfaces an aggregate failure instead of returning partial empty data", async () => {
+    mockApiGet.mockRejectedValueOnce(new Error("API error (500): failed"));
 
     const request = createMockRequest("/api/user-context");
     const response = await GET(request, createMockContext());
 
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        educationalGroups: unknown[];
-        supervisedGroups: unknown[];
-        currentStaff: unknown;
-        educationalGroupIds: string[];
-        educationalGroupRoomNames: string[];
-        supervisedRoomNames: string[];
-      }>
-    >(response);
-
-    expect(json.data.educationalGroups).toEqual([]);
-    expect(json.data.supervisedGroups).toEqual([]);
-    expect(json.data.currentStaff).toBeNull();
-    expect(json.data.educationalGroupIds).toEqual([]);
-    expect(json.data.educationalGroupRoomNames).toEqual([]);
-    expect(json.data.supervisedRoomNames).toEqual([]);
+    expect(response.status).toBe(500);
   });
 });
