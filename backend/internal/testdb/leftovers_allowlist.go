@@ -13,15 +13,20 @@ import "slices"
 // under their own tenant, or they delete it again); adding one means the
 // opposite and needs a written reason here.
 //
-// Seeded from the measured state at the time the gate was introduced. Three
-// families make up the whole list, and the reason is what a future migration
-// removes, not the entry:
+// What is left after CreateTestAccount started claiming its account for the
+// tenant of the test that created it (#2419): 49 packages became 27, 132
+// pairs became 100, and auth.accounts went from 38 packages to 6.
 //
-//	auth.accounts and its                accounts carry no tenant_id at all —
-//	account_roles/account_tenants        the mapping to a school is a separate
-//	                                     row. A test account is therefore
-//	                                     shared state by construction, and
-//	                                     only an explicit delete takes it back.
+//	auth.accounts                        the accounts NOT created by the
+//	                                     fixture: invitation, enrollment,
+//	                                     guardian and operator flows create
+//	                                     them through the service path, which
+//	                                     has no test tenant to claim them for.
+//
+//	auth.account_tenants /               rows whose tenant is a literal ID
+//	auth.account_roles                   below TenantIDBase (older tests pin
+//	                                     e.g. 1021001) instead of the tenant
+//	                                     the test owns.
 //
 //	auth.roles / permissions /           the RBAC catalog is partly global
 //	role_permissions                     (system roles have a NULL tenant and
@@ -36,34 +41,17 @@ import "slices"
 //	                                     testpkg.UniqueTestTenantID. Those are
 //	                                     the cheapest entries to remove.
 var LeftoverAllowlist = map[string][]string{
-	"api/active":                       {"active.group_supervisors", "active.groups", "active.work_sessions", "activities.categories", "activities.groups", "auth.accounts", "facilities.rooms", "platform.organizations", "platform.schools", "users.persons", "users.staff", "users.students"},
-	"api/activities":                   {"auth.accounts"},
-	"api/admin":                        {"auth.accounts"},
+	"api/active":                       {"active.group_supervisors", "active.groups", "active.work_sessions", "activities.categories", "activities.groups", "facilities.rooms", "platform.organizations", "platform.schools", "users.persons", "users.staff", "users.students"},
 	"api/auth":                         {"auth.accounts", "auth.password_reset_tokens", "auth.permissions", "auth.roles"},
-	"api/birthdays":                    {"auth.accounts"},
-	"api/classday":                     {"auth.accounts"},
-	"api/classlistentries":             {"auth.accounts"},
-	"api/database":                     {"auth.accounts"},
-	"api/display":                      {"active.groups", "active.visits", "activities.categories", "activities.groups", "auth.accounts", "config.setting_audit", "config.setting_values", "facilities.rooms", "iot.devices", "platform.organizations", "platform.schools", "users.persons", "users.staff", "users.students"},
-	"api/guardians":                    {"auth.accounts"},
-	"api/import":                       {"auth.accounts"},
-	"api/iot/data":                     {"auth.accounts"},
-	"api/parent":                       {"auth.accounts"},
-	"api/rooms":                        {"auth.accounts", "facilities.rooms", "platform.organizations", "platform.schools"},
-	"api/school":                       {"auth.accounts"},
-	"api/sse":                          {"auth.accounts"},
+	"api/display":                      {"active.groups", "active.visits", "activities.categories", "activities.groups", "config.setting_audit", "config.setting_values", "facilities.rooms", "iot.devices", "platform.organizations", "platform.schools", "users.persons", "users.staff", "users.students"},
 	"api/staff":                        {"auth.accounts"},
-	"api/students":                     {"auth.accounts", "education.groups", "platform.organizations", "platform.schools"},
-	"api/suggestions":                  {"auth.accounts"},
+	"api/rooms":                        {"facilities.rooms", "platform.organizations", "platform.schools"},
+	"api/students":                     {"education.groups", "platform.organizations", "platform.schools"},
 	"api/timetable":                    {"platform.organizations", "platform.schools"},
-	"api/usercontext":                  {"auth.accounts"},
-	"api/users":                        {"auth.accounts"},
-	"auth/authorize":                   {"auth.accounts"},
-	"database/migrations":              {"activities.categories", "auth.accounts", "config.setting_audit", "config.setting_values", "platform.organizations", "platform.schools"},
-	"database/repositories/active":     {"activities.categories", "auth.accounts", "platform.organizations", "platform.schools", "users.persons", "users.staff"},
+	"database/migrations":              {"activities.categories", "config.setting_audit", "config.setting_values", "platform.organizations", "platform.schools"},
+	"database/repositories/active":     {"activities.categories", "platform.organizations", "platform.schools", "users.persons", "users.staff"},
 	"database/repositories/audit":      {"platform.organizations", "platform.schools"},
 	"database/repositories/auth":       {"auth.permissions", "platform.organizations", "platform.schools"},
-	"database/repositories/base":       {"auth.accounts"},
 	"database/repositories/config":     {"platform.organizations", "platform.schools"},
 	"database/repositories/education":  {"platform.organizations", "platform.schools"},
 	"database/repositories/enrollment": {"platform.organizations", "platform.schools"},
@@ -72,19 +60,14 @@ var LeftoverAllowlist = map[string][]string{
 	"database/repositories/platform":   {"platform.operators"},
 	"database/repositories/schedule":   {"platform.organizations", "platform.schools"},
 	"database/repositories/users":      {"auth.accounts", "platform.organizations", "platform.schools"},
-	"services/absence":                 {"auth.accounts"},
-	"services/active":                  {"auth.accounts", "platform.organizations", "platform.schools"},
-	"services/auth":                    {"auth.accounts", "auth.permissions", "auth.role_permissions", "auth.roles", "platform.organizations", "platform.schools"},
+	"services/active":                  {"platform.organizations", "platform.schools"},
+	"services/auth":                    {"auth.permissions", "auth.role_permissions", "auth.roles", "platform.organizations", "platform.schools"},
 	"services/enrollment":              {"auth.accounts", "platform.organizations", "platform.schools"},
-	"services/notifications":           {"auth.account_roles", "auth.account_tenants", "auth.accounts", "platform.organizations", "platform.schools"},
+	"services/notifications":           {"auth.account_roles", "auth.account_tenants", "platform.organizations", "platform.schools"},
 	"services/parent":                  {"auth.accounts", "platform.organizations", "platform.schools"},
-	"services/parentmessaging":         {"auth.accounts"},
 	"services/platform":                {"auth.account_roles", "auth.account_tenants", "auth.accounts", "auth.roles", "platform.operator_audit_log", "platform.operator_mfa_credentials", "platform.operator_mfa_email_challenges", "platform.operator_mfa_trusted_devices", "platform.operators", "platform.organizations", "platform.schools"},
 	"services/schedule":                {"platform.organizations", "platform.schools"},
-	"services/scheduler":               {"auth.accounts"},
-	"services/suggestions":             {"auth.accounts"},
-	"services/usercontext":             {"auth.accounts"},
-	"services/users":                   {"auth.accounts", "platform.organizations", "platform.schools"},
+	"services/users":                   {"platform.organizations", "platform.schools"},
 }
 
 // leftoverAllowed reports whether a leftover in table is tolerated for the

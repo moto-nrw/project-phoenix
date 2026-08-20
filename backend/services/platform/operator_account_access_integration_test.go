@@ -447,6 +447,9 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainin
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-single-school")
+	// This test's subject is the account's ONLY school, so the mapping
+	// CreateTestAccount adds for the test's own tenant has to go (#2419).
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
 	defer func() {
@@ -550,6 +553,9 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-reactivate")
+	// This test's subject is the account's ONLY school, so the mapping
+	// CreateTestAccount adds for the test's own tenant has to go (#2419).
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
 	defer func() {

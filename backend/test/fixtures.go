@@ -1307,7 +1307,40 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test account")
 
+	claimAccountForTest(tb, db, account.ID)
 	return account
+}
+
+// claimAccountForTest maps a fixture account to the tenant of the test that
+// created it. An account carries no tenant_id of its own — the link to a
+// school lives in auth.account_tenants — so without this row every test
+// account is shared, tenant-less state and the leftover gate has to tolerate
+// auth.accounts in three quarters of all packages (#2419 goal 2). With it,
+// the account belongs to a tenant that dies with the clone, exactly like the
+// person, staff and student rows around it.
+func claimAccountForTest(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+	EnsureAccountTenant(tb, db, accountID, fixtureTenantID(tb))
+}
+
+// UnclaimTestAccount removes the mapping claimAccountForTest added, giving
+// back an account that belongs to no school at all.
+//
+// For tests whose SUBJECT is the mapping: "an account whose only school is
+// deleted disappears", "an account without an active mapping is not
+// addressable", "a fresh account is linked nowhere". Everything else wants
+// the mapping — it is what makes a test account tenant-owned instead of
+// shared state (#2419).
+func UnclaimTestAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx,
+		`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`,
+		accountID, fixtureTenantID(tb))
+	require.NoError(tb, err, "Failed to unclaim test account")
 }
 
 // CreateTestAccountWithPassword creates an account with a hashed password.
@@ -1334,6 +1367,7 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test account with password")
 
+	claimAccountForTest(tb, db, account.ID)
 	return account
 }
 
@@ -1476,7 +1510,13 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 		Status:      auth.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	// Upsert: CreateTestAccount already mapped the account to this test's
+	// tenant (claimAccountForTest); this call adds the activation timestamp
+	// the calendar reachability query looks for.
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
 	require.NoError(tb, err, "Failed to create staff account_tenants mapping")
 
 	var userRoleID int64
@@ -3467,7 +3507,12 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		Status:      auth.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	// Upsert for the same reason as in CreateTestCalendarStaff: the account
+	// fixture already claimed this tenant.
+	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
 	require.NoError(tb, err, "Failed to create account_tenants mapping")
 
 	// Assign the auth guardian role, mirroring production: both

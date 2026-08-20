@@ -47,7 +47,12 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		_, err := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(ctx)
+		// Upsert: since #2419 CreateTestAccount already maps a fixture account
+		// to the tenant of the test that created it.
+		_, err := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+			On("CONFLICT (account_id, tenant_id) DO UPDATE").
+			Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+			Exec(ctx)
 		require.NoError(t, err)
 
 		adminRole := &authModels.AccountRole{AccountID: accountID, RoleID: adminRoleID}
@@ -75,7 +80,10 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		_, merr := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(ctx)
+		_, merr := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+			On("CONFLICT (account_id, tenant_id) DO UPDATE").
+			Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+			Exec(ctx)
 		require.NoError(t, merr)
 	}
 	mapToTenant(parentAccount.ID)
@@ -408,7 +416,10 @@ func (e *backfillTenantEnv) mapAccount(accountID, tenantID int64, status string)
 		Status:      status,
 		ActivatedAt: &now,
 	}
-	_, err := e.db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(context.Background())
+	_, err := e.db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(context.Background())
 	require.NoError(e.t, err)
 }
 

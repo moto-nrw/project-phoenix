@@ -37,9 +37,13 @@ func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID in
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
+	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
+	// the tenant of the test that created it.
 	_, err := db.NewInsert().
 		Model(mapping).
 		ModelTableExpr("auth.account_tenants").
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
 		Exec(context.Background())
 	require.NoError(t, err)
 }

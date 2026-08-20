@@ -41,8 +41,10 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	t.Run("finds active mappings by account id", func(t *testing.T) {
 		items, err := repo.FindActiveByAccountID(ctx, account.ID)
 		require.NoError(t, err)
-		require.Len(t, items, 1)
-		assert.Equal(t, tenantID, items[0].TenantID)
+		// Two: the one created above, plus the one CreateTestAccount claims
+		// for this test's own tenant (#2419).
+		require.Len(t, items, 2)
+		assert.Contains(t, activeTenantIDs(items), tenantID)
 	})
 
 	t.Run("exists by account and tenant returns true", func(t *testing.T) {
@@ -56,6 +58,16 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
+}
+
+// activeTenantIDs projects mappings onto their tenant IDs, so assertions can
+// name the tenants they care about instead of an index.
+func activeTenantIDs(items []authModels.AccountTenant) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.TenantID)
+	}
+	return ids
 }
 
 func TestAccountTenantRepository_CreateValidation(t *testing.T) {
@@ -174,8 +186,12 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 
 		active, err := repo.FindActiveByAccountID(ctx, account.ID)
 		require.NoError(t, err)
-		require.Len(t, active, 1)
-		assert.Equal(t, otherTenantID, active[0].TenantID)
+		tenants := activeTenantIDs(active)
+		assert.Contains(t, tenants, otherTenantID, "the other mapping stays active")
+		assert.NotContains(t, tenants, tenantID, "the deactivated mapping is gone")
+		// The third is this test's own tenant, which CreateTestAccount claims
+		// for every fixture account (#2419).
+		assert.Len(t, tenants, 2)
 	})
 
 	t.Run("EnsureActive reactivates the deactivated mapping", func(t *testing.T) {
@@ -380,6 +396,10 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "list-all-deleted")
+	// The subject here is an account whose ONLY school is soft-deleted, so the
+	// mapping CreateTestAccount adds for the test's own tenant has to go
+	// (#2419) — otherwise the account stays visible through that second school.
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	t.Cleanup(func() {

@@ -26,7 +26,13 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
+	// the tenant of the test that created it, so this row may already exist —
+	// what this call still decides is its status.
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
 	require.NoError(t, err)
 
 	var roleID int64

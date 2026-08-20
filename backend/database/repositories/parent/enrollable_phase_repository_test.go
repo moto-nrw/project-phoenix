@@ -92,6 +92,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-happy")
+	// The assertion below is "no account_tenants mapping → AlreadyLinked is
+	// false", so the mapping CreateTestAccount adds for the test's own tenant
+	// has to go (#2419).
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.account_tenants").
 			Where("account_id = ?", account.ID).Exec(context.Background())

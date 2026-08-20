@@ -127,6 +127,9 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, mappedAccount.ID, testpkg.Tenant(t))
 
 		unmapped, unmappedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Unmapped", "Colleague")
+		// "Unmapped" is the point of this fixture: drop the mapping
+		// CreateTestAccount adds for the test's own tenant (#2419).
+		testpkg.UnclaimTestAccount(t, db, unmappedAccount.ID)
 
 		deactivated, deactivatedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Deactivated", "Colleague")
 		testpkg.MapAccountToTenant(t, db, deactivatedAccount.ID, testpkg.Tenant(t))

@@ -809,7 +809,12 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
+	// the tenant of the test that created it; this call still owns the status.
+	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
 	require.NoError(t, err)
 
 	cleanup := func() {

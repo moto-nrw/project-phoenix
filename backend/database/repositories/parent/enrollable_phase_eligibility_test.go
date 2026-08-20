@@ -428,6 +428,9 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 
 	// Fresh account: nothing anywhere.
 	fresh := testpkg.CreateTestAccount(t, db, "submitstatus-fresh")
+	// "nothing anywhere" includes the tenant mapping CreateTestAccount adds
+	// for the test's own tenant (#2419).
+	testpkg.UnclaimTestAccount(t, db, fresh.ID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", fresh.ID).Exec(context.Background())
 	})
