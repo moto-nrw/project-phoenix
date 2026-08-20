@@ -70,7 +70,7 @@ export function EnrollmentRequestItem({
         row.origin === "admin" ? "Anmeldung · Korrektur der OGS" : "Anmeldung"
       }
       submittedAt={row.created_at}
-      submittedByName={row.guardian_name}
+      submittedByName={row.origin === "admin" ? undefined : row.guardian_name}
       history={{
         kind: "readonly",
         label: meta.label,

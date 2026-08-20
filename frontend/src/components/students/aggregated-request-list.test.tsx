@@ -253,6 +253,35 @@ describe("AggregatedRequestList", () => {
     );
   });
 
+  it("ignoriert eine verspätete erste Ladung nach einem Refresh", async () => {
+    let resolveFirst: (value: { items: ReturnType<typeof openItem>[] }) => void;
+    const firstPage = new Promise<{ items: ReturnType<typeof openItem>[] }>(
+      (resolve) => {
+        resolveFirst = resolve;
+      },
+    );
+    mockListOpen
+      .mockReturnValueOnce(firstPage as never)
+      .mockResolvedValueOnce({ items: [openItem("excused", "neu")] });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+
+    await act(async () => {});
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveFirst!({ items: [openItem("excused", "alt")] });
+      await firstPage;
+    });
+
+    expect(screen.queryByText("excused-item-alt")).toBeNull();
+    expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
+  });
+
   it("lädt weitere Einträge über den Cursor nach", async () => {
     // Eine volle Seite plus Cursor: erst dann bleibt etwas zum Nachladen übrig.
     // (Eine kurze Seite mit Cursor zieht die Liste selbst nach, damit niemand

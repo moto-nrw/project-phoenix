@@ -146,10 +146,26 @@ export function AggregatedRequestList({
   // Der Lesezustand je Quelle (Puffer + Cursor) lebt außerhalb des Renders:
   // „Weitere Einträge laden" macht genau dort weiter, wo jede Quelle stand.
   const feedRef = useRef(createFeedState<AnyItem>(sources));
+  // Jede Neu-Ladung erhält einen eigenen Zustand. Antworten einer älteren
+  // Ladung dürfen weder die sichtbare Liste noch den Cursor des neuen Feeds
+  // verändern.
+  const feedGenerationRef = useRef(0);
+  const feedLoadingRef = useRef(false);
+  const loadMoreInFlightRef = useRef(false);
 
-  const loadFirstPage = useCallback(async () => {
-    feedRef.current = createFeedState<AnyItem>(sources);
-    return takeMergedPage(sources, feedRef.current, PAGE_SIZE);
+  const loadFirstPage = useCallback(() => {
+    const feed = createFeedState<AnyItem>(sources);
+    const generation = ++feedGenerationRef.current;
+    feedRef.current = feed;
+    feedLoadingRef.current = true;
+    return {
+      generation,
+      page: takeMergedPage(sources, feed, PAGE_SIZE).finally(() => {
+        if (generation === feedGenerationRef.current) {
+          feedLoadingRef.current = false;
+        }
+      }),
+    };
   }, [sources]);
 
   // Erste Seite laden — auch bei jeder Such-/Filteränderung (fetchPage wechselt
@@ -158,20 +174,20 @@ export function AggregatedRequestList({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    loadFirstPage()
+    const { generation, page } = loadFirstPage();
+    page
       .then((page) => {
-        if (cancelled) return;
+        if (cancelled || generation !== feedGenerationRef.current) return;
         setItems(page.items);
         setHasMore(page.hasMore);
+        setLoading(false);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled || generation !== feedGenerationRef.current) return;
         const message = err instanceof Error ? err.message : String(err);
         logger.warn("aggregated_request_list_load_failed", { error: message });
         setError("Anfragen konnten nicht geladen werden.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -184,13 +200,18 @@ export function AggregatedRequestList({
   // an. Nur die offene Arbeitsliste braucht das — die Historie mountet beim
   // Umschalten frisch.
   const reloadInPlace = useCallback(async () => {
+    const { generation, page } = loadFirstPage();
     try {
-      const page = await loadFirstPage();
-      setItems(page.items);
-      setHasMore(page.hasMore);
+      const result = await page;
+      if (generation !== feedGenerationRef.current) return;
+      setItems(result.items);
+      setHasMore(result.hasMore);
+      setLoading(false);
     } catch (err) {
+      if (generation !== feedGenerationRef.current) return;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("aggregated_request_list_reload_failed", { error: message });
+      setLoading(false);
     }
   }, [loadFirstPage]);
 
@@ -219,11 +240,16 @@ export function AggregatedRequestList({
   }, [view, reloadInPlace]);
 
   const loadMore = useCallback(async () => {
-    if (!hasMore) return;
+    if (!hasMore || feedLoadingRef.current || loadMoreInFlightRef.current)
+      return;
+    const generation = feedGenerationRef.current;
+    const feed = feedRef.current;
+    loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
     try {
-      const page = await takeMergedPage(sources, feedRef.current, PAGE_SIZE);
+      const page = await takeMergedPage(sources, feed, PAGE_SIZE);
+      if (generation !== feedGenerationRef.current) return;
       setItems((prev) => [...prev, ...page.items]);
       setHasMore(page.hasMore);
     } catch (err) {
@@ -233,7 +259,8 @@ export function AggregatedRequestList({
       });
       setError("Weitere Anfragen konnten nicht geladen werden.");
     } finally {
-      setLoadingMore(false);
+      loadMoreInFlightRef.current = false;
+      if (generation === feedGenerationRef.current) setLoadingMore(false);
     }
   }, [sources, hasMore]);
 

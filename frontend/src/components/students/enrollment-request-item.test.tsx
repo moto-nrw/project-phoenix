@@ -113,5 +113,6 @@ describe("EnrollmentRequestItem", () => {
     );
 
     expect(screen.getByText(/Korrektur der OGS/)).toBeVisible();
+    expect(screen.queryByText(/von Anna Beispiel/)).toBeNull();
   });
 });
