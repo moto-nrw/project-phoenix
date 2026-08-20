@@ -48,7 +48,11 @@ import { PersonalInfoFormModal } from "~/components/students/personal-info-form-
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
-import { StudentChangeProtocolTab } from "~/components/students/change-protocol-tab";
+import {
+  AggregatedRequestList,
+  type AggregatedRequestFilters,
+} from "~/components/students/aggregated-request-list";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -1483,6 +1487,16 @@ function LimitedAccessView({
   plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
   // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
   const [protocolTabSeen, setProtocolTabSeen] = useState(
     activeTab === "aenderungsprotokoll",
@@ -1567,7 +1581,16 @@ function LimitedAccessView({
             className={TAB_CONTENT_CLASS}
           >
             {protocolTabSeen && (
-              <StudentChangeProtocolTab studentId={studentId} />
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Entschuldigungen dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
             )}
           </TabsContent>
         )}
@@ -1657,6 +1680,16 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
   const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
     studentId,
     true,
@@ -1827,7 +1860,16 @@ function FullAccessView({
             className={TAB_CONTENT_CLASS}
           >
             {protocolTabSeen && (
-              <StudentChangeProtocolTab studentId={studentId} />
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Entschuldigungen dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
             )}
           </TabsContent>
         )}
