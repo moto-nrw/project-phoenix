@@ -376,6 +376,39 @@ function RosterSummaryStat({
 type RosterAction =
   "check-in" | "check-out" | "excused" | "absent" | "expected";
 
+async function runRosterActionRequest(
+  action: RosterAction,
+  instanceId: string,
+  studentId: string,
+): Promise<TimetableRoster | null> {
+  if (action === "check-in") {
+    return runOwnAttendanceMutation("student_checkin", studentId, () =>
+      timetableOperationsApi.checkIn(instanceId, studentId),
+    );
+  }
+  if (action === "check-out") {
+    return runOwnAttendanceMutation("student_checkout", studentId, () =>
+      timetableOperationsApi.checkOut(instanceId, studentId),
+    );
+  }
+  if (action === "expected") {
+    await timetableOperationsApi.patchAttendance(instanceId, studentId, {
+      status: "expected",
+      substatus: null,
+      note: null,
+    });
+    return null;
+  }
+  await timetableOperationsApi.patchAttendance(
+    instanceId,
+    studentId,
+    action === "excused"
+      ? { status: "absent", substatus: "excused" }
+      : { status: "absent" },
+  );
+  return null;
+}
+
 interface RosterRowActionsProps {
   readonly row: TimetableRosterRow;
   readonly onAction: (
@@ -1792,50 +1825,17 @@ function MeinRaumPageContent() {
   }, [router, schulhofStatusRef]);
 
   const handleRosterAction = useCallback(
-    async (
-      action: "check-in" | "check-out" | "excused" | "absent" | "expected",
-      row: TimetableRosterRow,
-    ) => {
+    async (action: RosterAction, row: TimetableRosterRow) => {
       if (!activeTimetableInstanceId) return;
       const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
+      let roster: TimetableRoster | null;
       try {
-        if (action === "check-in") {
-          const roster = await runOwnAttendanceMutation(
-            "student_checkin",
-            row.studentId,
-            () => timetableOperationsApi.checkIn(instanceId, row.studentId),
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "check-out") {
-          const roster = await runOwnAttendanceMutation(
-            "student_checkout",
-            row.studentId,
-            () => timetableOperationsApi.checkOut(instanceId, row.studentId),
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "expected") {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            { status: "expected", substatus: null, note: null },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        } else {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            action === "excused"
-              ? { status: "absent", substatus: "excused" }
-              : { status: "absent" },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        }
+        roster = await runRosterActionRequest(
+          action,
+          instanceId,
+          row.studentId,
+        );
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed timetable roster action", {
@@ -1844,6 +1844,25 @@ function MeinRaumPageContent() {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
+        return;
+      }
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      try {
+        if (action === "check-in" && roster) {
+          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
+        }
+        await (roster
+          ? mutateRoster(roster, { revalidate: false })
+          : mutateRoster());
+      } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        logger.warn("timetable_roster_sync_failed_after_successful_action", {
+          action,
+          student_id: row.studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void logger.flush();
+        window.location.reload();
       }
     },
     [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],

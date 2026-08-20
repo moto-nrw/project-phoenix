@@ -97,6 +97,7 @@ describe("structured logger redaction", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const request = fetchMock.mock.calls[0]?.[1];
+    expect(request).toMatchObject({ keepalive: true });
     const body = JSON.parse(String(request?.body)) as {
       entries: Array<Record<string, unknown>>;
     };

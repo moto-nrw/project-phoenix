@@ -85,6 +85,9 @@ export interface Logger {
    */
   error(msg: string, context?: Record<string, unknown>): void;
 
+  /** Ship queued client logs without blocking navigation. */
+  flush(): Promise<void>;
+
   /**
    * Create child logger with merged context
    */
@@ -175,6 +178,10 @@ class ServerLogger implements Logger {
 
   error(msg: string, context?: Record<string, unknown>): void {
     this.log("error", msg, context);
+  }
+
+  flush(): Promise<void> {
+    return Promise.resolve();
   }
 
   child(context: Record<string, unknown>): Logger {
@@ -314,7 +321,7 @@ class ClientLogger implements Logger {
   /**
    * Flush batch to API endpoint
    */
-  private async flush(): Promise<void> {
+  async flush(): Promise<void> {
     if (this.batch.length === 0) return;
 
     const payload: LogBatch = {
@@ -331,6 +338,7 @@ class ClientLogger implements Logger {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        keepalive: true,
       });
 
       if (!response.ok) {
