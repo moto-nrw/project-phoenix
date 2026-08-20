@@ -499,13 +499,13 @@ type WorkSessionBreakRepository interface {
 
 	// GetBySessionID returns all breaks for a given session ordered by started_at
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
+	// GetBySessionIDs returns all breaks for multiple sessions, keyed by session
+	// ID. It is used by the time-tracking overview to preserve the same
+	// interval arithmetic as the single-staff Monatskarte without N+1 queries.
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
 
 	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
 	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
-
-	// GetActiveBySessionIDs is GetActiveBySessionID batched over many
-	// sessions, keyed by session ID. Sessions without an open break are absent.
-	GetActiveBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]*WorkSessionBreak, error)
 
 	// EndBreak sets ended_at and duration_minutes on a break
 	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error

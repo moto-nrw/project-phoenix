@@ -59,11 +59,27 @@ func (ws WorkSessionWire) MarshalJSON() ([]byte, error) {
 	type alias WorkSession
 	return json.Marshal(struct {
 		*alias
-		ID string `json:"id"`
+		ID        string  `json:"id"`
+		TenantID  string  `json:"tenant_id"`
+		StaffID   string  `json:"staff_id"`
+		CreatedBy string  `json:"created_by"`
+		UpdatedBy *string `json:"updated_by,omitempty"`
 	}{
-		alias: (*alias)(ws.WorkSession),
-		ID:    strconv.FormatInt(ws.WorkSession.ID, 10),
+		alias:     (*alias)(ws.WorkSession),
+		ID:        strconv.FormatInt(ws.WorkSession.ID, 10),
+		TenantID:  strconv.FormatInt(ws.WorkSession.TenantID, 10),
+		StaffID:   strconv.FormatInt(ws.WorkSession.StaffID, 10),
+		CreatedBy: strconv.FormatInt(ws.WorkSession.CreatedBy, 10),
+		UpdatedBy: formatOptionalID(ws.WorkSession.UpdatedBy),
 	})
+}
+
+func formatOptionalID(id *int64) *string {
+	if id == nil {
+		return nil
+	}
+	value := strconv.FormatInt(*id, 10)
+	return &value
 }
 
 func (ws *WorkSession) Validate() error {

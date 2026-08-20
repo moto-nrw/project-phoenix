@@ -43,11 +43,11 @@ func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, f
 }
 
 type wtmMockBreakReader struct {
-	activeBreaks map[int64]*activeModels.WorkSessionBreak
+	breaks map[int64][]*activeModels.WorkSessionBreak
 }
 
-func (m *wtmMockBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
-	return m.activeBreaks[sessionID], nil
+func (m *wtmMockBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+	return m.breaks[sessionID], nil
 }
 
 type wtmMockAbsenceReader struct {
@@ -143,7 +143,7 @@ type wtmFixture struct {
 func newWTMFixture() *wtmFixture {
 	f := &wtmFixture{
 		sessions: &wtmMockSessionReader{},
-		breaks:   &wtmMockBreakReader{activeBreaks: map[int64]*activeModels.WorkSessionBreak{}},
+		breaks:   &wtmMockBreakReader{breaks: map[int64][]*activeModels.WorkSessionBreak{}},
 		absences: &wtmMockAbsenceReader{},
 		shifts:   &wtmMockShiftReader{},
 		schedules: &wtmMockScheduleReader{entries: []*configModels.StaffWorkSchedule{
@@ -496,6 +496,25 @@ func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
 	assert.Equal(t, 120, july.ActualMinutes)
 }
 
+func TestWTMRangeAggregate_ContinuesOpenBlockFromYesterday(t *testing.T) {
+	f := newWTMFixture()
+	now := time.Now()
+	today := timezone.DateFromTime(now)
+	yesterday := today.AddDays(-1)
+	f.settings.accountStart = yesterday.String()
+	f.svc.todayFunc = func() timezone.Date { return today }
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		StaffID:     wtmStaffID,
+		Date:        yesterday,
+		Status:      activeModels.WorkSessionStatusPresent,
+		CheckInTime: yesterday.BerlinMidnight().Add(23 * time.Hour),
+	}}
+
+	aggregate, err := f.svc.GetRangeAggregate(context.Background(), wtmStaffID, today, today)
+	require.NoError(t, err)
+	assert.InDelta(t, int(now.Sub(today.BerlinMidnight()).Minutes()), aggregate.ActualMinutes, 1)
+}
+
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical
 // version carrying its own anchor must keep the parity it was written with,
 // instead of being re-parityed by the current anchor (#1842).
@@ -809,11 +828,11 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 		BreakMinutes: 0, // break still running → not in the cache yet
 	}
 	f.sessions.sessions = []*activeModels.WorkSession{session}
-	f.breaks.activeBreaks[session.ID] = &activeModels.WorkSessionBreak{
+	f.breaks.breaks[session.ID] = []*activeModels.WorkSessionBreak{{
 		Model:     base.Model{ID: 5},
 		SessionID: session.ID,
 		StartedAt: now.Add(-30 * time.Minute),
-	}
+	}}
 
 	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year, int(today.Month))
 	require.NoError(t, err)

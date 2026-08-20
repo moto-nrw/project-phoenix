@@ -177,7 +177,7 @@ type monthSessionReader interface {
 
 // monthBreakReader is implemented by active.WorkSessionBreakRepository.
 type monthBreakReader interface {
-	GetActiveBySessionID(ctx context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error)
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 }
 
 // monthAbsenceReader is implemented by active.StaffAbsenceRepository.
@@ -575,7 +575,9 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 	now := time.Now()
 	for _, session := range sessions {
 		end := sessionEndUpTo(session, now)
-		if session.Date.Before(today) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+		// Yesterday's open block may be a legitimate night shift. Older open
+		// blocks are stale and remain bounded until cleanup closes them.
+		if session.Date.Before(today.AddDays(-1)) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
 			if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
 				end = staleEnd
 			}
@@ -584,37 +586,11 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 			continue
 		}
 
-		breakMinutes := session.BreakMinutes
-		running, err := s.runningBreakMinutes(ctx, session, now)
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to load breaks for work session %d: %w", session.ID, err)
 		}
-		breakMinutes += running
-
-		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
-			if day.Before(first) || day.After(last) || day.After(today) {
-				continue
-			}
-			start := session.CheckInTime
-			if midnight := day.BerlinMidnight(); start.Before(midnight) {
-				start = midnight
-			}
-			dayEnd := day.AddDays(1).BerlinMidnight()
-			if end.Before(dayEnd) {
-				dayEnd = end
-			}
-			minutes := int(dayEnd.Sub(start).Minutes())
-			if minutes <= 0 {
-				continue
-			}
-			// Completed-break durations are cached as a total rather than as
-			// per-day intervals. Deduct them from the earliest covered part of
-			// the session so the monthly total remains identical to netMinutes.
-			if breakMinutes > 0 {
-				deduct := min(minutes, breakMinutes)
-				minutes -= deduct
-				breakMinutes -= deduct
-			}
+		for day, minutes := range netMinutesByDate(session, breaks, end, first, today) {
 			if agg, ok := aggregates[monthOf(day)]; ok {
 				agg.actual += minutes
 			}
@@ -659,24 +635,6 @@ func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
 	capped := *session
 	capped.CheckOutTime = &end // netMinutes measures gross up to the capped end
 	return netMinutes(&capped, end)
-}
-
-// runningBreakMinutes is the elapsed duration of a break that has started but
-// not ended yet. WorkSession.BreakMinutes caches ENDED breaks only — StartBreak
-// records no duration and the cache is refreshed when the break ends or is
-// auto-ended — so netMinutes counts every minute of a running break as worked
-// time. Without this correction the polled Monatskarte inflates Ist and Saldo
-// for as long as the staff member is on break. The elapsed math is shared with
-// /history (runningBreakElapsedMinutes) so card and day rows agree.
-func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session *activeModels.WorkSession, now time.Time) (int, error) {
-	if s.breakRepo == nil || session.CheckOutTime != nil {
-		return 0, nil
-	}
-	brk, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load active break: %w", err)
-	}
-	return runningBreakElapsedMinutes(brk, now), nil
 }
 
 // addAbsenceCredits credits sick/vacation/training days with the day's
@@ -1311,15 +1269,13 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	actualByDate := make(map[timezone.Date]int)
 	now := time.Now()
 	for _, session := range sessions {
-		if session.Date.Before(from) || session.Date.After(to) {
-			continue
-		}
-		minutes := workedMinutesUpTo(session, now)
-		running, err := s.runningBreakMinutes(ctx, session, now)
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load breaks for work session %d: %w", session.ID, err)
 		}
-		actualByDate[session.Date] += max(0, minutes-running)
+		for day, minutes := range netMinutesByDate(session, breaks, sessionEndUpTo(session, now), from, to) {
+			actualByDate[day] += minutes
+		}
 	}
 	return actualByDate, nil
 }

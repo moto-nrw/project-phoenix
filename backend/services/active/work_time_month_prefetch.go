@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -34,7 +35,7 @@ type monthPrefetch struct {
 
 	staff          map[int64]*userModels.Staff
 	sessions       map[int64][]*activeModels.WorkSession
-	breaks         map[int64]*activeModels.WorkSessionBreak
+	breaks         map[int64][]*activeModels.WorkSessionBreak
 	absences       map[int64][]*activeModels.StaffAbsence
 	adjustments    map[int64][]*activeModels.StaffBalanceAdjustment
 	shifts         map[int64][]*scheduleModels.StaffShift
@@ -111,7 +112,11 @@ func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID 
 	sessions := r.p.sessions[staffID]
 	result := make([]*activeModels.WorkSession, 0, len(sessions))
 	for _, session := range sessions {
-		if session.Date.Before(from) || session.Date.After(to) {
+		end := time.Now()
+		if session.CheckOutTime != nil {
+			end = *session.CheckOutTime
+		}
+		if !session.CheckInTime.Before(to.AddDays(1).BerlinMidnight()) || !end.After(from.BerlinMidnight()) {
 			continue
 		}
 		result = append(result, session)
@@ -119,11 +124,9 @@ func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID 
 	return result, nil
 }
 
-// prefetchedBreakReader mirrors the repository's (nil, nil) on no open break —
-// runningBreakMinutes treats a nil break as "no break running".
 type prefetchedBreakReader struct{ p *monthPrefetch }
 
-func (r prefetchedBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
+func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	return r.p.breaks[sessionID], nil
 }
 

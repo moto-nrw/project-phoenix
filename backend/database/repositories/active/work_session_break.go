@@ -60,6 +60,30 @@ func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, session
 	return breaks, nil
 }
 
+// GetBySessionIDs returns all breaks for multiple sessions in one round trip,
+// grouped by session ID and ordered by start time within each group.
+func (r *WorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*active.WorkSessionBreak, error) {
+	result := make(map[int64][]*active.WorkSessionBreak, len(sessionIDs))
+	if len(sessionIDs) == 0 {
+		return result, nil
+	}
+
+	var breaks []*active.WorkSessionBreak
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&breaks).
+		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
+		Where(`"work_session_break".session_id IN (?)`, bun.List(sessionIDs)).
+		OrderExpr(`"work_session_break".session_id ASC, "work_session_break".started_at ASC`)
+	query = base.WithTenantFilter(ctx, query, "work_session_break")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get breaks by session IDs", Err: err}
+	}
+	for _, brk := range breaks {
+		result[brk.SessionID] = append(result[brk.SessionID], brk)
+	}
+	return result, nil
+}
+
 // GetActiveBySessionID returns the currently active break for a session, or nil if none
 func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, sessionID int64) (*active.WorkSessionBreak, error) {
 	brk := new(active.WorkSessionBreak)
@@ -137,36 +161,4 @@ func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, befor
 	}
 
 	return breaks, nil
-}
-
-// GetActiveBySessionIDs is GetActiveBySessionID for many sessions in one round
-// trip, keyed by session ID. A batched IN-lookup the generic filter API cannot
-// express as a single query. Sessions without an open break are absent from the
-// map, which callers must treat exactly like the single-session (nil, nil).
-func (r *WorkSessionBreakRepository) GetActiveBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]*active.WorkSessionBreak, error) {
-	result := make(map[int64]*active.WorkSessionBreak, len(sessionIDs))
-	if len(sessionIDs) == 0 {
-		// bun renders an empty IN list as invalid SQL.
-		return result, nil
-	}
-
-	var breaks []*active.WorkSessionBreak
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&breaks).
-		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
-		Where(`"work_session_break".session_id IN (?)`, bun.List(sessionIDs)).
-		Where(`"work_session_break".ended_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "work_session_break")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get active breaks by session IDs",
-			Err: err,
-		}
-	}
-	for _, brk := range breaks {
-		result[brk.SessionID] = brk
-	}
-	return result, nil
 }

@@ -3511,9 +3511,7 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, 
 	return nil, nil
 }
 
-// GetActiveBySessionIDs satisfies the batched interface method (#1417); this mock
-// exercises the single-staff path only.
-func (m *wsMockWorkSessionBreakRepository) GetActiveBySessionIDs(context.Context, []int64) (map[int64]*activeModels.WorkSessionBreak, error) {
+func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(context.Context, []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
 	return nil, nil
 }
 
@@ -3803,15 +3801,29 @@ func TestWSSessionResponse_SerializesIDAsString(t *testing.T) {
 	// Beyond Number.MAX_SAFE_INTEGER (9007199254740991): a numeric wire value
 	// would come back as ...992 in the browser.
 	session := wsClosedBlock(9007199254740993, day, 8, 12)
+	session.TenantID = 9007199254740994
+	session.StaffID = 9007199254740995
+	session.CreatedBy = 9007199254740996
+	updatedBy := int64(9007199254740997)
+	session.UpdatedBy = &updatedBy
 
 	raw, err := json.Marshal(&SessionResponse{WorkSession: session, NetMinutes: 240})
 	require.NoError(t, err)
 
 	assert.Contains(t, string(raw), `"id":"9007199254740993"`)
+	assert.Contains(t, string(raw), `"staff_id":"9007199254740995"`)
 
 	var wire struct {
-		ID string `json:"id"`
+		ID        string `json:"id"`
+		TenantID  string `json:"tenant_id"`
+		StaffID   string `json:"staff_id"`
+		CreatedBy string `json:"created_by"`
+		UpdatedBy string `json:"updated_by"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &wire))
 	assert.Equal(t, "9007199254740993", wire.ID)
+	assert.Equal(t, "9007199254740994", wire.TenantID)
+	assert.Equal(t, "9007199254740995", wire.StaffID)
+	assert.Equal(t, "9007199254740996", wire.CreatedBy)
+	assert.Equal(t, "9007199254740997", wire.UpdatedBy)
 }

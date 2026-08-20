@@ -111,11 +111,27 @@ func (sr SessionResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		alias
 		// Shallower than the embedded WorkSession.ID, so this wins the "id" tag.
-		ID string `json:"id"`
+		ID        string  `json:"id"`
+		TenantID  string  `json:"tenant_id"`
+		StaffID   string  `json:"staff_id"`
+		CreatedBy string  `json:"created_by"`
+		UpdatedBy *string `json:"updated_by,omitempty"`
 	}{
-		alias: alias(sr),
-		ID:    strconv.FormatInt(sr.ID, 10),
+		alias:     alias(sr),
+		ID:        strconv.FormatInt(sr.ID, 10),
+		TenantID:  strconv.FormatInt(sr.TenantID, 10),
+		StaffID:   strconv.FormatInt(sr.StaffID, 10),
+		CreatedBy: strconv.FormatInt(sr.CreatedBy, 10),
+		UpdatedBy: optionalIDString(sr.UpdatedBy),
 	})
+}
+
+func optionalIDString(id *int64) *string {
+	if id == nil {
+		return nil
+	}
+	value := strconv.FormatInt(*id, 10)
+	return &value
 }
 
 // WeeklySummary aggregates work session data per ISO week

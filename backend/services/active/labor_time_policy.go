@@ -3,6 +3,7 @@ package active
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 )
 
@@ -170,6 +171,58 @@ func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.W
 		return 0
 	}
 	return net
+}
+
+// netMinutesByDate splits a session's net time across the Berlin calendar days
+// it intersects. Breaks are deducted from the days on which they actually
+// occurred, rather than from the session's start day.
+func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, end time.Time, from, to timezone.Date) map[timezone.Date]int {
+	minutesByDate := make(map[timezone.Date]int)
+	cachedBreakMinutes := session.BreakMinutes
+	if !end.After(session.CheckInTime) {
+		return minutesByDate
+	}
+	for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+		if day.Before(from) || day.After(to) {
+			continue
+		}
+		start := session.CheckInTime
+		if midnight := day.BerlinMidnight(); start.Before(midnight) {
+			start = midnight
+		}
+		dayEnd := day.AddDays(1).BerlinMidnight()
+		if end.Before(dayEnd) {
+			dayEnd = end
+		}
+		minutes := int(dayEnd.Sub(start).Minutes())
+		for _, brk := range breaks {
+			breakEnd := end
+			if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
+				breakEnd = *brk.EndedAt
+			}
+			breakStart := brk.StartedAt
+			if breakStart.Before(start) {
+				breakStart = start
+			}
+			if breakEnd.After(dayEnd) {
+				breakEnd = dayEnd
+			}
+			if breakEnd.After(breakStart) {
+				minutes -= int(breakEnd.Sub(breakStart).Minutes())
+			}
+		}
+		// Legacy rows may carry only the cached break total. New rows always
+		// have break intervals, which take precedence for correct day mapping.
+		if len(breaks) == 0 && cachedBreakMinutes > 0 {
+			deduct := min(minutes, cachedBreakMinutes)
+			minutes -= deduct
+			cachedBreakMinutes -= deduct
+		}
+		if minutes > 0 {
+			minutesByDate[day] = minutes
+		}
+	}
+	return minutesByDate
 }
 
 // isOvertime reports whether net work time exceeds the statutory overtime
