@@ -418,7 +418,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
     mode === "teacher",
   );
-  // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
+  // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
+  // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
+  // Mitarbeiter-Eintrag trägt kein eigenes Badge mehr.
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
@@ -800,14 +802,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 count={requestsPendingCount}
                 tone="staff"
                 ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
-                className="ml-2"
-              />
-            )}
-            {item.href === "/staff" && (
-              <NotificationBadge
-                count={staffAbsencesPendingCount}
-                tone="staff"
-                ariaLabel={`${staffAbsencesPendingCount} ${staffAbsencesPendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
                 className="ml-2"
               />
             )}

@@ -40,6 +40,8 @@ type RequestReviewCardHistory = {
 export function RequestReviewCard({
   childName,
   summary,
+  badge,
+  submittedAt,
   children,
   history,
   reason,
@@ -52,6 +54,13 @@ export function RequestReviewCard({
 }: Readonly<{
   childName: string;
   summary?: string;
+  /**
+   * Hinweis, der schon in der zugeklappten Zeile stehen muss, etwa die
+   * Warnung vor einer Komplett-Abmeldung (#2434).
+   */
+  badge?: ReactNode;
+  /** Einreichungszeitpunkt (ISO); rendert „Eingereicht am …" (#2432). */
+  submittedAt?: string;
   children?: ReactNode;
   history?: RequestReviewCardHistory;
   reason?: string;
@@ -78,6 +87,7 @@ export function RequestReviewCard({
           <StatusBadge label={meta.label} tone={meta.tone} />
         </div>
         <p className="mt-1 text-xs text-gray-500">
+          {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
           Entschieden am {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>
@@ -102,6 +112,7 @@ export function RequestReviewCard({
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
           {childName}
         </span>
+        {badge}
         <span className="hidden shrink-0 truncate text-sm text-gray-500 sm:block">
           {summary}
         </span>
@@ -112,6 +123,11 @@ export function RequestReviewCard({
       </button>
       {open && (
         <div className="border-t border-gray-100 px-4 pb-4 sm:px-5">
+          {submittedAt && (
+            <p className="mt-3 text-xs text-gray-500">
+              Eingereicht am {formatDate(submittedAt)}
+            </p>
+          )}
           {children}
           <div className="mt-4 space-y-2">
             <Input

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -229,6 +230,56 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 		return nil, &modelBase.DatabaseError{Op: "list absences by statuses", Err: err}
 	}
 	return absences, nil
+}
+
+// ListRequests returns absence requests with the subject and decider names the
+// Anfragen module shows (#2433). Both name joins are LEFT joins so a request
+// stays visible after its staff or person row is gone; the name is empty then.
+func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active.AbsenceRequestFilter) ([]*active.AbsenceRequestRow, error) {
+	if len(filter.Statuses) == 0 {
+		return nil, errors.New("at least one status is required")
+	}
+	var rows []*active.AbsenceRequestRow
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		ColumnExpr(`"staff_absence".*`).
+		ColumnExpr(`COALESCE("subject_person".first_name || ' ' || "subject_person".last_name, '') AS staff_name`).
+		ColumnExpr(`COALESCE("decider_person".first_name || ' ' || "decider_person".last_name, '') AS decided_by_name`).
+		Join(`LEFT JOIN users.staff AS "subject_staff" ON "subject_staff".id = "staff_absence".staff_id`).
+		Join(`LEFT JOIN users.persons AS "subject_person" ON "subject_person".id = "subject_staff".person_id`).
+		Join(`LEFT JOIN users.staff AS "decider_staff" ON "decider_staff".id = "staff_absence".approved_by`).
+		Join(`LEFT JOIN users.persons AS "decider_person" ON "decider_person".id = "decider_staff".person_id`).
+		Where(`"staff_absence".status IN (?)`, bun.List(filter.Statuses))
+
+	if len(filter.Types) > 0 {
+		query = query.Where(`"staff_absence".absence_type IN (?)`, bun.List(filter.Types))
+	}
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		// Escape the LIKE metacharacters so a typed % or _ stays a literal
+		// character of the name instead of silently matching everything.
+		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(search)
+		pattern := "%" + escaped + "%"
+		query = query.Where(
+			`COALESCE("subject_person".first_name || ' ' || "subject_person".last_name, '') ILIKE ?`,
+			pattern,
+		)
+	}
+	if filter.Decided {
+		query = query.OrderExpr(`COALESCE("staff_absence".approved_at, "staff_absence".updated_at) DESC, "staff_absence".id DESC`)
+	} else {
+		query = query.OrderExpr(`"staff_absence".requested_at ASC, "staff_absence".id ASC`)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list absence requests", Err: err}
+	}
+	return rows, nil
 }
 
 // ListNonHistoricalByStaffID returns the rows that staff offboarding removes,

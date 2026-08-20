@@ -35,6 +35,7 @@ type absStaffAbsenceRepoMock struct {
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getAbsenceMapForDateFunc   func(ctx context.Context, date timezone.Date) (map[int64]string, error)
+	listRequestsFunc           func(ctx context.Context, filter activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error)
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
@@ -122,6 +123,13 @@ func (m *absStaffAbsenceRepoMock) GetAbsenceMapForDate(ctx context.Context, date
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // tests that don't exercise the vacation inbox still satisfy the interface.
 func (m *absStaffAbsenceRepoMock) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
+func (m *absStaffAbsenceRepoMock) ListRequests(ctx context.Context, filter activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+	if m.listRequestsFunc != nil {
+		return m.listRequestsFunc(ctx, filter)
+	}
 	return nil, nil
 }
 

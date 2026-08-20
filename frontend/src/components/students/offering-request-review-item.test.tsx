@@ -1,11 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { OfferingRequestReviewList } from "./offering-request-review-list";
+import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
   OfferingRequestApiError,
   decideOfferingChangeRequest,
-  listOfferingChangeRequests,
   previewOfferingChangeRequest,
   type StaffOfferingRequest,
 } from "~/lib/offering-request-review-api";
@@ -17,13 +16,11 @@ vi.mock("~/lib/offering-request-review-api", async (importActual) => {
     await importActual<typeof import("~/lib/offering-request-review-api")>();
   return {
     ...actual,
-    listOfferingChangeRequests: vi.fn(),
     decideOfferingChangeRequest: vi.fn(),
     previewOfferingChangeRequest: vi.fn(),
   };
 });
 
-const mockList = vi.mocked(listOfferingChangeRequests);
 const mockDecide = vi.mocked(decideOfferingChangeRequest);
 const mockPreview = vi.mocked(previewOfferingChangeRequest);
 
@@ -49,59 +46,48 @@ function request(
   };
 }
 
-// Cards are collapsed by default; expand so the diff and the actions render.
-function expandAll() {
-  for (const btn of screen.getAllByRole("button", { name: /Lara Beispiel/ })) {
-    fireEvent.click(btn);
-  }
+// The card renders collapsed; expand so the diff and the actions render.
+function renderItem(
+  row: StaffOfferingRequest = request(),
+  onDecided: (notice: string) => void = vi.fn(),
+) {
+  render(<OfferingRequestReviewItem row={row} onDecided={onDecided} />);
+  fireEvent.click(screen.getByRole("button", { name: /Lara Beispiel/ }));
+  return onDecided;
 }
 
-describe("OfferingRequestReviewList", () => {
+describe("OfferingRequestReviewItem", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockList.mockResolvedValue([request()]);
     mockPreview.mockResolvedValue({ selections: [] });
   });
 
-  it("lists a pending request with its effective date and diff", async () => {
-    render(<OfferingRequestReviewList />);
+  it("renders the request with its effective date and diff", () => {
+    renderItem();
 
-    expect(await screen.findByText(/Lara Beispiel/)).toBeInTheDocument();
+    expect(screen.getByText(/Lara Beispiel/)).toBeInTheDocument();
     expect(screen.getByText(/ab 01\.02\.2027/)).toBeInTheDocument();
-    expandAll();
     expect(screen.getByText("Mo, Di, Mi")).toBeInTheDocument();
     expect(screen.getByText("Mo, Di")).toBeInTheDocument();
   });
 
-  it("shows the empty state without a queue", async () => {
-    mockList.mockResolvedValue([]);
-    render(<OfferingRequestReviewList />);
-
-    expect(
-      await screen.findByText("Keine offenen Anfragen zu Betreuungsangeboten."),
-    ).toBeInTheDocument();
-  });
-
-  it("approves a request and removes the row", async () => {
+  it("approves the request and reports the notice", async () => {
     mockDecide.mockResolvedValue(undefined);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("77", true, undefined),
     );
-    expect(
-      await screen.findByText(/gültig ab 01\.02\.2027/),
-    ).toBeInTheDocument();
+    expect(onDecided).toHaveBeenCalledWith(
+      "Änderung übernommen, gültig ab 01.02.2027",
+    );
   });
 
   it("requires a reason before rejecting", async () => {
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    renderItem();
 
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
 
@@ -113,26 +99,79 @@ describe("OfferingRequestReviewList", () => {
     expect(mockDecide).not.toHaveBeenCalled();
   });
 
-  it("names the capacity conflict and keeps the row pending", async () => {
+  it("rejects with a reason and reports the notice", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Begründung (Pflicht bei Ablehnung)"),
+      { target: { value: "Kein Bedarf" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+    );
+    expect(onDecided).toHaveBeenCalledWith("Angebots-Anfrage abgelehnt");
+  });
+
+  it("names the capacity conflict and keeps the card pending", async () => {
     mockDecide.mockRejectedValue(
       new OfferingRequestApiError("full", "offering_change_capacity_full"),
     );
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     expect(await screen.findByText(/kein Platz mehr frei/)).toBeInTheDocument();
-    // The row survives a failed approval: the switch was not applied.
+    // The card survives a failed approval: the switch was not applied.
     expect(screen.getByText(/Lara Beispiel/)).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
   });
 
-  it("shows the parent note when one was added", async () => {
-    mockList.mockResolvedValue([request({ note: "Neuer Arbeitsbeginn" })]);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+  it("explains an already-decided request", async () => {
+    mockDecide.mockRejectedValue(
+      new OfferingRequestApiError("gone", "change_request_not_pending"),
+    );
+    renderItem();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    expect(
+      await screen.findByText(/bereits entschieden oder von den Eltern/),
+    ).toBeInTheDocument();
+  });
+
+  it("explains a missing enrollment", async () => {
+    mockDecide.mockRejectedValue(
+      new OfferingRequestApiError("gone", "offering_changes_no_enrollment"),
+    );
+    renderItem();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    expect(
+      await screen.findByText(/keine gültige Anmeldung mehr vor/),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to a generic message for unknown decide errors", async () => {
+    mockDecide.mockRejectedValue(new Error("boom"));
+    renderItem();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    expect(
+      await screen.findByText(
+        "Die Entscheidung konnte nicht gespeichert werden.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the parent note when one was added", () => {
+    renderItem(request({ note: "Neuer Arbeitsbeginn" }));
 
     expect(
       screen.getByText(/Nachricht der Eltern: Neuer Arbeitsbeginn/),
@@ -188,11 +227,8 @@ describe("OfferingRequestReviewList", () => {
     },
   ];
 
-  it("marks a rule-added line and names its trigger", async () => {
-    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+  it("marks a rule-added line and names its trigger", () => {
+    renderItem(request({ diff: ruleDiff }));
 
     expect(screen.getAllByText("Automatisch mitgebucht")).toHaveLength(2);
     expect(
@@ -200,11 +236,8 @@ describe("OfferingRequestReviewList", () => {
     ).toBeInTheDocument();
   });
 
-  it("attributes only rule-derived days to the selected trigger", async () => {
-    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+  it("attributes only rule-derived days to the selected trigger", () => {
+    renderItem(request({ diff: mixedRuleDiff }));
 
     expect(
       screen.getByText(/Die Tage Di kommen automatisch dazu, weil/),
@@ -215,13 +248,10 @@ describe("OfferingRequestReviewList", () => {
   });
 
   it("hides the automatic-addition hint after opting out", async () => {
-    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
     mockPreview.mockResolvedValue({
       selections: [{ offering_id: "9", new: "Mo, Mi" }],
     });
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    renderItem(request({ diff: mixedRuleDiff }));
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -237,13 +267,10 @@ describe("OfferingRequestReviewList", () => {
   });
 
   it("describes the disabled co-booking rule after opting out", async () => {
-    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
     mockPreview.mockResolvedValue({
       selections: [{ offering_id: "9", new: "Mo, Mi" }],
     });
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    renderItem(request({ diff: mixedRuleDiff }));
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -260,13 +287,10 @@ describe("OfferingRequestReviewList", () => {
 
   it("sends unticked rule-added lines as excluded on approve", async () => {
     mockDecide.mockResolvedValue(undefined);
-    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
     mockPreview.mockResolvedValue({
       selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
     });
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    renderItem(request({ diff: ruleDiff }));
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -281,11 +305,35 @@ describe("OfferingRequestReviewList", () => {
     );
   });
 
+  it("does not send excluded lines on reject", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    mockPreview.mockResolvedValue({
+      selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
+    });
+    renderItem(request({ diff: ruleDiff }));
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    fireEvent.change(
+      screen.getByPlaceholderText("Begründung (Pflicht bei Ablehnung)"),
+      { target: { value: "Kein Bedarf" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+    );
+  });
+
   it("keeps manual and required days visible when rule days are unticked", async () => {
     mockPreview.mockResolvedValue({
       selections: [{ offering_id: "9", new: "Mo, Mi" }],
     });
-    mockList.mockResolvedValue([
+    renderItem(
       request({
         diff: [
           {
@@ -302,10 +350,7 @@ describe("OfferingRequestReviewList", () => {
           },
         ],
       }),
-    ]);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    );
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -325,7 +370,7 @@ describe("OfferingRequestReviewList", () => {
         { offering_id: "11", new: "Mo, Mi" },
       ],
     });
-    mockList.mockResolvedValue([
+    renderItem(
       request({
         diff: [
           {
@@ -359,10 +404,7 @@ describe("OfferingRequestReviewList", () => {
           },
         ],
       }),
-    ]);
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    );
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -381,7 +423,6 @@ describe("OfferingRequestReviewList", () => {
   });
 
   it("greys a line whose trigger was unticked", async () => {
-    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
     mockPreview.mockResolvedValue({
       selections: [
         { offering_id: "5", new: "Mo, Di, Mi, Do, Fr" },
@@ -389,9 +430,7 @@ describe("OfferingRequestReviewList", () => {
         { offering_id: "11", new: "abgemeldet", removed: true },
       ],
     });
-    render(<OfferingRequestReviewList />);
-    await screen.findByText(/Lara Beispiel/);
-    expandAll();
+    renderItem(request({ diff: ruleDiff }));
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -404,5 +443,91 @@ describe("OfferingRequestReviewList", () => {
         /Entfällt, weil „Ganztagsbetreuung bis 14.30 Uhr“ nicht mitgebucht wird/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("reports a preview failure and keeps the card usable", async () => {
+    mockPreview.mockRejectedValue(new Error("network"));
+    renderItem(request({ diff: mixedRuleDiff }));
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    // The opt-out did not take effect: the hint is still shown.
+    expect(
+      screen.getByText(/Die Tage Di kommen automatisch dazu/),
+    ).toBeInTheDocument();
+  });
+  // Folgen-Anzeige (#2434): eine Komplett-Abmeldung darf nicht wie ein
+  // gewöhnlicher Antrag aussehen.
+  describe("Folgen der Entscheidung", () => {
+    const withdrawal = () =>
+      request({
+        full_withdrawal: true,
+        diff: [
+          {
+            offering_id: "1",
+            label: "Regelbetreuung",
+            old: "Mo, Di, Mi",
+            new: "abgemeldet",
+          },
+        ],
+      });
+
+    it("warns before a full withdrawal, naming the child", () => {
+      renderItem(withdrawal());
+
+      expect(
+        screen.getByText(
+          "Damit wird Lara Beispiel von allen Angeboten abgemeldet. Danach ist kein Angebot mehr gebucht.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("flags the full withdrawal before the card is expanded", () => {
+      render(
+        <OfferingRequestReviewItem row={withdrawal()} onDecided={vi.fn()} />,
+      );
+
+      expect(screen.getByText("Komplett-Abmeldung")).toBeInTheDocument();
+    });
+
+    it("shows no warning for an ordinary request", () => {
+      renderItem();
+
+      expect(screen.queryByText(/von allen Angeboten abgemeldet/)).toBeNull();
+      expect(screen.queryByText("Komplett-Abmeldung")).toBeNull();
+    });
+
+    it("lists the bookings the request leaves untouched", () => {
+      renderItem(
+        request({
+          unchanged: [
+            { offering_id: "9", label: "Mittagessen", days: "Mo, Di" },
+          ],
+        }),
+      );
+
+      expect(screen.getByText("Bleibt gebucht")).toBeInTheDocument();
+      expect(screen.getByText("Mittagessen:")).toBeInTheDocument();
+    });
+
+    it("names what to check after the approval", () => {
+      renderItem();
+
+      expect(
+        screen.getByText("Nach dem Freigeben bitte prüfen"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Gehzeiten des Kindes")).toBeInTheDocument();
+      expect(screen.getByText("Zuordnung im Stundenplan")).toBeInTheDocument();
+      expect(screen.getByText("Listen und Ausdrucke")).toBeInTheDocument();
+    });
   });
 });
