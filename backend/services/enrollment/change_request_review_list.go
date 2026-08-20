@@ -74,7 +74,7 @@ func (s *changeRequestService) ListForReview(
 		last := rows[len(rows)-1]
 		position := last.CreatedAt
 		if query.History {
-			position = last.UpdatedAt
+			position = last.DecisionInstant()
 		}
 		next = &usersService.HistoryCursor{UpdatedAt: position, ID: last.ID}
 	}

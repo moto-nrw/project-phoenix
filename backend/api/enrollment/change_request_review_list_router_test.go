@@ -336,6 +336,29 @@ func TestChangeRequestReviewList_HistoryCarriesDecisionAndCursor(t *testing.T) {
 	assert.Empty(t, pageTwo.Data.NextCursor, "the last page ends the keyset")
 }
 
+func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *testing.T) {
+	env := setupReviewListTest(t)
+	base := time.Now().UTC().Add(-2 * time.Hour)
+
+	newerDecision := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, 0, true)
+	olderDecision := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), 0, true)
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.ChangeRequest)(nil)).
+		ModelTableExpr("enrollment.change_requests").
+		Set("updated_at = ?", base.Add(time.Hour)).
+		Where("id = ?", olderDecision.ID).
+		Exec(testpkg.TenantContext(env.tenantID))
+	require.NoError(t, err)
+
+	pageOne := env.fetch(t, "view=history&limit=1")
+	require.Equal(t, []string{idOf(newerDecision)}, idsOf(pageOne))
+	require.Len(t, pageOne.Data.Items, 1)
+	assert.Equal(t, newerDecision.ReviewedAt.UTC(), pageOne.Data.Items[0].OccurredAt.UTC())
+
+	pageTwo := env.fetch(t, "view=history&limit=1&cursor="+url.QueryEscape(pageOne.Data.NextCursor))
+	assert.Equal(t, []string{idOf(olderDecision)}, idsOf(pageTwo))
+}
+
 func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)

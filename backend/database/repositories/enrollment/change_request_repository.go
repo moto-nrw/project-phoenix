@@ -133,9 +133,9 @@ func (r *ChangeRequestRepository) ListAdmin(ctx context.Context, filters enrollm
 
 // ListForReview serves the request module's Eltern tab (#2435): one page of
 // change requests, newest first, keyset-paginated. The open list orders by
-// created_at (when the family filed it), the history by updated_at (when the
-// office decided) — the same split the other four request queues use, so the
-// merged list stays in one order across all types.
+// created_at (when the family filed it), the history by the decision instant
+// (when the office decided) — the same split the other four request queues use,
+// so the merged list stays in one order across all types.
 //
 // The decided-at range filters COALESCE(reviewed_at, updated_at): a decision
 // always stamps reviewed_at, and the fallback keeps rows that only ever got a
@@ -147,7 +147,7 @@ func (r *ChangeRequestRepository) ListForReview(ctx context.Context, filters enr
 	rows := make([]*enrollment.ChangeRequest, 0, filters.Limit)
 	keysetColumn := `"change_request".created_at`
 	if filters.History {
-		keysetColumn = `"change_request".updated_at`
+		keysetColumn = `COALESCE("change_request".reviewed_at, "change_request".updated_at)`
 	}
 	q := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).

@@ -282,6 +282,54 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
   });
 
+  it("ignoriert den Fehler eines veralteten Nachladens", async () => {
+    let rejectMore!: (reason?: unknown) => void;
+    const morePage = new Promise<never>((_resolve, reject) => {
+      rejectMore = reject;
+    });
+    mockListOpen
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 25 }, (_, index) =>
+          openItem("excused", String(index + 1)),
+        ),
+        next_cursor: "cursor-1",
+      })
+      .mockReturnValueOnce(morePage as never)
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 25 }, (_, index) =>
+          openItem("excused", `neu-${index + 1}`),
+        ),
+        next_cursor: "cursor-2",
+      });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    await screen.findByText("excused-item-1");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      rejectMore(new Error("veraltet"));
+      try {
+        await morePage;
+      } catch {
+        // Der Fehler gehört zum verworfenen Feed.
+      }
+    });
+
+    expect(
+      screen.queryByText("Weitere Anfragen konnten nicht geladen werden."),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    ).toBeEnabled();
+  });
+
   it("lädt weitere Einträge über den Cursor nach", async () => {
     // Eine volle Seite plus Cursor: erst dann bleibt etwas zum Nachladen übrig.
     // (Eine kurze Seite mit Cursor zieht die Liste selbst nach, damit niemand

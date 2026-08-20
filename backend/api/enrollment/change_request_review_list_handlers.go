@@ -306,15 +306,10 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 
 	occurredAt := row.CreatedAt
 	if history {
-		// A decision always stamps reviewed_at; updated_at carries the rare row
-		// that reached a terminal status without one.
-		decidedAt := row.UpdatedAt
-		if row.ReviewedAt != nil {
-			decidedAt = *row.ReviewedAt
-		}
+		decidedAt := row.DecisionInstant()
 		entry.DecidedAt = &decidedAt
 		entry.DecidedByName = item.ReviewerName
-		occurredAt = row.UpdatedAt
+		occurredAt = decidedAt
 	}
 	return ChangeRequestReviewItem{
 		RequestType: requestTypeEnrollment,

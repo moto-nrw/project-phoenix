@@ -51,6 +51,15 @@ type ChangeRequest struct {
 	ReviewedAt                     *time.Time `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 }
 
+// DecisionInstant is when a terminal change request was decided. Older rows
+// may not carry reviewed_at, so their last status update is the decision time.
+func (r *ChangeRequest) DecisionInstant() time.Time {
+	if r.ReviewedAt != nil {
+		return *r.ReviewedAt
+	}
+	return r.UpdatedAt
+}
+
 // ChangeRequestMessage is one parent/staff/system message in the public
 // conversation around a change request.
 type ChangeRequestMessage struct {
@@ -81,8 +90,8 @@ type ChangeRequestReviewFilters struct {
 	// substring of "first last".
 	Search string
 	// History switches ordering and the keyset column from created_at (the
-	// submission instant) to updated_at (the decision instant) and enables the
-	// decided-at range below.
+	// submission instant) to COALESCE(reviewed_at, updated_at) (the decision
+	// instant) and enables the decided-at range below.
 	History bool
 	// From and To bound the decision instant; zero means unbounded. History only.
 	From, To time.Time

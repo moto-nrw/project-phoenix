@@ -253,6 +253,7 @@ export function AggregatedRequestList({
       setItems((prev) => [...prev, ...page.items]);
       setHasMore(page.hasMore);
     } catch (err) {
+      if (generation !== feedGenerationRef.current) return;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("aggregated_request_list_load_more_failed", {
         error: message,
@@ -260,7 +261,7 @@ export function AggregatedRequestList({
       setError("Weitere Anfragen konnten nicht geladen werden.");
     } finally {
       loadMoreInFlightRef.current = false;
-      if (generation === feedGenerationRef.current) setLoadingMore(false);
+      setLoadingMore(false);
     }
   }, [sources, hasMore]);
 
