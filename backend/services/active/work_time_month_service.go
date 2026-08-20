@@ -651,33 +651,6 @@ func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today t
 	return end
 }
 
-// workedMinutesUpTo is netMinutes with the session end clamped at its own day
-// and now. It is retained for callers that need a whole-session value.
-// netMinutes otherwise measures gross work time up to the check-out (or, for
-// an open session, up to now), so a future check-out can inflate Ist without
-// bound:
-//
-//   - a session left open on a PAST day bills every minute since check-in
-//     through now — potentially days or months of fictitious presence, and via
-//     the carry chain every later balance; and
-//   - a historical session an admin corrected with a check-out later than its
-//     day (the correction API accepts a future check_out_time) bills the whole
-//     span the moment it is saved.
-//
-// The now cap keeps a future check-out on TODAY's session from counting past
-// the current instant, against a target that is deliberately only accrued up
-// to today. A consistent, closed past session is unaffected: its check-out
-// already precedes that cap.
-func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
-	end := sessionEndUpTo(session, now)
-	if dayEnd := session.Date.EndOfDay(); dayEnd.Before(end) {
-		end = dayEnd
-	}
-	capped := *session
-	capped.CheckOutTime = &end // netMinutes measures gross up to the capped end
-	return netMinutes(&capped, end)
-}
-
 // addAbsenceCredits credits sick/vacation/training days with the day's
 // contractual target (Ansatz B, mirroring the frontend engine): half-day
 // boundaries credit floor(target/2), overlapping absences credit a day only

@@ -66,11 +66,11 @@ func (ws WorkSessionWire) MarshalJSON() ([]byte, error) {
 		UpdatedBy *string `json:"updated_by,omitempty"`
 	}{
 		alias:     (*alias)(ws.WorkSession),
-		ID:        strconv.FormatInt(ws.WorkSession.ID, 10),
-		TenantID:  strconv.FormatInt(ws.WorkSession.TenantID, 10),
-		StaffID:   strconv.FormatInt(ws.WorkSession.StaffID, 10),
-		CreatedBy: strconv.FormatInt(ws.WorkSession.CreatedBy, 10),
-		UpdatedBy: formatOptionalID(ws.WorkSession.UpdatedBy),
+		ID:        strconv.FormatInt(ws.ID, 10),
+		TenantID:  strconv.FormatInt(ws.TenantID, 10),
+		StaffID:   strconv.FormatInt(ws.StaffID, 10),
+		CreatedBy: strconv.FormatInt(ws.CreatedBy, 10),
+		UpdatedBy: formatOptionalID(ws.UpdatedBy),
 	})
 }
 
