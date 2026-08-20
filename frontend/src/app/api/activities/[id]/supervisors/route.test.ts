@@ -70,7 +70,9 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 describe("GET /api/activities/[id]/supervisors", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    mockAuth.mockReset().mockResolvedValue(defaultSession);
+    mockApiGet.mockReset();
+    mockApiPost.mockReset();
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -140,7 +142,9 @@ describe("GET /api/activities/[id]/supervisors", () => {
 describe("POST /api/activities/[id]/supervisors", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    mockAuth.mockReset().mockResolvedValue(defaultSession);
+    mockApiGet.mockReset();
+    mockApiPost.mockReset();
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -202,11 +206,8 @@ describe("POST /api/activities/[id]/supervisors", () => {
     expect(mockApiGet).not.toHaveBeenCalled();
   });
 
-  it("does not fail a successful assignment on refetch errors", async () => {
+  it("does not refetch after a successful assignment", async () => {
     mockApiPost.mockResolvedValueOnce(undefined);
-    mockApiGet.mockRejectedValueOnce(
-      new Error("Transient list refresh failure"),
-    );
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",

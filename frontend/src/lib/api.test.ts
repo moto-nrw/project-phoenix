@@ -2254,10 +2254,8 @@ describe("api.ts helper functions", () => {
   describe("error handling utilities", () => {
     it("handleApiError wraps errors with context", async () => {
       const error = new Error("Network failure");
-      await import("./api");
-
-      // Trigger an error through studentService
-      global.fetch = vi.fn().mockRejectedValue(error);
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockRejectedValue(error);
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({

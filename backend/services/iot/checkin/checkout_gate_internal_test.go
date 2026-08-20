@@ -3,7 +3,7 @@
 // CheckinService with mock collaborators and exercise the extracted gate logic
 // (moved here from api/iot/checkin when the policy was extracted into the
 // service). They live in the internal package so they can set the service's
-// unexported collaborator fields and override the package-local timeNow clock.
+// unexported collaborator fields.
 package checkin
 
 import (
@@ -32,14 +32,6 @@ import (
 // =============================================================================
 // Test doubles
 // =============================================================================
-
-// overrideTimeNow pins the package-level timeNow clock to fixed and returns a
-// restore function that should be deferred by the caller.
-func overrideTimeNow(fixed time.Time) func() {
-	orig := timeNow
-	timeNow = func() time.Time { return fixed }
-	return func() { timeNow = orig }
-}
 
 // mockPickupScheduleService is a minimal mock for testing IsAfterCheckoutTimeGate.
 type mockPickupScheduleService struct {
@@ -751,13 +743,12 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	// so a wrapped hour would otherwise land in the past and flip the
 	// assertion when CI runs late in the day.
 	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
-	restore := overrideTimeNow(fixedNow)
-	defer restore()
 
 	// Pickup time 2 hours from fixed now, delta 15 min → too early.
 	pickupTime := time.Date(2000, 1, 1, fixedNow.Hour()+2, 0, 0, 0, fixedNow.Location())
 
 	s := &CheckinService{
+		now: func() time.Time { return fixedNow },
 		settings: newMockSettingsService(
 			map[string]string{},
 			map[string]bool{"operations.per_student_checkout_enabled": true},

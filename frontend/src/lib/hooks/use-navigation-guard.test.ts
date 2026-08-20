@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 
 import { useNavigationGuard } from "./use-navigation-guard";
 import { attemptNavigation } from "./navigation-guard-store";
@@ -31,10 +31,15 @@ describe("useNavigationGuard", () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockReplace.mockReset();
+    window.history.replaceState(null, "", "/");
+    vi.spyOn(window.history, "go").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
+    cleanup();
     document.body.innerHTML = "";
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
   });
 
   it("intercepts an in-app link click and stores the destination", () => {
@@ -223,7 +228,6 @@ describe("useNavigationGuard", () => {
       expect(goSpy).toHaveBeenCalledWith(-2);
       expect(mockPush).not.toHaveBeenCalled();
       expect(result.current.pendingHref).toBeNull();
-      goSpy.mockRestore();
     });
 
     it("stays on the page on cancel without traversing history", () => {
@@ -239,7 +243,6 @@ describe("useNavigationGuard", () => {
 
       expect(goSpy).not.toHaveBeenCalled();
       expect(result.current.pendingHref).toBeNull();
-      goSpy.mockRestore();
     });
 
     it("collapses the sentinel when blocking is disarmed in place", () => {
@@ -257,7 +260,6 @@ describe("useNavigationGuard", () => {
       // The same-URL sentinel pushed on arm must be popped, otherwise the next
       // Back press lands on a leftover duplicate of the current URL.
       expect(goSpy).toHaveBeenCalledWith(-1);
-      goSpy.mockRestore();
     });
 
     it("does not accumulate sentinels across edit/save/edit cycles", () => {
@@ -280,7 +282,6 @@ describe("useNavigationGuard", () => {
       expect(pushSpy).toHaveBeenCalledTimes(2);
       expect(goSpy).toHaveBeenCalledWith(-1);
       pushSpy.mockRestore();
-      goSpy.mockRestore();
     });
 
     it("does not pop a sentinel after a link-click confirm navigates away", () => {
@@ -306,7 +307,6 @@ describe("useNavigationGuard", () => {
 
       expect(mockReplace).toHaveBeenCalledWith("/database");
       expect(goSpy).not.toHaveBeenCalled();
-      goSpy.mockRestore();
     });
 
     it("ignores the popstate it triggers itself on confirm", () => {
@@ -369,7 +369,6 @@ describe("useNavigationGuard", () => {
         window.dispatchEvent(new PopStateEvent("popstate"));
       });
       expect(proceed).toHaveBeenCalledTimes(1);
-      goSpy.mockRestore();
     });
 
     it("does not run the deferred navigation on cancel", () => {

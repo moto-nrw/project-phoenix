@@ -142,8 +142,6 @@ describe("POST /api/active/groups/[id]/claim", () => {
   });
 
   it("returns 500 when id parameter is invalid", async () => {
-    mockApiPost.mockRejectedValueOnce(new TypeError("Invalid group ID"));
-
     const request = createMockRequest("/api/active/groups/invalid/claim", {
       method: "POST",
     });
