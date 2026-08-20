@@ -384,6 +384,49 @@ describe("PageHeaderWithSearch", () => {
     expect(screen.getByTestId("page-header")).toBeInTheDocument();
   });
 
+  describe("tabsRowAction prop", () => {
+    const tabs = {
+      items: [
+        { id: "a", label: "Eltern" },
+        { id: "b", label: "Mitarbeitende" },
+      ],
+      activeTab: "a",
+      onTabChange: vi.fn(),
+    };
+
+    it("rendert die Aktion neben den Reitern", () => {
+      render(
+        <PageHeaderWithSearch
+          {...baseProps}
+          tabs={tabs}
+          tabsRowAction={<button type="button">Historie</button>}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Historie" }),
+      ).toBeInTheDocument();
+    });
+
+    it("rendert die Aktion auch ohne Reiter", () => {
+      // Wer nur einen Reiter sehen darf, bekommt keine Reiterleiste — die
+      // Aktion daneben muss trotzdem erreichbar bleiben.
+      render(
+        <PageHeaderWithSearch
+          {...baseProps}
+          tabsRowAction={<button type="button">Historie</button>}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Historie" }),
+      ).toBeInTheDocument();
+    });
+
+    it("rendert nichts, wenn die Prop fehlt", () => {
+      render(<PageHeaderWithSearch {...baseProps} tabs={tabs} />);
+      expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
+    });
+  });
+
   describe("overflowMenu prop", () => {
     it("renders nothing when prop is omitted (default behaviour)", () => {
       render(<PageHeaderWithSearch {...baseProps} />);

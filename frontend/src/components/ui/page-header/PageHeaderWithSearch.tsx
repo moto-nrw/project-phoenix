@@ -48,6 +48,7 @@ export function PageHeaderWithSearch({
   onClearAllFilters,
   actionButton,
   mobileActionButton,
+  tabsRowAction,
   overflowMenu,
   primaryAction,
   compactOnScroll = false,
@@ -138,12 +139,13 @@ export function PageHeaderWithSearch({
       )}
 
       {/* Tabs + Badge/ActionButton inline (when tabs exist) */}
-      {tabs && (
+      {(tabs ?? tabsRowAction) && (
         <TabsSection
           tabs={tabs}
           hasTitle={hasTitle}
           actionButton={actionButton}
           mobileActionButton={mobileActionButton}
+          tabsRowAction={tabsRowAction}
           statusIndicator={statusIndicator}
           badge={badge}
           overflowMenu={overflowMenu}
@@ -254,10 +256,11 @@ function useFilterPanelAnchor(
 }
 
 interface TabsSectionProps {
-  readonly tabs: NonNullable<PageHeaderWithSearchProps["tabs"]>;
+  readonly tabs?: PageHeaderWithSearchProps["tabs"];
   readonly hasTitle: boolean;
   readonly actionButton?: React.ReactNode;
   readonly mobileActionButton?: React.ReactNode;
+  readonly tabsRowAction?: React.ReactNode;
   readonly statusIndicator?: PageHeaderWithSearchProps["statusIndicator"];
   readonly badge?: PageHeaderWithSearchProps["badge"];
   readonly overflowMenu?: PageHeaderWithSearchProps["overflowMenu"];
@@ -268,6 +271,7 @@ function TabsSection({
   hasTitle,
   actionButton,
   mobileActionButton,
+  tabsRowAction,
   statusIndicator,
   badge,
   overflowMenu,
@@ -277,7 +281,13 @@ function TabsSection({
   return (
     <div className="mt-4 mb-4 md:mt-0">
       <div className="flex items-center justify-between gap-2 md:items-end md:gap-4">
-        <NavigationTabs {...tabs} className="min-w-0 flex-1" />
+        {tabs ? <NavigationTabs {...tabs} className="min-w-0 flex-1" /> : null}
+
+        {tabsRowAction ? (
+          <div className="flex flex-shrink-0 items-center pb-1 md:pb-3">
+            {tabsRowAction}
+          </div>
+        ) : null}
 
         <DesktopTabsActionArea
           hasTitle={hasTitle}

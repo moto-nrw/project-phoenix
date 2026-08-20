@@ -91,13 +91,9 @@ function absenceProbe() {
   };
 }
 
-/**
- * Die Kopfzeile rendert Reiter-Aktionen zweimal, einmal für Mobil und einmal
- * für Desktop, und blendet eine davon per CSS aus. jsdom kennt kein CSS, also
- * greift der Test die erste Kopie — beide schalten denselben Zustand.
- */
+/** Der Umschalter in der Reiterzeile: Offen gegen Historie. */
 function umschalten(label: "Offen" | "Historie") {
-  fireEvent.click(screen.getAllByRole("button", { name: label })[0]!);
+  fireEvent.click(screen.getByRole("button", { name: label }));
 }
 
 describe("AnfragenPage", () => {

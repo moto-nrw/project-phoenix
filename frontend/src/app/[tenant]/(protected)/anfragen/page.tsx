@@ -392,11 +392,10 @@ export default function AnfragenPage() {
         filterVariant="quiet"
         activeFilterDisplay="count"
         // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
-        // eine Auswahl, was die Liste zeigt. `actionButton` ist der Slot der
-        // Reiterzeile — nicht `primaryAction`, das rendert nur im
-        // Desktop-Zweig (`hidden lg:block`) und wäre auf Telefon und Tablet
-        // gar nicht da.
-        actionButton={viewSwitcher}
+        // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
+        // jeder Breite dort — `actionButton` wandert auf Mobil in die
+        // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
+        tabsRowAction={viewSwitcher}
       />
       {staffActive ? (
         <MitarbeitendeTab view={view} filters={staffFilters} />
