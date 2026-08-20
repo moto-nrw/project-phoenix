@@ -1,9 +1,11 @@
 package active
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,4 +112,15 @@ func TestWorkSession_Getters(t *testing.T) {
 	assert.Equal(t, int64(42), ws.GetID())
 	assert.Equal(t, now, ws.GetCreatedAt())
 	assert.Equal(t, now, ws.GetUpdatedAt())
+}
+
+func TestWorkSessionWire_SerializesIDAsString(t *testing.T) {
+	encoded, err := json.Marshal(WorkSessionWire{WorkSession: &WorkSession{Model: base.Model{ID: 9007199254740993}}})
+	require.NoError(t, err)
+
+	var wire struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	assert.Equal(t, "9007199254740993", wire.ID)
 }

@@ -2287,12 +2287,12 @@ func TestWSGetTodayPresenceMap_Success(t *testing.T) {
 
 func TestWSCleanupOpenSessions_Success(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
-	yesterday := timezone.TodayDate().AddDays(-1)
+	staleDay := timezone.TodayDate().AddDays(-2)
 
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
-			{Model: base.Model{ID: 1}, Date: yesterday},
-			{Model: base.Model{ID: 2}, Date: yesterday},
+			{Model: base.Model{ID: 1}, Date: staleDay},
+			{Model: base.Model{ID: 2}, Date: staleDay},
 		}, nil
 	}
 
@@ -2355,6 +2355,23 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	// Verify it is NOT 23:59:59 UTC (the old buggy behavior)
 	assert.NotEqual(t, 23, capturedCheckOutTime.UTC().Hour(),
 		"check-out should NOT be 23:59:59 UTC — that would be 00:59:59 CET the next day")
+}
+
+func TestWSCleanupOpenSessions_KeepsYesterdayOpenForNightBlocks(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	today := timezone.NewDate(2026, 8, 18)
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.August, 18, 8, 0, 0, 0, timezone.Berlin) }
+
+	var beforeDate timezone.Date
+	sessionRepo.getOpenSessionsFunc = func(_ context.Context, before timezone.Date) ([]*activeModels.WorkSession, error) {
+		beforeDate = before
+		return nil, nil
+	}
+
+	count, err := svc.CleanupOpenSessions(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	assert.Equal(t, today.AddDays(-1), beforeDate)
 }
 
 // ============================================================================
@@ -3753,6 +3770,30 @@ func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
 	newCheckIn := time.Date(2026, time.August, 17, 11, 0, 0, 0, timezone.Berlin)
 	_, err := svc.UpdateSession(context.Background(), 100, 2, SessionUpdateRequest{
 		CheckInTime: &newCheckIn,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+func TestWSUpdateSession_RejectsOverlapBeforeWritingBreaks(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	day := timezone.NewDate(2026, 8, 17)
+	edited := wsClosedBlock(2, day, 13, 16)
+	sibling := wsClosedBlock(1, day, 8, 12)
+
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) { return edited, nil }
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{sibling, edited}, from, to), nil
+	}
+	breakRepo.updateDurationFunc = func(context.Context, int64, int, time.Time) error {
+		t.Fatal("a rejected overlap must not update a break")
+		return nil
+	}
+
+	newCheckIn := time.Date(2026, time.August, 17, 11, 0, 0, 0, timezone.Berlin)
+	_, err := svc.UpdateSession(context.Background(), 100, edited.ID, SessionUpdateRequest{
+		CheckInTime: &newCheckIn,
+		Breaks:      []BreakDurationUpdate{{ID: 1, DurationMinutes: 45}},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "work session overlaps an existing block")

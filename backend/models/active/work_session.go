@@ -1,7 +1,9 @@
 package active
 
 import (
+	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -41,6 +43,27 @@ type WorkSession struct {
 	AutoCheckedOut bool          `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
 	CreatedBy      int64         `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy      *int64        `bun:"updated_by" json:"updated_by,omitempty"`
+}
+
+// WorkSessionWire serializes a session for endpoints that return the raw
+// model. JavaScript rounds int64 values above Number.MAX_SAFE_INTEGER while
+// parsing numeric JSON, so converting IDs in the frontend would be too late.
+type WorkSessionWire struct {
+	*WorkSession
+}
+
+func (ws WorkSessionWire) MarshalJSON() ([]byte, error) {
+	if ws.WorkSession == nil {
+		return []byte("null"), nil
+	}
+	type alias WorkSession
+	return json.Marshal(struct {
+		*alias
+		ID string `json:"id"`
+	}{
+		alias: (*alias)(ws.WorkSession),
+		ID:    strconv.FormatInt(ws.WorkSession.ID, 10),
+	})
 }
 
 func (ws *WorkSession) Validate() error {

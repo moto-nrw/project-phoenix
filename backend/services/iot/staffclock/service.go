@@ -17,8 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// workSessionOpenConstraint is the partial unique index behind "at most one
-// OPEN work session per staff member and day" (migration 1.15.305, #2402).
+// workSessionOpenConstraint is the database index behind "at most one OPEN
+// work session per staff member and day" (#2402).
 // Two kiosks scanning the same card at once both find no open session and
 // both insert an open row; the loser hits this constraint.
 const workSessionOpenConstraint = "uq_work_sessions_staff_date_open"

@@ -225,7 +225,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Check-in successful")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Check-in successful")
 }
 
 // checkOut handles POST /api/time-tracking/check-out
@@ -258,7 +258,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Check-out successful")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Check-out successful")
 }
 
 // getCurrent handles GET /api/time-tracking/current
@@ -282,7 +282,7 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return null if no active session (not an error)
-	common.Respond(w, r, http.StatusOK, session, "Current session retrieved successfully")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Current session retrieved successfully")
 }
 
 // getConfig handles GET /api/time-tracking/config
@@ -361,7 +361,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Session updated successfully")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Session updated successfully")
 }
 
 // StartBreakRequest represents a request to start a break
@@ -425,7 +425,7 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Break ended")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Break ended")
 }
 
 // getBreaks handles GET /api/time-tracking/breaks/{sessionId}

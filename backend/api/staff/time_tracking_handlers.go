@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -383,7 +384,7 @@ func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Session updated")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Session updated")
 }
 
 // adminCreateStaffSession handles POST /api/staff/{id}/time-tracking/sessions
@@ -418,7 +419,7 @@ func (rs *Resource) adminCreateStaffSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, session, "Session created")
+	common.Respond(w, r, http.StatusCreated, activeModels.WorkSessionWire{WorkSession: session}, "Session created")
 }
 
 // classifyAdminEditError maps service errors to HTTP responses. Validation

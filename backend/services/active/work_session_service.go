@@ -200,8 +200,8 @@ type WorkSessionService interface {
 	// status instead of reopening the closed one. At most one block may be
 	// open at a time ("already checked in" otherwise) — the guard spans every
 	// day, so a block that crossed Berlin midnight blocks a new one until it
-	// is closed. Per day the partial unique index
-	// uq_work_sessions_staff_date_open enforces the same.
+	// is closed. The database constraint also rejects concurrent inserts that
+	// bypass this service-level guard.
 	//
 	// `reason` is the F9 deviation reason. It is only consulted when the
 	// tenant setting operations.time_tracking_require_deviation_reason is
@@ -1188,11 +1188,6 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	}
 
 	s.applyTimeFieldUpdates(uc, updates)
-
-	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
-		return nil, err
-	}
-
 	s.applySimpleFieldUpdates(uc, updates)
 
 	session.UpdatedBy = &editorStaffID
@@ -1204,6 +1199,13 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 
 	// Edited times must not slide into a sibling block.
 	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
+		return nil, err
+	}
+
+	// Individual break edits write their rows immediately. Do that only after
+	// validation and the sibling-block check, so callers without an enclosing
+	// transaction cannot retain a partial break update after a rejected edit.
+	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
 		return nil, err
 	}
 
@@ -1449,10 +1451,13 @@ func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, 
 		return fmt.Errorf("failed to recalculate break minutes: %w", err)
 	}
 
-	// Re-fetch session to get updated break_minutes
-	uc.session, err = s.repo.FindByID(ctx, uc.sessionID)
-	if err != nil {
-		return fmt.Errorf("failed to re-fetch session: %w", err)
+	// Keep the in-memory session consistent without reloading it. Reloading
+	// would discard time and status edits already validated above.
+	uc.session.BreakMinutes = 0
+	for _, brk := range sessionBreaks {
+		if brk.EndedAt != nil {
+			uc.session.BreakMinutes += brk.DurationMinutes
+		}
 	}
 	return nil
 }
@@ -1478,6 +1483,8 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 	if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
 		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
 	}
+	brk.DurationMinutes = bu.DurationMinutes
+	brk.EndedAt = &newEndedAt
 
 	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newVal := strconv.Itoa(bu.DurationMinutes)
@@ -1919,13 +1926,16 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 	return presenceMap, nil
 }
 
-// CleanupOpenSessions closes all sessions that are still open before today
+// CleanupOpenSessions closes sessions still open from before yesterday. This
+// leaves a full following calendar day for legitimate night blocks to be
+// checked out normally before they become stale.
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
 	today := timezone.DateFromTime(s.now())
 
-	// Get all open sessions before today
-	openSessions, err := s.repo.GetOpenSessions(ctx, today)
+	// Keep sessions opened yesterday available through today. A night block
+	// may cross midnight and must not be closed by the first cleanup run.
+	openSessions, err := s.repo.GetOpenSessions(ctx, today.AddDays(-1))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
