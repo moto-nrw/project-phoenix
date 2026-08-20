@@ -165,3 +165,61 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	rr = authExec(t, tc, testutil.NewRequest("GET", "/change-requests", nil), claims, []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 }
+
+// Kinderkartei-Reiter „Änderungsprotokoll“ (#2437): the same aggregation,
+// filtered to one child. Two children of the same group each carry a decided
+// request, so the test proves the filter selects and — more importantly —
+// excludes.
+func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "ProtocolReviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggProtocolGroup")
+	child := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Eigenkind", "AP1")
+	other := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Fremdkind", "AP2")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, child.ID, other.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, child.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	base := time.Now().UTC().Add(-time.Hour)
+	own := insertDecidedMasterDataRequest(t, tc, child.ID, child.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
+	foreign := insertDecidedMasterDataRequest(t, tc, other.ID, other.TenantID, account.ID, userModels.DataChangeStatusApproved, base.Add(-time.Minute))
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	perms := []string{"users:read", "users:update"}
+
+	fetch := func(t *testing.T, query string) aggListEnvelope {
+		t.Helper()
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?"+query, nil), claims, perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env aggListEnvelope
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		return env
+	}
+	requestIDs := func(env aggListEnvelope) []string {
+		ids := make([]string, 0, len(env.Data.Items))
+		for _, item := range env.Data.Items {
+			var payload struct {
+				ID string `json:"id"`
+			}
+			require.NoError(t, json.Unmarshal(item.Data, &payload))
+			ids = append(ids, payload.ID)
+		}
+		return ids
+	}
+
+	// Both children share the search name; only the filtered child remains.
+	both := requestIDs(fetch(t, "view=history&types=master_data&search=Zprotokoll"))
+	assert.Contains(t, both, strconv.FormatInt(own.ID, 10))
+	assert.Contains(t, both, strconv.FormatInt(foreign.ID, 10))
+
+	filtered := requestIDs(fetch(t, "view=history&student_id="+strconv.FormatInt(child.ID, 10)))
+	assert.Equal(t, []string{strconv.FormatInt(own.ID, 10)}, filtered)
+
+	// A malformed child id is a client bug, not an unfiltered list.
+	for _, bad := range []string{"student_id=0", "student_id=-1", "student_id=abc"} {
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?view=history&"+bad, nil), claims, perms)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, bad)
+	}
+}

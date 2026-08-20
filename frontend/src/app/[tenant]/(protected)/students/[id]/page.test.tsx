@@ -2011,6 +2011,34 @@ describe("StudentDetailPage", () => {
       expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
     });
 
+    it("shows the Änderungsprotokoll tab with users:update", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:update"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Änderungsprotokoll" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
+      // Die Vorgabe-Sitzung hat nur config:manage — der Aggregations-Endpunkt
+      // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Änderungsprotokoll" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: { user: { token: "test-token", permissions: ["config:read"] } },

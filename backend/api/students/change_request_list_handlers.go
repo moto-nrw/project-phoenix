@@ -129,13 +129,16 @@ func isAggregatedRequestType(typ string) bool {
 
 // aggregatedListQuery is the parsed, validated query of the aggregate route.
 type aggregatedListQuery struct {
-	history  bool
-	search   string
-	types    []string
-	statuses map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
-	from, to time.Time           // decided-at bounds; zero = unbounded
-	limit    int
-	cursor   aggregatedCursor
+	history bool
+	search  string
+	// studentID limits the list to one child — the Kinderkartei's
+	// Änderungsprotokoll (#2437). Zero = every child the caller may see.
+	studentID int64
+	types     []string
+	statuses  map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
+	from, to  time.Time           // decided-at bounds; zero = unbounded
+	limit     int
+	cursor    aggregatedCursor
 }
 
 func parseAggregatedListQuery(r *http.Request) (aggregatedListQuery, error) {
@@ -151,6 +154,14 @@ func parseAggregatedListQuery(r *http.Request) (aggregatedListQuery, error) {
 	}
 
 	q.search = strings.TrimSpace(values.Get("search"))
+
+	if raw := values.Get("student_id"); raw != "" {
+		studentID, convErr := strconv.ParseInt(raw, 10, 64)
+		if convErr != nil || studentID <= 0 {
+			return q, errInvalidAggregatedQuery
+		}
+		q.studentID = studentID
+	}
 
 	types, err := parseAggregatedTypes(values.Get("types"))
 	if err != nil {
@@ -268,6 +279,7 @@ type aggregatedRow struct {
 	typ         string
 	sortTime    time.Time
 	id          int64
+	studentID   int64
 	studentName string
 	status      string
 	decidedAt   time.Time // history only
@@ -278,6 +290,9 @@ type aggregatedRow struct {
 // cursor may advance past filtered rows, which is only safe when the same row
 // is filtered identically on the next request.
 func (q *aggregatedListQuery) matches(row *aggregatedRow) bool {
+	if q.studentID != 0 && row.studentID != q.studentID {
+		return false
+	}
 	if q.search != "" && !strutil.ContainsFold(row.studentName, q.search) {
 		return false
 	}
@@ -494,6 +509,7 @@ func masterDataPendingRow(item *userService.MasterDataReviewItem) aggregatedRow 
 		typ:         requestTypeMasterData,
 		sortTime:    item.Request.CreatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		data:        toMasterDataChangeRequestResponse(item),
@@ -505,6 +521,7 @@ func carePendingRow(item *scheduleService.CareRequestReviewItem) aggregatedRow {
 		typ:         requestTypeCareSchedule,
 		sortTime:    item.Request.CreatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		data:        toCareRequestResponse(item),
@@ -516,6 +533,7 @@ func offeringPendingRow(item *enrollmentService.OfferingChangeView) aggregatedRo
 		typ:         requestTypeOffering,
 		sortTime:    item.Request.CreatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.StudentName,
 		status:      item.Request.Status,
 		data:        toOfferingRequestResponse(item),
@@ -527,6 +545,7 @@ func excusedPendingRow(item *absenceService.ExcusedRequestReviewItem) aggregated
 		typ:         requestTypeExcused,
 		sortTime:    item.Request.CreatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		data:        toStaffExcusedRequestResponse(item),
@@ -709,6 +728,7 @@ func masterDataHistoryRow(item *userService.MasterDataHistoryItem) aggregatedRow
 		typ:         requestTypeMasterData,
 		sortTime:    item.Request.UpdatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
@@ -721,6 +741,7 @@ func careHistoryRow(item *scheduleService.CareRequestHistoryItem) aggregatedRow 
 		typ:         requestTypeCareSchedule,
 		sortTime:    item.Request.UpdatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
@@ -733,6 +754,7 @@ func offeringHistoryRow(item *enrollmentService.OfferingChangeHistoryItem) aggre
 		typ:         requestTypeOffering,
 		sortTime:    item.Request.UpdatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.StudentName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
@@ -745,6 +767,7 @@ func excusedHistoryRow(item *absenceService.ExcusedRequestHistoryItem) aggregate
 		typ:         requestTypeExcused,
 		sortTime:    item.Request.UpdatedAt,
 		id:          item.Request.ID,
+		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
