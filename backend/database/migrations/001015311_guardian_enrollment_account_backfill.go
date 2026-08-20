@@ -36,7 +36,13 @@ func guardianEnrollmentAccountBackfillUp(ctx context.Context, db *bun.DB) error 
 		SET guardian_account_id = unique_account.account_id
 		FROM unique_accounts AS unique_account
 		WHERE request.guardian_account_id IS NULL
-		  AND LOWER(TRIM(request.guardian_email)) = unique_account.normalized_email;
+		  AND LOWER(TRIM(request.guardian_email)) = unique_account.normalized_email
+		  AND EXISTS (
+			  SELECT 1
+			  FROM users.guardian_profiles AS guardian_profile
+			  WHERE guardian_profile.account_id = unique_account.account_id
+			    AND guardian_profile.tenant_id = request.tenant_id
+		  );
 	`)
 	if err != nil {
 		return fmt.Errorf("backfill enrollment guardian account ids: %w", err)

@@ -55,7 +55,16 @@ func TestGuardianEnrollmentAccountBackfill(t *testing.T) {
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
 
 	uniqueAccount := testpkg.CreateTestAccount(t, db, "guardian-backfill-unique")
+	guardianProfile := testpkg.CreateTestGuardianProfile(t, db, "guardian-backfill-profile")
+	_, err := db.NewRaw(`
+		UPDATE users.guardian_profiles
+		SET account_id = ?, has_account = TRUE
+		WHERE id = ?
+	`, uniqueAccount.ID, guardianProfile.ID).Exec(context.Background())
+	require.NoError(t, err)
 	matching := insertGuardianBackfillRequest(t, db, phase.ID, "  "+strings.ToUpper(uniqueAccount.Email)+"  ", nil)
+	staffOnlyAccount := testpkg.CreateTestAccount(t, db, "guardian-backfill-staff-only")
+	staffOnly := insertGuardianBackfillRequest(t, db, phase.ID, staffOnlyAccount.Email, nil)
 
 	existingOwner := testpkg.CreateTestAccount(t, db, "guardian-backfill-owner")
 	alreadyLinked := insertGuardianBackfillRequest(t, db, phase.ID, uniqueAccount.Email, &existingOwner.ID)
@@ -63,7 +72,7 @@ func TestGuardianEnrollmentAccountBackfill(t *testing.T) {
 
 	ambiguousAccount := testpkg.CreateTestAccount(t, db, "guardian-backfill-ambiguous")
 	duplicate := &authModels.Account{Email: strings.ToUpper(ambiguousAccount.Email), Active: true}
-	_, err := db.NewInsert().Model(duplicate).ModelTableExpr(`auth.accounts AS "account"`).Exec(context.Background())
+	_, err = db.NewInsert().Model(duplicate).ModelTableExpr(`auth.accounts AS "account"`).Exec(context.Background())
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, duplicate.ID, testpkg.Tenant(t))
 	ambiguous := insertGuardianBackfillRequest(t, db, phase.ID, ambiguousAccount.Email, nil)
@@ -78,6 +87,7 @@ func TestGuardianEnrollmentAccountBackfill(t *testing.T) {
 	assert.Equal(t, existingOwner.ID, *alreadyLinkedAccountID)
 	assert.Nil(t, guardianAccountIDForRequest(t, db, unrelated.ID))
 	assert.Nil(t, guardianAccountIDForRequest(t, db, ambiguous.ID))
+	assert.Nil(t, guardianAccountIDForRequest(t, db, staffOnly.ID), "staff-only accounts must not receive enrollment ownership")
 
 	require.NoError(t, guardianEnrollmentAccountBackfillUp(context.Background(), db), "backfill must be idempotent")
 	require.NoError(t, guardianEnrollmentAccountBackfillDown(context.Background(), db))
