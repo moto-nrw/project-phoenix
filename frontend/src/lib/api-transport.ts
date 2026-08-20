@@ -36,7 +36,7 @@ const api = createAxios({
 // Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
-    const rateLimitError = rateLimitBlockedError();
+    const rateLimitError = rateLimitBlockedError(config.method);
     if (rateLimitError) return Promise.reject(rateLimitError);
 
     // Only try to get session if we're in the browser. getCachedSession
@@ -160,7 +160,10 @@ api.interceptors.response.use(
 
     if (error.response?.status === 429) {
       const retryAfter = error.response.headers?.["retry-after"];
-      recordRateLimit(typeof retryAfter === "string" ? retryAfter : null);
+      recordRateLimit(
+        typeof retryAfter === "string" ? retryAfter : null,
+        originalRequest?.method,
+      );
       throw error;
     }
 

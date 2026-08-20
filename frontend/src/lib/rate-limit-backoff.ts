@@ -1,7 +1,21 @@
 const FALLBACK_RETRY_SECONDS = 60;
 
-let blockedUntil = 0;
+type RateLimitBucket = "read" | "write";
+
+const blockedUntil: Record<RateLimitBucket, number> = { read: 0, write: 0 };
 let restoreFetch: (() => void) | null = null;
+
+function rateLimitBucket(method?: string): RateLimitBucket {
+  switch (method?.toUpperCase()) {
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case undefined:
+      return "read";
+    default:
+      return "write";
+  }
+}
 
 function retryAfterSeconds(value: string | null, now: number): number {
   if (value) {
@@ -15,10 +29,11 @@ function retryAfterSeconds(value: string | null, now: number): number {
   return FALLBACK_RETRY_SECONDS;
 }
 
-function rateLimitSeconds(retryAfter: string | null): number {
+function rateLimitSeconds(retryAfter: string | null, method?: string): number {
   const now = Date.now();
   const seconds = retryAfterSeconds(retryAfter, now);
-  blockedUntil = Math.max(blockedUntil, now + seconds * 1000);
+  const bucket = rateLimitBucket(method);
+  blockedUntil[bucket] = Math.max(blockedUntil[bucket], now + seconds * 1000);
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("phoenix:rate-limited", { detail: { seconds } }),
@@ -39,15 +54,23 @@ function guardedApiRequest(input: RequestInfo | URL): boolean {
   );
 }
 
-export function remainingRateLimitMs(now = Date.now()): number {
-  return Math.max(0, blockedUntil - now);
+function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+  return init?.method ?? (input instanceof Request ? input.method : "GET");
 }
 
-export function rateLimitBlockedError(): Error | null {
-  if (typeof window === "undefined" || remainingRateLimitMs() === 0) {
+export function remainingRateLimitMs(
+  method?: string,
+  now = Date.now(),
+): number {
+  return Math.max(0, blockedUntil[rateLimitBucket(method)] - now);
+}
+
+export function rateLimitBlockedError(method?: string): Error | null {
+  const remaining = remainingRateLimitMs(method);
+  if (typeof window === "undefined" || remaining === 0) {
     return null;
   }
-  const seconds = Math.max(1, Math.ceil(remainingRateLimitMs() / 1000));
+  const seconds = Math.max(1, Math.ceil(remaining / 1000));
   const error = new Error("API request blocked (429)") as Error & {
     status: number;
     response: { status: number; headers: { "retry-after": string } };
@@ -57,8 +80,11 @@ export function rateLimitBlockedError(): Error | null {
   return error;
 }
 
-export function recordRateLimit(retryAfter: string | null): void {
-  rateLimitSeconds(retryAfter);
+export function recordRateLimit(
+  retryAfter: string | null,
+  method?: string,
+): void {
+  rateLimitSeconds(retryAfter, method);
 }
 
 function startsWithRateLimitCode(suffix: string): boolean {
@@ -107,8 +133,10 @@ export function installRateLimitFetchGuard(): () => void {
 
   const originalFetch = window.fetch.bind(window);
   const guardedFetch: typeof window.fetch = async (input, init) => {
-    if (guardedApiRequest(input) && remainingRateLimitMs() > 0) {
-      const seconds = Math.max(1, Math.ceil(remainingRateLimitMs() / 1000));
+    const method = requestMethod(input, init);
+    const remaining = remainingRateLimitMs(method);
+    if (guardedApiRequest(input) && remaining > 0) {
+      const seconds = Math.max(1, Math.ceil(remaining / 1000));
       return new Response(JSON.stringify({ error: "Bitte kurz warten." }), {
         status: 429,
         headers: {
@@ -120,7 +148,7 @@ export function installRateLimitFetchGuard(): () => void {
 
     const response = await originalFetch(input, init);
     if (guardedApiRequest(input) && response.status === 429) {
-      rateLimitSeconds(response.headers.get("Retry-After"));
+      rateLimitSeconds(response.headers.get("Retry-After"), method);
     }
     return response;
   };

@@ -41,6 +41,28 @@ describe("rate-limit fetch guard", () => {
     window.removeEventListener("phoenix:rate-limited", notice);
   });
 
+  it("keeps reads available when a write bucket is rate limited", async () => {
+    const backendFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "17" },
+        }),
+      )
+      .mockResolvedValue(new Response(null));
+    await loadGuard(backendFetch);
+
+    const write = await fetch("/api/students/1", { method: "PATCH" });
+    const read = await fetch("/api/me/navigation");
+    const blockedWrite = await fetch("/api/students/1", { method: "PATCH" });
+
+    expect(write.status).toBe(429);
+    expect(read.status).toBe(200);
+    expect(blockedWrite.status).toBe(429);
+    expect(backendFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("honors an HTTP-date Retry-After value", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2040-01-01T00:00:00Z"));
