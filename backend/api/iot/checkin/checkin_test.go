@@ -1069,16 +1069,6 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
-	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)
-	var existingID int64
-	err := db.NewSelect().
-		TableExpr("facilities.rooms").
-		Column("id").
-		Where("name = ?", "Schulhof").
-		Scan(dbCtx, &existingID)
-	if err == nil && existingID > 0 {
-	}
-
 	// Also clean up any pre-existing Schulhof activity and category (auto-created artifacts)
 	schulhofCleanupStmts := []string{
 		`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
@@ -1097,7 +1087,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	}
 	room.SetTenantID(testpkg.Tenant(t))
 
-	_, err = db.NewInsert().
+	_, err := db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
 		On("CONFLICT (tenant_id, name) DO NOTHING").
@@ -1839,16 +1829,6 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
-	// Clean up any pre-existing WC room and its infrastructure (from seed data or prior tests)
-	var existingID int64
-	err := db.NewSelect().
-		TableExpr("facilities.rooms").
-		Column("id").
-		Where("name = ?", "WC").
-		Scan(dbCtx, &existingID)
-	if err == nil && existingID > 0 {
-	}
-
 	// Also clean up any pre-existing WC activity and category (auto-created artifacts)
 	wcCleanupStmts := []string{
 		`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
@@ -1866,7 +1846,7 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	}
 	room.SetTenantID(testpkg.Tenant(t))
 
-	_, err = db.NewInsert().
+	_, err := db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
 		On("CONFLICT (tenant_id, name) DO NOTHING").

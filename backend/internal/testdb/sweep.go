@@ -233,14 +233,6 @@ func sharedRowPredicate(table string, hasTenantID bool) string {
 	}
 }
 
-// tableOwnerColumns maps every base table in dsn's non-system schemas to its
-// shared-row predicate (see sharedRowPredicates).
-func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, error) {
-	db := openSQL(dsn)
-	defer func() { _ = db.Close() }()
-	return tableSharedPredicates(ctx, db)
-}
-
 // tableSharedPredicates is tableOwnerColumns on a pool the caller already has.
 func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]string, error) {
 	rows, err := db.QueryContext(ctx, `
@@ -269,16 +261,6 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 		owners[table] = sharedRowPredicate(table, hasTenantID)
 	}
 	return owners, rows.Err()
-}
-
-// countSharedRows returns exact row counts per table, counting only the rows
-// that do NOT belong to a test's own tenant — the shared state a test must
-// leave as it found it. Exact counts are deliberate: pg_stat estimates are
-// unreliable right after a clone.
-func countSharedRows(ctx context.Context, dsn string, owners map[string]string) (map[string]int64, error) {
-	db := openSQL(dsn)
-	defer func() { _ = db.Close() }()
-	return countSharedRowsDB(ctx, db, owners)
 }
 
 // countSharedRowsDB is countSharedRows on a pool the caller already has.
