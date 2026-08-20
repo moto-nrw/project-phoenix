@@ -41,6 +41,31 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 	}
 }
 
+// broadcastLegacySupervisionRefresh keeps zero-topic clients from the
+// previous frontend release current while activity lifecycle and batch events
+// are rolling out. Single-student moves retain their more precise topic frames.
+func (s *service) broadcastLegacySupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
+	if s.Broadcaster == nil {
+		return
+	}
+
+	data := realtime.EventData{Reason: &reason}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("SSE legacy supervision broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("reason", reason),
+			slog.Int64("tenant_id", tenantID),
+		)
+	}
+}
+
 // broadcastDashboardCountsChanged sends the tenant-wide dashboard refresh
 // signal (#2057). eduGroupIDs are the affected educational (OGS) group ids —
 // group ids only, never student identity — so clients can scope their

@@ -252,8 +252,8 @@ func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
 	for _, c := range refreshes {
 		assert.Nil(t, c.Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 	}
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
-		"session end must not emit paired active refreshes")
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2,
+		"batch checkout and activity end must preserve legacy tenant refreshes")
 }
 
 // TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:
@@ -311,7 +311,7 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 	// checkout batch fires one and broadcastActivityEndEvent fires one.
 	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 2,
 		"session end fires a fixed number of aggregate refreshes regardless of student count")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2)
 }
 
 // TestBroadcast_EndActivitySessionBatchesPerEducationGroup verifies the edu-group
@@ -408,7 +408,7 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "batch refresh must carry the affected edu group ids")
 	assert.ElementsMatch(t, []string{gidX, gidY}, *refreshes[0].Event.Data.GroupIDs)
 	assert.Nil(t, refreshes[1].Event.Data.GroupIDs, "activity-end refresh is deliberately unscoped")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2)
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 }
 
