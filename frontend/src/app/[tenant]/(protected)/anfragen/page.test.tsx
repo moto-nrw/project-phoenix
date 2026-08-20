@@ -181,6 +181,11 @@ describe("AnfragenPage", () => {
     const open = listProbe();
     expect(open.view).toBe("open");
     expect(open.filters.types).toEqual([]);
+
+    // Der inkompatible Filter wird beim Wechsel gelöscht und kehrt nicht
+    // still zurück, wenn die Historie wieder geöffnet wird.
+    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    expect(listProbe().filters.types).toEqual([]);
   });
 
   it("zeigt einer Person mit users:absence die Liste ohne Art-Filter", () => {

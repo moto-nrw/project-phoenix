@@ -156,6 +156,27 @@ describe("RequestHistoryItem", () => {
     expect(screen.getByText("Kreativ-AG: Di")).toBeInTheDocument();
   });
 
+  it("zeigt ohne Diff und beantragte Angebote keine leere Beantragt-Fläche", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "offering",
+      data: {
+        id: "offering-empty",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        status: "withdrawn",
+        effective_from: "2026-08-20",
+        diff: [],
+        requested: [],
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.queryByText("Beantragt")).not.toBeInTheDocument();
+  });
+
   it("zeigt bei einer entschuldigten Abmeldung Daten und Notiz", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "excused",

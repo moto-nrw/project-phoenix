@@ -8,10 +8,7 @@
  */
 
 import { formatDate } from "~/lib/date-helpers";
-import type {
-  AggregatedHistoryRequest,
-  DirectCorrection,
-} from "~/lib/change-request-list-api";
+import type { AggregatedHistoryRequest } from "~/lib/change-request-list-api";
 import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api";
 import type { StaffExcusedRequestHistoryEntry } from "~/lib/excused-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
@@ -112,7 +109,7 @@ function OfferingHistoryCard({
           ))}
         </ReviewDiffPanel>
       )}
-      {row.diff.length === 0 && (
+      {row.diff.length === 0 && (row.requested?.length ?? 0) > 0 && (
         <ReviewDiffPanel title="Beantragt">
           {(row.requested ?? []).map((line) => (
             <p key={line.offering_id} className="text-sm text-gray-700">
@@ -148,34 +145,6 @@ function ExcusedHistoryCard({
   );
 }
 
-/**
- * Eine Direkt-Korrektur der Verwaltung (#2436). Sie ist keine Anfrage: es gibt
- * niemanden, der sie eingereicht hat, und nichts, was entschieden wurde — nur
- * wer wann was geändert hat und warum.
- */
-function DirectCorrectionCard({ row }: Readonly<{ row: DirectCorrection }>) {
-  return (
-    <RequestReviewCard
-      childName={row.student_name}
-      summary="Betreuungsangebote und AGs"
-      history={{
-        kind: "correction",
-        decidedAt: row.changed_at,
-        decidedByName: row.changed_by_name,
-        reason: row.reason,
-      }}
-    >
-      <ReviewDiffPanel title="Änderungen">
-        {row.diff.map((line) => (
-          <p key={line.offering_id} className="text-sm text-gray-700">
-            {line.label}: {line.old} → {line.new}
-          </p>
-        ))}
-      </ReviewDiffPanel>
-    </RequestReviewCard>
-  );
-}
-
 export function RequestHistoryItem({
   item,
 }: Readonly<{ item: AggregatedHistoryRequest }>) {
@@ -188,7 +157,28 @@ export function RequestHistoryItem({
       return <OfferingHistoryCard row={item.data} />;
     case "excused":
       return <ExcusedHistoryCard row={item.data} />;
-    case "direct_correction":
-      return <DirectCorrectionCard row={item.data} />;
+    case "direct_correction": {
+      const row = item.data;
+      return (
+        <RequestReviewCard
+          childName={row.student_name}
+          summary="Betreuungsangebote und AGs"
+          history={{
+            kind: "correction",
+            decidedAt: row.changed_at,
+            decidedByName: row.changed_by_name,
+            reason: row.reason,
+          }}
+        >
+          <ReviewDiffPanel title="Änderungen">
+            {row.diff.map((line) => (
+              <p key={line.offering_id} className="text-sm text-gray-700">
+                {line.label}: {line.old} → {line.new}
+              </p>
+            ))}
+          </ReviewDiffPanel>
+        </RequestReviewCard>
+      );
+    }
   }
 }

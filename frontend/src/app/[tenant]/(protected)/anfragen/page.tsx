@@ -290,6 +290,15 @@ export default function AnfragenPage() {
     setDateRange(undefined);
   };
 
+  const handleElternViewChange = (nextView: "open" | "history") => {
+    if (nextView === "open") {
+      setTypeFilter((previous) =>
+        previous.filter((type) => type !== "direct_correction"),
+      );
+    }
+    setView(nextView);
+  };
+
   if (!isReady) {
     return (
       <div className="-mt-1.5 w-full">
@@ -350,7 +359,11 @@ export default function AnfragenPage() {
           filters={staffFilters}
         />
       ) : (
-        <ElternTab view={view} onViewChange={setView} filters={filters} />
+        <ElternTab
+          view={view}
+          onViewChange={handleElternViewChange}
+          filters={filters}
+        />
       )}
     </div>
   );
