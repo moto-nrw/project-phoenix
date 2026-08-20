@@ -29,6 +29,8 @@ import (
 //     builds its destination modal only for "checked_out", so an upgraded
 //     action would show no buttons at all and silently send home every child
 //     who scanned out at the yard, including those heading back inside.
+//
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -108,6 +110,7 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 // Schulhof branch must not have opened "nach Hause" everywhere. A child leaving
 // an ordinary room that is neither their group room nor the yard is still only
 // moving between rooms.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 	ctx := setupTestContext(t)
 

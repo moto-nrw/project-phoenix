@@ -1125,6 +1125,7 @@ func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *testing.T) {
 	ctx := setupTestContext(t)
 

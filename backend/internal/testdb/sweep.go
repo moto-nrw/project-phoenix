@@ -110,8 +110,7 @@ func gcTemplatesLocked(ctx context.Context, maint sqlExecutor, cfg *Config, now 
 }
 
 // touchedAt reads the last-used timestamp out of a template comment
-// ("phx-migrations-hash:<hash> touched:<unix>"). Clone heartbeats use the
-// same key but a different prefix — see heartbeatAt.
+// ("phx-migrations-hash:<hash> touched:<unix>").
 func touchedAt(comment string) (time.Time, bool) {
 	if !strings.HasPrefix(comment, hashCommentPrefix) {
 		return time.Time{}, false
@@ -227,6 +226,32 @@ func countSharedRowsDB(ctx context.Context, db sqlExecutor, predicates map[strin
 	// One round trip for ~300 tables instead of ~300: the per-table counts are
 	// pushed into the server as query_to_xml sub-selects. The sweep runs this
 	// once per clone (~160 per suite run), so the difference is minutes.
+	values, args := sharedCountValues(predicates)
+	if len(args) == 0 {
+		return map[string]int64{}, nil
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT v.tbl, (xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint
+		FROM (VALUES `+values+`) AS v(tbl, q)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count table rows: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	counts := make(map[string]int64, len(predicates))
+	for rows.Next() {
+		var table string
+		var n int64
+		if err := rows.Scan(&table, &n); err != nil {
+			return nil, err
+		}
+		counts[table] = n
+	}
+	return counts, rows.Err()
+}
+
+func sharedCountValues(predicates map[string]string) (string, []any) {
 	tables := make([]string, 0, len(predicates))
 	for table := range predicates {
 		tables = append(tables, table)
@@ -247,28 +272,7 @@ func countSharedRowsDB(ctx context.Context, db sqlExecutor, predicates map[strin
 		fmt.Fprintf(&values, "($%d,$%d)", 2*i+1, 2*i+2)
 		args = append(args, table, count)
 	}
-	if len(tables) == 0 {
-		return map[string]int64{}, nil
-	}
-
-	rows, err := db.QueryContext(ctx, `
-		SELECT v.tbl, (xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint
-		FROM (VALUES `+values.String()+`) AS v(tbl, q)`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("count table rows: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	counts := make(map[string]int64, len(predicates))
-	for rows.Next() {
-		var table string
-		var n int64
-		if err := rows.Scan(&table, &n); err != nil {
-			return nil, err
-		}
-		counts[table] = n
-	}
-	return counts, rows.Err()
+	return values.String(), args
 }
 
 // databaseComments returns the shared comment of every database whose name

@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSchoolScopeRejectedOnAllAPIRoutes(t *testing.T) {
 	apiInstance := newGoldenAPI(t)
 

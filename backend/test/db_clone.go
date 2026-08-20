@@ -45,69 +45,19 @@ var (
 	viperHealMu sync.Mutex
 )
 
-// viper.AutomaticEnv is switched on here, at package init, and not inside the
-// lazy lifecycle setup. Turning it on mid-run changes what viper answers:
-// before it, viper.GetString("auth_jwt_secret") returns the seeded test
-// default; after it, the AUTH_JWT_SECRET of the developer's shell. A test that
-// builds its router before the first SetupTestDB call and mints its token
-// after it then signs with one secret and validates with the other — a 401
-// that depends on which test happened to touch the database first.
-func init() { viper.AutomaticEnv() }
+// Pin service configuration before any test can build a router. SetupTestDB
+// is lazy, but a router may be constructed before the first DB fixture and
+// must not capture AUTH_JWT_SECRET from the developer's shell in that window.
+func init() {
+	viper.AutomaticEnv()
+	applyStaticViperTestConfig()
+}
 
 // initPackageTestDB is the process-once part of SetupTestDB: environment,
 // lifecycle (server/template/clone), viper config, and the one-time clone
 // bootstrap. Everything after it is per-test and parallel-safe.
 func initPackageTestDB() error {
-	// Force test environment so database config always resolves to the test
-	// DB, regardless of how `go test` was invoked. Process-wide instead of
-	// t.Setenv: t.Setenv forbids t.Parallel(), and tests that need a
-	// different APP_ENV set their own via t.Setenv (which overrides this).
-	if err := os.Setenv("APP_ENV", "test"); err != nil {
-		return err
-	}
-
-	// Take TEST_DB_DSN out of the project-root .env — and nothing else.
-	// gotenv.Load would push every key in that file into the process
-	// environment, which viper.AutomaticEnv then serves to any test that asks:
-	// a package whose first test builds a JWT auth from the seeded test secret
-	// and mints its token AFTER this function ran would sign with the .env
-	// secret and get a 401 from its own router. Which test triggers the
-	// lifecycle first decides that — exactly the kind of order dependency the
-	// suite is supposed to be free of. CI provides TEST_DB_DSN directly.
-	if os.Getenv("TEST_DB_DSN") == "" {
-		if projectRoot, err := testdb.ProjectRoot(); err == nil {
-			if env, err := gotenv.Read(filepath.Join(projectRoot, ".env")); err == nil {
-				if dsn := env["TEST_DB_DSN"]; dsn != "" {
-					if err := os.Setenv("TEST_DB_DSN", dsn); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	// The phoenix_auth role is cluster-global on the shared test server, so
-	// the lifecycle pins its password to one branch-independent test value
-	// (#2419). Tests that connect as that role (route-table golden) must use
-	// the same value, not whatever this worktree's .env carries.
-	if err := os.Setenv("PHOENIX_AUTH_PASSWORD", testdb.AuthRolePassword); err != nil {
-		return err
-	}
-
-	viper.AutomaticEnv()
-
-	dsn := os.Getenv("TEST_DB_DSN")
-	if dsn == "" {
-		return fmt.Errorf(`test database not configured.
-
-To run integration tests, ensure .env contains:
-  TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
-
-The suite starts the postgres-test container and migrates the template
-automatically. For CI, set TEST_DB_DSN as an environment variable`)
-	}
-
-	cfg, err := testdb.NewConfig(dsn)
+	cfg, err := packageTestConfig()
 	if err != nil {
 		return err
 	}
@@ -116,22 +66,9 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// The wrapper does server + template once per run and passes the answer
-	// down (#2419 goal 6); measured, the two steps cost 2,6s summed over the
-	// 93 package binaries. Without the variable — a naked `go test` — every
-	// binary still resolves them itself, which is what keeps that entry point
-	// self-initializing.
-	var templateCfg *testdb.Config
-	if name := os.Getenv(testdb.TemplateEnv); name != "" {
-		templateCfg = cfg.WithTemplate(name)
-	} else {
-		if err := testdb.EnsureServer(ctx, cfg); err != nil {
-			return err
-		}
-		templateCfg, err = testdb.EnsureTemplate(ctx, cfg)
-		if err != nil {
-			return err
-		}
+	templateCfg, err := resolvePackageTemplate(ctx, cfg)
+	if err != nil {
+		return err
 	}
 	clone, err := testdb.CreateClone(ctx, templateCfg, testdb.RunID())
 	if err != nil {
@@ -141,10 +78,79 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	packageCloneCfg = templateCfg
 
 	applyViperTestConfig()
+	sharedTestDB, err = openBootstrappedPackageDB(ctx, clone)
+	if err != nil {
+		return err
+	}
+	if err := testdb.SnapshotSharedBaseline(ctx, clone.DSN); err != nil {
+		return fmt.Errorf("snapshot clone baseline: %w", err)
+	}
+	return nil
+}
 
+func packageTestConfig() (*testdb.Config, error) {
+	// Process-wide because t.Setenv forbids t.Parallel().
+	if err := os.Setenv("APP_ENV", "test"); err != nil {
+		return nil, err
+	}
+	dsn, err := loadTestDSN()
+	if err != nil {
+		return nil, err
+	}
+	// phoenix_auth is cluster-global, so every worktree uses one test value.
+	if err := os.Setenv("PHOENIX_AUTH_PASSWORD", testdb.AuthRolePassword); err != nil {
+		return nil, err
+	}
+	viper.AutomaticEnv()
+	if dsn == "" {
+		return nil, fmt.Errorf(`test database not configured.
+
+To run integration tests, ensure .env contains:
+  TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
+
+The suite starts the postgres-test container and migrates the template
+automatically. For CI, set TEST_DB_DSN as an environment variable`)
+	}
+	return testdb.NewConfig(dsn)
+}
+
+func loadTestDSN() (string, error) {
+	if dsn := os.Getenv("TEST_DB_DSN"); dsn != "" {
+		return dsn, nil
+	}
+	// Read only TEST_DB_DSN. Loading the whole .env would let a developer's
+	// JWT secret change test behavior through viper.AutomaticEnv.
+	projectRoot, err := testdb.ProjectRoot()
+	if err != nil {
+		return "", nil
+	}
+	env, err := gotenv.Read(filepath.Join(projectRoot, ".env"))
+	if err != nil || env["TEST_DB_DSN"] == "" {
+		return "", nil
+	}
+	dsn := env["TEST_DB_DSN"]
+	if err := os.Setenv("TEST_DB_DSN", dsn); err != nil {
+		return "", err
+	}
+	return dsn, nil
+}
+
+func resolvePackageTemplate(ctx context.Context, cfg *testdb.Config) (*testdb.Config, error) {
+	// The wrapper resolves the template once per run. Naked `go test` calls
+	// these steps in each binary and remains self-initializing.
+	if name := os.Getenv(testdb.TemplateEnv); name != "" {
+		return cfg.WithTemplate(name), nil
+	}
+	if err := testdb.EnsureServer(ctx, cfg); err != nil {
+		return nil, err
+	}
+	return testdb.EnsureTemplate(ctx, cfg)
+}
+
+func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (*bun.DB, error) {
 	db, err := database.DBConn()
 	if err != nil {
-		return fmt.Errorf("connect to package test database: %w", err)
+		return nil, fmt.Errorf("connect to package test database: %w", err)
 	}
 
 	// Bake search_path into the clone so every pooled connection gets it.
@@ -157,46 +163,50 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`,
 		clone.Name)); err != nil {
 		_ = db.Close()
-		return fmt.Errorf("set clone search_path: %w", err)
+		return nil, fmt.Errorf("set clone search_path: %w", err)
 	}
 
 	if err := initCloneBootstrap(ctx, db); err != nil {
 		_ = db.Close()
-		return err
+		return nil, err
 	}
 	// The bootstrap pool predates the ALTER DATABASE above, so its existing
 	// connections may lack the search_path. Recycle it for the shared pool.
 	if err := db.Close(); err != nil {
-		return fmt.Errorf("close bootstrap pool: %w", err)
+		return nil, fmt.Errorf("close bootstrap pool: %w", err)
 	}
-
-	sharedTestDB, err = database.DBConn()
+	sharedDB, err := database.DBConn()
 	if err != nil {
-		return fmt.Errorf("open shared package test pool: %w", err)
+		return nil, fmt.Errorf("open shared package test pool: %w", err)
 	}
-
-	// Record the clone's start state — the shared rows every test in this
-	// binary must leave exactly as it found them. The gate in Run compares the
-	// end state against this snapshot (#2419 goal 2: "Start = Ende").
-	if err := testdb.SnapshotSharedBaseline(ctx, packageClone.DSN); err != nil {
-		return fmt.Errorf("snapshot clone baseline: %w", err)
-	}
-	return nil
+	return sharedDB, nil
 }
 
-// applyViperTestConfig points viper at the package clone. APP_ENV=test
-// deliberately resolves only test_db_dsn; setting db_dsn would be ignored and
-// would silently send integration tests to the shared template database.
+// applyViperTestConfig restores the fixed service config and points viper at
+// the package clone. APP_ENV=test deliberately resolves only test_db_dsn;
+// setting db_dsn would be ignored and would silently send integration tests
+// to the shared template database.
 //
 // Pool budget: one pool per test binary, sized from the binary's OWN
 // parallelism (poolSize), with idle == open so the pool holds what it opens
 // instead of re-dialing per test.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
+	applyStaticViperTestConfig()
 	viper.Set("test_db_dsn", packageClone.DSN)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
 	viper.Set("db_max_open_conns", poolSize())
 	viper.Set("db_max_idle_conns", poolSize())
+}
+
+func applyStaticViperTestConfig() {
+	viper.Set("auth_jwt_secret", TestJWTSecret)
+	viper.Set("auth_jwt_expiry", "15m")
+	viper.Set("auth_jwt_refresh_expiry", "1h")
+	viper.Set("frontend_url", "http://tenant.invalid")
+	viper.Set("parents_url", "http://parents.invalid")
+	viper.Set("tenant_domain", "tenant.invalid")
+	viper.Set("next_public_operator_hostname", "operator.invalid")
 }
 
 // nestedConnHeadroom is the slack above -parallel. A test that holds a tenant

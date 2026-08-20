@@ -49,7 +49,13 @@ func SnapshotSharedBaseline(ctx context.Context, dsn string) error {
 	if err != nil {
 		return fmt.Errorf("count baseline rows: %w", err)
 	}
+	if err := prepareBaselineTable(ctx, db); err != nil {
+		return err
+	}
+	return insertSharedBaseline(ctx, db, counts, predicates)
+}
 
+func prepareBaselineTable(ctx context.Context, db sqlExecutor) error {
 	if _, err := db.ExecContext(ctx, `CREATE SCHEMA IF NOT EXISTS `+quoteIdentifier(baselineSchema)); err != nil {
 		return fmt.Errorf("create baseline schema: %w", err)
 	}
@@ -62,7 +68,10 @@ func SnapshotSharedBaseline(ctx context.Context, dsn string) error {
 	if _, err := db.ExecContext(ctx, `TRUNCATE `+baselineTable); err != nil {
 		return fmt.Errorf("reset baseline table: %w", err)
 	}
+	return nil
+}
 
+func insertSharedBaseline(ctx context.Context, db sqlExecutor, counts map[string]int64, predicates map[string]string) error {
 	// One multi-row INSERT, not one per table: ~180 round trips were the
 	// single most expensive thing this function did.
 	values := make([]string, 0, len(counts))

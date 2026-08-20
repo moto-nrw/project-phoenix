@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -33,9 +32,6 @@ var suggestionsPermissions = []string{
 // setupRouter creates a chi router with the suggestions resource mounted.
 func setupRouter(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-
-	// Match the JWT secret used by testpkg.CreateTestJWT
-	viper.Set("auth_jwt_secret", "test-jwt-secret-32-chars-minimum")
 
 	db, serviceFactory := testutil.SetupAPITest(t)
 
@@ -80,6 +76,7 @@ func exec(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 // ============================================================================
 
 func TestListPosts_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list")
@@ -93,6 +90,7 @@ func TestListPosts_Success(t *testing.T) {
 }
 
 func TestListPosts_WithSortParam(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-sort")
@@ -104,6 +102,7 @@ func TestListPosts_WithSortParam(t *testing.T) {
 }
 
 func TestListPosts_NoPermission(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-noperm")
@@ -119,6 +118,7 @@ func TestListPosts_NoPermission(t *testing.T) {
 // ============================================================================
 
 func TestGetPost_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get")
@@ -132,6 +132,7 @@ func TestGetPost_Success(t *testing.T) {
 }
 
 func TestGetPost_NotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-404")
@@ -143,6 +144,7 @@ func TestGetPost_NotFound(t *testing.T) {
 }
 
 func TestGetPost_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-invalid")
@@ -158,6 +160,7 @@ func TestGetPost_InvalidID(t *testing.T) {
 // ============================================================================
 
 func TestCreatePost_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create")
@@ -174,6 +177,7 @@ func TestCreatePost_Success(t *testing.T) {
 }
 
 func TestCreatePost_EmptyTitle(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-empty")
@@ -186,6 +190,7 @@ func TestCreatePost_EmptyTitle(t *testing.T) {
 }
 
 func TestCreatePost_EmptyDescription(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-nodesc")
@@ -198,6 +203,7 @@ func TestCreatePost_EmptyDescription(t *testing.T) {
 }
 
 func TestCreatePost_TitleTooLong(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-long")
@@ -217,6 +223,7 @@ func TestCreatePost_TitleTooLong(t *testing.T) {
 // ============================================================================
 
 func TestUpdatePost_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-update")
@@ -231,6 +238,7 @@ func TestUpdatePost_Success(t *testing.T) {
 }
 
 func TestUpdatePost_Forbidden(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	author := testpkg.CreateTestAccount(t, db, "api-upd-author")
@@ -246,6 +254,7 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 }
 
 func TestUpdatePost_NotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-404")
@@ -258,6 +267,7 @@ func TestUpdatePost_NotFound(t *testing.T) {
 }
 
 func TestUpdatePost_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-invalid")
@@ -270,6 +280,7 @@ func TestUpdatePost_InvalidID(t *testing.T) {
 }
 
 func TestUpdatePost_DescriptionTooLong(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-longdesc")
@@ -291,6 +302,7 @@ func TestUpdatePost_DescriptionTooLong(t *testing.T) {
 // ============================================================================
 
 func TestDeletePost_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-delete")
@@ -304,6 +316,7 @@ func TestDeletePost_Success(t *testing.T) {
 }
 
 func TestDeletePost_Forbidden(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	author := testpkg.CreateTestAccount(t, db, "api-del-author")
@@ -318,6 +331,7 @@ func TestDeletePost_Forbidden(t *testing.T) {
 }
 
 func TestDeletePost_NotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-404")
@@ -329,6 +343,7 @@ func TestDeletePost_NotFound(t *testing.T) {
 }
 
 func TestDeletePost_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-invalid")
@@ -344,6 +359,7 @@ func TestDeletePost_InvalidID(t *testing.T) {
 // ============================================================================
 
 func TestVote_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote")
@@ -358,6 +374,7 @@ func TestVote_Success(t *testing.T) {
 }
 
 func TestVote_InvalidDirection(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-invalid")
@@ -370,6 +387,7 @@ func TestVote_InvalidDirection(t *testing.T) {
 }
 
 func TestVote_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-badid")
@@ -382,6 +400,7 @@ func TestVote_InvalidID(t *testing.T) {
 }
 
 func TestVote_PostNotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-404")
@@ -398,6 +417,7 @@ func TestVote_PostNotFound(t *testing.T) {
 // ============================================================================
 
 func TestRemoveVote_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote")
@@ -418,6 +438,7 @@ func TestRemoveVote_Success(t *testing.T) {
 }
 
 func TestRemoveVote_PostNotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-404")
@@ -429,6 +450,7 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 }
 
 func TestRemoveVote_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-badid")
@@ -444,6 +466,7 @@ func TestRemoveVote_InvalidID(t *testing.T) {
 // ============================================================================
 
 func TestGetPost_NegativeID(t *testing.T) {
+	t.Parallel()
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-negid")

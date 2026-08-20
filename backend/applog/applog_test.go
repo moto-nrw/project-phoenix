@@ -152,6 +152,7 @@ func TestNew_EnvAttribute(t *testing.T) {
 	assert.Equal(t, "test", parsed["env"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNew_StdlibLogRouting(t *testing.T) {
 	// Verify that after SetDefault + SetLogLoggerLevel(WARN),
 	// stdlib log.Printf calls appear as WARN-level slog output

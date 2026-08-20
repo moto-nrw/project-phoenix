@@ -475,6 +475,7 @@ func TestProvisioningResource_ListSchools_Error(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour).UTC()
 	first := "Ada"
@@ -573,6 +574,7 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningHelpers(t *testing.T) {
 	errText := "boom"
 	now := time.Now()

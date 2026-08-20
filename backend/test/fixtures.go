@@ -2143,25 +2143,18 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 // JWT Test Helpers
 // ============================================================================
 
-// TestTokenAuth is a shared TokenAuth instance for tests using a known secret.
-// This allows tests to generate valid JWT tokens without needing the app config.
-var testTokenAuthInstance *jwt.TokenAuth
-
-// testJWTSecret is a fixed secret for testing (never use in production)
-const testJWTSecret = "test-jwt-secret-32-chars-minimum"
+// TestJWTSecret is the fixed secret shared by test routers and token helpers.
+// Never use it outside tests.
+const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
 
 // GetTestTokenAuth returns a TokenAuth instance for testing.
-// Uses a singleton pattern to ensure all tests use the same secret.
+// A fresh instance avoids shared mutable initialization between parallel tests.
 func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
 	tb.Helper()
 
-	if testTokenAuthInstance == nil {
-		var err error
-		testTokenAuthInstance, err = jwt.NewTokenAuthWithSecret(testJWTSecret)
-		require.NoError(tb, err, "Failed to create test TokenAuth")
-	}
-
-	return testTokenAuthInstance
+	tokenAuth, err := jwt.NewTokenAuthWithSecret(TestJWTSecret)
+	require.NoError(tb, err, "Failed to create test TokenAuth")
+	return tokenAuth
 }
 
 // CreateTestJWT creates a valid JWT access token for the given account ID.

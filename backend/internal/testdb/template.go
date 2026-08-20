@@ -171,34 +171,18 @@ func MigrationsHash() (string, error) {
 //     one from before hashed naming) → cloned from it instead of migrating
 //   - otherwise → created and built from migrations
 func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*Config, error) {
-	o := templateOptions{
-		build:  buildTemplate,
-		verify: migrationsComplete,
+	o, err := resolveTemplateOptions(opts)
+	if err != nil {
+		return nil, err
 	}
-	for _, opt := range opts {
-		opt(&o)
-	}
-	if o.hash == "" {
-		hash, err := MigrationsHash()
-		if err != nil {
-			return nil, err
-		}
-		o.hash = hash
-	}
-
 	tcfg := cfg.ForMigrations(o.hash)
 	name := tcfg.TemplateName()
 
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	// Fast path, deliberately WITHOUT the lifecycle lock: a template that is
-	// already stamped with this hash and was touched a moment ago needs
-	// nothing done to it. Every test binary of a run comes through here, and
-	// each one used to take the one lock that also serializes clone creation,
-	// just to re-write a timestamp. The role pin stays — it repairs a
-	// password another worktree may have changed, and ALTER ROLE is
-	// idempotent — but it no longer waits behind the lock.
+	// Fresh templates skip the lifecycle lock. The role pin remains because a
+	// different worktree may have changed the cluster-global password.
 	if fresh, err := templateIsFresh(ctx, maint, name, o.hash); err != nil {
 		return nil, err
 	} else if fresh {
@@ -217,40 +201,72 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 	if err := ensureAuthRolePassword(ctx, conn); err != nil {
 		return nil, err
 	}
-
-	exists, comment, err := templateState(ctx, conn, name)
-	if err != nil {
+	if err := ensureTemplateLocked(ctx, conn, cfg, tcfg, o); err != nil {
 		return nil, err
 	}
+	return tcfg, nil
+}
+
+func resolveTemplateOptions(opts []TemplateOption) (templateOptions, error) {
+	o := templateOptions{build: buildTemplate, verify: migrationsComplete}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.hash != "" {
+		return o, nil
+	}
+	hash, err := MigrationsHash()
+	if err != nil {
+		return templateOptions{}, err
+	}
+	o.hash = hash
+	return o, nil
+}
+
+func ensureTemplateLocked(ctx context.Context, conn sqlExecutor, cfg, tcfg *Config, o templateOptions) error {
+	name := tcfg.TemplateName()
+	exists, comment, err := templateState(ctx, conn, name)
+	if err != nil {
+		return err
+	}
 	if exists {
-		if strings.HasPrefix(comment, hashCommentPrefix) {
-			return tcfg, stampTemplate(ctx, conn, name, o.hash)
-		}
-		// Unstamped: either a build that died halfway or a database created
-		// outside the lifecycle. Adopt it only when it is migration-complete.
-		complete, err := o.verify(ctx, tcfg.TemplateDSN())
-		if err != nil {
-			return nil, fmt.Errorf("verify unstamped template %q: %w", name, err)
-		}
-		if complete {
-			return tcfg, stampTemplate(ctx, conn, name, o.hash)
-		}
-		if err := dropDatabase(ctx, conn, name); err != nil {
-			return nil, fmt.Errorf("drop incomplete template %q: %w", name, err)
+		ready, err := prepareExistingTemplate(ctx, conn, tcfg, comment, o)
+		if err != nil || ready {
+			return err
 		}
 	} else if adopted, err := adoptBaseTemplate(ctx, conn, cfg, tcfg, o.hash, o.verify); err != nil {
-		return nil, err
+		return err
 	} else if adopted {
-		return tcfg, stampTemplate(ctx, conn, name, o.hash)
+		return stampTemplate(ctx, conn, name, o.hash)
 	}
 
 	if _, err := conn.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(name)); err != nil {
-		return nil, fmt.Errorf("create template database %q: %w", name, err)
+		return fmt.Errorf("create template database %q: %w", name, err)
 	}
 	if err := o.build(ctx, tcfg.TemplateDSN()); err != nil {
-		return nil, fmt.Errorf("build template database %q: %w", name, err)
+		return fmt.Errorf("build template database %q: %w", name, err)
 	}
-	return tcfg, stampTemplate(ctx, conn, name, o.hash)
+	return stampTemplate(ctx, conn, name, o.hash)
+}
+
+func prepareExistingTemplate(ctx context.Context, conn sqlExecutor, tcfg *Config, comment string, o templateOptions) (bool, error) {
+	name := tcfg.TemplateName()
+	if strings.HasPrefix(comment, hashCommentPrefix) {
+		return true, stampTemplate(ctx, conn, name, o.hash)
+	}
+	// An unstamped template is either a build that died halfway or a database
+	// created outside the lifecycle. Adopt it only when migration-complete.
+	complete, err := o.verify(ctx, tcfg.TemplateDSN())
+	if err != nil {
+		return false, fmt.Errorf("verify unstamped template %q: %w", name, err)
+	}
+	if complete {
+		return true, stampTemplate(ctx, conn, name, o.hash)
+	}
+	if err := dropDatabase(ctx, conn, name); err != nil {
+		return false, fmt.Errorf("drop incomplete template %q: %w", name, err)
+	}
+	return false, nil
 }
 
 // templateStampInterval is how long a template's "touched" stamp is trusted
@@ -318,23 +334,14 @@ func adoptBaseTemplate(ctx context.Context, conn sqlExecutor, cfg, tcfg *Config,
 // CI that took 1041 tests down at once, because the pin runs inside
 // SetupTestDB and a failure there fails the whole package binary.
 //
-// The lock is session-scoped, so it has to be taken on the SAME connection as
-// the ALTER — a pool would hand the two statements to different sessions and
-// the lock would guard nothing.
+// The lock is taken inside ensureAuthRolePassword so the lifecycle path and
+// this lock-free path cannot accidentally use different exclusion domains.
 func pinAuthRolePassword(ctx context.Context, db *sql.DB) error {
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("open connection for phoenix_auth password pin: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
-
-	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey); err != nil {
-		return fmt.Errorf("lock phoenix_auth password pin: %w", err)
-	}
-	defer func() {
-		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
-	}()
-
 	return ensureAuthRolePassword(ctx, conn)
 }
 
@@ -345,9 +352,17 @@ func pinAuthRolePassword(ctx context.Context, db *sql.DB) error {
 // when the role does not exist yet — the migration creates it with the same
 // value, because buildTemplate exports it.
 //
-// The caller must hold either the lifecycle lock or the auth-role lock — see
-// pinAuthRolePassword.
-func ensureAuthRolePassword(ctx context.Context, conn sqlExecutor) error {
+// The auth-role lock is session-scoped and deliberately taken here, on the
+// same connection as ALTER ROLE. A lifecycle lock alone does not exclude the
+// lock-free fast path because it uses a different advisory-lock key.
+func ensureAuthRolePassword(ctx context.Context, conn *sql.Conn) error {
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey); err != nil {
+		return fmt.Errorf("lock phoenix_auth password pin: %w", err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
+	}()
+
 	_, err := conn.ExecContext(ctx, fmt.Sprintf(`
 		DO $$ BEGIN
 			IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'phoenix_auth') THEN

@@ -79,6 +79,7 @@ func setupOperatorSettingsTestWithSchoolRepo(t *testing.T) *operatorSettingsTest
 // `tenant-${slug}` Next.js cache; without that bust the layout
 // keeps serving the stale resolve payload for up to 5 minutes and
 // the avatar UI flickers between "feature on" and "feature off".
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
 
@@ -113,6 +114,7 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testi
 // mirrors the PUT test for the DELETE/reset path. Reset is a real
 // state change for callers that previously overrode the value, so the
 // same cache bust contract applies.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
 
@@ -156,6 +158,7 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 // relies on to schedule the photo-purge / cache-bust closures —
 // without this assertion a future refactor that silently drops
 // the hook on photo-flag flips could ship green.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
 
@@ -197,6 +200,7 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing
 // override, the OnValueSet hook must fire with the registry default
 // so downstream side effects (photo purge on disable) run when the
 // effective value transitions to false.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefault(t *testing.T) {
 	ctx := setupOperatorSettingsTestWithSchoolRepo(t)
 

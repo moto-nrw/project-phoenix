@@ -360,6 +360,7 @@ func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
 	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()

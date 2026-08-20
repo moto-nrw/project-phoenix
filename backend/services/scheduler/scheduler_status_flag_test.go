@@ -23,6 +23,7 @@ import (
 // TestScheduleStatusFlagClearTask_DisabledByEnvVar — the new env kill-switch
 // stops the status-flag task from registering, matching the pattern of every
 // other per-tenant scheduler task.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
 	require.NoError(t, os.Setenv("STATUS_FLAG_CLEAR_ENABLED", "false"))
 	defer func() { _ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED") }()

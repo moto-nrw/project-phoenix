@@ -26,6 +26,7 @@ import (
 )
 
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestParseAllowedOrigins(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -105,6 +106,7 @@ func TestParseAllowedOrigins(t *testing.T) {
 }
 
 // TestParsePositiveInt tests the parsePositiveInt function
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestParsePositiveInt(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -259,6 +261,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
 
@@ -325,6 +328,7 @@ func rateLimitRequest(token string) *http.Request {
 	return req
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -344,6 +348,7 @@ func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 	assert.Equal(t, keyFunc(rateLimitRequest(sessionA)), keyFunc(rateLimitRequest(sessionB)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -360,6 +365,7 @@ func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 		"a refresh token presented as bearer must land in the same account bucket")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -370,6 +376,7 @@ func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -381,6 +388,7 @@ func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 		"a tenant switch mints a new tenant_id and gets its own budget")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -399,6 +407,7 @@ func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 	assert.Len(t, keys, 3, "tenant, platform, and parent scopes must have distinct keys")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -415,12 +424,14 @@ func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	assert.NotContains(t, key, "Doe")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("not-a-real-token")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
 	// IoT devices send an opaque API key as bearer token. It is not a JWT and
 	// cannot be verified here, so device requests must stay on IP limiting —
@@ -430,12 +441,14 @@ func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("phx_3f9c2d1a8b7e6f5a4d3c2b1a")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_MissingHeaderFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -449,6 +462,7 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 	otherAuth, err := jwt.NewTokenAuthWithSecret("a-completely-different-32char-key!!")
@@ -460,6 +474,7 @@ func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 		"a token signed with the wrong secret must not produce an identity key")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
 	// MFA challenge/enrollment tokens carry account_id + a pending flag but
 	// no "id" claim — they must fall back to IP limiting.
@@ -480,6 +495,7 @@ func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
 // into the real limiter middleware and asserts the #2064 acceptance
 // criteria end to end: two valid sessions of one identity drain ONE budget,
 // while a different account and unauthenticated IP traffic stay unaffected.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -529,6 +545,7 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 // TestRateLimiting_ConcurrentSessionsShareBudget hammers one identity from
 // two sessions in parallel (run with -race in CI) and asserts the combined
 // allowance equals exactly one burst — no per-session multiplication.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 

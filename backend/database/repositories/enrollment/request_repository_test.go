@@ -60,7 +60,7 @@ func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
 }
 
 func uniqueToken(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 func makeRequest(phaseID int64, token, email string) *enrollmentModels.Request {

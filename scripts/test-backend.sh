@@ -42,11 +42,11 @@ fi
 # Concurrency is pinned rather than left at GOMAXPROCS, because the budget
 # that matters is a server-side one: `go test` runs -p package binaries at
 # once and each opens a pool of (-parallel + headroom) connections plus one
-# keeper. With these values that is 4 x 13 = 52 connections, which fits the
-# 100 a stock postgres:17 allows — the CI service container runs on that
-# default. Raising either number without raising max_connections trades test
-# failures for "too many clients" errors.
-CONCURRENCY=(-p 4 -parallel 8)
+# keeper. With these values that is 6 x 13 = 78 connections, leaving 22 of
+# PostgreSQL's stock 100 for lifecycle and maintenance sessions. Raising
+# either number without raising max_connections trades test failures for
+# "too many clients" errors.
+CONCURRENCY=(-p 6 -parallel 8)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"

@@ -454,6 +454,7 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 // DeviceAuthenticator Tests (API Key + PIN)
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -495,6 +496,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	assert.True(t, mockIoT.updateCalled, "Should update device last seen")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
 	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
@@ -523,6 +525,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "correct-pin"))
 	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
@@ -582,6 +585,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
 	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
@@ -603,6 +607,7 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
 	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
@@ -625,6 +630,7 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
 	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
@@ -702,6 +708,7 @@ func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 	assert.True(t, resolverCalled, "PIN resolver should have been called")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -961,6 +968,7 @@ func (m *mockIoTServiceNilDevice) GetDeviceByAPIKey(_ context.Context, _ string)
 	return nil, nil // nil device, no error
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 	// Test the full middleware path where device is nil
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))

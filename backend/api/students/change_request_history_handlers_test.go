@@ -109,6 +109,7 @@ func TestListMasterDataChangeRequestHistory_InvalidQuery(t *testing.T) {
 // variables, viper keys, the settings registry, os.Stdout) that the whole
 // test binary shares.
 func TestChangeRequestHistoryRoutesRequireUsersUpdate(t *testing.T) {
+	t.Setenv("AUTH_JWT_SECRET", "hostile-developer-secret-at-least-32-characters")
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
 	claims := testutil.DefaultTestClaims()

@@ -151,6 +151,7 @@ func TestIsoWeekdayMatchesNow(t *testing.T) {
 // Start/Stop Lifecycle Tests
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_StartStop(t *testing.T) {
 	// Disable all scheduled tasks to test pure lifecycle
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
@@ -195,6 +196,7 @@ func TestScheduler_StopWithoutStart(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 	// Enable only token cleanup (runs immediately then every hour)
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
@@ -435,7 +437,8 @@ func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 // ScheduledTask Tests
 // =============================================================================
 
-func TestScheduledTask_ConcurrentAccess(_ *testing.T) {
+func TestScheduledTask_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	task := &ScheduledTask{Name: "concurrent-test"}
 
 	var wg sync.WaitGroup
@@ -519,6 +522,7 @@ func TestCleanupJob_RunReturnsError(t *testing.T) {
 // Environment Variable Tests
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	// Disable all tasks via environment
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
@@ -580,12 +584,14 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 // Interface Compliance Tests
 // =============================================================================
 
-func TestAuthCleanup_InterfaceCompliance(_ *testing.T) {
+func TestAuthCleanup_InterfaceCompliance(t *testing.T) {
+	t.Parallel()
 	// Verify fakeAuthCleanup implements AuthCleanup
 	var _ AuthCleanup = &fakeAuthCleanup{}
 }
 
-func TestInvitationCleaner_InterfaceCompliance(_ *testing.T) {
+func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
+	t.Parallel()
 	// Verify fakeInvitationCleaner implements InvitationCleaner
 	var _ InvitationCleaner = &fakeInvitationCleaner{}
 }
@@ -597,6 +603,7 @@ func TestInvitationCleaner_InterfaceCompliance(_ *testing.T) {
 // management, and scheduler lifecycle.
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "invalid"))
@@ -629,6 +636,7 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "25:00"))
@@ -655,6 +663,7 @@ func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:99"))
@@ -681,6 +690,7 @@ func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "aa:00"))
@@ -707,6 +717,7 @@ func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:bb"))
@@ -733,6 +744,7 @@ func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "-1:00"))
@@ -759,6 +771,7 @@ func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:-5"))
@@ -785,6 +798,7 @@ func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "invalid"))
@@ -811,6 +825,7 @@ func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "30:00"))
@@ -837,6 +852,7 @@ func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:99"))
@@ -863,6 +879,7 @@ func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "xx:00"))
@@ -889,6 +906,7 @@ func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:yy"))
@@ -915,6 +933,7 @@ func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "-2:00"))
@@ -941,6 +960,7 @@ func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:-3"))
@@ -974,6 +994,7 @@ func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
 // To fully test session cleanup execution, you would need to inject mock active.Service
 // interfaces which requires significant refactoring of the scheduler package.
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
 	// Test that session cleanup can be disabled via env var
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
@@ -1478,6 +1499,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_TIMEOUT_MINUTES", "30"))
 	defer func() {
@@ -1602,6 +1624,7 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 	task.mu.Unlock()
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 	t.Setenv("SESSION_ABANDONED_THRESHOLD_MINUTES", "30")
 
@@ -1674,6 +1697,7 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 // Configuration Parsing Tests
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "30"))
@@ -1704,6 +1728,7 @@ func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_ABANDONED_THRESHOLD_MINUTES", "120"))
@@ -1734,6 +1759,7 @@ func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "invalid"))
@@ -1764,6 +1790,7 @@ func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_INTERVAL_MINUTES", "-5"))
@@ -1794,6 +1821,7 @@ func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "03:30"))
@@ -1828,6 +1856,7 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "17:00"))
@@ -1929,11 +1958,13 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 // Interface Verification Tests
 // =============================================================================
 
-func TestMockActiveService_ImplementsInterface(_ *testing.T) {
+func TestMockActiveService_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	var _ activeService.Service = &mockActiveService{}
 }
 
-func TestMockCleanupService_ImplementsInterface(_ *testing.T) {
+func TestMockCleanupService_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	var _ activeService.CleanupService = &mockCleanupService{}
 }
 
@@ -1941,6 +1972,7 @@ func TestMockCleanupService_ImplementsInterface(_ *testing.T) {
 // Goroutine Run Loop Tests (synctest)
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	// Enable cleanup but do NOT set CLEANUP_SCHEDULER_TIME
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
@@ -1982,6 +2014,7 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	// Set env vars before synctest.Test
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
@@ -2028,6 +2061,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:00"))
@@ -2069,6 +2103,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	// SESSION_END_SCHEDULER_ENABLED defaults to enabled (only disabled if explicitly "false")
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
@@ -2114,6 +2149,7 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
 	defer func() {
@@ -2306,6 +2342,7 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
 	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
 	s := &Scheduler{
@@ -2317,6 +2354,7 @@ func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
 	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
 	s := &Scheduler{
@@ -2513,6 +2551,7 @@ func TestResolveIntSetting_NoSettings(t *testing.T) {
 	assert.Equal(t, 42, val)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveStringSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_STR", "from_env")
 	s := &Scheduler{logger: slog.Default()}
@@ -2520,6 +2559,7 @@ func TestResolveStringSetting_FromEnv(t *testing.T) {
 	assert.Equal(t, "from_env", val)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveBoolSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_BOOL", "true")
 	s := &Scheduler{logger: slog.Default()}
@@ -2527,6 +2567,7 @@ func TestResolveBoolSetting_FromEnv(t *testing.T) {
 	assert.True(t, val)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_INT", "99")
 	s := &Scheduler{logger: slog.Default()}
@@ -2534,6 +2575,7 @@ func TestResolveIntSetting_FromEnv(t *testing.T) {
 	assert.Equal(t, 99, val)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_InvalidEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_INT_BAD", "notanumber")
 	s := &Scheduler{logger: slog.Default()}
@@ -2553,6 +2595,7 @@ func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
 	t.Setenv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
 	s := &Scheduler{
@@ -2582,7 +2625,8 @@ func (f *fakeEmailChangeCleaner) CleanupExpiredEmailChangeTokens(ctx context.Con
 	return f.result, f.err
 }
 
-func TestEmailChangeTokenCleaner_InterfaceCompliance(_ *testing.T) {
+func TestEmailChangeTokenCleaner_InterfaceCompliance(t *testing.T) {
+	t.Parallel()
 	var _ EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
 }
 

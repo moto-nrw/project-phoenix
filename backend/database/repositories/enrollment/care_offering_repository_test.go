@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +55,7 @@ func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
 }
 
 func uniqueOfferingName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 // --- Create + Validation ----------------------------------------------

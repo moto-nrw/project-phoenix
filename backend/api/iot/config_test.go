@@ -224,6 +224,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	assert.Equal(t, "16:30", checkout["daily_checkout_time"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
@@ -256,6 +257,7 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()

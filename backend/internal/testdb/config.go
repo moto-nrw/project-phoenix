@@ -136,23 +136,23 @@ func openSQL(dsn string) *sql.DB {
 // maintenance connection. PostgreSQL advisory locks are session-scoped, so
 // every protected DDL/query must use this returned connection until unlock.
 func acquireLifecycleLock(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), err error) {
-	return acquireLock(ctx, db, `SELECT pg_advisory_lock($1)`, `SELECT pg_advisory_unlock($1)`)
+	return acquireLock(ctx, db, `SELECT pg_advisory_lock($1)`, `SELECT pg_advisory_unlock($1)`, lifecycleAdvisoryLockKey)
 }
 
 // acquireLock is the shared body of the lifecycle lock helpers: take the
 // advisory lock on one dedicated connection, hand back that connection, and
 // release both on unlock.
-func acquireLock(ctx context.Context, db *sql.DB, lockSQL, unlockSQL string) (*sql.Conn, func(), error) {
+func acquireLock(ctx context.Context, db *sql.DB, lockSQL, unlockSQL string, key int64) (*sql.Conn, func(), error) {
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	if _, err := conn.ExecContext(ctx, lockSQL, lifecycleAdvisoryLockKey); err != nil {
+	if _, err := conn.ExecContext(ctx, lockSQL, key); err != nil {
 		_ = conn.Close()
 		return nil, nil, err
 	}
 	return conn, func() {
-		_, _ = conn.ExecContext(context.Background(), unlockSQL, lifecycleAdvisoryLockKey)
+		_, _ = conn.ExecContext(context.Background(), unlockSQL, key)
 		_ = conn.Close()
 	}, nil
 }
@@ -169,7 +169,12 @@ func acquireLock(ctx context.Context, db *sql.DB, lockSQL, unlockSQL string) (*s
 // Measured motive: CREATE DATABASE cost 6,0s summed over 93 package binaries
 // (median 61ms), all of it serialized behind one exclusive lock (#2419).
 func acquireLifecycleLockShared(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), err error) {
-	return acquireLock(ctx, db, `SELECT pg_advisory_lock_shared($1)`, `SELECT pg_advisory_unlock_shared($1)`)
+	return acquireLifecycleLockSharedForKey(ctx, db, lifecycleAdvisoryLockKey)
+
+}
+
+func acquireLifecycleLockSharedForKey(ctx context.Context, db *sql.DB, key int64) (*sql.Conn, func(), error) {
+	return acquireLock(ctx, db, `SELECT pg_advisory_lock_shared($1)`, `SELECT pg_advisory_unlock_shared($1)`, key)
 }
 
 // tryAcquireLifecycleLock takes the exclusive lifecycle lock if it is free

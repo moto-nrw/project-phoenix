@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,7 +26,6 @@ import (
 
 func setupCommentTestRouter(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	viper.Set("auth_jwt_secret", "test-jwt-secret-32-chars-minimum")
 	db, serviceFactory := testutil.SetupAPITest(t)
 	resource := apiSuggestions.NewResource(serviceFactory.Suggestions, db)
 	router := chi.NewRouter()
@@ -92,6 +90,7 @@ var commentPerms = []string{
 // ============================================================================
 
 func TestListComments_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-list")
@@ -114,6 +113,7 @@ func TestListComments_Success(t *testing.T) {
 }
 
 func TestListComments_InvalidPostID(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-invalid")
@@ -125,6 +125,7 @@ func TestListComments_InvalidPostID(t *testing.T) {
 }
 
 func TestListComments_NoPermission(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-noperm")
@@ -140,6 +141,7 @@ func TestListComments_NoPermission(t *testing.T) {
 // ============================================================================
 
 func TestCreateComment_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-create")
@@ -156,6 +158,7 @@ func TestCreateComment_Success(t *testing.T) {
 }
 
 func TestCreateComment_EmptyContent(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-empty")
@@ -171,6 +174,7 @@ func TestCreateComment_EmptyContent(t *testing.T) {
 }
 
 func TestCreateComment_ContentTooLong(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-long")
@@ -186,6 +190,7 @@ func TestCreateComment_ContentTooLong(t *testing.T) {
 }
 
 func TestCreateComment_InvalidPostID(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-invalidpost")
@@ -200,6 +205,7 @@ func TestCreateComment_InvalidPostID(t *testing.T) {
 }
 
 func TestCreateComment_PostNotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-postnotfound")
@@ -218,6 +224,7 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 // ============================================================================
 
 func TestDeleteComment_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delete")
@@ -233,6 +240,7 @@ func TestDeleteComment_Success(t *testing.T) {
 }
 
 func TestDeleteComment_Forbidden(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	author := testpkg.CreateTestAccount(t, db, "api-comment-author")
@@ -250,6 +258,7 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 }
 
 func TestDeleteComment_InvalidID(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delinvalid")
@@ -261,6 +270,7 @@ func TestDeleteComment_InvalidID(t *testing.T) {
 }
 
 func TestDeleteComment_NotFound(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-del404")
@@ -276,6 +286,7 @@ func TestDeleteComment_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestMarkCommentsRead_Success(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-markread")
@@ -291,6 +302,7 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 }
 
 func TestMarkCommentsRead_InvalidPostID(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-readinvalid")
@@ -342,6 +354,7 @@ func TestCreateCommentRequest_Bind_ContentTooLong(t *testing.T) {
 // ============================================================================
 
 func TestCreateComment_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-badjson")

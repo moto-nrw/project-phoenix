@@ -423,12 +423,9 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
 }
 
-// Two suites running at the same time used to collect each other's clones:
-// a clone is pinned by a keeper connection only while ITS package binary
-// runs, so every finished package of the other run looked like a dead
-// generation. Liveness is per RUN now — one live clone vouches for its
-// siblings (#2419).
-func TestGCSparesFinishedClonesOfALiveRun(t *testing.T) {
+// The next run must collect a killed process's clone immediately: no
+// connection means no test can still use it.
+func TestNextRunCollectsKilledCloneImmediately(t *testing.T) {
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -437,52 +434,13 @@ func TestGCSparesFinishedClonesOfALiveRun(t *testing.T) {
 	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("hash1"))
 	require.NoError(t, err)
 
-	runID := SanitizeRunID("")
-	live, err := CreateClone(ctx, templateCfg, runID)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = live.Close()
-		dropBareClone(t, cfg, live.Name)
-	})
-
-	// The sibling stands for a package that already finished: same run, no
-	// connection, and no heartbeat of its own.
-	finished := ClonePrefix + runID + "_finishedpkg"
-	createBareClone(t, ctx, cfg, finished, pkgCommentPrefix+"services/finished")
-	t.Cleanup(func() { dropBareClone(t, cfg, finished) })
+	killed := ClonePrefix + SanitizeRunID("") + "_killed"
+	createBareClone(t, ctx, cfg, killed)
+	t.Cleanup(func() { dropBareClone(t, cfg, killed) })
 
 	runGC(t, ctx, cfg, templateCfg)
-	assert.True(t, databaseExists(t, ctx, cfg, finished),
-		"a finished clone of a live run must survive a foreign GC")
-}
-
-// The tail of a run — every binary gone, sweep not started yet — is covered
-// by the heartbeat, and a run that died long ago is still collected.
-func TestGCUsesTheHeartbeatWhenNoConnectionIsLeft(t *testing.T) {
-	cfg := integrationConfig(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	builds := 0
-	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("hash1"))
-	require.NoError(t, err)
-
-	fresh := ClonePrefix + SanitizeRunID("") + "_freshbeat"
-	createBareClone(t, ctx, cfg, fresh, cloneComment("services/fresh", time.Now()))
-	t.Cleanup(func() { dropBareClone(t, cfg, fresh) })
-
-	stale := ClonePrefix + SanitizeRunID("") + "_stalebeat"
-	createBareClone(t, ctx, cfg, stale, cloneComment("services/stale", time.Now().Add(-2*runGracePeriod)))
-	t.Cleanup(func() { dropBareClone(t, cfg, stale) })
-
-	// Asserted on existence, not on who dropped it: the suite around this test
-	// runs GC passes of its own, and any of them may collect the stale clone
-	// first.
-	runGC(t, ctx, cfg, templateCfg)
-	assert.True(t, databaseExists(t, ctx, cfg, fresh),
-		"a run whose heartbeat is inside the grace period is still alive")
-	assert.False(t, databaseExists(t, ctx, cfg, stale),
-		"a run that stopped beating long ago must be collected")
+	assert.False(t, databaseExists(t, ctx, cfg, killed),
+		"the next run must collect a killed clone immediately")
 }
 
 // runGC runs one generation GC pass as a FOREIGN run would: nothing spared
@@ -500,7 +458,7 @@ func runGC(t *testing.T, ctx context.Context, cfg, templateCfg *Config) {
 	require.NoError(t, err)
 }
 
-func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name, comment string) {
+func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name string) {
 	t.Helper()
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
@@ -510,8 +468,6 @@ func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name, comme
 	defer unlock()
 
 	_, err = conn.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(name))
-	require.NoError(t, err)
-	_, err = conn.ExecContext(ctx, `COMMENT ON DATABASE `+quoteIdentifier(name)+` IS `+quoteLiteral(comment))
 	require.NoError(t, err)
 }
 
@@ -531,23 +487,28 @@ func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	// A second cloner (shared holder) must not hold this one up.
-	_, unlockShared, err := acquireLifecycleLockShared(ctx, maint)
+	// Two cloners take compatible shared locks. Use an isolated key: holding
+	// the cluster-global key here would let a foreign exclusive waiter queue
+	// between these calls and make the test itself create a lock cycle.
+	key := lifecycleAdvisoryLockKey + int64(os.Getpid())
+	_, unlockFirst, err := acquireLifecycleLockSharedForKey(ctx, maint, key)
 	require.NoError(t, err)
-
-	runID := SanitizeRunID("")
-	handle, err := CreateClone(ctx, templateCfg, runID)
-	unlockShared()
-	require.NoError(t, err, "a concurrent cloner must not block CreateClone")
-	require.NoError(t, handle.Close())
-	dropBareClone(t, cfg, handle.Name)
+	_, unlockSecond, err := acquireLifecycleLockSharedForKey(ctx, maint, key)
+	unlockFirst()
+	require.NoError(t, err, "a concurrent cloner must not block another shared lock")
+	unlockSecond()
 
 	// An exclusive holder must: it is either rebuilding the template or
 	// collecting clones, and neither tolerates a clone being taken meanwhile.
 	_, unlockExclusive, err := acquireLifecycleLock(ctx, maint)
 	require.NoError(t, err)
 
-	blocked, cancelBlocked := context.WithTimeout(ctx, 2*time.Second)
+	// The deadline only has to prove that the second session cannot acquire a
+	// shared lock. Keeping it short matters because this is a cluster-global
+	// exclusive lock: another worktree's lifecycle tests legitimately queue
+	// behind it.
+	blocked, cancelBlocked := context.WithTimeout(ctx, 200*time.Millisecond)
+	runID := SanitizeRunID("")
 	_, err = CreateClone(blocked, templateCfg, runID)
 	cancelBlocked()
 	unlockExclusive()
@@ -581,6 +542,40 @@ func TestPinAuthRolePasswordSurvivesConcurrentCallers(t *testing.T) {
 	for range callers {
 		require.NoError(t, <-errs, "concurrent password pins must not collide on pg_authid")
 	}
+}
+
+func TestEnsureAuthRolePasswordUsesAuthRoleLock(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	require.NoError(t, EnsureServer(ctx, cfg))
+
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+	blocker, err := maint.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = blocker.Close() }()
+	worker, err := maint.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = worker.Close() }()
+
+	_, err = blocker.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = blocker.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
+	}()
+
+	done := make(chan error, 1)
+	go func() { done <- ensureAuthRolePassword(ctx, worker) }()
+	select {
+	case err := <-done:
+		t.Fatalf("password pin bypassed auth-role lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	_, err = blocker.ExecContext(ctx, `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
+	require.NoError(t, err)
+	require.NoError(t, <-done)
 }
 
 func dropBareClone(t *testing.T, cfg *Config, name string) {

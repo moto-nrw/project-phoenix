@@ -19,7 +19,7 @@ import (
 // uniquePhaseName produces a per-test phase name so the (tenant_id,
 // name) unique constraint doesn't collide when tests run together.
 func uniquePhaseName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 func setupPhaseRepoTest(t *testing.T) (*bun.DB, enrollmentModels.PhaseRepository, int64) {

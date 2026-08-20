@@ -147,14 +147,13 @@ func TestHermeticTestPatterns(t *testing.T) {
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
 		counts, unexplained := checkSerialTestRatchet(t, backendRoot)
-		if v := shrinkOnlyViolations(unexplained, serialUnexplainedBaseline); len(v) > 0 {
-			t.Errorf("Serial tests without a reason (per-package counts may only shrink):\n\n%s\n\n"+
+		if v := shrinkOnlyViolations(unexplained, nil); len(v) > 0 {
+			t.Errorf("Serial tests without a reason:\n\n%s\n\n"+
 				"A test without t.Parallel() carries a comment directly above it that\n"+
 				"starts with %q and names which of the five reasons applies\n"+
 				"(process-global state, schema mutation, a sweep that runs across\n"+
 				"tenants, a query budget on the shared pool, deliberate lock\n"+
-				"contention). The counts below are what predates the rule; a new\n"+
-				"serial test either explains itself or replaces one that does not.",
+				"contention).",
 				strings.Join(v, "\n"), serialReasonPrefix)
 		}
 		violations := shrinkOnlyViolations(counts, serialTestBaseline)
@@ -189,6 +188,31 @@ func TestHermeticTestPatterns(t *testing.T) {
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
+}
+
+func TestParallelGlobalStateGateFindsDirectMutation(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	probe := []byte(`package probe
+
+import (
+	"testing"
+	"github.com/spf13/viper"
+)
+
+func TestDirectMutation(t *testing.T) {
+	t.Parallel()
+	viper.Set("key", "value")
+}
+`)
+	if err := os.WriteFile(filepath.Join(root, "direct_test.go"), probe, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	violations := checkParallelGlobalState(t, root)
+	if len(violations) != 1 || !strings.Contains(violations[0], "TestDirectMutation") {
+		t.Fatalf("direct process-global mutation not detected: %v", violations)
+	}
 }
 
 // findBackendRoot returns the backend module root. internal/testdb already
@@ -784,6 +808,11 @@ func callsAny(body string, names map[string]bool) bool {
 	return false
 }
 
+type globalStateFile struct {
+	rel  string
+	text string
+}
+
 // checkParallelGlobalState finds tests that call t.Parallel() while reaching
 // process-global state — directly, or through a helper anywhere in the same
 // package. Resolving helpers per package (not per file) is the point: the
@@ -792,44 +821,17 @@ func callsAny(body string, names map[string]bool) bool {
 // tests running beside it.
 func checkParallelGlobalState(t *testing.T, root string) []string {
 	t.Helper()
-
-	type fileEntry struct {
-		rel  string
-		text string
-	}
 	pkgFuncs := make(map[string]map[string]string)
-	pkgFiles := make(map[string][]fileEntry)
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/testdb/") ||
-			strings.Contains(rel, "hermetic_verification_test.go") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		// Comments are stripped before matching: a test that only NAMES
-		// t.Setenv (the parallel-safety guard in db_clone_test.go says why the
-		// per-test path must not call it) is not a test that calls it.
-		text := stripLineComments(string(content))
-		pkg := filepath.ToSlash(filepath.Dir(rel))
+	pkgFiles := make(map[string][]globalStateFile)
+	err := walkGoFiles(root, true, func(rel, pkg string, code []byte) {
+		text := string(code)
 		if pkgFuncs[pkg] == nil {
 			pkgFuncs[pkg] = make(map[string]string)
 		}
 		for _, f := range splitGoFuncs(text) {
 			pkgFuncs[pkg][f.name] = f.body
 		}
-		pkgFiles[pkg] = append(pkgFiles[pkg], fileEntry{rel: rel, text: text})
-		return nil
+		pkgFiles[pkg] = append(pkgFiles[pkg], globalStateFile{rel: rel, text: text})
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
@@ -837,44 +839,44 @@ func checkParallelGlobalState(t *testing.T, root string) []string {
 
 	var violations []string
 	for pkg, funcs := range pkgFuncs {
-		// Seed with helpers that mutate global state directly, then close over
-		// helpers that call them.
-		tainted := make(map[string]bool)
+		violations = append(violations, parallelGlobalStateViolations(pkgFiles[pkg], taintedGlobalHelpers(funcs))...)
+	}
+	sort.Strings(violations)
+	return violations
+}
+
+func taintedGlobalHelpers(funcs map[string]string) map[string]bool {
+	tainted := make(map[string]bool)
+	for name, body := range funcs {
+		if !strings.HasPrefix(name, "Test") && globalStateMutation.MatchString(body) {
+			tainted[name] = true
+		}
+	}
+	for range 5 {
+		grew := false
 		for name, body := range funcs {
-			if !strings.HasPrefix(name, "Test") && globalStateMutation.MatchString(body) {
+			if !tainted[name] && !strings.HasPrefix(name, "Test") && callsAny(body, tainted) {
 				tainted[name] = true
+				grew = true
 			}
 		}
-		for range 5 {
-			grew := false
-			for name, body := range funcs {
-				if tainted[name] || strings.HasPrefix(name, "Test") {
-					continue
-				}
-				if callsAny(body, tainted) {
-					tainted[name] = true
-					grew = true
-				}
-			}
-			if !grew {
-				break
-			}
+		if !grew {
+			break
 		}
-		if len(tainted) == 0 {
-			continue
-		}
-		for _, fe := range pkgFiles[pkg] {
-			for _, f := range splitGoFuncs(fe.text) {
-				if !strings.HasPrefix(f.name, "Test") || !strings.Contains(f.body, "t.Parallel()") {
-					continue
-				}
-				if globalStateMutation.MatchString(f.body) || callsAny(f.body, tainted) {
-					violations = append(violations, "  "+fe.rel+": "+f.name)
-				}
+	}
+	return tainted
+}
+
+func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]bool) []string {
+	var violations []string
+	for _, file := range files {
+		for _, f := range splitGoFuncs(file.text) {
+			parallel := strings.HasPrefix(f.name, "Test") && strings.Contains(f.body, "t.Parallel()")
+			if parallel && (globalStateMutation.MatchString(f.body) || callsAny(f.body, tainted)) {
+				violations = append(violations, "  "+file.rel+": "+f.name)
 			}
 		}
 	}
-	sort.Strings(violations)
 	return violations
 }
 
@@ -896,54 +898,40 @@ var privatePoolAssign = regexp.MustCompile(
 // `require.NoError(t, db.Close())` are caught too.
 func checkSharedPoolClose(t *testing.T, root string) []string {
 	t.Helper()
-
 	var violations []string
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
+	err := walkGoFilesRaw(root, func(rel, _ string, content []byte) {
+		if strings.HasSuffix(rel, "_test.go") {
+			violations = append(violations, sharedPoolCloseViolations(rel, string(content))...)
 		}
-		normalized := filepath.ToSlash(path)
-		if strings.Contains(normalized, "internal/testdb/") ||
-			strings.Contains(normalized, "hermetic_verification_test.go") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		text := string(content)
-
-		shared := make(map[string]bool)
-		for _, m := range sharedPoolAssign.FindAllStringSubmatch(text, -1) {
-			shared[m[1]] = true
-		}
-		if len(shared) == 0 {
-			return nil
-		}
-		// A name rebound to a private pool anywhere in the file is ambiguous;
-		// leave it to the reviewer rather than reporting a false positive.
-		for _, m := range privatePoolAssign.FindAllStringSubmatch(text, -1) {
-			delete(shared, m[1])
-		}
-
-		relPath, _ := filepath.Rel(root, path)
-		for i, line := range strings.Split(text, "\n") {
-			if strings.HasPrefix(strings.TrimSpace(line), "//") {
-				continue
-			}
-			for name := range shared {
-				if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.Close\(\)`).MatchString(line) {
-					violations = append(violations,
-						formatViolation(filepath.ToSlash(relPath), i+1, strings.TrimSpace(line)))
-					break
-				}
-			}
-		}
-		return nil
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
+	}
+	return violations
+}
+
+func sharedPoolCloseViolations(rel, text string) []string {
+	shared := make(map[string]bool)
+	for _, match := range sharedPoolAssign.FindAllStringSubmatch(text, -1) {
+		shared[match[1]] = true
+	}
+	// A name rebound to a private pool is ambiguous; avoid a false positive.
+	for _, match := range privatePoolAssign.FindAllStringSubmatch(text, -1) {
+		delete(shared, match[1])
+	}
+
+	var violations []string
+	for i, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "//") {
+			continue
+		}
+		for name := range shared {
+			closeCall := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.Close\(\)`)
+			if closeCall.MatchString(line) {
+				violations = append(violations, formatViolation(rel, i+1, strings.TrimSpace(line)))
+				break
+			}
+		}
 	}
 	return violations
 }
@@ -1062,34 +1050,17 @@ func checkLeftoverGateOptIn(t *testing.T, root string) []string {
 // package from starting out on the shared tenant.
 func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 	t.Helper()
-
-	usesDB := make(map[string]bool)
-	optedIn := make(map[string]bool)
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
+	usesDB, optedIn := make(map[string]bool), make(map[string]bool)
+	err := walkGoFilesRaw(root, func(rel, pkg string, content []byte) {
+		if !strings.HasSuffix(rel, "_test.go") {
+			return
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/testdb/") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		pkg := filepath.ToSlash(filepath.Dir(rel))
 		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("PerTestTenants()")) {
 			optedIn[pkg] = true
 		}
-		return nil
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
@@ -1115,7 +1086,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 // that cannot, and every one of those carries a comment above the test
 // saying why.
 //
-// The reasons that survive fall into four families:
+// The reasons that survive fall into five families:
 //
 //	process-global state   viper keys, environment variables, the default
 //	                       logger, the settings registry — a test that
@@ -1155,75 +1126,48 @@ var serialTestBaseline = map[string]int{
 	"api/auth":   1,
 	// 1 -> 3 beim Merge von development: #2434 bringt zwei serielle Tests mit,
 	// deren Fixture SeedTestJWTConfig ruft (Begruendung steht ueber den Tests).
-	"api/enrollment":                    3,
-	"api/guardians":                     1,
-	"api/iot":                           7,
-	"api/iot/checkin":                   14,
-	"api/operator":                      30,
-	"api/schedules":                     2,
-	"api/staff":                         15,
-	"api/staff-shifts":                  1,
-	"api/students":                      14,
-	"api/suggestions":                   42,
-	"api/timetable":                     2,
-	"api/work-time-models":              1,
-	"applog":                            1,
-	"auth/device":                       34,
-	"auth/jwt":                          38,
-	"cmd":                               190,
-	"database":                          8,
-	"database/migrations":               88,
-	"database/repositories/audit":       2,
-	"database/repositories/auth":        4,
-	"database/repositories/enrollment":  3,
-	"database/repositories/platform":    34,
-	"database/repositories/suggestions": 2,
-	"database/repositories/users":       1,
-	"email":                             12,
-	"integration/phoenixapi":            25,
-	"models/config":                     12,
-	"observability":                     4,
-	"seed/api":                          1,
-	"services":                          15,
-	"services/active":                   1,
-	"services/auth":                     25,
-	"services/config":                   147,
-	"services/education":                1,
-	"services/enrollment":               32,
-	"services/facilities":               1,
-	"services/iot/checkin":              38,
-	"services/parent":                   4,
-	"services/platform":                 41,
-	"services/scheduler":                59,
-	"services/usercontext":              3,
-	"services/users":                    12,
-	"test/e2e/calendar":                 4,
-	"test/e2e/timetable":                3,
-}
-
-// serialUnexplainedBaseline is the shrink-only per-package count of serial
-// tests that give no reason. These predate the rule; the #2419 sweep wrote a
-// reason above every test IT made serial, but hundreds were serial long
-// before and nobody ever said why. Retro-documenting them is its own job —
-// what this baseline buys is that the number can only fall.
-var serialUnexplainedBaseline = map[string]int{
-	"api":                    20,
-	"api/guardians":          1,
-	"api/iot":                2,
-	"api/iot/checkin":        3,
-	"api/operator":           30,
-	"api/staff":              1,
-	"api/students":           6,
-	"api/suggestions":        42,
-	"applog":                 1,
-	"auth/device":            12,
-	"database":               8,
-	"integration/phoenixapi": 25,
-	"seed/api":               1,
-	"services":               15,
-	"services/enrollment":    13,
-	"services/iot/checkin":   14,
-	"services/scheduler":     45,
+	"api/enrollment":                   3,
+	"api/guardians":                    1,
+	"api/iot":                          7,
+	"api/iot/checkin":                  14,
+	"api/operator":                     30,
+	"api/schedules":                    2,
+	"api/staff":                        15,
+	"api/staff-shifts":                 1,
+	"api/students":                     14,
+	"api/timetable":                    2,
+	"api/work-time-models":             1,
+	"applog":                           1,
+	"auth/device":                      34,
+	"auth/jwt":                         38,
+	"cmd":                              190,
+	"database":                         8,
+	"database/migrations":              88,
+	"database/repositories/audit":      2,
+	"database/repositories/auth":       4,
+	"database/repositories/enrollment": 3,
+	"database/repositories/platform":   34,
+	"database/repositories/users":      1,
+	"email":                            12,
+	"integration/phoenixapi":           25,
+	"models/config":                    12,
+	"observability":                    4,
+	"seed/api":                         1,
+	"services":                         15,
+	"services/active":                  1,
+	"services/auth":                    25,
+	"services/config":                  147,
+	"services/education":               1,
+	"services/enrollment":              32,
+	"services/facilities":              1,
+	"services/iot/checkin":             38,
+	"services/parent":                  4,
+	"services/platform":                41,
+	"services/scheduler":               53,
+	"services/usercontext":             3,
+	"services/users":                   12,
+	"test/e2e/calendar":                4,
+	"test/e2e/timetable":               3,
 }
 
 // topLevelTestDecl matches a top-level test function declaration.

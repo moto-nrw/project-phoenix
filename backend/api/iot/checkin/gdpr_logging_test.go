@@ -22,6 +22,7 @@ import (
 // slog.SetDefault is installed before setupTestContext so the handler and every
 // service the request touches log into the buffer. LevelInfo mirrors the
 // production LOG_LEVEL — names at Debug are allowed and must not fail this test.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 	const (
 		firstName = "Loggingprobe"
