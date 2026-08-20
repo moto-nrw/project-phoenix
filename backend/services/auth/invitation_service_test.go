@@ -99,6 +99,8 @@ func expectAdminTxRollback(mock sqlmock.Sqlmock) {
 }
 
 func TestCreateInvitationSuccess(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
 	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
@@ -148,6 +150,8 @@ func TestCreateInvitationSuccess(t *testing.T) {
 }
 
 func TestInvitationEmailFailureRecordsError(t *testing.T) {
+	t.Parallel()
+
 	flaky := newFlakyMailer(3, errors.New("smtp down"))
 	originalBackoff := invitationEmailBackoff
 	invitationEmailBackoff = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
@@ -187,6 +191,8 @@ func TestInvitationEmailFailureRecordsError(t *testing.T) {
 }
 
 func TestCreateInvitationRejectsLehrkraftCaregiverCombo(t *testing.T) {
+	t.Parallel()
+
 	service, _, _, roleRepo, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -205,6 +211,8 @@ func TestCreateInvitationRejectsLehrkraftCaregiverCombo(t *testing.T) {
 }
 
 func TestCreateInvitationInvalidatesExistingTokens(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -233,6 +241,8 @@ func TestCreateInvitationInvalidatesExistingTokens(t *testing.T) {
 }
 
 func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -275,6 +285,8 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 }
 
 func TestValidateInvitationReturnsDetails(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -300,6 +312,8 @@ func TestValidateInvitationReturnsDetails(t *testing.T) {
 }
 
 func TestValidateInvitationExpired(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -320,6 +334,8 @@ func TestValidateInvitationExpired(t *testing.T) {
 }
 
 func TestValidateInvitationUsed(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -342,6 +358,8 @@ func TestValidateInvitationUsed(t *testing.T) {
 }
 
 func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, accounts, _, accountRoles, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -377,6 +395,8 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 }
 
 func TestAcceptInvitationRollsBackOnError(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -419,6 +439,8 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 }
 
 func TestAcceptInvitationWeakPassword(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -445,6 +467,8 @@ func TestAcceptInvitationWeakPassword(t *testing.T) {
 }
 
 func TestResendInvitationSendsEmail(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
 	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
@@ -485,6 +509,8 @@ func TestResendInvitationSendsEmail(t *testing.T) {
 }
 
 func TestResendInvitationExpired(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -504,6 +530,8 @@ func TestResendInvitationExpired(t *testing.T) {
 }
 
 func TestRevokeInvitationMarksAsUsed(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -523,6 +551,8 @@ func TestRevokeInvitationMarksAsUsed(t *testing.T) {
 }
 
 func TestTranslateRoleNameToGerman(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected string
@@ -556,6 +586,8 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 // is kept; the new cases are the school's own roles, which the name check could
 // not see at all.
 func TestRoleNeedsCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	system := func(name string) *authModel.Role { return &authModel.Role{Name: name, IsSystem: true} }
 	custom := func(name, base string) *authModel.Role {
 		return &authModel.Role{Name: name, BaseRole: &base}
@@ -584,6 +616,8 @@ func TestRoleNeedsCaregiverProfile(t *testing.T) {
 // role created before the column existed) counts as personnel — a staff row
 // grants nothing, withholding it is what breaks the account.
 func TestRoleNeedsStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	custom := func(name string, base *string) *authModel.Role {
 		return &authModel.Role{Name: name, BaseRole: base}
 	}
@@ -605,6 +639,8 @@ func TestRoleNeedsStaffRecord(t *testing.T) {
 // both acceptance branches; a school's custom role sharing the label is a
 // different role and stays eligible.
 func TestIsLehrkraftSystemRole(t *testing.T) {
+	t.Parallel()
+
 	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
 	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
 	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: false}))
@@ -613,6 +649,8 @@ func TestIsLehrkraftSystemRole(t *testing.T) {
 }
 
 func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -625,7 +663,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 
 	invitations := newStubInvitationTokenRepository()
 	accounts := newStubAccountRepository()
-	tenantID := int64(42)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	roles := newStubRoleRepository(
 		&authModel.Role{Model: baseModel.Model{ID: 21}, Name: "admin", IsSystem: true},
 		&authModel.Role{Model: baseModel.Model{ID: 22}, Name: "user", IsSystem: true},
@@ -696,6 +734,8 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 }
 
 func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -738,6 +778,8 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 // =============================================================================
 
 func TestLookupSchoolNameZeroTenant(t *testing.T) {
+	t.Parallel()
+
 	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -747,6 +789,8 @@ func TestLookupSchoolNameZeroTenant(t *testing.T) {
 }
 
 func TestLookupSchoolNameNilRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &invitationService{
 		logger: slog.Default(),
 	}
@@ -755,6 +799,8 @@ func TestLookupSchoolNameNilRepo(t *testing.T) {
 }
 
 func TestCreateInvitationAllowsExistingAccountForNewTenant(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -773,6 +819,8 @@ func TestCreateInvitationAllowsExistingAccountForNewTenant(t *testing.T) {
 }
 
 func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -830,6 +878,8 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 }
 
 func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -888,6 +938,8 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 }
 
 func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, accounts, _, accountRoles, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -931,6 +983,8 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 
 // Acceptance against a previously-deactivated account must reactivate it.
 func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, accounts, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -971,6 +1025,8 @@ func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
 }
 
 func TestCreateInvitationRejectsInvalidRequests(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		req     InvitationRequest
@@ -1023,6 +1079,8 @@ func TestCreateInvitationRejectsInvalidRequests(t *testing.T) {
 }
 
 func TestCreateInvitationRejectsExistingAccountWithoutTargetTenant(t *testing.T) {
+	t.Parallel()
+
 	service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -1042,6 +1100,8 @@ func TestCreateInvitationRejectsExistingAccountWithoutTargetTenant(t *testing.T)
 }
 
 func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
+	t.Parallel()
+
 	invitations := newStubInvitationTokenRepository()
 	accounts := newStubAccountRepository(&authModel.Account{
 		Model:  baseModel.Model{ID: 102},
@@ -1081,6 +1141,8 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 }
 
 func TestAcceptInvitationUsesInvitationNameFallback(t *testing.T) {
+	t.Parallel()
+
 	service, invitations, _, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -1112,6 +1174,8 @@ func TestAcceptInvitationUsesInvitationNameFallback(t *testing.T) {
 }
 
 func TestAcceptInvitationRejectsPasswordMismatchAndMissingNames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		data    UserRegistrationData
@@ -1160,6 +1224,8 @@ func TestAcceptInvitationRejectsPasswordMismatchAndMissingNames(t *testing.T) {
 }
 
 func TestInvitationManagementErrorAndEdgePaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("list wraps repository error", func(t *testing.T) {
 		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
@@ -1210,6 +1276,8 @@ func TestInvitationManagementErrorAndEdgePaths(t *testing.T) {
 }
 
 func TestResendInvitationErrorPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("not found", func(t *testing.T) {
 		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
@@ -1273,6 +1341,8 @@ func TestResendInvitationErrorPaths(t *testing.T) {
 }
 
 func TestRevokeInvitationErrorPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("not found", func(t *testing.T) {
 		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
@@ -1320,6 +1390,8 @@ func TestRevokeInvitationErrorPaths(t *testing.T) {
 }
 
 func TestInvitationHelpersCoverFallbacks(t *testing.T) {
+	t.Parallel()
+
 	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 	svc := service.(*invitationService)
@@ -1365,6 +1437,8 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 }
 
 func TestInvitationLookupErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 	svc := service.(*invitationService)
@@ -1408,6 +1482,8 @@ func TestInvitationLookupErrorBranches(t *testing.T) {
 }
 
 func TestEnsureInvitationTargetAllowedWrapsTenantLookupError(t *testing.T) {
+	t.Parallel()
+
 	service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 	accounts.storeAccount(&authModel.Account{
@@ -1430,6 +1506,8 @@ func TestEnsureInvitationTargetAllowedWrapsTenantLookupError(t *testing.T) {
 }
 
 func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("create account error", func(t *testing.T) {
 		service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
@@ -1485,6 +1563,8 @@ func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
 }
 
 func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*invitationService, *authModel.InvitationToken)
@@ -1703,6 +1783,8 @@ func (r *failingRoleRepository) List(ctx context.Context, filters map[string]int
 // users:create globally, so without a role-grant check an ordinary staff account
 // could invite a fresh address into the admin role and log in as that account.
 func TestCreateInvitationRejectsRoleEscalation(t *testing.T) {
+	t.Parallel()
+
 	// Permissions of a Betreuer: enough to create person records, not to hand
 	// out roles.
 	betreuer := []string{permissions.UsersCreate, permissions.UsersUpdate}

@@ -38,6 +38,8 @@ func historyItem(id int64, reviewedAt *time.Time, updatedAt time.Time, reviewerN
 func strPtr(s string) *string { return &s }
 
 func TestListMasterDataChangeRequestHistory_EnvelopeAndCursor(t *testing.T) {
+	t.Parallel()
+
 	updated := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
 	reviewed := updated.Add(-time.Minute)
 	svc := &fakeMasterDataReviewService{
@@ -71,6 +73,8 @@ func TestListMasterDataChangeRequestHistory_EnvelopeAndCursor(t *testing.T) {
 }
 
 func TestListMasterDataChangeRequestHistory_DecidedAtFallsBackToUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	updated := time.Date(2026, 8, 17, 8, 30, 0, 0, time.UTC)
 	svc := &fakeMasterDataReviewService{
 		history: []*userService.MasterDataHistoryItem{historyItem(101, nil, updated, "")},
@@ -89,6 +93,8 @@ func TestListMasterDataChangeRequestHistory_DecidedAtFallsBackToUpdatedAt(t *tes
 }
 
 func TestListMasterDataChangeRequestHistory_InvalidQuery(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}
 
 	for _, query := range []string{"?cursor=not-base64!", "?limit=abc", "?limit=0"} {
@@ -99,7 +105,11 @@ func TestListMasterDataChangeRequestHistory_InvalidQuery(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestChangeRequestHistoryRoutesRequireUsersUpdate(t *testing.T) {
+	t.Setenv("AUTH_JWT_SECRET", "hostile-developer-secret-at-least-32-characters")
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
 	claims := testutil.DefaultTestClaims()

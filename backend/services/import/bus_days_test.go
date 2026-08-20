@@ -11,6 +11,8 @@ import (
 
 // TestParseBusDayColumns covers the optional per-day Buskind columns (#1582).
 func TestParseBusDayColumns(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns nil when no per-day column is present", func(t *testing.T) {
 		mapper := NewColumnMapper(map[string]int{"bus": 0}, []string{"Ja"})
 		assert.Nil(t, parseBusDayColumns(mapper))
@@ -46,6 +48,8 @@ func TestParseBusDayColumns(t *testing.T) {
 
 // TestBusDaysFromImportRow covers the legacy-vs-per-day precedence (#1582).
 func TestBusDaysFromImportRow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("legacy Bus=true maps to all weekdays", func(t *testing.T) {
 		row := importModels.StudentImportRow{BusPermission: true}
 		got := busDaysFromImportRow(row)
@@ -77,6 +81,8 @@ func TestBusDaysFromImportRow(t *testing.T) {
 
 // TestMapStudentRow_BusDays wires the CSV columns through MapStudentRow.
 func TestMapStudentRow_BusDays(t *testing.T) {
+	t.Parallel()
+
 	t.Run("legacy Bus column sets BusPermission and leaves BusDays nil", func(t *testing.T) {
 		mapper := NewColumnMapper(
 			map[string]int{"vorname": 0, "nachname": 1, "bus": 2},

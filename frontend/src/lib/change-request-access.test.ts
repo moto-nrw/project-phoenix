@@ -2,7 +2,10 @@ import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
 import {
+  canOpenParentRequestsTab,
+  canOpenRequestsPage,
   canReviewChangeRequests,
+  canReviewEnrollmentChangeRequests,
   canReviewStudentDataRequests,
 } from "./change-request-access";
 
@@ -48,8 +51,27 @@ describe("change request access", () => {
     expect(canReviewStudentDataRequests(staff)).toBe(false);
   });
 
+  // Anmeldungsänderungen hängen an config:manage — der Eltern-Reiter öffnet
+  // damit, aber nur mit dieser einen Art (#2435).
+  it("öffnet den Eltern-Reiter auch für config:manage allein", () => {
+    const configManager = session(["user"], ["config:manage"]);
+    expect(canReviewEnrollmentChangeRequests(configManager)).toBe(true);
+    expect(canOpenParentRequestsTab(configManager)).toBe(true);
+    expect(canOpenRequestsPage(configManager)).toBe(true);
+    expect(canReviewChangeRequests(configManager)).toBe(false);
+    expect(canReviewStudentDataRequests(configManager)).toBe(false);
+  });
+
+  it("hält Anmeldungsänderungen von users:update fern", () => {
+    const staff = session(["user"], ["users:update"]);
+    expect(canReviewEnrollmentChangeRequests(staff)).toBe(false);
+    expect(canOpenParentRequestsTab(staff)).toBe(true);
+  });
+
   it("treats a missing session as no access", () => {
     expect(canReviewChangeRequests(null)).toBe(false);
     expect(canReviewStudentDataRequests(null)).toBe(false);
+    expect(canReviewEnrollmentChangeRequests(null)).toBe(false);
+    expect(canOpenParentRequestsTab(null)).toBe(false);
   });
 });

@@ -10,6 +10,8 @@ import (
 )
 
 func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		fragment     string
@@ -40,6 +42,8 @@ func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
 }
 
 func TestBuildTemplateSplitInputPlanningTrackThreeState(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		fragment     string
@@ -92,6 +96,8 @@ func splitBodyJSON(requiredStaffFragment string) string {
 // template's override) from an explicit null (clear it → derive) — the bug the
 // review flagged, where clearing was impossible because both became nil (#1839).
 func TestBuildTemplateSplitInput_RequiredStaffThreeState(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		fragment     string
@@ -130,6 +136,8 @@ func TestBuildTemplateSplitInput_RequiredStaffThreeState(t *testing.T) {
 // plain "this and following" edit would silently drop the successor from its
 // automatic daily list.
 func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name         string
 		fragment     string
@@ -180,6 +188,8 @@ func TestBuildTemplateSplitInput_ListKindThreeState(t *testing.T) {
 // them, values set them. Without the pass-through the service always copied
 // the old template's rule and a requested change was silently dropped.
 func TestBuildTemplateSplitInput_SourceFieldsThreeState(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted -> inherit (not provided)", func(t *testing.T) {
 		req := &splitTemplateRequest{}
 		require.NoError(t, json.Unmarshal([]byte(splitBodyJSON("")), req))
@@ -223,6 +233,8 @@ func TestBuildTemplateSplitInput_SourceFieldsThreeState(t *testing.T) {
 }
 
 func TestSplitTemplateRequestBind_RejectsWeekendWeekdays(t *testing.T) {
+	t.Parallel()
+
 	req := &splitTemplateRequest{}
 	require.NoError(t, json.Unmarshal([]byte(`{
 		"name": "AG Yoga",

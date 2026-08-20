@@ -37,6 +37,8 @@ func (s stubResolver) ResolveInt(_ context.Context, key string) (int, error) {
 }
 
 func TestService_IsDeviceOnlineAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -124,6 +126,8 @@ func TestService_IsDeviceOnlineAt(t *testing.T) {
 }
 
 func TestService_deviceOnlineWindow_NilResolver(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 	if got := svc.DeviceOnlineWindow(context.Background()); got != defaultDeviceOnlineWindow {
 		t.Errorf("DeviceOnlineWindow() with nil resolver = %v, want %v", got, defaultDeviceOnlineWindow)

@@ -117,6 +117,8 @@ func (noopDeletionAuditRepo) Create(context.Context, *auditModels.TimeTrackingDe
 }
 
 func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	repo := &recordingBalanceAdjustmentRepo{events: &events}
 	monthService := &recordingBalanceMonthService{
@@ -151,6 +153,8 @@ func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -211,6 +215,8 @@ func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) 
 }
 
 func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -275,6 +281,8 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -369,6 +377,8 @@ func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.
 }
 
 func TestStaffBalanceAdjustmentService_RejectsAdjustmentAboveClosingBalance(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -400,6 +410,8 @@ func TestStaffBalanceAdjustmentService_RejectsAdjustmentAboveClosingBalance(t *t
 }
 
 func TestStaffBalanceAdjustmentService_UsesTimelineReductionCapacity(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -428,6 +440,8 @@ func TestStaffBalanceAdjustmentService_UsesTimelineReductionCapacity(t *testing.
 }
 
 func TestStaffBalanceAdjustmentService_RejectsResetThatInvalidatesFutureReduction(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -460,6 +474,8 @@ func TestStaffBalanceAdjustmentService_RejectsResetThatInvalidatesFutureReductio
 }
 
 func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -530,6 +546,8 @@ func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentService_RejectsResetOnOpenDay(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -562,6 +580,8 @@ func TestStaffBalanceAdjustmentService_RejectsResetOnOpenDay(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentService_BlocksDeleteWhenLaterResetDependsOnAdjustment(t *testing.T) {
+	t.Parallel()
+
 	const staffID = int64(41)
 	events := []string{}
 	effectiveDate := timezone.NewDate(2026, time.July, 1)
@@ -591,6 +611,8 @@ func TestStaffBalanceAdjustmentService_BlocksDeleteWhenLaterResetDependsOnAdjust
 }
 
 func TestStaffBalanceAdjustmentService_BlocksPositiveResetDeletionWhenLaterDebitsDependOnIt(t *testing.T) {
+	t.Parallel()
+
 	const staffID = int64(41)
 	events := []string{}
 	effectiveDate := timezone.NewDate(2026, time.July, 1)
@@ -625,6 +647,8 @@ func TestStaffBalanceAdjustmentService_BlocksPositiveResetDeletionWhenLaterDebit
 // chain is bounded); they must fail as invalid input, not surface as a 500
 // from the balance read (#1420 review).
 func TestStaffBalanceAdjustmentService_RejectsFarFutureEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	service := newRecordingBalanceAdjustmentService(
 		&events,
@@ -648,6 +672,8 @@ func TestStaffBalanceAdjustmentService_RejectsFarFutureEffectiveDate(t *testing.
 // the delete lookup must propagate, not masquerade as ErrAdjustmentNotFound
 // (#1420 review).
 func TestStaffBalanceAdjustmentService_DeletePropagatesLookupFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no rows maps to not found", func(t *testing.T) {
 		events := []string{}
 		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: sql.ErrNoRows}

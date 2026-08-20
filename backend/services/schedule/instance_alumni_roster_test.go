@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +36,8 @@ func graduate(t *testing.T, s *lifecycleSetup, studentID int64) {
 }
 
 func TestInstance_Create_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	graduate(t, s, s.student1)
@@ -61,6 +62,8 @@ func TestInstance_Create_RejectsGraduatedStudent(t *testing.T) {
 }
 
 func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	date := timezone.TodayDate().AddDays(7)
@@ -75,7 +78,6 @@ func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
 		StudentIDs:      []int64{s.student2},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// The child graduates while the planner form is open; the staffer then saves
 	// the roster they loaded before the transition.
@@ -107,6 +109,8 @@ func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
 // make the block uneditable forever without protecting anything, so a past-dated
 // save may still carry the departed child.
 func TestInstance_UpdatePlanned_PastDatedRosterKeepsGraduate(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	past := timezone.TodayDate().AddDays(-14)
@@ -121,7 +125,6 @@ func TestInstance_UpdatePlanned_PastDatedRosterKeepsGraduate(t *testing.T) {
 		StudentIDs:      []int64{s.student1},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	graduate(t, s, s.student1)
 

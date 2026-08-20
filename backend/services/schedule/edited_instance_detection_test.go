@@ -112,11 +112,15 @@ func edDiff(
 }
 
 func TestDiffOccurrence_Pristine_NoChanges(t *testing.T) {
+	t.Parallel()
+
 	changes := edDiff(edPristineInstance(), edPristineStaff(), edPristineStudents(), edExpected())
 	assert.Empty(t, changes, "an occurrence identical to its template must report no edits")
 }
 
 func TestDiffOccurrence_Title(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.Title = "Fußball AG (Ausnahme)"
 	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
@@ -124,6 +128,8 @@ func TestDiffOccurrence_Title(t *testing.T) {
 }
 
 func TestDiffOccurrence_Notes(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	note := "Heute im Turnraum treffen"
 	inst.Notes = &note
@@ -132,6 +138,8 @@ func TestDiffOccurrence_Notes(t *testing.T) {
 }
 
 func TestDiffOccurrence_BlankNotesIgnored(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	blank := "   "
 	inst.Notes = &blank
@@ -140,6 +148,8 @@ func TestDiffOccurrence_BlankNotesIgnored(t *testing.T) {
 }
 
 func TestDiffOccurrence_Description(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	desc := "Bitte Sportkleidung mitbringen"
 	inst.Description = &desc
@@ -148,6 +158,8 @@ func TestDiffOccurrence_Description(t *testing.T) {
 }
 
 func TestDiffOccurrence_BlankDescriptionIgnored(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	blank := "  "
 	inst.Description = &blank
@@ -156,6 +168,8 @@ func TestDiffOccurrence_BlankDescriptionIgnored(t *testing.T) {
 }
 
 func TestDiffOccurrence_Room(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.RoomID = edRoomB
 	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
@@ -163,6 +177,8 @@ func TestDiffOccurrence_Room(t *testing.T) {
 }
 
 func TestDiffOccurrence_EndTimeChange(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.EndTime = edClock(17, 0) // template ends 16:00
 	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
@@ -170,6 +186,8 @@ func TestDiffOccurrence_EndTimeChange(t *testing.T) {
 }
 
 func TestDiffOccurrence_StartTimeNoLongerMatches(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.StartTime = edClock(14, 0) // no expected slot at 14:00 → moved/time-edited
 	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
@@ -177,6 +195,8 @@ func TestDiffOccurrence_StartTimeNoLongerMatches(t *testing.T) {
 }
 
 func TestDiffOccurrence_NoExpectedSlotOnDate(t *testing.T) {
+	t.Parallel()
+
 	// The template materializes nothing on this occurrence's date (off-cycle /
 	// out-of-range / cancelled) — expectedSlotsOn returns empty, so the row is a
 	// lost `time` edit even though its start matches a template weekday elsewhere.
@@ -186,6 +206,8 @@ func TestDiffOccurrence_NoExpectedSlotOnDate(t *testing.T) {
 }
 
 func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) {
+	t.Parallel()
+
 	// materializeTemplate skips legacy Saturday/Sunday schedules. The edited
 	// instance projection must do the same so it warns before a re-plan removes
 	// an existing weekend row without replacing it.
@@ -205,6 +227,8 @@ func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) 
 }
 
 func TestDiffOccurrence_ExceptionShiftedStartIsMatched(t *testing.T) {
+	t.Parallel()
+
 	// A modified exception shifts the template start to 16:00 for this date, so
 	// materialization creates the occurrence at 16:00–17:00. The (already
 	// exception-aware) expected projection reflects that; a pristine occurrence
@@ -220,6 +244,8 @@ func TestDiffOccurrence_ExceptionShiftedStartIsMatched(t *testing.T) {
 }
 
 func TestDiffOccurrence_RoomMatchesExceptionOverride(t *testing.T) {
+	t.Parallel()
+
 	// Exception overrides the room to B for this date; expectedSlotsOn folds that
 	// in, so an occurrence in room B matches and is not flagged.
 	inst := edPristineInstance()
@@ -232,6 +258,8 @@ func TestDiffOccurrence_RoomMatchesExceptionOverride(t *testing.T) {
 }
 
 func TestDiffOccurrence_StaffAdded(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	staff := append(edPristineStaff(), &scheduleModel.InstanceStaff{StaffID: edStaffX})
 	changes := edDiff(inst, staff, edPristineStudents(), edExpected())
@@ -239,6 +267,8 @@ func TestDiffOccurrence_StaffAdded(t *testing.T) {
 }
 
 func TestDiffOccurrence_StaffRemoved(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	staff := []*scheduleModel.InstanceStaff{{StaffID: edStaffP, IsPrimary: true}}
 	changes := edDiff(inst, staff, edPristineStudents(), edExpected())
@@ -246,6 +276,8 @@ func TestDiffOccurrence_StaffRemoved(t *testing.T) {
 }
 
 func TestDiffOccurrence_PrimaryFlagChange(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	staff := []*scheduleModel.InstanceStaff{
 		{StaffID: edStaffP, IsPrimary: false}, // was primary on the template
@@ -256,6 +288,8 @@ func TestDiffOccurrence_PrimaryFlagChange(t *testing.T) {
 }
 
 func TestDiffOccurrence_StudentsChanged(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	students := []*scheduleModel.InstanceStudent{
 		{StudentID: edStudA, Status: scheduleModel.AttendanceStatusExpected},
@@ -266,6 +300,8 @@ func TestDiffOccurrence_StudentsChanged(t *testing.T) {
 }
 
 func TestDiffOccurrence_StatusDayAbsenceIsNotAttendanceEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	statusDayID := int64(4401)
 	students := []*scheduleModel.InstanceStudent{
@@ -277,6 +313,8 @@ func TestDiffOccurrence_StatusDayAbsenceIsNotAttendanceEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_PickupExceptionAbsenceIsNotAttendanceEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	pickupID := int64(4402)
 	students := []*scheduleModel.InstanceStudent{
@@ -288,6 +326,8 @@ func TestDiffOccurrence_PickupExceptionAbsenceIsNotAttendanceEdit(t *testing.T) 
 }
 
 func TestDiffOccurrence_ManualPresentIsAttendanceEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	now := time.Now()
 	students := []*scheduleModel.InstanceStudent{
@@ -299,6 +339,8 @@ func TestDiffOccurrence_ManualPresentIsAttendanceEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_ManualAbsentIsAttendanceEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	now := time.Now()
 	students := []*scheduleModel.InstanceStudent{
@@ -310,6 +352,8 @@ func TestDiffOccurrence_ManualAbsentIsAttendanceEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_NotScheduledIsAttendanceEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	students := []*scheduleModel.InstanceStudent{
 		{StudentID: edStudA, Status: scheduleModel.AttendanceStatusExpected, NotScheduled: true},
@@ -322,6 +366,8 @@ func TestDiffOccurrence_NotScheduledIsAttendanceEdit(t *testing.T) {
 // --- Vertretungsplan deviations must NOT count as edits (ReplanWeek preserves them) ---
 
 func TestDiffOccurrence_SubstituteNotAnEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	// A planned staff marked absent (row kept) + a substitute row added — the
 	// classic /deviations shape. The planned set is unchanged; the substitute
@@ -336,6 +382,8 @@ func TestDiffOccurrence_SubstituteNotAnEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_UnderstaffedAckNotAnEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.UnderstaffedAck = true
 	note := "bewusst unbesetzt"
@@ -345,6 +393,8 @@ func TestDiffOccurrence_UnderstaffedAckNotAnEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_RequiredStaffPinNotAnEdit(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	pin := 3
 	inst.RequiredStaff = &pin
@@ -353,6 +403,8 @@ func TestDiffOccurrence_RequiredStaffPinNotAnEdit(t *testing.T) {
 }
 
 func TestDiffOccurrence_MultipleChangesSorted(t *testing.T) {
+	t.Parallel()
+
 	inst := edPristineInstance()
 	inst.Title = "Anders"
 	inst.RoomID = edRoomB

@@ -17,16 +17,16 @@ import (
 // ============================================================================
 
 func TestGuardianInvitationRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates invitation with valid data", func(t *testing.T) {
 		// Create a guardian profile first
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "invite-test")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -40,7 +40,6 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 		assert.NotZero(t, invitation.ID)
 
 		// Cleanup
-		testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 	})
 
 	t.Run("returns error for invalid invitation", func(t *testing.T) {
@@ -55,15 +54,15 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByID")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -73,7 +72,6 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		found, err := repo.FindByID(ctx, invitation.ID)
 		require.NoError(t, err)
@@ -89,15 +87,15 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitation by token", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByToken")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		token := uuid.Must(uuid.NewV4()).String()
 		invitation := &auth.GuardianInvitation{
@@ -108,7 +106,6 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		found, err := repo.FindByToken(ctx, token)
 		require.NoError(t, err)
@@ -124,15 +121,15 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "Update")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -142,7 +139,6 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		// Update expiry
 		newExpiry := time.Now().Add(72 * time.Hour)
@@ -158,7 +154,6 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 
 	t.Run("returns error for non-existent invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "UpdateNonExist")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -175,15 +170,15 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitations by guardian profile ID", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByProfile")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -193,7 +188,6 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		invitations, err := repo.FindByGuardianProfileID(ctx, guardian.ID)
 		require.NoError(t, err)
@@ -208,15 +202,15 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindPending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds pending invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindPending")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create a pending invitation (not accepted, not expired)
 		invitation := &auth.GuardianInvitation{
@@ -228,7 +222,6 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		pending, err := repo.FindPending(ctx)
 		require.NoError(t, err)
@@ -237,15 +230,15 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("marks invitation as accepted", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "MarkAccepted")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -255,7 +248,6 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		err = repo.MarkAsAccepted(ctx, invitation.ID)
 		require.NoError(t, err)
@@ -274,15 +266,15 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates email status", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "EmailStatus")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -292,7 +284,6 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		sentAt := time.Now()
 		err = repo.UpdateEmailStatus(ctx, invitation.ID, &sentAt, nil, 0)
@@ -306,7 +297,6 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 
 	t.Run("updates email error status", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "EmailError")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		invitation := &auth.GuardianInvitation{
 			GuardianProfileID: guardian.ID,
@@ -316,7 +306,6 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 		}
 		err := repo.Create(ctx, invitation)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
 
 		errorMsg := "SMTP connection failed"
 		err = repo.UpdateEmailStatus(ctx, invitation.ID, nil, &errorMsg, 1)
@@ -337,16 +326,16 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: unscoped sweep — the delete runs across all
+// tenants, so beside a parallel test it removes that test's rows too.
 func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "DeleteExpired")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create an expired invitation - bypass validation by inserting directly
 		token := uuid.Must(uuid.NewV4()).String()
@@ -356,7 +345,7 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 			ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired
 			CreatedBy:         1,
 		}
-		expiredInvitation.SetTenantID(1)
+		expiredInvitation.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().
 			Model(expiredInvitation).
 			ModelTableExpr(`auth.guardian_invitations`).

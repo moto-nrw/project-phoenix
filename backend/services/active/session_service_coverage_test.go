@@ -26,10 +26,11 @@ func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
 
 // TestGetDeviceCurrentSession_HasSession verifies GetDeviceCurrentSession returns active session
 func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -39,7 +40,6 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
 
 	// Cleanup
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start a session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -59,15 +59,15 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 
 // TestGetDeviceCurrentSession_NoSession verifies error when device has no active session
 func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
 	device := testpkg.CreateTestDevice(t, db, "device-session-none")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 	// ACT
 	_, err := service.GetDeviceCurrentSession(ctx, device.ID)
@@ -79,10 +79,11 @@ func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 
 // TestProcessSessionTimeout_WithActiveSession verifies timeout processing for active session
 func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -90,8 +91,6 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-timeout-active")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Timeout")
 	room := testpkg.CreateTestRoom(t, db, "Room Timeout")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -112,15 +111,15 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 
 // TestProcessSessionTimeout_NoSession verifies error when processing timeout for non-existent session
 func TestProcessSessionTimeout_NoSession(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
 	device := testpkg.CreateTestDevice(t, db, "device-timeout-none")
-	defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 	// ACT
 	_, err := service.ProcessSessionTimeout(ctx, device.ID)
@@ -132,10 +131,11 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 
 // TestProcessSessionTimeout_WithVisits verifies session timeout with active visits
 func TestProcessSessionTimeout_WithVisits(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -144,8 +144,6 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity WithVisits")
 	room := testpkg.CreateTestRoom(t, db, "Room WithVisits")
 	student := testpkg.CreateTestStudent(t, db, "Student", "WithVisits", "1a")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -170,10 +168,11 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 
 // TestProcessSessionTimeout_AlreadyEnded verifies error when session already ended
 func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -181,8 +180,6 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-ended")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Ended")
 	room := testpkg.CreateTestRoom(t, db, "Room Ended")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start and end session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -201,10 +198,11 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 
 // TestEndDailySessions_WithActiveSessions verifies daily cleanup ends all active sessions
 func TestEndDailySessions_WithActiveSessions(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -213,8 +211,6 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Daily")
 	room := testpkg.CreateTestRoom(t, db, "Room Daily")
 	student := testpkg.CreateTestStudent(t, db, "Student", "Daily", "1a")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -238,10 +234,11 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 
 // TestEndDailySessions_NoActiveSessions verifies clean result when no active sessions
 func TestEndDailySessions_NoActiveSessions(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// ARRANGE: First, end any existing sessions to start with a clean slate
@@ -261,18 +258,17 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 
 // TestEndDailySessions_WithOrphanedSupervisors verifies orphaned supervisor cleanup
 func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Orphaned")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Orphaned")
 	room := testpkg.CreateTestRoom(t, db, "Room Orphaned")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, activityGroup.ID, room.ID)
 
 	// Create an ended active group (session)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
@@ -297,7 +293,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 			"role":       "supervisor",
 			"start_date": yesterday,
 			"end_date":   nil, // Orphaned - no end date
-			"tenant_id":  int64(1),
+			"tenant_id":  testpkg.Tenant(t),
 		}).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -314,10 +310,11 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 
 // TestCleanupAbandonedSessions_OfflineDevice verifies cleanup when device is offline
 func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -325,8 +322,6 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-abandoned-offline")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Abandoned")
 	room := testpkg.CreateTestRoom(t, db, "Room Abandoned")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -360,10 +355,11 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 
 // TestCleanupAbandonedSessions_OnlineDevice verifies session NOT cleaned when device online
 func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -371,8 +367,6 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-online")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Online")
 	room := testpkg.CreateTestRoom(t, db, "Room Online")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -407,10 +401,11 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 
 // TestCleanupAbandonedSessions_NoAbandoned verifies no cleanup when no abandoned sessions
 func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// ACT: Cleanup with no sessions
@@ -426,10 +421,11 @@ func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 // Scenario: When UpdateActiveGroupSupervisors is called with a supervisor who's already active,
 // they are first ended (as part of ending all current supervisors) then reactivated
 func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -438,8 +434,6 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-reactivate")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Reactivate")
 	room := testpkg.CreateTestRoom(t, db, "Room Reactivate")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ARRANGE: Start session with supervisor 1 only
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID}, &room.ID)
@@ -469,10 +463,11 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 // TestEndDailySessions_WithMultipleVisitsAndSupervisors exercises endActiveVisitsForGroup coverage
 // Scenario: Multiple active visits must all be ended when daily cleanup runs
 func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -482,8 +477,6 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Room Multi")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student1.ID, student2.ID)
 
 	// ARRANGE: Start session with supervisors
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -510,10 +503,11 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 // TestProcessSessionTimeout_WithMultipleActiveVisits exercises checkoutActiveVisits coverage
 // Scenario: Session timeout should checkout all active visits
 func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -523,8 +517,6 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Room TimeoutMulti")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "Three", "2a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Four", "2b")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID, student1.ID, student2.ID)
 
 	// ARRANGE: Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -548,10 +540,11 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 // TestEndActivitySession_BySessionID exercises EndActivitySession coverage
 // Scenario: Ending a session by ID should properly close the session
 func TestEndActivitySession_BySessionID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -559,8 +552,6 @@ func TestEndActivitySession_BySessionID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-end-session")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity End")
 	room := testpkg.CreateTestRoom(t, db, "Room End")
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ARRANGE: Start session
 	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)

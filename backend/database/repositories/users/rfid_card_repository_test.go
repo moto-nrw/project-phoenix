@@ -28,11 +28,12 @@ func generateHexID(prefix string) string {
 }
 
 func TestRFIDCardRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates RFID card with valid data", func(t *testing.T) {
 		uniqueID := generateHexID("ABCD")
@@ -52,7 +53,6 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 		assert.True(t, found.Active)
 
 		// Cleanup
-		testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", normalizedID)
 	})
 
 	t.Run("creates RFID card and verifies creation", func(t *testing.T) {
@@ -71,20 +71,19 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 		require.NotNil(t, found)
 		assert.Equal(t, uniqueID, found.ID)
 
-		testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", uniqueID)
 	})
 }
 
 func TestRFIDCardRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "CAFE")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
 
 		found, err := repo.FindByID(ctx, card.ID)
 		require.NoError(t, err)
@@ -102,15 +101,15 @@ func TestRFIDCardRepository_FindByID(t *testing.T) {
 }
 
 func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card active status via Deactivate", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "BABE")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
 
 		// Initially active, deactivate it
 		err := repo.Deactivate(ctx, card.ID)
@@ -125,11 +124,12 @@ func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 }
 
 func TestRFIDCardRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "FADE")
@@ -155,15 +155,15 @@ func TestRFIDCardRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRFIDCardRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all RFID cards with no filters", func(t *testing.T) {
-		card := testpkg.CreateTestRFIDCard(t, db, "BEEF")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
+		testpkg.CreateTestRFIDCard(t, db, "BEEF")
 
 		cards, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -171,8 +171,7 @@ func TestRFIDCardRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists RFID cards with active filter", func(t *testing.T) {
-		card := testpkg.CreateTestRFIDCard(t, db, "FACE")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
+		testpkg.CreateTestRFIDCard(t, db, "FACE")
 
 		cards, err := repo.List(ctx, map[string]interface{}{
 			"active": true,
@@ -187,15 +186,15 @@ func TestRFIDCardRepository_List(t *testing.T) {
 // ============================================================================
 
 func TestRFIDCardRepository_Deactivate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deactivates active RFID card", func(t *testing.T) {
 		card := testpkg.CreateTestRFIDCard(t, db, "DECA")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
 
 		// Verify it starts active
 		found, err := repo.FindByID(ctx, card.ID)
@@ -220,16 +219,16 @@ func TestRFIDCardRepository_Deactivate(t *testing.T) {
 // ============================================================================
 
 func TestRFIDCardRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card fields", func(t *testing.T) {
 		// Create card with valid hex ID
 		card := testpkg.CreateTestRFIDCard(t, db, "ABCD1234")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
 
 		// Verify initial state
 		found, err := repo.FindByID(ctx, card.ID)

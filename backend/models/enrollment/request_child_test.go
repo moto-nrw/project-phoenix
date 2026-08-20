@@ -17,21 +17,29 @@ import (
 // promoted to approved).
 
 func TestRequestChild_IsTerminal_ApprovedIsTerminal(t *testing.T) {
+	t.Parallel()
+
 	c := &RequestChild{Status: ChildStatusApproved}
 	assert.True(t, c.IsTerminal())
 }
 
 func TestRequestChild_IsTerminal_RejectedIsTerminal(t *testing.T) {
+	t.Parallel()
+
 	c := &RequestChild{Status: ChildStatusRejected}
 	assert.True(t, c.IsTerminal())
 }
 
 func TestRequestChild_IsTerminal_WithdrawnIsTerminal(t *testing.T) {
+	t.Parallel()
+
 	c := &RequestChild{Status: ChildStatusWithdrawn}
 	assert.True(t, c.IsTerminal())
 }
 
 func TestRequestChild_IsTerminal_WaitlistedNotTerminal(t *testing.T) {
+	t.Parallel()
+
 	// Waitlisted can be promoted to approved when capacity opens up,
 	// so it's intentionally non-terminal.
 	c := &RequestChild{Status: ChildStatusWaitlisted}
@@ -39,16 +47,22 @@ func TestRequestChild_IsTerminal_WaitlistedNotTerminal(t *testing.T) {
 }
 
 func TestRequestChild_IsTerminal_SubmittedNotTerminal(t *testing.T) {
+	t.Parallel()
+
 	c := &RequestChild{Status: ChildStatusSubmitted}
 	assert.False(t, c.IsTerminal())
 }
 
 func TestRequestChild_IsTerminal_UnderReviewNotTerminal(t *testing.T) {
+	t.Parallel()
+
 	c := &RequestChild{Status: ChildStatusUnderReview}
 	assert.False(t, c.IsTerminal())
 }
 
 func TestRequestChild_IsTerminal_RolloverStatesNotTerminal(t *testing.T) {
+	t.Parallel()
+
 	// pending_renewal + auto_renewed + pending_admin_review are all
 	// rollover-intermediate states; the deadline worker / admin queue
 	// promotes them onward.
@@ -63,6 +77,8 @@ func TestRequestChild_IsTerminal_RolloverStatesNotTerminal(t *testing.T) {
 }
 
 func TestRequestChild_IsTerminal_EmptyStatusNotTerminal(t *testing.T) {
+	t.Parallel()
+
 	// Defensive: an empty status shouldn't be treated as terminal. The
 	// DB has a CHECK constraint on this column but the predicate runs
 	// in-memory before any DB write happens during rollover.
@@ -78,6 +94,8 @@ func TestRequestChild_IsTerminal_EmptyStatusNotTerminal(t *testing.T) {
 // frontend status badges all string-compare these.
 
 func TestChildStatus_StableValues(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "submitted", ChildStatusSubmitted)
 	assert.Equal(t, "under_review", ChildStatusUnderReview)
 	assert.Equal(t, "approved", ChildStatusApproved)
@@ -90,11 +108,15 @@ func TestChildStatus_StableValues(t *testing.T) {
 }
 
 func TestReviewReason_StableValues(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "grade_above_max", ReviewReasonGradeAboveMax)
 	assert.Equal(t, "no_grade_level", ReviewReasonNoGradeLevel)
 }
 
 func TestChildActivation_StableValues(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "immediate", ChildActivationImmediate)
 	assert.Equal(t, "scheduled", ChildActivationScheduled)
 }

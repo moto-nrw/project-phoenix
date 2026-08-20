@@ -30,6 +30,8 @@ func (s *schulhofConflictFacilityService) FindRoomByName(context.Context, string
 }
 
 func TestSchulhofStatusPropagatesRoomLookupErrors(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("room database unavailable")
 	service := NewSchulhofService(
 		&schulhofConflictFacilityService{err: lookupErr},
@@ -65,6 +67,8 @@ func (s *schulhofConflictActivityService) ListGroups(context.Context, *base.Quer
 }
 
 func TestSchulhofServiceSelectsDedicatedActivityAmongSameNameActivities(t *testing.T) {
+	t.Parallel()
+
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
 		Name:     constants.SchulhofRoomName,
@@ -160,6 +164,8 @@ func (s *schulhofConflictActiveService) CreateActiveGroup(context.Context, *acti
 }
 
 func TestSchulhofStatusPropagatesInfrastructureReadErrors(t *testing.T) {
+	t.Parallel()
+
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
 		Name:     constants.SchulhofRoomName,
@@ -238,6 +244,8 @@ func TestSchulhofStatusPropagatesInfrastructureReadErrors(t *testing.T) {
 }
 
 func TestSchulhofEnsureInfrastructurePropagatesActivityLookupError(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("activity database unavailable")
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
@@ -262,6 +270,8 @@ func TestSchulhofEnsureInfrastructurePropagatesActivityLookupError(t *testing.T)
 // template) or a spontaneous session counts just like the system activity's
 // own daily group. Ended groups never win.
 func TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate(t *testing.T) {
+	t.Parallel()
+
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
 		Name:     constants.SchulhofRoomName,
@@ -316,6 +326,8 @@ func TestSchulhofStatusPicksNewestOpenGroupRegardlessOfTemplate(t *testing.T) {
 }
 
 func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
+	t.Parallel()
+
 	const staffID int64 = 123
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
@@ -371,6 +383,8 @@ func TestSchulhofStatusPrefersCurrentUsersSupervisedOpenGroup(t *testing.T) {
 }
 
 func TestSchulhofStatusIgnoresCallersEndedSupervisionWhenSelectingGroup(t *testing.T) {
+	t.Parallel()
+
 	const staffID int64 = 123
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
@@ -429,6 +443,8 @@ func TestSchulhofStatusIgnoresCallersEndedSupervisionWhenSelectingGroup(t *testi
 }
 
 func TestSchulhofStatusIgnoresOpenGroupsFromPreviousDays(t *testing.T) {
+	t.Parallel()
+
 	const staffID int64 = 123
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},

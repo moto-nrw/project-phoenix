@@ -22,6 +22,8 @@ func cachedCtx(accountID int, tenantID int64) context.Context {
 // WithIdentityRequestCache returns its input unchanged when a cache is already
 // attached, so stacked middleware shares one cache (#2099).
 func TestWithIdentityRequestCacheIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	once := WithIdentityRequestCache(context.Background())
 	assert.Equal(t, once, WithIdentityRequestCache(once))
 	assert.Same(t, identityRequestCacheFromContext(once),
@@ -29,6 +31,8 @@ func TestWithIdentityRequestCacheIsIdempotent(t *testing.T) {
 }
 
 func TestIdentityMemoRequiresCacheAndClaims(t *testing.T) {
+	t.Parallel()
+
 	_, _, ok := identityMemo(context.Background())
 	assert.False(t, ok, "no cache attached")
 
@@ -42,6 +46,8 @@ func TestIdentityMemoRequiresCacheAndClaims(t *testing.T) {
 }
 
 func TestIdentityCacheStagesMissStoreHit(t *testing.T) {
+	t.Parallel()
+
 	cache, key, ok := identityMemo(cachedCtx(42, 7))
 	require.True(t, ok)
 
@@ -67,6 +73,8 @@ func TestIdentityCacheStagesMissStoreHit(t *testing.T) {
 }
 
 func TestIdentityCacheIsolatesTenantsAndAccounts(t *testing.T) {
+	t.Parallel()
+
 	ctx := cachedCtx(42, 7)
 	cache, key, ok := identityMemo(ctx)
 	require.True(t, ok)
@@ -84,6 +92,8 @@ func TestIdentityCacheIsolatesTenantsAndAccounts(t *testing.T) {
 }
 
 func TestInvalidateIdentityDropsAllStages(t *testing.T) {
+	t.Parallel()
+
 	ctx := cachedCtx(42, 7)
 	cache, key, ok := identityMemo(ctx)
 	require.True(t, ok)
@@ -108,6 +118,8 @@ func TestInvalidateIdentityDropsAllStages(t *testing.T) {
 // ogsgrouplive sorts the GetMyGroups result in place — a caller-visible
 // mutation must never reorder or poison the memoized value.
 func TestIdentityCacheGroupsAndSubsAreDefensivelyCopied(t *testing.T) {
+	t.Parallel()
+
 	cache, key, ok := identityMemo(cachedCtx(42, 7))
 	require.True(t, ok)
 

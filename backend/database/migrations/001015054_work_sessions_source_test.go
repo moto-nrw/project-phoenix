@@ -26,12 +26,8 @@ import (
 // fail before drop) without relying on workSessionsSourceUp being
 // self-idempotent (its ADD CONSTRAINT step is not).
 //
-// IMPORTANT: callers MUST register the returned closure with `defer` BEFORE
-// any `defer db.Close()`, so LIFO order runs the restore against an open
-// pool. Registering via t.Cleanup is wrong here because t.Cleanup fires
-// AFTER the test function's deferred db.Close(), which would route the
-// restore through a closed pool ("sql: database is closed") and leave the
-// shared schema column-less for every subsequent test. See
+// Callers register the returned closure with `defer` so the restore runs
+// however the test exits. See
 // TestWorkSessionsSourceDown_DropsColumnAndConstraint for the same pattern.
 func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
 	t.Helper()
@@ -86,28 +82,16 @@ func workSessionSource(t *testing.T, db *bun.DB, id int64) string {
 	return source
 }
 
-func cleanupWorkSessionsSourceTest(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if _, err := db.ExecContext(ctx,
-		`DELETE FROM active.work_sessions WHERE tenant_id = ?`, tenantID); err != nil {
-		t.Logf("work_sessions source migration cleanup: %v", err)
-	}
-}
-
 // TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown verifies the backfill:
 // a row that exists before the migration runs (no source value) must end up
 // labelled 'unknown'. This is the entire backfill contract — no heuristic,
 // no guessing, just an honest sentinel for pre-existing data.
 func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	const tenantID int64 = 9201
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
@@ -131,12 +115,10 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 // and the 'unknown' sentinel must remain valid because legacy rows carry it.
 func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	const tenantID int64 = 9202
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
 
@@ -159,12 +141,10 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 // the table.
 func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	const tenantID int64 = 9203
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Reject")
 
@@ -203,7 +183,6 @@ func TestWorkSessionsSourceDown_DropsColumnAndConstraint(t *testing.T) {
 	// function's deferred db.Close, which would leave the restore call
 	// hitting a dead pool and the shared Postgres schema in a column-less
 	// state for every sibling test that follows.
-	defer func() { _ = db.Close() }()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

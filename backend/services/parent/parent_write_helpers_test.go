@@ -12,6 +12,8 @@ import (
 )
 
 func TestChildHasPermission(t *testing.T) {
+	t.Parallel()
+
 	child := &parentModels.ChildSummary{
 		GuardianPermissions: map[string]interface{}{
 			authorize.GuardianPermissionPortalAccess: true,
@@ -26,6 +28,8 @@ func TestChildHasPermission(t *testing.T) {
 }
 
 func TestResolvePermittedChildRejectsNonPositiveIDs(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 
 	_, err := svc.resolvePermittedChild(context.Background(), 0, 1, "")

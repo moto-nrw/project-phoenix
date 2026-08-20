@@ -16,8 +16,9 @@ import (
 )
 
 func TestSetupTestDBUsesPackageClone(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var currentDB string
 	err := db.NewRaw(`SELECT current_database()`).Scan(context.Background(), &currentDB)
@@ -34,6 +35,8 @@ func TestSetupTestDBUsesPackageClone(t *testing.T) {
 }
 
 func TestSetupTestDBAllowsParallelTests(t *testing.T) {
+	t.Parallel()
+
 	// The per-test path must be free of t.Setenv (which panics under
 	// t.Parallel) — this test IS the regression guard: it runs two parallel
 	// subtests through the full SetupTestDB path.
@@ -41,7 +44,6 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			db := SetupTestDB(t)
-			defer func() { _ = db.Close() }()
 
 			var one int
 			require.NoError(t, db.NewRaw(`SELECT 1`).Scan(context.Background(), &one))
@@ -51,8 +53,9 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 }
 
 func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	scope := NewTenantScope(t, db)
 	require.NotZero(t, scope.TenantID)

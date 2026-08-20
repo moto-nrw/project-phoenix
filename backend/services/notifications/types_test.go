@@ -19,6 +19,8 @@ import (
 // rename on either side would leave people opted into a type that no longer
 // exists, which looks exactly like a working opt-in.
 func TestNotificationTypeKeysMatchReminders(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, reminders.TypePickupUpcoming, notifications.TypePickupUpcoming)
 	assert.Equal(t, reminders.TypePickupOverdue, notifications.TypePickupOverdue)
 	assert.Equal(t, reminders.TypeActivityStart, notifications.TypeActivityStart)
@@ -26,6 +28,8 @@ func TestNotificationTypeKeysMatchReminders(t *testing.T) {
 }
 
 func TestNotificationTypeCatalogue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
 		require.Len(t, defs, 7)

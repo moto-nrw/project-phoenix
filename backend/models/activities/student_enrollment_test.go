@@ -9,6 +9,8 @@ import (
 )
 
 func TestIsValidAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		status string
@@ -61,6 +63,8 @@ func TestIsValidAttendanceStatus(t *testing.T) {
 }
 
 func TestStudentEnrollmentValidate(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.TodayDate()
 	present := AttendancePresent
 	absent := AttendanceAbsent
@@ -210,6 +214,8 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 }
 
 func TestStudentEnrollmentClearAttendance(t *testing.T) {
+	t.Parallel()
+
 	status := AttendancePresent
 	studentEnrollment := &StudentEnrollment{
 		StudentID:        1,
@@ -229,12 +235,16 @@ func TestStudentEnrollmentClearAttendance(t *testing.T) {
 // ============================================================================
 
 func TestStudentEnrollment_GetID(t *testing.T) {
+	t.Parallel()
+
 	se := &StudentEnrollment{}
 	se.ID = 123
 	assert.Equal(t, int64(123), se.GetID())
 }
 
 func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	se := &StudentEnrollment{}
 	se.CreatedAt = now
@@ -242,6 +252,8 @@ func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentEnrollment_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	se := &StudentEnrollment{}
 	se.UpdatedAt = now

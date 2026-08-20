@@ -16,6 +16,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // completeMFAExchangeStub is a narrow AuthService stub for the verify
@@ -92,6 +93,8 @@ func verifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
 }
 
 func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"}
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{
@@ -126,6 +129,8 @@ func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 }
 
 func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{
@@ -163,12 +168,14 @@ func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
 }
 
 func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
+	t.Parallel()
+
 	// When IssueTrustedDevice errors the handler must still issue the
 	// access/refresh pair — losing the cookie is a UX regression, not a
 	// security one, so the login must succeed.
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: 1},
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueErr:     errors.New("cookie store down"),
 	}
 	rs := &Resource{AuthService: auth, MFAService: mfa}
@@ -189,13 +196,15 @@ func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
 }
 
 func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
+	t.Parallel()
+
 	// Tenants can disable trusted devices via the settings registry; the
 	// service signals this by returning an empty cookie value. The handler
 	// must not write a Set-Cookie at all in that case — otherwise the
 	// browser stores a useless empty cookie that masks the disabled state.
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: 1},
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueCookie:  "", // tenant has trusted devices disabled
 	}
 	rs := &Resource{AuthService: auth, MFAService: mfa}
@@ -213,6 +222,8 @@ func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
 }
 
 func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	// IssueTokensForAuthenticatedAccount wraps the underlying repo error in
 	// an *authService.AuthError. The handler must translate
 	// ErrAccountInactive into a 401, not a 500, to match the rest of the
@@ -221,7 +232,7 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 		Err: authService.ErrAccountInactive,
 	}}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: 1},
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{AuthService: auth, MFAService: mfa}
 
@@ -236,11 +247,13 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 }
 
 func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeMFAExchangeStub{err: &authService.AuthError{
 		Err: authService.ErrAccountNotFound,
 	}}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: 1},
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{AuthService: auth, MFAService: mfa}
 
@@ -254,9 +267,11 @@ func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) 
 }
 
 func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeMFAExchangeStub{err: errors.New("kafka is on fire")}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: 1},
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{AuthService: auth, MFAService: mfa}
 

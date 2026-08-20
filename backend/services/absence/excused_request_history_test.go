@@ -21,11 +21,11 @@ import (
 // stay out, withdrawals carry no reviewer, and the keyset cursor pages without
 // overlap.
 func TestListHistory_DecidedExcusedRequests(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Erika", "Entscheider")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Erika", "Entscheider")
 
 	day := timezone.TodayDate().AddDays(3)
 	rejected := createPending(t, svc, db, chain, []timezone.Date{day}, "Zahnarzt")

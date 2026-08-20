@@ -34,6 +34,12 @@ func ErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflict(err)
 	}
 
+	// The normal session-start path returns this sentinel unwrapped (see
+	// determineRoomIDWithStrategy), so it never reaches handleActiveServiceError.
+	if errors.Is(err, activeSvc.ErrNoRoomAvailable) {
+		return common.ErrorInvalidRequest(err)
+	}
+
 	// Delegate to service-specific error handlers
 	if iotErr, ok := err.(*iotSvc.IoTError); ok {
 		return handleIoTServiceError(iotErr)
@@ -161,7 +167,8 @@ func isActiveValidationError(err error) bool {
 		errors.Is(err, activeSvc.ErrInvalidTimeRange) ||
 		errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup) ||
 		errors.Is(err, activeSvc.ErrInvalidData) ||
-		errors.Is(err, activeSvc.ErrInvalidActivitySession)
+		errors.Is(err, activeSvc.ErrInvalidActivitySession) ||
+		errors.Is(err, activeSvc.ErrNoRoomAvailable)
 }
 
 // handleFeedbackServiceError maps Feedback service errors to HTTP responses

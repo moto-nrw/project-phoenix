@@ -10,6 +10,8 @@ import (
 )
 
 func TestEntry_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		entry   Entry
@@ -105,6 +107,8 @@ func TestEntry_Validate(t *testing.T) {
 }
 
 func TestEntry_GetTimestamp(t *testing.T) {
+	t.Parallel()
+
 	entry := Entry{
 		Value:     "positive",
 		Day:       timezone.NewDate(2025, 5, 9),
@@ -121,6 +125,8 @@ func TestEntry_GetTimestamp(t *testing.T) {
 }
 
 func TestEntry_IsForMensa(t *testing.T) {
+	t.Parallel()
+
 	entry := Entry{
 		Value:           "positive",
 		Day:             timezone.NewDate(2025, 5, 9),
@@ -140,6 +146,8 @@ func TestEntry_IsForMensa(t *testing.T) {
 }
 
 func TestEntry_FormatMethods(t *testing.T) {
+	t.Parallel()
+
 	entry := Entry{
 		Value:     "neutral",
 		Day:       timezone.NewDate(2025, 5, 9),
@@ -157,6 +165,8 @@ func TestEntry_FormatMethods(t *testing.T) {
 }
 
 func TestEntry_SetStudent(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set with student", func(t *testing.T) {
 		entry := &Entry{
 			Value:     "positive",
@@ -200,6 +210,8 @@ func TestEntry_SetStudent(t *testing.T) {
 }
 
 func TestEntry_GetID(t *testing.T) {
+	t.Parallel()
+
 	entry := &Entry{
 		Model:     base.Model{ID: 42},
 		Value:     "positive",
@@ -214,6 +226,8 @@ func TestEntry_GetID(t *testing.T) {
 }
 
 func TestEntry_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	entry := &Entry{
 		Model:     base.Model{CreatedAt: now},
@@ -229,6 +243,8 @@ func TestEntry_GetCreatedAt(t *testing.T) {
 }
 
 func TestEntry_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	entry := &Entry{
 		Model:     base.Model{UpdatedAt: now},

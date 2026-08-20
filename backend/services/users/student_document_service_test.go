@@ -47,7 +47,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	suffix := time.Now().UnixNano()
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Dokumente-Gruppe-%d", suffix))
@@ -56,12 +55,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	// case; since #2329 the group no longer takes part in the access decision.
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
-	t.Cleanup(func() {
-		cleanupStudentDocumentRows(t, db, student.ID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-		testpkg.CleanupTableRecords(t, db, "education.groups", group.ID)
-	})
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewStudentDocumentService(
@@ -82,17 +75,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 		account:   account.ID,
 		groupID:   group.ID,
 	}
-}
-
-func cleanupStudentDocumentRows(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.ExecContext(ctx, `DELETE FROM users.student_documents WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM users.student_document_file_cleanup WHERE owner_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
 }
 
 func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumentActor {
@@ -166,6 +148,8 @@ func studentDocumentCategoriesOf(docs []*userModels.StudentDocument) []string {
 }
 
 func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	office := s.actor("users:update")
@@ -230,6 +214,8 @@ func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
 }
 
 func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	office := s.actor("users:update")
@@ -275,6 +261,8 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 }
 
 func TestStudentDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -314,6 +302,8 @@ func TestStudentDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 // object is written and is settled by the metadata transaction, so a
 // successful upload leaves nothing for the cleanup scheduler to delete.
 func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -337,6 +327,8 @@ func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
 // deletion path. Documents cascade away with the child, so the intents queued
 // here are the only thing left that can get the bytes off disk.
 func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -361,6 +353,8 @@ func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
 // without this a guest or guardian account holding users:update could read and
 // delete the paperwork of every child in the school.
 func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	// Same permissions, but no staff record in the tenant.
@@ -410,6 +404,8 @@ func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 // Attest_Epilepsie.pdf" in the Historie tab while the Dokumente tab hides that
 // very document.
 func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	s.create(t, userModels.StudentDocumentCategoryAttest, s.actor("student_documents:health"))
@@ -444,6 +440,8 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 // unlogged upload or deletion of a child's paperwork is worse than a failed
 // request.
 func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	repos := repositories.NewFactory(s.db)
 	unaudited := usersSvc.NewStudentDocumentService(
@@ -498,6 +496,8 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 // the audit contract: every write and every logged download has to name the
 // person who performed it, so an anonymous actor is refused up front.
 func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 	anonymous := usersSvc.StudentDocumentActor{Permissions: []string{"admin:*"}}
@@ -527,6 +527,8 @@ func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
 // blank cannot be identified in the UI, and a category outside the enum would
 // map to the weakest of the three permissions.
 func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -567,6 +569,8 @@ func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
 // refused, while a child without an education group is ordinary paperwork
 // (#2329 — group-less children used to be admin-only territory).
 func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -574,7 +578,6 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 	require.Error(t, err, "an unknown child must not read as an empty document list")
 
 	groupless := testpkg.CreateTestStudent(t, s.db, "Ohne", fmt.Sprintf("Gruppe-%d", time.Now().UnixNano()), "1c")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, groupless.ID) })
 
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", office)
 	require.NoError(t, err, "a staff member reaches a child that has no group yet")
@@ -588,6 +591,8 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 // and it has to apply the same category authority the tab does — otherwise
 // "retry the cleanup" becomes a way to confirm that a document exists.
 func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 	health := s.actor("student_documents:health")
@@ -626,6 +631,8 @@ func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
 // coordinator retires an intent: by ID after the scheduler unlinked the object,
 // and by stored name when the upload that owns it committed.
 func TestStudentDocumentService_SettlesIntentsByIDAndName(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	byName := fmt.Sprintf("settle-name-%d.pdf", time.Now().UnixNano())
@@ -661,6 +668,8 @@ func TestStudentDocumentService_SettlesIntentsByIDAndName(t *testing.T) {
 // actor whose display name never reached the service. The trail must still say
 // who acted, and "" in a history column reads as a bug rather than as a person.
 func TestStudentDocumentService_AuditNamesAnUnknownActor(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	nameless := usersSvc.StudentDocumentActor{
 		AccountID:   s.account,
@@ -694,6 +703,8 @@ func cleanupNamesOf(cleanups []*userModels.StudentDocumentFileCleanup) []string 
 // upload handler relies on: it must answer before any byte or cleanup row
 // exists, and it must answer the same way the transaction later does.
 func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 

@@ -79,6 +79,8 @@ func errorCodes(errs []importModels.ValidationError) []string {
 }
 
 func TestParseGermanDecimal(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		raw     string
 		want    float64
@@ -111,6 +113,8 @@ func TestParseGermanDecimal(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_RowWithoutValues(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{FirstName: "Anna", LastName: "Lehmann"}
 
@@ -121,6 +125,8 @@ func TestOpeningBalanceValidate_RowWithoutValues(t *testing.T) {
 }
 
 func TestOpeningBalanceProcessingOrder_SortsResolvedStaffIDs(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	rows := []importModels.OpeningBalanceImportRow{
 		{PersonnelNumber: "P-100", HoursBalance: "1"},
@@ -132,6 +138,8 @@ func TestOpeningBalanceProcessingOrder_SortsResolvedStaffIDs(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_UnknownPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		PersonnelNumber: "P-999",
@@ -148,6 +156,8 @@ func TestOpeningBalanceValidate_UnknownPersonnelNumber(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_UnknownName(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:    "Klaus",
@@ -162,6 +172,8 @@ func TestOpeningBalanceValidate_UnknownName(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_AmbiguousName(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:    "Maria",
@@ -176,6 +188,8 @@ func TestOpeningBalanceValidate_AmbiguousName(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_MissingNameWithoutPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{LastName: "Lehmann", HoursBalance: "5"}
 
@@ -185,6 +199,8 @@ func TestOpeningBalanceValidate_MissingNameWithoutPersonnelNumber(t *testing.T) 
 }
 
 func TestOpeningBalanceValidate_PersonnelNumberMatchIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{PersonnelNumber: " p-100 ", HoursBalance: "1"}
 
@@ -195,6 +211,8 @@ func TestOpeningBalanceValidate_PersonnelNumberMatchIsCaseInsensitive(t *testing
 }
 
 func TestOpeningBalanceValidate_NegativeHoursBalanceBecomesMinutes(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:    "Anna",
@@ -212,6 +230,8 @@ func TestOpeningBalanceValidate_NegativeHoursBalanceBecomesMinutes(t *testing.T)
 }
 
 func TestOpeningBalanceValidate_HoursBalanceRoundsToWholeMinutes(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:    "Anna",
@@ -227,6 +247,8 @@ func TestOpeningBalanceValidate_HoursBalanceRoundsToWholeMinutes(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_InvalidNumber(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:    "Anna",
@@ -244,6 +266,8 @@ func TestOpeningBalanceValidate_InvalidNumber(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_OutOfRangeValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		row   importModels.OpeningBalanceImportRow
@@ -305,6 +329,8 @@ func TestOpeningBalanceValidate_OutOfRangeValues(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_NegativeRemainingVacationIsAllowed(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		FirstName:         "Anna",
@@ -320,6 +346,8 @@ func TestOpeningBalanceValidate_NegativeRemainingVacationIsAllowed(t *testing.T)
 }
 
 func TestOpeningBalanceValidate_ExistingHoursOpening(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	c.staffWithHoursOpening[openingStaffAnnaID] = true
 	row := &importModels.OpeningBalanceImportRow{
@@ -334,6 +362,8 @@ func TestOpeningBalanceValidate_ExistingHoursOpening(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_ExistingHoursOpeningIgnoredWithoutHoursColumn(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	c.staffWithHoursOpening[openingStaffAnnaID] = true
 	// Vacation-only row for a person whose Stundenkonto was taken over
@@ -350,6 +380,8 @@ func TestOpeningBalanceValidate_ExistingHoursOpeningIgnoredWithoutHoursColumn(t 
 }
 
 func TestOpeningBalanceValidate_ExistingVacationOpening(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	c.staffWithVacOpening[openingStaffAnnaID] = true
 	row := &importModels.OpeningBalanceImportRow{
@@ -366,6 +398,8 @@ func TestOpeningBalanceValidate_ExistingVacationOpening(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_AcceptsCompleteRow(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	row := &importModels.OpeningBalanceImportRow{
 		PersonnelNumber:   "P-100",
@@ -392,6 +426,8 @@ func TestOpeningBalanceValidate_AcceptsCompleteRow(t *testing.T) {
 }
 
 func TestOpeningBalanceValidateBatch_DuplicateStaffInFile(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	rows := []importModels.OpeningBalanceImportRow{
 		{FirstName: "Anna", LastName: "Lehmann"},
@@ -409,6 +445,8 @@ func TestOpeningBalanceValidateBatch_DuplicateStaffInFile(t *testing.T) {
 }
 
 func TestOpeningBalanceValidateBatch_IgnoresUnresolvedRows(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 	rows := []importModels.OpeningBalanceImportRow{
 		{FirstName: "Klaus", LastName: "Unbekannt"},
@@ -421,6 +459,8 @@ func TestOpeningBalanceValidateBatch_IgnoresUnresolvedRows(t *testing.T) {
 }
 
 func TestOpeningBalanceConfig_FindExistingAlwaysNew(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 
 	existing, err := c.FindExisting(context.Background(), importModels.OpeningBalanceImportRow{StaffID: openingStaffAnnaID})
@@ -430,6 +470,8 @@ func TestOpeningBalanceConfig_FindExistingAlwaysNew(t *testing.T) {
 }
 
 func TestOpeningBalanceConfig_UpdateIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 
 	require.NoError(t, c.Update(context.Background(), openingStaffAnnaID, importModels.OpeningBalanceImportRow{}))
@@ -437,6 +479,8 @@ func TestOpeningBalanceConfig_UpdateIsNoOp(t *testing.T) {
 }
 
 func TestOpeningBalanceConfig_CreateRejectsUnresolvedRow(t *testing.T) {
+	t.Parallel()
+
 	c := newOpeningConfig()
 
 	_, err := c.Create(context.Background(), importModels.OpeningBalanceImportRow{})

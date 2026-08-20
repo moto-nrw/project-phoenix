@@ -8,6 +8,8 @@ import (
 )
 
 func TestToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	futureTime := time.Now().Add(time.Hour)
 
 	tests := []struct {
@@ -77,6 +79,8 @@ func TestToken_Validate(t *testing.T) {
 }
 
 func TestToken_SetExpiry(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -118,6 +122,8 @@ func TestToken_SetExpiry(t *testing.T) {
 }
 
 func TestToken_MobileFlag(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default is false", func(t *testing.T) {
 		token := &Token{
 			AccountID: 1,
@@ -145,6 +151,8 @@ func TestToken_MobileFlag(t *testing.T) {
 }
 
 func TestToken_FamilyTracking(t *testing.T) {
+	t.Parallel()
+
 	t.Run("token family fields", func(t *testing.T) {
 		token := &Token{
 			AccountID:  1,
@@ -177,6 +185,8 @@ func TestToken_FamilyTracking(t *testing.T) {
 }
 
 func TestToken_GetID(t *testing.T) {
+	t.Parallel()
+
 	token := &Token{
 		Model:     base.Model{ID: 42},
 		AccountID: 1,
@@ -191,6 +201,8 @@ func TestToken_GetID(t *testing.T) {
 }
 
 func TestToken_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &Token{
 		Model:     base.Model{CreatedAt: now},
@@ -205,6 +217,8 @@ func TestToken_GetCreatedAt(t *testing.T) {
 }
 
 func TestToken_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &Token{
 		Model:     base.Model{UpdatedAt: now},
@@ -219,6 +233,8 @@ func TestToken_GetUpdatedAt(t *testing.T) {
 }
 
 func TestCapPortalScopes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in   string
 		want []string

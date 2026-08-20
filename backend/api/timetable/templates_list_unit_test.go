@@ -15,6 +15,8 @@ import (
 )
 
 func TestTemplateRequiredStaffCount(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		row  templateRow
@@ -62,6 +64,8 @@ func TestTemplateRequiredStaffCount(t *testing.T) {
 }
 
 func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
+	t.Parallel()
+
 	rows := []activities.TemplateWeekdayRosterRow{
 		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindEmpty},
 		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindStaff, PersonID: 11, IsPrimary: true},
@@ -95,6 +99,8 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 }
 
 func TestListTemplates_WithoutPeriodSkipsWeekdayRosterRead(t *testing.T) {
+	t.Parallel()
+
 	repo := &catalogTemplateGroupRepo{}
 	resource := NewResource(Dependencies{
 		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{

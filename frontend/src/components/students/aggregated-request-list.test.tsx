@@ -14,11 +14,19 @@ import {
 import {
   listAggregatedOpenRequests,
   listAggregatedRequestHistory,
+  listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", () => ({
   listAggregatedOpenRequests: vi.fn(),
   listAggregatedRequestHistory: vi.fn(),
+  listEnrollmentChangeRequests: vi.fn(),
+}));
+
+vi.mock("~/components/students/enrollment-request-item", () => ({
+  EnrollmentRequestItem: ({ row }: { row: { id: string } }) => (
+    <div>enrollment-item-{row.id}</div>
+  ),
 }));
 
 // Die per-Art-Karten sind separat getestet; hier zählt nur, dass die Liste
@@ -65,6 +73,7 @@ vi.mock("~/components/students/request-history-item", () => ({
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);
+const mockListEnrollment = vi.mocked(listEnrollmentChangeRequests);
 
 const NO_FILTERS: AggregatedRequestFilters = {
   search: "",
@@ -76,11 +85,112 @@ function openItem(type: string, id: string) {
   return { request_type: type, data: { id } } as never;
 }
 
+/** Wie openItem, aber mit dem Zeitpunkt, nach dem Quellen verschränkt werden. */
+function stampedItem(type: string, id: string, occurredAt: string) {
+  return { request_type: type, occurred_at: occurredAt, data: { id } } as never;
+}
+
 describe("AggregatedRequestList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListOpen.mockResolvedValue({ items: [] });
     mockListHistory.mockResolvedValue({ items: [] });
+    mockListEnrollment.mockResolvedValue({ items: [] });
+  });
+
+  it("verschränkt Anmeldungsänderungen nach Zeitpunkt in die Liste", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        stampedItem("excused", "4", "2026-08-20T10:00:00Z"),
+        stampedItem("master_data", "1", "2026-08-18T10:00:00Z"),
+      ],
+    });
+    mockListEnrollment.mockResolvedValue({
+      items: [stampedItem("enrollment", "9", "2026-08-19T10:00:00Z")],
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, includeEnrollment: true }}
+      />,
+    );
+
+    await screen.findByText("enrollment-item-9");
+    const rendered = screen
+      .getAllByText(/-item-/)
+      .map((node) => node.textContent);
+    expect(rendered).toEqual([
+      "excused-item-4",
+      "enrollment-item-9",
+      "master-item-1",
+    ]);
+  });
+
+  it("fragt bei Art-Filter Anmeldung nur diese Quelle ab", async () => {
+    mockListEnrollment.mockResolvedValue({
+      items: [stampedItem("enrollment", "9", "2026-08-19T10:00:00Z")],
+    });
+
+    render(
+      <AggregatedRequestList
+        view="history"
+        filters={{
+          ...NO_FILTERS,
+          types: ["enrollment"],
+          includeEnrollment: true,
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("enrollment-item-9")).toBeInTheDocument();
+    // Der Aggregator kennt die Art nicht und würde sie mit 400 abweisen.
+    expect(mockListHistory).not.toHaveBeenCalled();
+  });
+
+  it("reicht die unbekannte Art nie an den Aggregator durch", async () => {
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          types: ["excused", "enrollment"],
+          includeEnrollment: true,
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(mockListOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ types: ["excused"] }),
+    );
+  });
+
+  it("fragt Anmeldungsänderungen ohne Berechtigung gar nicht erst ab", async () => {
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(mockListEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("lässt den Aggregator weg, wenn nur Anmeldungsänderungen erlaubt sind", async () => {
+    mockListEnrollment.mockResolvedValue({
+      items: [stampedItem("enrollment", "9", "2026-08-19T10:00:00Z")],
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          includeAggregated: false,
+          includeEnrollment: true,
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("enrollment-item-9")).toBeInTheDocument();
+    expect(mockListOpen).not.toHaveBeenCalled();
   });
 
   it("rendert offene Anfragen aller Arten in Server-Reihenfolge", async () => {
@@ -143,22 +253,104 @@ describe("AggregatedRequestList", () => {
     );
   });
 
-  it("lädt weitere Einträge über den Cursor nach", async () => {
-    mockListOpen.mockResolvedValueOnce({
-      items: [openItem("excused", "4")],
-      next_cursor: "cursor-1",
-    });
-    mockListOpen.mockResolvedValueOnce({ items: [openItem("excused", "5")] });
+  it("ignoriert eine verspätete erste Ladung nach einem Refresh", async () => {
+    let resolveFirst: (value: { items: ReturnType<typeof openItem>[] }) => void;
+    const firstPage = new Promise<{ items: ReturnType<typeof openItem>[] }>(
+      (resolve) => {
+        resolveFirst = resolve;
+      },
+    );
+    mockListOpen
+      .mockReturnValueOnce(firstPage as never)
+      .mockResolvedValueOnce({ items: [openItem("excused", "neu")] });
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
-    await screen.findByText("excused-item-4");
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+
+    await act(async () => {});
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveFirst!({ items: [openItem("excused", "alt")] });
+      await firstPage;
+    });
+
+    expect(screen.queryByText("excused-item-alt")).toBeNull();
+    expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
+  });
+
+  it("ignoriert den Fehler eines veralteten Nachladens", async () => {
+    let rejectMore!: (reason?: unknown) => void;
+    const morePage = new Promise<never>((_resolve, reject) => {
+      rejectMore = reject;
+    });
+    mockListOpen
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 25 }, (_, index) =>
+          openItem("excused", String(index + 1)),
+        ),
+        next_cursor: "cursor-1",
+      })
+      .mockReturnValueOnce(morePage as never)
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 25 }, (_, index) =>
+          openItem("excused", `neu-${index + 1}`),
+        ),
+        next_cursor: "cursor-2",
+      });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    await screen.findByText("excused-item-1");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      rejectMore(new Error("veraltet"));
+      try {
+        await morePage;
+      } catch {
+        // Der Fehler gehört zum verworfenen Feed.
+      }
+    });
+
+    expect(
+      screen.queryByText("Weitere Anfragen konnten nicht geladen werden."),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    ).toBeEnabled();
+  });
+
+  it("lädt weitere Einträge über den Cursor nach", async () => {
+    // Eine volle Seite plus Cursor: erst dann bleibt etwas zum Nachladen übrig.
+    // (Eine kurze Seite mit Cursor zieht die Liste selbst nach, damit niemand
+    // blind auf den Knopf drücken muss.)
+    mockListOpen.mockResolvedValueOnce({
+      items: Array.from({ length: 25 }, (_, index) =>
+        openItem("excused", String(index + 1)),
+      ),
+      next_cursor: "cursor-1",
+    });
+    mockListOpen.mockResolvedValueOnce({ items: [openItem("excused", "26")] });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    await screen.findByText("excused-item-1");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Weitere Einträge laden" }),
     );
 
-    expect(await screen.findByText("excused-item-5")).toBeInTheDocument();
-    expect(screen.getByText("excused-item-4")).toBeInTheDocument();
+    expect(await screen.findByText("excused-item-26")).toBeInTheDocument();
+    expect(screen.getByText("excused-item-1")).toBeInTheDocument();
     expect(mockListOpen).toHaveBeenLastCalledWith(
       expect.objectContaining({ cursor: "cursor-1" }),
     );

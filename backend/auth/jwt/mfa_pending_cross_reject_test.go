@@ -23,6 +23,8 @@ import (
 // /auth/refresh route refuses a challenge JWT even if some future change
 // adds the `id`/`token` fields the parser would otherwise require.
 func TestRefreshClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"mfa_pending": true,
 		"id":          float64(42),
@@ -38,6 +40,8 @@ func TestRefreshClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
 // TestRefreshClaims_ParseClaims_RejectsMFAEnrollmentPending — same as
 // above for the enrollment flag.
 func TestRefreshClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"mfa_enrollment_pending": true,
 		"id":                     float64(42),
@@ -54,6 +58,8 @@ func TestRefreshClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T) {
 // BOTH the challenge and the enrollment middleware even if a future bug
 // in CreateMFA*JWT ever sets both flags.
 func TestMFAEnrollmentClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"mfa_pending":            true, // foreign flag — must be rejected
 		"mfa_enrollment_pending": true,
@@ -70,6 +76,8 @@ func TestMFAEnrollmentClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
 // TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending —
 // symmetric to the previous test.
 func TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"mfa_pending":            true,
 		"mfa_enrollment_pending": true, // foreign flag — must be rejected

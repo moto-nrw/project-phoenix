@@ -11,6 +11,8 @@ import (
 )
 
 func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
+	t.Parallel()
+
 	response := toThreadSummary(&usersModels.InboxThread{
 		ThreadID:               41,
 		StudentID:              82,

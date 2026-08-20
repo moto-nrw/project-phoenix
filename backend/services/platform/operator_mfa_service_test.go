@@ -21,7 +21,6 @@ const operatorMFATestJWTSecret = "test-secret-must-be-at-least-32-chars-long-for
 func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
@@ -38,6 +37,7 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 }
 
 func TestOperatorMFAService_EnrollDisableLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -64,6 +64,7 @@ func TestOperatorMFAService_EnrollDisableLifecycle(t *testing.T) {
 }
 
 func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -86,6 +87,7 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 }
 
 func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 
@@ -112,6 +114,7 @@ func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 // semantics: list returns only active rows, revoke removes one device,
 // and revoking someone else's device id is rejected.
 func TestOperatorMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -141,6 +144,7 @@ func TestOperatorMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 }
 
 func TestOperatorMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 

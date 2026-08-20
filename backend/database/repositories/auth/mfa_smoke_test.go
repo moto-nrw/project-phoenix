@@ -19,8 +19,9 @@ import (
 // list-active, delete-expired) without trying to be exhaustive — Phase 13
 // adds full coverage.
 func TestMFARepositoriesSmoke(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 

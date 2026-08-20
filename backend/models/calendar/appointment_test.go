@@ -26,6 +26,8 @@ func validAppointment() *Appointment {
 }
 
 func TestAppointmentValidateDefaultsAndTrims(t *testing.T) {
+	t.Parallel()
+
 	appointment := validAppointment()
 
 	require.NoError(t, appointment.Validate())
@@ -35,6 +37,8 @@ func TestAppointmentValidateDefaultsAndTrims(t *testing.T) {
 }
 
 func TestAppointmentValidateRejectsInvalidFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*Appointment)
@@ -61,6 +65,8 @@ func TestAppointmentValidateRejectsInvalidFields(t *testing.T) {
 }
 
 func TestAppointmentValidateAllowsAllDayAndMultiDayTimeOrder(t *testing.T) {
+	t.Parallel()
+
 	allDay := validAppointment()
 	allDay.AllDay = true
 	allDay.EndTime = allDay.StartTime
@@ -75,6 +81,8 @@ func TestAppointmentValidateAllowsAllDayAndMultiDayTimeOrder(t *testing.T) {
 func intPtr(n int) *int { return &n }
 
 func TestRecurrenceRuleValidate(t *testing.T) {
+	t.Parallel()
+
 	count := 2
 	endsOn := timezone.NewDate(2026, 2, 1)
 
@@ -111,6 +119,8 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 }
 
 func TestRecurrenceRuleValidateDeduplicates(t *testing.T) {
+	t.Parallel()
+
 	// Duplicate (and mixed-case) weekdays normalise to a single lowercase entry —
 	// otherwise the occurrence expansion emits the date twice and exhausts
 	// occurrence_count early, and the RRULE exports an invalid BYDAY=MO,MO.
@@ -134,6 +144,8 @@ func TestRecurrenceRuleValidateDeduplicates(t *testing.T) {
 }
 
 func TestAppointmentRecipientValidate(t *testing.T) {
+	t.Parallel()
+
 	staffID := int64(11)
 	guardianID := int64(12)
 
@@ -164,6 +176,8 @@ func TestAppointmentRecipientValidate(t *testing.T) {
 }
 
 func TestCalendarModelAccessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	appointment := &Appointment{}
 	appointment.ID = 10

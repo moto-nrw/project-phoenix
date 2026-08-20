@@ -42,6 +42,8 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
+	t.Parallel()
+
 	excused := schedule.AttendanceSubstatusExcused
 	tests := []struct {
 		name         string
@@ -124,6 +126,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 }
 
 func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	cur := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
 
 	t.Run("invalid status", func(t *testing.T) {
@@ -156,6 +160,8 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 }
 
 func TestDecodeNullableString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing", func(t *testing.T) {
 		got, err := decodeNullableString(nil)
 		require.NoError(t, err)
@@ -199,15 +205,13 @@ type patchSetup struct {
 func buildPatchSetup(t *testing.T) *patchSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("P-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("P-Act-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "P-Stu", fmt.Sprintf("One-%d", suffix), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, activity.ID, room.ID) })
 
 	// Insert a planned instance for this tenant.
 	inst := &schedule.ActivityInstance{
@@ -219,10 +223,9 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 		RoomID:          room.ID,
 		Status:          schedule.InstanceStatusPlanned,
 	}
-	inst.SetTenantID(1)
+	inst.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID) })
 
 	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	row := &schedule.InstanceStudent{
@@ -230,9 +233,8 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 		StudentID:  student.ID,
 		Status:     schedule.AttendanceStatusPresent, // start in 'present' so PATCH can mutate freely
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
 	res := NewResource(Dependencies{TimetableData: testTimetableData(db), DB: db})
 
@@ -286,8 +288,10 @@ func doPatch(t *testing.T, router chi.Router, path string, body any) *httptest.R
 }
 
 func TestPatchInstanceStudent_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"status":    "absent",
@@ -307,19 +311,20 @@ func TestPatchInstanceStudent_HappyPath(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Pre-populate note so the clear is observable.
 	initial := "pre"
 	s.row.Note = &initial
 	s.row.Status = schedule.AttendanceStatusPresent
-	_, err := scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
-	_ = err // best-effort — the row is present so this is a no-op, we just need it to exist
+	_, _ = scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	// Directly set note via the repo's update-fields path to be sure.
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Note: &initial,
 	}))
 
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 	// Raw JSON body so we can emit explicit null for the note field.
 	body := `{"note": null}`
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), body)
@@ -333,8 +338,10 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{})
 	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
@@ -342,8 +349,10 @@ func TestPatchInstanceStudent_400_EmptyBody(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"status": "ghost",
@@ -353,8 +362,10 @@ func TestPatchInstanceStudent_400_InvalidStatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_InvalidSubstatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"substatus": "banana",
@@ -364,8 +375,10 @@ func TestPatchInstanceStudent_400_InvalidSubstatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_NonStringSubstatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	// Substatus is a number, not a string — must be rejected at parse time.
 	body := `{"substatus": 5}`
@@ -375,8 +388,10 @@ func TestPatchInstanceStudent_400_NonStringSubstatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	tooLong := strings.Repeat("x", schedule.InstanceStudentNoteMaxLength+1)
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
@@ -387,12 +402,14 @@ func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
 	}))
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"substatus": "late",
@@ -402,6 +419,8 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	_, err := s.db.NewUpdate().
 		TableExpr("schedule.activity_instances").
@@ -410,7 +429,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"note": "nach Abschluss",
 	})
@@ -424,8 +443,10 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_404_Unknown(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.TenantContext(1), s.res)
+	router := patchRouter(testpkg.Ctx(t), s.res)
 
 	w := doPatch(t, router, "/instances/999999999/students/999999999", map[string]any{
 		"status": "absent",
@@ -434,6 +455,8 @@ func TestPatchInstanceStudent_404_Unknown(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_404_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Row created in tenant 1. Fire PATCH with tenant 2 — RLS hides the row.
 	router := patchRouter(testpkg.TenantContext(2), s.res)

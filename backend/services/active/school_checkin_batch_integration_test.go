@@ -33,11 +33,12 @@ func setGroupID(t *testing.T, db *bun.DB, studentID, groupID int64) {
 }
 
 func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "BatchVisit", "Target", "6d")
 	lateStudent := testpkg.CreateTestStudent(t, db, "BatchVisit", "Rollover", "6d")
@@ -49,8 +50,6 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "BatchVisit Activity")
 	room := testpkg.CreateTestRoom(t, db, "BatchVisit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		student.ID, lateStudent.ID, eduGroup.ID, staff.ID, device.ID, activityGroup.ID, room.ID, activeGroup.ID)
 
 	checkIn := time.Now().Add(-2 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkIn, nil)
@@ -102,20 +101,22 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 }
 
 func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "BatchClear", "Target", "6e")
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "BatchClear Edu")
 	setGroupID(t, db, student.ID, eduGroup.ID)
 	staff := testpkg.CreateTestStaff(t, db, "BatchClear", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, eduGroup.ID, staff.ID)
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.TodayDate(), "sick")
-	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
 	// The batch clear targets scheduled-ahead rows; the fixture writes
 	// source=manual, so flip it to the planned shape under test.
 	_, err := db.NewUpdate().
@@ -143,14 +144,14 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 }
 
 func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "BatchAction", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// The action check fires before any student lookup, so any id works.
 	result, err := service.ProcessSchoolCheckinBatch(ctx, []int64{staff.ID}, staff.ID, "toggle")

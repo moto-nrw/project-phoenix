@@ -23,15 +23,12 @@ import (
 
 // TestUpdateSessionActivity tests updating session activity timestamp
 func TestUpdateSessionActivity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("successful activity update", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -39,8 +36,6 @@ func TestUpdateSessionActivity(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "update-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Update Test Room")
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Tester")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session to test activity update
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -80,8 +75,6 @@ func TestUpdateSessionActivity(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Ended Session Room")
 		staff := testpkg.CreateTestStaff(t, db, "Ended", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
-
 		// Start and immediately end a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -109,15 +102,12 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 // TestValidateSessionTimeout tests timeout validation logic
 func TestValidateSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("valid timeout - session is timed out", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -125,8 +115,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "timeout-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Timeout Room 1")
 		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Staff1")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -154,8 +142,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Fresh Room")
 		staff := testpkg.CreateTestStaff(t, db, "Fresh", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
-
 		// Start a fresh session (LastActivity = now)
 		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -174,8 +160,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "high-timeout-device-001")
 		room := testpkg.CreateTestRoom(t, db, "High Timeout Room")
 		staff := testpkg.CreateTestStaff(t, db, "High", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
 		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -196,8 +180,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Zero Timeout Room")
 		staff := testpkg.CreateTestStaff(t, db, "Zero", "Staff")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
-
 		// Start a session
 		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -214,8 +196,6 @@ func TestValidateSessionTimeout(t *testing.T) {
 		// ARRANGE: Create a device without a session
 		device := testpkg.CreateTestDevice(t, db, "orphan-device-001")
 
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
-
 		// ACT: Try to validate timeout for device with no session
 		err := service.ValidateSessionTimeout(ctx, device.ID, 30)
 
@@ -227,15 +207,12 @@ func TestValidateSessionTimeout(t *testing.T) {
 
 // TestGetSessionTimeoutInfo tests retrieving timeout information
 func TestGetSessionTimeoutInfo(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("successful timeout info retrieval", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -243,8 +220,6 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "info-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Info Room")
 		staff := testpkg.CreateTestStaff(t, db, "Info", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -273,9 +248,6 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activity.ID, device.ID, room.ID, staff.ID, student1.ID, student2.ID)
-
 		// Start a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -288,7 +260,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		visit1.SetTenantID(1)
+		visit1.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().
 			Model(visit1).
 			ModelTableExpr("active.visits").
@@ -300,7 +272,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		visit2.SetTenantID(1)
+		visit2.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().
 			Model(visit2).
 			ModelTableExpr("active.visits").
@@ -327,8 +299,6 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "timedout-info-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Timed Out Info Room")
 		staff := testpkg.CreateTestStaff(t, db, "TimedOut", "Staff")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -357,8 +327,6 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 	t.Run("no active session returns error", func(t *testing.T) {
 		// ARRANGE: Create a device without a session
 		device := testpkg.CreateTestDevice(t, db, "no-session-info-device-001")
-
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT: Try to get info for device with no session
 		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)

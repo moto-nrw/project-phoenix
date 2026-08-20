@@ -86,6 +86,9 @@ func (c *identityStageCounter) captured(stage string) []string {
 // Before #2099 the same request resolved the person+staff pair ~4 times.
 // The existing TestOGSGroupLive_QueryBudget bounds the total; this test pins
 // the identity share specifically.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -97,19 +100,13 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	// projections (GetMyGroups relations + GetSubstitutedGroupIDs) have a row.
 	today := timezone.TodayDate()
 	subGroup := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetSubGroup")
-	sub := testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
+	testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
 
-	var studentIDs []int64
 	for i := range 3 {
 		student := testpkg.CreateTestStudent(t, tc.db, "IdentityBudget", fmt.Sprintf("Kind%d", i), "IB1")
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		studentIDs = append(studentIDs, student.ID)
 	}
-
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, sub.ID, subGroup.ID, group.ID, teacher.ID)...)
-	}()
 
 	counter := &identityStageCounter{queries: make(map[string][]string)}
 	tc.db.AddQueryHook(counter)

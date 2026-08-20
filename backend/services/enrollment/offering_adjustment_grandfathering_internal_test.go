@@ -13,6 +13,8 @@ import (
 // days must land in BOTH buckets, or unticking it deletes the automatic days
 // its still-selected trigger keeps deriving.
 func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
+	t.Parallel()
+
 	link := func(id int64, selected, manual, automatic []string) *enrollmentModels.RequestChildOffering {
 		return &enrollmentModels.RequestChildOffering{
 			CareOfferingID:        id,

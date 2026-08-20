@@ -17,6 +17,8 @@ import (
 // =============================================================================
 
 func TestNewRateLimiter(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 	require.NotNil(t, rl)
 	assert.NotNil(t, rl.visitors)
@@ -25,6 +27,8 @@ func TestNewRateLimiter(t *testing.T) {
 }
 
 func TestNewRateLimiter_DifferentRates(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		requestsPerMinute int
 		burst             int
@@ -49,6 +53,8 @@ func TestNewRateLimiter_DifferentRates(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_SetLogger(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 	assert.Nil(t, rl.logger)
 
@@ -58,6 +64,8 @@ func TestRateLimiter_SetLogger(t *testing.T) {
 }
 
 func TestRateLimiter_SetKeyFunc(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 	rl.SetKeyFunc(func(r *http.Request) string {
 		return "custom:" + r.Header.Get("X-Rate-Limit-Key")
@@ -74,6 +82,8 @@ func TestRateLimiter_SetKeyFunc(t *testing.T) {
 // =============================================================================
 
 func TestGetClientIP_ChiClientIPFromHeader(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
@@ -84,6 +94,8 @@ func TestGetClientIP_ChiClientIPFromHeader(t *testing.T) {
 }
 
 func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:12345"
@@ -93,6 +105,8 @@ func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
 }
 
 func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
@@ -102,6 +116,8 @@ func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
 }
 
 func TestGetClientIP_RemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.50:54321"
 
@@ -110,6 +126,8 @@ func TestGetClientIP_RemoteAddr(t *testing.T) {
 }
 
 func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.50"
 
@@ -118,6 +136,8 @@ func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
 }
 
 func TestGetClientIP_IPv6(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "[::1]:8080"
 
@@ -126,6 +146,8 @@ func TestGetClientIP_IPv6(t *testing.T) {
 }
 
 func TestGetClientIP_IPv6_XForwardedFor(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
@@ -150,6 +172,8 @@ func getClientIPThroughMiddleware(
 // =============================================================================
 
 func TestRateLimiter_Middleware_AllowsRequests(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10) // 60 requests/minute, burst of 10
 
 	r := chi.NewRouter()
@@ -170,6 +194,8 @@ func TestRateLimiter_Middleware_AllowsRequests(t *testing.T) {
 }
 
 func TestRateLimiter_Middleware_BlocksExcessRequests(t *testing.T) {
+	t.Parallel()
+
 	// Very low rate: 1 request per minute, burst of 1
 	rl := NewRateLimiter(1, 1)
 
@@ -195,6 +221,8 @@ func TestRateLimiter_Middleware_BlocksExcessRequests(t *testing.T) {
 }
 
 func TestRateLimiter_Middleware_SetsRateLimitHeaders(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 1)
 
 	r := chi.NewRouter()
@@ -227,6 +255,8 @@ func TestRateLimiter_Middleware_SetsRateLimitHeaders(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_Middleware_PerIPRateLimiting(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 1) // Very strict rate
 
 	r := chi.NewRouter()
@@ -265,6 +295,8 @@ func TestRateLimiter_Middleware_PerIPRateLimiting(t *testing.T) {
 }
 
 func TestRateLimiter_Middleware_CustomKeySeparatesSameIP(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 1)
 	rl.SetKeyFunc(func(r *http.Request) string {
 		return "token:" + r.Header.Get("Authorization")
@@ -299,6 +331,8 @@ func TestRateLimiter_Middleware_CustomKeySeparatesSameIP(t *testing.T) {
 }
 
 func TestRateLimiter_Middleware_EmptyCustomKeyFallsBackToIP(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 1)
 	rl.SetKeyFunc(func(r *http.Request) string {
 		return ""
@@ -330,6 +364,8 @@ func TestRateLimiter_Middleware_EmptyCustomKeyFallsBackToIP(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_Middleware_RateRecovery(t *testing.T) {
+	t.Parallel()
+
 	// 60 requests per minute = 1 per second
 	// With burst of 2, we can make 2 immediate requests
 	rl := NewRateLimiter(60, 2)
@@ -372,6 +408,8 @@ func TestRateLimiter_Middleware_RateRecovery(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_getVisitor_CreatesNew(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 
 	limiter1 := rl.getVisitor("192.168.1.1")
@@ -385,6 +423,8 @@ func TestRateLimiter_getVisitor_CreatesNew(t *testing.T) {
 }
 
 func TestRateLimiter_getVisitor_ReturnsExisting(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 
 	limiter1 := rl.getVisitor("192.168.1.1")
@@ -395,6 +435,8 @@ func TestRateLimiter_getVisitor_ReturnsExisting(t *testing.T) {
 }
 
 func TestRateLimiter_getVisitor_UpdatesLastSeen(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 
 	// Create visitor
@@ -421,6 +463,8 @@ func TestRateLimiter_getVisitor_UpdatesLastSeen(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_Middleware_ErrorResponseBody(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 1)
 
 	r := chi.NewRouter()
@@ -450,6 +494,8 @@ func TestRateLimiter_Middleware_ErrorResponseBody(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_Middleware_SharedAcrossEndpoints(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 2) // 2 requests then rate limited
 
 	r := chi.NewRouter()
@@ -488,6 +534,8 @@ func TestRateLimiter_Middleware_SharedAcrossEndpoints(t *testing.T) {
 // =============================================================================
 
 func TestRateLimiter_Middleware_LogsRateLimitViolations(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 1)
 	// Note: Can't easily test with real SecurityLogger without its full implementation
 	// This tests the logging path exists
@@ -518,6 +566,8 @@ func TestRateLimiter_Middleware_LogsRateLimitViolations(t *testing.T) {
 // =============================================================================
 
 func TestGetClientIP_EmptyXForwardedFor(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "")
 	req.RemoteAddr = "192.168.1.50:54321"
@@ -527,6 +577,8 @@ func TestGetClientIP_EmptyXForwardedFor(t *testing.T) {
 }
 
 func TestGetClientIP_MalformedRemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "invalid:address:format"
 
@@ -536,6 +588,8 @@ func TestGetClientIP_MalformedRemoteAddr(t *testing.T) {
 }
 
 func TestRateLimiter_Middleware_DifferentHTTPMethods(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(1, 2)
 
 	r := chi.NewRouter()
@@ -574,6 +628,8 @@ func TestRateLimiter_Middleware_DifferentHTTPMethods(t *testing.T) {
 // =============================================================================
 
 func TestVisitor_Structure(t *testing.T) {
+	t.Parallel()
+
 	rl := NewRateLimiter(60, 10)
 	_ = rl.getVisitor("192.168.1.1")
 

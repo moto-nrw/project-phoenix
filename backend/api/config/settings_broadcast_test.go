@@ -45,6 +45,8 @@ func (c *captureBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil
 // drained (i.e. after a successful commit). This is what protects the
 // frontend from refetching against a row that didn't actually persist.
 func TestScheduleSettingsBroadcast_FiresAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	bc := &captureBroadcaster{}
 	rs := &SettingsResource{broadcaster: bc}
 
@@ -70,6 +72,8 @@ func TestScheduleSettingsBroadcast_FiresAfterCommit(t *testing.T) {
 // test setups in api/config/settings_integration_test.go pass nil)
 // must not blow up — it just skips the broadcast.
 func TestScheduleSettingsBroadcast_NoBroadcasterIsNoop(t *testing.T) {
+	t.Parallel()
+
 	rs := &SettingsResource{broadcaster: nil}
 	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
 
@@ -83,6 +87,8 @@ func TestScheduleSettingsBroadcast_NoBroadcasterIsNoop(t *testing.T) {
 // accidentally fanning out to a non-tenant context (tenant ID 0 indicates
 // a broken caller — better to swallow than to broadcast to "everyone").
 func TestScheduleSettingsBroadcast_ZeroTenantIsNoop(t *testing.T) {
+	t.Parallel()
+
 	bc := &captureBroadcaster{}
 	rs := &SettingsResource{broadcaster: bc}
 	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())

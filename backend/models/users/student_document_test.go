@@ -24,6 +24,8 @@ func newStudentDocument(category string) *users.StudentDocument {
 // needs student_documents:health, custody rulings student_documents:legal, and
 // everything else stays with the office.
 func TestStudentDocumentCategoryTiers(t *testing.T) {
+	t.Parallel()
+
 	health := []string{
 		users.StudentDocumentCategoryAttest,
 		users.StudentDocumentCategoryImpfnachweis,
@@ -51,6 +53,8 @@ func TestStudentDocumentCategoryTiers(t *testing.T) {
 }
 
 func TestStudentDocumentValidate(t *testing.T) {
+	t.Parallel()
+
 	doc := newStudentDocument(users.StudentDocumentCategoryAttest)
 	require.NoError(t, doc.Validate())
 	assert.Equal(t, int64(91), doc.GetOwnerID())

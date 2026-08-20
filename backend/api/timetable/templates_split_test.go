@@ -28,7 +28,6 @@ import (
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,6 +162,8 @@ func endBody(effective timezone.Date) map[string]any {
 }
 
 func TestTemplateSplitHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 5},
 	}
@@ -196,6 +197,8 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 // the split note (nullableStr) shadows the embedded updateTemplateRequest.Notes,
 // so the split Bind must enforce the same 2000-char limit as create/update.
 func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -215,6 +218,8 @@ func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
 }
 
 func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -281,6 +286,8 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 }
 
 func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Parallel()
+
 	t.Run("allows an unchanged legacy above-cap Jahrgang", func(t *testing.T) {
 		s := buildTemplateSetup(t, nil)
 		defer s.cleanupFn()
@@ -368,6 +375,8 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 }
 
 func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -398,6 +407,8 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 }
 
 func TestRenderTemplateSplitError_RosterRebaseConflictUsesStable409(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/templates/42/split", nil)
 	recorder := httptest.NewRecorder()
 
@@ -413,6 +424,8 @@ func TestRenderTemplateSplitError_RosterRebaseConflictUsesStable409(t *testing.T
 }
 
 func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric500(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -440,6 +453,8 @@ func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric50
 }
 
 func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -538,6 +553,8 @@ func supervisorIDs(rows []*activitiesModel.SupervisorPlanned) []int64 {
 }
 
 func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -598,6 +615,8 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 }
 
 func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutation(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -635,6 +654,8 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 }
 
 func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -668,6 +689,8 @@ func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
 }
 
 func TestTemplateSplitHandler_UnknownTemplate(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -680,6 +703,8 @@ func TestTemplateSplitHandler_UnknownTemplate(t *testing.T) {
 }
 
 func TestTemplateSplitHandler_ForbiddenForReadOnly(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -696,6 +721,8 @@ func TestTemplateSplitHandler_ForbiddenForReadOnly(t *testing.T) {
 }
 
 func TestTemplateEndHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -716,6 +743,8 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 }
 
 func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -737,7 +766,6 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 	}
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-End-Hidden-Read")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getW.Code, "body=%s", getW.Body.String())
@@ -749,6 +777,8 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 }
 
 func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -779,6 +809,8 @@ func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {
 }
 
 func TestTemplateEndHandler_UnknownTemplate(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -791,6 +823,8 @@ func TestTemplateEndHandler_UnknownTemplate(t *testing.T) {
 }
 
 func TestTemplateEndHandler_ForbiddenForReadOnly(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()

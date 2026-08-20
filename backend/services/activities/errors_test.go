@@ -9,6 +9,8 @@ import (
 
 // TestActivitiesErrorVariables tests that error variables have correct messages
 func TestActivitiesErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -38,6 +40,8 @@ func TestActivitiesErrorVariables(t *testing.T) {
 
 // TestActivitiesErrorsAreDistinct ensures errors are uniquely identifiable
 func TestActivitiesErrorsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrCategoryNotFound,
 		ErrGroupNotFound,
@@ -72,12 +76,16 @@ func TestActivitiesErrorsAreDistinct(t *testing.T) {
 
 // TestAlreadyEnrolledAlias verifies the alias works correctly
 func TestAlreadyEnrolledAlias(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, errors.Is(ErrStudentAlreadyEnrolled, ErrAlreadyEnrolled))
 	assert.True(t, errors.Is(ErrAlreadyEnrolled, ErrStudentAlreadyEnrolled))
 }
 
 // TestActivityError tests the ActivityError custom error type
 func TestActivityError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error with underlying error", func(t *testing.T) {
 		underlyingErr := errors.New("database constraint violation")
 		activityErr := &ActivityError{

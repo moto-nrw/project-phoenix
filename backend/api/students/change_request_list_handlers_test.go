@@ -300,6 +300,8 @@ func aggTypes(page aggPage) []string {
 }
 
 func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase.Add(3*time.Hour))}
 	fakes.care.pending = []*scheduleService.CareRequestReviewItem{aggCarePending(2, "Ben", "Berg", aggBase.Add(1*time.Hour))}
@@ -325,6 +327,8 @@ func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_OpenSearchFiltersByChildName(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
 	fakes.offering.pending = []*enrollmentService.OfferingChangeView{aggOfferingPending(3, "Anna Alt", aggBase.Add(time.Hour))}
@@ -336,6 +340,8 @@ func TestAggregatedChangeRequests_OpenSearchFiltersByChildName(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_OpenTypeFilterSkipsOtherServices(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase)}
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
@@ -349,6 +355,8 @@ func TestAggregatedChangeRequests_OpenTypeFilterSkipsOtherServices(t *testing.T)
 }
 
 func TestAggregatedChangeRequests_OpenCursorPagination(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{
 		aggMasterPending(1, "Anna", "Alt", aggBase.Add(3*time.Hour)),
@@ -368,6 +376,8 @@ func TestAggregatedChangeRequests_OpenCursorPagination(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_AbsenceOnlySeesOnlyExcused(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.pending = []*userService.MasterDataReviewItem{aggMasterPending(1, "Anna", "Alt", aggBase)}
 	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{aggExcusedPending(4, "Dua", "Deml", aggBase.Add(time.Hour))}
@@ -381,6 +391,8 @@ func TestAggregatedChangeRequests_AbsenceOnlySeesOnlyExcused(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_HistoryMergesAndPaginates(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.rows = []*userService.MasterDataHistoryItem{
 		aggMasterHistory(1, "Anna", "Alt", "approved", aggBase.Add(4*time.Hour)),
@@ -419,6 +431,8 @@ func TestAggregatedChangeRequests_HistoryMergesAndPaginates(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_HistoryStatusFilter(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.rows = []*userService.MasterDataHistoryItem{
 		aggMasterHistory(1, "Anna", "Alt", "approved", aggBase.Add(4*time.Hour)),
@@ -439,6 +453,8 @@ func TestAggregatedChangeRequests_HistoryStatusFilter(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_HistoryDateRangeFilter(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.master.rows = []*userService.MasterDataHistoryItem{
 		aggMasterHistory(1, "Anna", "Alt", "approved", time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)),
@@ -460,6 +476,8 @@ func TestAggregatedChangeRequests_HistoryDateRangeFilter(t *testing.T) {
 // keeps scanning pages within its budget and reports no cursor once every
 // row of the type has been scanned.
 func TestAggregatedChangeRequests_HistorySearchScansPastFilteredRows(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	rows := make([]*userService.MasterDataHistoryItem, 0, 60)
 	for i := range 60 {
@@ -475,6 +493,8 @@ func TestAggregatedChangeRequests_HistorySearchScansPastFilteredRows(t *testing.
 }
 
 func TestAggregatedChangeRequests_InvalidQuery(t *testing.T) {
+	t.Parallel()
+
 	rs, _ := newAggResource()
 	for _, query := range []string{
 		"cursor=not-base64!",
@@ -534,6 +554,8 @@ func aggDirectCorrection(id int64, name string, changedAt time.Time) *enrollment
 }
 
 func TestAggregatedChangeRequests_HistoryShowsDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
 		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
@@ -561,6 +583,8 @@ func TestAggregatedChangeRequests_HistoryShowsDirectCorrections(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_OpenNeverShowsDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
@@ -575,6 +599,8 @@ func TestAggregatedChangeRequests_OpenNeverShowsDirectCorrections(t *testing.T) 
 }
 
 func TestAggregatedChangeRequests_DirectCorrectionsHonourSearchAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
@@ -594,6 +620,8 @@ func TestAggregatedChangeRequests_DirectCorrectionsHonourSearchAndDateRange(t *t
 }
 
 func TestAggregatedChangeRequests_StatusFilterExcludesDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
 		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
@@ -609,6 +637,8 @@ func TestAggregatedChangeRequests_StatusFilterExcludesDirectCorrections(t *testi
 }
 
 func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *testing.T) {
+	t.Parallel()
+
 	rs, fakes := newAggResource()
 	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
 		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),

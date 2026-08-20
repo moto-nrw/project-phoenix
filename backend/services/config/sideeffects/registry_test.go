@@ -13,6 +13,8 @@ import (
 // Dispatch finds the handler keyed to the setting key, calls it with the
 // dispatch arguments, and returns the handler's (postCommit, err).
 func TestRegistry_Dispatch_RoutesToRegisteredHandler(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 
 	var capturedKey string
@@ -37,6 +39,8 @@ func TestRegistry_Dispatch_RoutesToRegisteredHandler(t *testing.T) {
 // NOT explode — the API dispatches every settings write through the
 // registry, and most keys legitimately have no handler.
 func TestRegistry_Dispatch_UnknownKeyIsNoop(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 
 	cb, err := r.Dispatch(context.Background(), int64(1), "unknown.key", "any")
@@ -48,6 +52,8 @@ func TestRegistry_Dispatch_UnknownKeyIsNoop(t *testing.T) {
 // returns a non-nil postCommit closure has it surfaced unchanged — the
 // settings handlers schedule it via tenant.RegisterAfterCommit.
 func TestRegistry_Dispatch_PropagatesPostCommit(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 	postCommitRan := false
 	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) {
@@ -65,6 +71,8 @@ func TestRegistry_Dispatch_PropagatesPostCommit(t *testing.T) {
 // returns through Dispatch unwrapped so the outer SettingsResource can
 // roll back the tx via its err return.
 func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 	want := errors.New("boom")
 	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) {
@@ -80,6 +88,8 @@ func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
 // that catches double-registration mistakes during refactors. Two
 // handlers for the same key would silently shadow each other.
 func TestRegistry_Register_PanicsOnDuplicateKey(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) { return nil, nil })
 
@@ -92,6 +102,8 @@ func TestRegistry_Register_PanicsOnDuplicateKey(t *testing.T) {
 // passing nil — at boot time, not in production when Dispatch would
 // otherwise crash.
 func TestRegistry_Register_PanicsOnNilHandler(t *testing.T) {
+	t.Parallel()
+
 	r := NewRegistry()
 	assert.PanicsWithValue(t, `sideeffects: nil handler for key "k"`, func() {
 		r.Register("k", nil)

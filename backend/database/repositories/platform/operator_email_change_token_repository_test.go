@@ -16,8 +16,9 @@ import (
 )
 
 func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -107,8 +108,9 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -229,8 +231,9 @@ func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -264,8 +267,9 @@ func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -308,8 +312,9 @@ func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T)
 }
 
 func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -349,8 +354,9 @@ func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T
 }
 
 func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()
@@ -415,8 +421,9 @@ func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_CountRecentByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
 	ctx := context.Background()

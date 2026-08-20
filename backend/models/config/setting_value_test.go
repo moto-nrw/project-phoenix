@@ -10,6 +10,8 @@ import (
 )
 
 func TestSettingValue_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		sv      config.SettingValue
@@ -51,17 +53,23 @@ func TestSettingValue_Validate(t *testing.T) {
 }
 
 func TestSettingValue_GetID(t *testing.T) {
+	t.Parallel()
+
 	sv := &config.SettingValue{}
 	sv.ID = 42
 	assert.Equal(t, int64(42), sv.GetID())
 }
 
 func TestSettingValue_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	sv := &config.SettingValue{}
 	assert.True(t, sv.GetCreatedAt().IsZero())
 }
 
 func TestSettingValue_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	sv := &config.SettingValue{}
 	assert.True(t, sv.GetUpdatedAt().IsZero())
 }

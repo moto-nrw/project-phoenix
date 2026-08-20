@@ -23,17 +23,14 @@ import (
 // child's and the reviewer's names, pending rows stay out, and the keyset
 // cursor pages without overlap.
 func TestMasterDataReview_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	reviewerStaff, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
-	defer testpkg.CleanupStaffFixtures(t, db, reviewerStaff.ID)
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.
 	rejected := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -113,15 +110,13 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 // TestMasterDataReview_ListHistoryScopedToWritableChildren proves the history
 // applies the same per-child write gate as the pending queue.
 func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {

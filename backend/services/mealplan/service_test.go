@@ -54,6 +54,8 @@ func strptr(s string) *string { return &s }
 // TestWeekRange verifies the Monday-Friday bounds for any day in a week,
 // independent of which weekday the input falls on.
 func TestWeekRange(t *testing.T) {
+	t.Parallel()
+
 	// 2026-06-29 is a Monday; the week runs Mon 06-29 .. Fri 07-03.
 	wantMonday := timezone.NewDate(2026, time.June, 29)
 	wantFriday := timezone.NewDate(2026, time.July, 3)
@@ -86,6 +88,8 @@ func TestWeekRange(t *testing.T) {
 // in the week to the Monday-Friday bounds before querying, and returns the
 // repository rows unchanged.
 func TestGetWeek_PassesMondayFridayRangeToRepo(t *testing.T) {
+	t.Parallel()
+
 	want := []*mealplan.MealPlanEntry{{Dish: "Nudeln"}}
 	repo := &fakeRepo{rangeResult: want}
 	svc := NewService(repo)
@@ -107,6 +111,8 @@ func TestGetWeek_PassesMondayFridayRangeToRepo(t *testing.T) {
 }
 
 func TestGetWeek_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{rangeErr: errors.New("db down")}
 	svc := NewService(repo)
 	if _, err := svc.GetWeek(context.Background(), timezone.NewDate(2026, time.July, 1)); err == nil {
@@ -118,6 +124,8 @@ func TestGetWeek_PropagatesRepoError(t *testing.T) {
 // blank/whitespace-only dishes are dropped, surviving dishes are trimmed and
 // re-numbered from 0, and notes are normalized (trimmed, empty→nil).
 func TestSetDay_TrimsAssignsPositionsAndDropsBlanks(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 	date := timezone.NewDate(2026, time.July, 1)
@@ -161,6 +169,8 @@ func TestSetDay_TrimsAssignsPositionsAndDropsBlanks(t *testing.T) {
 // ReplaceDay with an empty slice (the repo semantics clear the day), never
 // persisting a phantom empty dish.
 func TestSetDay_AllBlankClearsDay(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 
@@ -180,6 +190,8 @@ func TestSetDay_AllBlankClearsDay(t *testing.T) {
 }
 
 func TestSetDay_ZeroDateRejected(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 	if err := svc.SetDay(context.Background(), timezone.Date{}, []DishInput{{Dish: "x"}}); err == nil {
@@ -194,6 +206,8 @@ func TestSetDay_ZeroDateRejected(t *testing.T) {
 // ErrInvalidMealDate and never reach the repository: a weekend row would be
 // invisible (GetWeek only reads Mon-Fri) so it must not be persisted.
 func TestSetDay_WeekendRejected(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		date timezone.Date
@@ -219,6 +233,8 @@ func TestSetDay_WeekendRejected(t *testing.T) {
 // TestSetDay_WeekdaysAccepted guards the boundary the weekend check must not
 // over-reach: Monday and Friday are valid work-week days.
 func TestSetDay_WeekdaysAccepted(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		date timezone.Date
@@ -241,6 +257,8 @@ func TestSetDay_WeekdaysAccepted(t *testing.T) {
 }
 
 func TestSetDay_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{replaceErr: errors.New("insert failed")}
 	svc := NewService(repo)
 	err := svc.SetDay(context.Background(), timezone.NewDate(2026, time.July, 1), []DishInput{{Dish: "x"}})
@@ -250,6 +268,8 @@ func TestSetDay_PropagatesRepoError(t *testing.T) {
 }
 
 func TestDelete_CallsRepoWithDate(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 	date := timezone.NewDate(2026, time.July, 1)
@@ -262,6 +282,8 @@ func TestDelete_CallsRepoWithDate(t *testing.T) {
 }
 
 func TestDelete_ZeroDateRejected(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 	if err := svc.Delete(context.Background(), timezone.Date{}); err == nil {
@@ -273,6 +295,8 @@ func TestDelete_ZeroDateRejected(t *testing.T) {
 }
 
 func TestDelete_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{deleteErr: errors.New("delete failed")}
 	svc := NewService(repo)
 	if err := svc.Delete(context.Background(), timezone.NewDate(2026, time.July, 1)); err == nil {
@@ -283,6 +307,8 @@ func TestDelete_PropagatesRepoError(t *testing.T) {
 // TestNormalizeNote covers the note-cleanup helper directly for the edge cases
 // the SetDay tests exercise indirectly.
 func TestNormalizeNote(t *testing.T) {
+	t.Parallel()
+
 	if got := strutil.TrimPtrToNil(nil); got != nil {
 		t.Errorf("nil note should stay nil, got %q", deref(got))
 	}

@@ -8,6 +8,8 @@ import (
 )
 
 func TestDateframe_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)
 	yesterday := now.AddDate(0, 0, -1)
@@ -80,6 +82,8 @@ func TestDateframe_Validate(t *testing.T) {
 }
 
 func TestDateframe_Duration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		dateframe *Dateframe
@@ -130,6 +134,8 @@ func TestDateframe_Duration(t *testing.T) {
 }
 
 func TestDateframe_DaysCount(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		dateframe *Dateframe
@@ -172,6 +178,8 @@ func TestDateframe_DaysCount(t *testing.T) {
 }
 
 func TestDateframe_Contains(t *testing.T) {
+	t.Parallel()
+
 	// Create a dateframe: Jan 15-20, 2024
 	start := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
@@ -229,6 +237,8 @@ func TestDateframe_Contains(t *testing.T) {
 }
 
 func TestDateframe_Overlaps(t *testing.T) {
+	t.Parallel()
+
 	// Base dateframe: Jan 15-20, 2024
 	base := &Dateframe{
 		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
@@ -325,6 +335,8 @@ func TestDateframe_Overlaps(t *testing.T) {
 }
 
 func TestDateframe_GetID(t *testing.T) {
+	t.Parallel()
+
 	df := &Dateframe{
 		Model:     base.Model{ID: 42},
 		StartDate: time.Now(),
@@ -337,6 +349,8 @@ func TestDateframe_GetID(t *testing.T) {
 }
 
 func TestDateframe_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	df := &Dateframe{
 		Model:     base.Model{CreatedAt: now},
@@ -350,6 +364,8 @@ func TestDateframe_GetCreatedAt(t *testing.T) {
 }
 
 func TestDateframe_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	df := &Dateframe{
 		Model:     base.Model{UpdatedAt: now},

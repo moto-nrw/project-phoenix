@@ -8,6 +8,8 @@ import (
 )
 
 func TestStudentDeletionValidationHelpers(t *testing.T) {
+	t.Parallel()
+
 	for _, reason := range []string{
 		StudentDeletionReasonTestData,
 		StudentDeletionReasonIncorrectEntry,
@@ -25,6 +27,8 @@ func TestStudentDeletionValidationHelpers(t *testing.T) {
 }
 
 func TestBuildStudentDeletionPreviewRejectsIncompleteData(t *testing.T) {
+	t.Parallel()
+
 	_, err := buildStudentDeletionPreview(nil, nil, &userModels.StudentDeletionCounts{})
 	assert.ErrorContains(t, err, "preview is incomplete")
 }

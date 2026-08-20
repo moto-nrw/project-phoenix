@@ -139,6 +139,9 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
 	const token = "supersecretcapabilitytoken123456"
 	event := &sentry.Event{

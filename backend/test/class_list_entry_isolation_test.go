@@ -26,14 +26,14 @@ import (
 // sees only its own school's entries, on every query shape the repository
 // offers, including a point lookup by a foreign primary key.
 func TestClassListEntryTenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := UniqueTestTenantID(t)
 	tenantB := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 
 	// Same class name in both schools — the realistic collision: "1a" exists
 	// everywhere, and a leak would surface exactly here.
@@ -77,14 +77,14 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 // direction: a row stamped with another school's tenant_id must be refused by
 // the policy's WITH CHECK instead of silently landing in the foreign school.
 func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := UniqueTestTenantID(t)
 	tenantB := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
 
 	repo := repoUsers.NewClassListEntryRepository(db)
 	smuggled := &userModels.ClassListEntry{
@@ -100,7 +100,4 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 		return repo.Create(txCtx, smuggled)
 	})
 	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")
-	if smuggled.ID != 0 {
-		CleanupClassListEntryFixtures(t, db, smuggled.ID)
-	}
 }

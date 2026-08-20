@@ -82,12 +82,16 @@ func conversionSupervisor(staffID int64, from timezone.Date) *activitiesModel.Su
 }
 
 func TestNewInstanceSeriesConversionService_PanicsOnNilDeps(t *testing.T) {
+	t.Parallel()
+
 	require.Panics(t, func() {
 		_ = NewInstanceSeriesConversionService(InstanceSeriesConversionDependencies{})
 	})
 }
 
 func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
 	svc := &instanceSeriesConversionService{}
 	date := conversionValidFrom()
 	periodID := int64(11)
@@ -181,6 +185,8 @@ func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
 }
 
 func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
+	t.Parallel()
+
 	svc := NewTimetableDataService(TimetableDataDependencies{})
 	students, staff, err := svc.templateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
 	require.Error(t, err)
@@ -192,6 +198,8 @@ func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
 }
 
 func TestTemplateAssignmentsOn_EnrollmentLoadError(t *testing.T) {
+	t.Parallel()
+
 	svc := NewTimetableDataService(TimetableDataDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{err: errConversionMock},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
@@ -204,6 +212,8 @@ func TestTemplateAssignmentsOn_EnrollmentLoadError(t *testing.T) {
 }
 
 func TestTemplateAssignmentsOn_SupervisorLoadError(t *testing.T) {
+	t.Parallel()
+
 	from := conversionValidFrom()
 	svc := NewTimetableDataService(TimetableDataDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{}},
@@ -217,6 +227,8 @@ func TestTemplateAssignmentsOn_SupervisorLoadError(t *testing.T) {
 }
 
 func TestTemplateAssignmentsOn_TargetStudentLoadError(t *testing.T) {
+	t.Parallel()
+
 	from := conversionValidFrom()
 	svc := NewTimetableDataService(TimetableDataDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{},
@@ -230,6 +242,8 @@ func TestTemplateAssignmentsOn_TargetStudentLoadError(t *testing.T) {
 }
 
 func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing.T) {
+	t.Parallel()
+
 	from := conversionValidFrom()
 	// Monday 2026-05-04 — keep weekdays unrestricted so validity is pure date.
 	future := from.AddDays(14)
@@ -270,6 +284,8 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 }
 
 func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) {
+	t.Parallel()
+
 	from := conversionValidFrom()
 	svc := NewTimetableDataService(TimetableDataDependencies{
 		StudentEnrollmentRepo: &conversionEnrollmentRepo{

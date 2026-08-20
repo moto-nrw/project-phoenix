@@ -8,6 +8,8 @@ import (
 )
 
 func TestReconcilePhotoConsentRequest_StaleUnchangedValuesAreNoOp(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -45,6 +47,8 @@ func TestReconcilePhotoConsentRequest_StaleUnchangedValuesAreNoOp(t *testing.T) 
 }
 
 func TestReconcilePhotoConsentRequest_UserTransitionsStillApply(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {

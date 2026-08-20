@@ -15,6 +15,8 @@ import (
 )
 
 func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	future := today.AddDays(1)
 	tests := []struct {
@@ -34,6 +36,8 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 }
 
 func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	req := httptest.NewRequest("GET", "/attendance-history/export?from="+today.String()+"&to="+today.String(), nil)
 	options, err := parseAttendanceExportOptions(req, 30)
@@ -43,6 +47,8 @@ func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
 }
 
 func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	morningCheckIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
 	unassignedCheckIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
@@ -88,6 +94,8 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 // loses its exact timestamp match. The scheduled-window fallback must still
 // claim it — no false "Nicht zugeordnet" row for booked presence.
 func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	firstCheckIn := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
 	reentryCheckIn := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
@@ -115,6 +123,8 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 }
 
 func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
+	t.Parallel()
+
 	renderer := listexport.NewService()
 	doc := listexport.Document{
 		Title: "Anwesenheit je Betreuungsangebot", GeneratedAt: time.Now(),
@@ -137,6 +147,8 @@ func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 // export lists plain sessions — no "Betreuungsangebot" and no "Zuordnung"
 // column, so no row can read as unassigned.
 func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
+	t.Parallel()
+
 	ids := make([]listexport.ColumnID, 0, 5)
 	for _, column := range attendanceSessionExportColumns() {
 		ids = append(ids, column.ID)
@@ -153,6 +165,8 @@ func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
 // still lists every observed session — the neutral wording comes from dropping
 // the offering/assignment columns, not from dropping rows.
 func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, timezone.Berlin)
@@ -167,6 +181,8 @@ func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 }
 
 func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
+	t.Parallel()
+
 	day1 := timezone.NewDate(2026, 7, 14)
 	day2 := timezone.NewDate(2026, 7, 15)
 	day1Unassigned := time.Date(2026, 7, 14, 9, 30, 0, 0, timezone.Berlin)

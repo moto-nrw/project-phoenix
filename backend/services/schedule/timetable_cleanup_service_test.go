@@ -38,56 +38,8 @@ type instFixture struct {
 	studentIDs       []int64
 	staffIDs         []int64
 	roomIDs          []int64
-	activityGrpIDs   []int64
 	templateIDs      []int64
 	categoryIDs      []int64
-}
-
-func (f *instFixture) cleanup(t *testing.T) {
-	t.Helper()
-	// Children first. Most instance_students + instance_staff rows disappear
-	// via CASCADE when the instance row is deleted by the test, but some
-	// tests intentionally leave rows un-deleted and want the child tables
-	// cleared explicitly.
-	if len(f.instStudentIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_students", f.instStudentIDs...)
-	}
-	if len(f.instanceStaffIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_staff", f.instanceStaffIDs...)
-	}
-	if len(f.instanceIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.activity_instances", f.instanceIDs...)
-	}
-	if len(f.exceptionIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "schedule.activity_exceptions", f.exceptionIDs...)
-	}
-	if len(f.templateIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.groups", f.templateIDs...)
-	}
-	if len(f.activityGrpIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.groups", f.activityGrpIDs...)
-	}
-	if len(f.categoryIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "activities.categories", f.categoryIDs...)
-	}
-	if len(f.studentIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "users.students", f.studentIDs...)
-	}
-	if len(f.staffIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "users.staff", f.staffIDs...)
-	}
-	if len(f.roomIDs) > 0 {
-		testpkg.CleanupTableRecords(t, f.db, "facilities.rooms", f.roomIDs...)
-	}
-	// Clean up orphaned audit rows for the test's affected students. Audit
-	// rows are tenant-scoped and use DELETE CASCADE on student_id, so most
-	// are gone when the student is deleted — but rows written by tests
-	// where we prevent the DELETE (mock rollback) remain.
-	for _, sid := range f.studentIDs {
-		_, _ = f.db.NewDelete().Table("audit.data_deletions").
-			Where("tenant_id = ? AND student_id = ? AND deletion_type = ?", f.tenantID, sid, auditModels.DeletionTypeTimetableRetention).
-			Exec(f.ctx)
-	}
 }
 
 // newInstanceFixture inserts an ActivityInstance row and returns the ID. The
@@ -174,7 +126,6 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Room-%d", suffix))
 	f := &instFixture{db: db, ctx: ctx, tenantID: tenantID, roomIDs: []int64{room.ID}}
-	t.Cleanup(func() { f.cleanup(t) })
 	return f, room.ID
 }
 
@@ -197,6 +148,8 @@ func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 // --- Tests ---
 
 func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -213,8 +166,7 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 	f.categoryIDs = append(f.categoryIDs, cat.ID)
 	template := createTemplate(t, f, roomID, cat.ID)
 	oldExcID := f.newException(t, template.ID, old, scheduleModels.ActivityExceptionCancelled)
-	recentExcID := f.newException(t, template.ID, recent, scheduleModels.ActivityExceptionCancelled)
-	_ = recentExcID
+	f.newException(t, template.ID, recent, scheduleModels.ActivityExceptionCancelled)
 
 	result, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
@@ -231,6 +183,8 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 }
 
 func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
+	t.Parallel()
+
 	f, _ := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -263,6 +217,8 @@ func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
 }
 
 func TestCleanup_Idempotent_SecondRunDeletesZero(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -280,6 +236,8 @@ func TestCleanup_Idempotent_SecondRunDeletesZero(t *testing.T) {
 }
 
 func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -307,6 +265,8 @@ func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
 }
 
 func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
+	t.Parallel()
+
 	// Tenant override narrows the window to 30 days; a 60-day-old instance
 	// becomes deletable even though the registry default (365) would have
 	// spared it. Wires a stubSettingsService that reports HasTenantOverride
@@ -339,6 +299,8 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 }
 
 func TestCleanup_AllStatuses_DeletesPlannedActiveCompletedCancelled(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -358,6 +320,8 @@ func TestCleanup_AllStatuses_DeletesPlannedActiveCompletedCancelled(t *testing.T
 }
 
 func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -384,6 +348,8 @@ func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing
 }
 
 func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -436,6 +402,8 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 }
 
 func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -470,6 +438,8 @@ func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
 }
 
 func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -545,6 +515,8 @@ func (r *failingAuditRepo) CountByType(context.Context, string, time.Time) (int6
 }
 
 func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 
 	old := timezone.TodayDate().AddDays(-400)
@@ -586,6 +558,8 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 // (TestCleanup_AuditWriteFailure_BubblesError) runs outside a tx and can't
 // prove this — this test does.
 func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 

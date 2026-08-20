@@ -50,11 +50,12 @@ func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
 // TestCleanupStaleAttendance_NoStaleRecords tests that cleanup works correctly
 // when there are no stale attendance records to clean up.
 func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -71,11 +72,12 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleAttendance_ClosesStaleRecords tests that stale attendance
 // records from previous days without checkout times are properly closed.
 func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a")
@@ -89,16 +91,12 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	var attendanceID int64
 	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
+	`, student.ID, yesterday, checkInTime, staff.ID, device.ID, testpkg.Tenant(t)).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -118,11 +116,12 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 // TestPreviewAttendanceCleanup_NoStaleRecords tests preview when there are no
 // stale attendance records.
 func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Preview cleanup when there are no stale records
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -138,11 +137,12 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 // TestPreviewAttendanceCleanup_ShowsStaleRecords tests that preview correctly
 // identifies stale attendance records that would be cleaned.
 func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b")
@@ -156,16 +156,12 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	var attendanceID int64
 	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
+	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID, testpkg.Tenant(t)).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -184,11 +180,12 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 // TestGetRetentionStatistics_EmptyDatabase tests statistics when there are
 // no expired visits to report.
 func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Get statistics when there may be no expired visits
 	stats, err := cleanupService.GetRetentionStatistics(ctx)
@@ -202,16 +199,17 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 // TestGetRetentionStatistics_WithData tests statistics when there are
 // expired visits in the database.
 func TestGetRetentionStatistics_WithData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Stats", "Test", "6d")
-	staff := testpkg.CreateTestStaff(t, db, "Stats", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "stats-device-001")
+	testpkg.CreateTestStaff(t, db, "Stats", "Staff")
+	testpkg.CreateTestDevice(t, db, "stats-device-001")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Stats Activity")
 	room := testpkg.CreateTestRoom(t, db, "Stats Room")
 
@@ -233,7 +231,7 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 			"renewal_required":    false,
 			"data_retention_days": retentionDays,
 			"created_at":          now,
-			"tenant_id":           int64(1),
+			"tenant_id":           testpkg.Tenant(t),
 		}).
 		Exec(ctx)
 	require.NoError(t, err, "Failed to create privacy consent")
@@ -249,13 +247,12 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 	var visitID int64
 	err = db.NewRaw(`
 		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime).Scan(ctx, &visitID)
+	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime, testpkg.Tenant(t)).Scan(ctx, &visitID)
 	require.NoError(t, err, "Failed to create old visit")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer testpkg.CleanupActivityFixtures(t, db, visitID, activeGroup.ID, student.ID, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ACT: Get statistics
 	stats, err := cleanupService.GetRetentionStatistics(ctx)
@@ -275,11 +272,12 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 
 // TestPreviewCleanup_EmptyDatabase tests preview when there are no expired visits.
 func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewCleanup(ctx)
@@ -297,11 +295,12 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 // TestCleanupExpiredVisits_NoExpiredVisits tests cleanup when there are no
 // expired visits to delete.
 func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Run cleanup when there are no expired visits
 	result, err := cleanupService.CleanupExpiredVisits(ctx)
@@ -318,16 +317,17 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 // TestCleanupExpiredVisits_WithExpiredData tests cleanup when there are
 // expired visits that should be deleted.
 func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Batch", "Cleanup", "6c")
-	staff := testpkg.CreateTestStaff(t, db, "Batch", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "batch-device-001")
+	testpkg.CreateTestStaff(t, db, "Batch", "Staff")
+	testpkg.CreateTestDevice(t, db, "batch-device-001")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Batch Activity")
 	room := testpkg.CreateTestRoom(t, db, "Batch Room")
 
@@ -349,7 +349,7 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 			"renewal_required":    false,
 			"data_retention_days": retentionDays,
 			"created_at":          now,
-			"tenant_id":           int64(1),
+			"tenant_id":           testpkg.Tenant(t),
 		}).
 		Exec(ctx)
 	require.NoError(t, err, "Failed to create privacy consent")
@@ -365,13 +365,12 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 	var visitID int64
 	err = db.NewRaw(`
 		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime).Scan(ctx, &visitID)
+	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime, testpkg.Tenant(t)).Scan(ctx, &visitID)
 	require.NoError(t, err, "Failed to create old visit")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer testpkg.CleanupActivityFixtures(t, db, visitID, activeGroup.ID, student.ID, staff.ID, device.ID, activityGroup.ID, room.ID)
 
 	// ACT: Run batch cleanup
 	result, err := cleanupService.CleanupExpiredVisits(ctx)
@@ -393,8 +392,9 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 // TestCleanupStaleAttendance_DatabaseError tests error handling when database
 // operations fail.
 func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -416,8 +416,9 @@ func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
 // TestPreviewAttendanceCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -436,8 +437,9 @@ func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
 // TestGetRetentionStatistics_DatabaseError tests error handling when database
 // operations fail.
 func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -456,8 +458,9 @@ func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
 // TestPreviewCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -476,8 +479,9 @@ func TestPreviewCleanup_DatabaseError(t *testing.T) {
 // TestCleanupExpiredVisits_DatabaseError tests error handling when getting
 // students fails.
 func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -503,11 +507,12 @@ func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
 // data integrity issue. The service should use check_in_time + 1 second as
 // the checkout time instead of 23:59:59.
 func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "Late", "CheckIn", "5c")
@@ -523,16 +528,12 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 	var attendanceID int64
 	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
+	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID, testpkg.Tenant(t)).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create attendance record with late check-in")
 
 	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -561,11 +562,12 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 }
 
 func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "TZ", "Test", "5d")
@@ -580,15 +582,10 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	var attendanceID int64
 	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
-		VALUES (?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
+	`, student.ID, yesterday, checkInTime, staff.ID, device.ID, testpkg.Tenant(t)).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -628,11 +625,12 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 // TestPreviewSupervisorCleanup_NoStaleRecords tests preview when there are no
 // stale supervisor records.
 func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Preview cleanup when there are no stale supervisor records
 	preview, err := cleanupService.PreviewSupervisorCleanup(ctx)
@@ -653,11 +651,12 @@ func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_ClosesStaleRecords tests that stale supervisor
 // records from previous days without end_date are properly closed.
 func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures for stale supervisor
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
@@ -671,16 +670,12 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 	var supervisorID int64
 	err := db.NewRaw(`
 		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
-		VALUES (?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id
-	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
+	`, staff.ID, activeGroup.ID, "supervisor", yesterday, testpkg.Tenant(t)).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create stale supervisor record")
 
 	// IMPORTANT: Clean up in correct order (FK constraints)
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, staff.ID, activityGroup.ID, room.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -700,8 +695,9 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_DatabaseError tests error handling when database
 // operations fail.
 func TestCleanupStaleSupervisors_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -723,8 +719,9 @@ func TestCleanupStaleSupervisors_DatabaseError(t *testing.T) {
 // TestPreviewSupervisorCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewSupervisorCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
 

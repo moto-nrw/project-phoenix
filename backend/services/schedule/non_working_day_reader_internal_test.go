@@ -44,6 +44,8 @@ func (s *stubClosingDayService) ClosingDayDates(_ context.Context, _, _ timezone
 }
 
 func TestNonWorkingDayResolverUnionsDates(t *testing.T) {
+	t.Parallel()
+
 	holiday := timezone.NewDate(2026, 10, 3)
 	closing := timezone.NewDate(2026, 10, 12)
 	both := timezone.NewDate(2026, 11, 1) // Allerheiligen inside a closure week
@@ -63,6 +65,8 @@ func TestNonWorkingDayResolverUnionsDates(t *testing.T) {
 }
 
 func TestNonWorkingDayResolverPassthroughKeepsHolidaysPure(t *testing.T) {
+	t.Parallel()
+
 	resolver := NewNonWorkingDayResolver(
 		&stubHolidayService{list: []holidays.Holiday{{Date: timezone.NewDate(2026, 5, 1), Name: "Tag der Arbeit"}}},
 		&stubClosingDayService{dates: map[timezone.Date]bool{timezone.NewDate(2026, 5, 4): true}},
@@ -75,6 +79,8 @@ func TestNonWorkingDayResolverPassthroughKeepsHolidaysPure(t *testing.T) {
 }
 
 func TestNonWorkingDayResolverPropagatesErrors(t *testing.T) {
+	t.Parallel()
+
 	resolver := NewNonWorkingDayResolver(
 		&stubHolidayService{err: errors.New("holiday boom")},
 		&stubClosingDayService{},

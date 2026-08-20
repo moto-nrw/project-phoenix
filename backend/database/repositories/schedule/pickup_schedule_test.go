@@ -21,11 +21,12 @@ import (
 // =============================================================================
 
 func TestStudentPickupScheduleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -66,11 +67,12 @@ func TestStudentPickupScheduleRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -102,11 +104,12 @@ func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -141,11 +144,12 @@ func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -177,11 +181,12 @@ func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T)
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedules for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -214,11 +219,12 @@ func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T
 }
 
 func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule when doesn't exist", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -273,11 +279,12 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -328,11 +335,12 @@ func TestStudentPickupScheduleRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -365,11 +373,12 @@ func TestStudentPickupScheduleRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -407,11 +416,12 @@ func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupExceptionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -439,11 +449,12 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -474,11 +485,12 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -511,11 +523,12 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -548,25 +561,17 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exceptions for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 		staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BulkLookup")
-		exceptionIDs := make([]int64, 0, 2)
-		defer func() {
-			testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, exceptionIDs, nil, nil)
-			testpkg.CleanupActivityFixtures(t, db,
-				student1.ID, student1.PersonID,
-				student2.ID, student2.PersonID,
-				staff.ID, staff.PersonID,
-			)
-		}()
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := timezone.NewDate(2024, 4, 10)
@@ -580,7 +585,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
-			exceptionIDs = append(exceptionIDs, exception.ID)
 		}
 
 		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{student1.ID, student2.ID}, exceptionDate)
@@ -598,18 +602,14 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "PickupStudent", "BerlinTZ", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BerlinTZ")
-	var exceptionID int64
-	defer func() {
-		testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, []int64{exceptionID}, nil, nil)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID, staff.ID, staff.PersonID)
-	}()
 
 	// timezone.Date binds as a 'YYYY-MM-DD' literal, so the DB session
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
@@ -631,7 +631,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 		if err := repo.Create(txCtx, exception); err != nil {
 			return err
 		}
-		exceptionID = exception.ID
 
 		results, err := repo.FindByStudentIDsAndDate(txCtx, []int64{student.ID}, day)
 		if err != nil {
@@ -661,11 +660,12 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 }
 
 func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -696,11 +696,12 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -753,11 +754,12 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -790,11 +792,12 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -822,11 +825,12 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -882,11 +886,12 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupNoteRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -927,11 +932,12 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -962,11 +968,12 @@ func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1006,11 +1013,12 @@ func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1059,11 +1067,12 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -1098,11 +1107,12 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1150,11 +1160,12 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1187,11 +1198,12 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1225,11 +1237,12 @@ func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")

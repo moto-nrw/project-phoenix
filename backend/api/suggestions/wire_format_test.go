@@ -41,6 +41,8 @@ func renderWire(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestWireFormat_Suggestions_ErrorRenderer(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		err        error
@@ -90,6 +92,8 @@ func TestWireFormat_Suggestions_ErrorRenderer(t *testing.T) {
 }
 
 func TestWireFormat_Suggestions_ErrorInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	renderer := suggestions.ErrorInvalidRequest(errors.New("bad"))
 	gotStatus, gotBody := renderWire(t, renderer)
 	assert.Equal(t, 400, gotStatus)

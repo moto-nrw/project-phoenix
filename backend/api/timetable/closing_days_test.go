@@ -28,6 +28,8 @@ func newTestClosingDay() *schedule.ClosingDay {
 }
 
 func TestListClosingDays(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns all closing days", func(t *testing.T) {
 		mock := &scheduletest.ClosingDayServiceMock{
 			GetAllFn: func(_ context.Context) ([]*schedule.ClosingDay, error) {
@@ -61,6 +63,8 @@ func TestListClosingDays(t *testing.T) {
 }
 
 func TestCreateClosingDay(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates a closing day range", func(t *testing.T) {
 		var created *schedule.ClosingDay
 		mock := &scheduletest.ClosingDayServiceMock{
@@ -180,6 +184,8 @@ func TestCreateClosingDay(t *testing.T) {
 }
 
 func TestUpdateClosingDay(t *testing.T) {
+	t.Parallel()
+
 	t.Run("updates a closing day", func(t *testing.T) {
 		var updated *schedule.ClosingDay
 		mock := &scheduletest.ClosingDayServiceMock{
@@ -239,6 +245,8 @@ func TestUpdateClosingDay(t *testing.T) {
 }
 
 func TestDeleteClosingDay(t *testing.T) {
+	t.Parallel()
+
 	t.Run("deletes a closing day", func(t *testing.T) {
 		var deleted int64
 		mock := &scheduletest.ClosingDayServiceMock{

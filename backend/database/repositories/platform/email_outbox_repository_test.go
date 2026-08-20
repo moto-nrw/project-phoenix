@@ -17,14 +17,13 @@ import (
 )
 
 func uniqueOutboxToken(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxCleanupRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, platformRepo.NewEmailOutboxRepository(db), tenantID
 }
@@ -69,6 +68,8 @@ func makeOutbox(kind string) *platformModels.EmailOutbox {
 // --- Create + FindByID + Validate -------------------------------------
 
 func TestEmailOutboxRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("create")
 	defer wipeOutbox(db, tenantID, kind)
@@ -83,6 +84,8 @@ func TestEmailOutboxRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	row := makeOutbox("") // blank Kind → Validate fails
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -93,6 +96,8 @@ func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("idempotent")
 	defer wipeOutbox(db, tenantID, kind)
@@ -119,6 +124,8 @@ func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testi
 }
 
 func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("find")
 	defer wipeOutbox(db, tenantID, kind)
@@ -141,6 +148,8 @@ func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var got *platformModels.EmailOutbox
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -155,7 +164,10 @@ func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
 
 // --- ClaimDuePending --------------------------------------------------
 
+// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
+// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *testing.T) {
+
 	// Insert two due pending rows + one future-retry row. Claim should
 	// return exactly the two due ones, with their status flipped.
 	db, repo, tenantID := setupOutboxRepoTest(t)
@@ -207,7 +219,10 @@ func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *t
 	assert.Equal(t, platformModels.EmailOutboxStatusPending, futureRow.Status)
 }
 
+// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
+// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("limit")
 	defer wipeOutbox(db, tenantID, kind)
@@ -236,6 +251,8 @@ func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
 	assert.Equal(t, 2, ours, "limit=2 must return at most 2 rows of ours")
 }
 
+// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
+// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *testing.T) {
 	// A row already in 'sending' state must NOT be re-claimed — the
 	// status filter is explicit and FOR UPDATE SKIP LOCKED prevents
@@ -263,7 +280,10 @@ func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *tes
 	}
 }
 
+// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
+// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T) {
+
 	// FIFO-ish ordering — oldest next_retry_at first so retries don't
 	// starve.
 	db, repo, tenantID := setupOutboxRepoTest(t)
@@ -299,6 +319,8 @@ func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T
 		"oldest next_retry_at must be claimed first to avoid starvation")
 }
 
+// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
+// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.T) {
 	// `if limit <= 0 { limit = 25 }` — caller passing 0 must get the
 	// default budget, not zero results.
@@ -307,7 +329,10 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 	defer wipeOutbox(db, tenantID, kind)
 
 	r := makeOutbox(kind)
-	r.NextRetryAt = time.Now().Add(-1 * time.Hour)
+	// Far enough back to sort ahead of every other pending row in the clone:
+	// the claim is tenant-less and takes the 25 oldest due rows, so a row that
+	// is merely "due" competes with whatever other tests left pending (#2419).
+	r.NextRetryAt = time.Now().Add(-365 * 24 * time.Hour)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Create(ctx, r)
 	}))
@@ -330,6 +355,8 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 // --- LockSending -------------------------------------------------------
 
 func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("locksending")
 	defer wipeOutbox(db, tenantID, kind)
@@ -350,6 +377,8 @@ func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("lockgone")
 	defer wipeOutbox(db, tenantID, kind)
@@ -376,6 +405,8 @@ func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.
 // --- MarkSent / MarkRetry / MarkFailed --------------------------------
 
 func TestEmailOutboxRepository_MarkSent_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("marksent")
 	defer wipeOutbox(db, tenantID, kind)
@@ -404,6 +435,8 @@ func TestEmailOutboxRepository_MarkSent_HappyPath(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_MarkSent_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.MarkSent(ctx, 9_999_999, time.Now())
@@ -412,6 +445,8 @@ func TestEmailOutboxRepository_MarkSent_MissingIDErrors(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_MarkRetry_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("markretry")
 	defer wipeOutbox(db, tenantID, kind)
@@ -441,6 +476,8 @@ func TestEmailOutboxRepository_MarkRetry_HappyPath(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_MarkRetry_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.MarkRetry(ctx, 9_999_999, 1, "boom", time.Now())
@@ -449,6 +486,8 @@ func TestEmailOutboxRepository_MarkRetry_MissingIDErrors(t *testing.T) {
 }
 
 func TestEmailOutboxRepository_MarkFailed_TerminalAttemptCountPersisted(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("markfailed")
 	defer wipeOutbox(db, tenantID, kind)
@@ -476,6 +515,8 @@ func TestEmailOutboxRepository_MarkFailed_TerminalAttemptCountPersisted(t *testi
 }
 
 func TestEmailOutboxRepository_MarkFailed_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.MarkFailed(ctx, 9_999_999, 1, "boom")
@@ -486,6 +527,8 @@ func TestEmailOutboxRepository_MarkFailed_MissingIDErrors(t *testing.T) {
 // --- FindByRelatedEntity ---------------------------------------------
 
 func TestEmailOutboxRepository_FindByRelatedEntity_FiltersByTypeAndID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("related")
 	defer wipeOutbox(db, tenantID, kind)
@@ -537,6 +580,8 @@ func TestEmailOutboxRepository_FindByRelatedEntity_FiltersByTypeAndID(t *testing
 }
 
 func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var list []*platformModels.EmailOutbox
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -552,6 +597,8 @@ func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing
 // --- CancelPendingByRelatedEntity ------------------------------------
 
 func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForEntity(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("cancel")
 	defer wipeOutbox(db, tenantID, kind)
@@ -616,6 +663,8 @@ func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForE
 }
 
 func TestEmailOutboxRepository_CancelPendingByRelatedEntity_NoMatchesReturnsZero(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var cancelled int64
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {

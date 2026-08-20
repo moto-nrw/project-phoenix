@@ -11,6 +11,8 @@ import (
 // Tests for collectSubstitutionRelatedIDs
 
 func TestCollectSubstitutionRelatedIDs_NilSlice(t *testing.T) {
+	t.Parallel()
+
 	groupIDs, staffIDs := collectSubstitutionRelatedIDs(nil)
 	assert.NotNil(t, groupIDs)
 	assert.NotNil(t, staffIDs)
@@ -19,6 +21,8 @@ func TestCollectSubstitutionRelatedIDs_NilSlice(t *testing.T) {
 }
 
 func TestCollectSubstitutionRelatedIDs_EmptySlice(t *testing.T) {
+	t.Parallel()
+
 	substitutions := []*education.GroupSubstitution{}
 	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
 	assert.NotNil(t, groupIDs)
@@ -28,6 +32,8 @@ func TestCollectSubstitutionRelatedIDs_EmptySlice(t *testing.T) {
 }
 
 func TestCollectSubstitutionRelatedIDs_SingleSubstitutionAllIDsPopulated(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID := int64(10)
 	substitutions := []*education.GroupSubstitution{
 		{
@@ -47,6 +53,8 @@ func TestCollectSubstitutionRelatedIDs_SingleSubstitutionAllIDsPopulated(t *test
 }
 
 func TestCollectSubstitutionRelatedIDs_NilRegularStaffID(t *testing.T) {
+	t.Parallel()
+
 	substitutions := []*education.GroupSubstitution{
 		{
 			GroupID:           1,
@@ -65,6 +73,8 @@ func TestCollectSubstitutionRelatedIDs_NilRegularStaffID(t *testing.T) {
 }
 
 func TestCollectSubstitutionRelatedIDs_ZeroGroupID(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID := int64(10)
 	substitutions := []*education.GroupSubstitution{
 		{
@@ -83,6 +93,8 @@ func TestCollectSubstitutionRelatedIDs_ZeroGroupID(t *testing.T) {
 }
 
 func TestCollectSubstitutionRelatedIDs_MultipleWithOverlappingIDs(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID1 := int64(10)
 	regularStaffID2 := int64(10) // Same as first
 	substitutions := []*education.GroupSubstitution{
@@ -118,6 +130,8 @@ func TestCollectSubstitutionRelatedIDs_MultipleWithOverlappingIDs(t *testing.T) 
 // Tests for assignRelationsToSubstitutions
 
 func TestAssignRelationsToSubstitutions_NilSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	group := &education.Group{Name: "Test"}
 	group.ID = 1
 	staff := &users.Staff{PersonID: 1}
@@ -133,6 +147,8 @@ func TestAssignRelationsToSubstitutions_NilSubstitutions(t *testing.T) {
 }
 
 func TestAssignRelationsToSubstitutions_EmptyMaps(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID := int64(10)
 	substitutions := []*education.GroupSubstitution{
 		{
@@ -154,6 +170,8 @@ func TestAssignRelationsToSubstitutions_EmptyMaps(t *testing.T) {
 }
 
 func TestAssignRelationsToSubstitutions_MatchingIDs(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID := int64(10)
 
 	group := &education.Group{Name: "Test Group"}
@@ -184,6 +202,8 @@ func TestAssignRelationsToSubstitutions_MatchingIDs(t *testing.T) {
 }
 
 func TestAssignRelationsToSubstitutions_NonMatchingIDs(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID := int64(10)
 
 	group := &education.Group{Name: "Other"}
@@ -212,6 +232,8 @@ func TestAssignRelationsToSubstitutions_NonMatchingIDs(t *testing.T) {
 }
 
 func TestAssignRelationsToSubstitutions_NilRegularStaffID(t *testing.T) {
+	t.Parallel()
+
 	group := &education.Group{Name: "Test"}
 	group.ID = 1
 
@@ -237,6 +259,8 @@ func TestAssignRelationsToSubstitutions_NilRegularStaffID(t *testing.T) {
 }
 
 func TestAssignRelationsToSubstitutions_MultipleSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	regularStaffID1 := int64(10)
 	regularStaffID2 := int64(11)
 

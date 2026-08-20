@@ -29,18 +29,18 @@ func assignGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 }
 
 func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("AlumniGroup-%s", suffix))
 
 	activeStudent := testpkg.CreateTestStudent(t, db, "GroupActive", "Kid", fmt.Sprintf("1ga-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "GroupAlumnus", "Kid", fmt.Sprintf("1ga-%s", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, activeStudent.ID, alumnusStudent.ID)
 	defer func() {
 		_, _ = db.NewDelete().
 			TableExpr(`education.groups`).
@@ -87,11 +87,12 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 // (GET /api/iot/students) and the calendar student picker, and must hide
 // graduated students exactly like the other group reads.
 func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("AlumniInfoGroup-%s", suffix))
@@ -101,12 +102,10 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	activeStudent := testpkg.CreateTestStudent(t, db, "InfoActive", "Kid", fmt.Sprintf("1gi-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "InfoAlumnus", "Kid", fmt.Sprintf("1gi-%s", suffix))
 	defer func() {
-		cleanupStudentRecords(t, db, activeStudent.ID, alumnusStudent.ID)
 		_, _ = db.NewDelete().
 			TableExpr("education.group_teacher").
 			Where("id = ?", gt.ID).
 			Exec(ctx)
-		cleanupEducationData(t, db, []int64{group.ID}, []int64{teacher.ID})
 	}()
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
@@ -137,20 +136,20 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 }
 
 func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	alumniOnlyClass := fmt.Sprintf("4gone-%s", suffix)
 	mixedClass := fmt.Sprintf("2mixed-%s", suffix)
 
 	alumnusOnly := testpkg.CreateTestStudent(t, db, "ClassGone", "Kid", alumniOnlyClass)
-	activeMixed := testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
+	testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
 	alumnusMixed := testpkg.CreateTestStudent(t, db, "ClassMixedAlum", "Kid", mixedClass)
-	defer testpkg.CleanupActivityFixtures(t, db, alumnusOnly.ID, activeMixed.ID, alumnusMixed.ID)
 
 	setLifecycle(t, db, alumnusOnly.ID, users.StudentStatusAlumnus, nil, nil)
 	setLifecycle(t, db, alumnusMixed.ID, users.StudentStatusAlumnus, nil, nil)
@@ -166,18 +165,18 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 // new child; with the row retained, an unfiltered lookup rejects that import as
 // already_exists (#405 review).
 func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class := fmt.Sprintf("1na-%s", suffix)
 	firstName := fmt.Sprintf("Namensvetter%s", suffix)
 
 	graduate := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
-	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
 	setLifecycle(t, db, graduate.ID, users.StudentStatusAlumnus, nil, nil)
 
 	t.Run("graduate does not block a same-name import", func(t *testing.T) {
@@ -188,7 +187,6 @@ func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 
 	t.Run("an active namesake is still detected", func(t *testing.T) {
 		active := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
-		defer testpkg.CleanupActivityFixtures(t, db, active.ID)
 
 		students, err := repos.Student.FindByNameAndClass(ctx, firstName, "Kid", class)
 		require.NoError(t, err)

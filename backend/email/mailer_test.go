@@ -12,6 +12,8 @@ import (
 // =============================================================================
 
 func TestNewEmail(t *testing.T) {
+	t.Parallel()
+
 	email := NewEmail("John Doe", "john@example.com")
 
 	assert.Equal(t, "John Doe", email.Name)
@@ -19,6 +21,8 @@ func TestNewEmail(t *testing.T) {
 }
 
 func TestNewEmail_EmptyValues(t *testing.T) {
+	t.Parallel()
+
 	email := NewEmail("", "")
 
 	assert.Empty(t, email.Name)
@@ -26,6 +30,8 @@ func TestNewEmail_EmptyValues(t *testing.T) {
 }
 
 func TestNewEmail_SpecialCharacters(t *testing.T) {
+	t.Parallel()
+
 	email := NewEmail("José O'Connor", "jose+tag@example.com")
 
 	assert.Equal(t, "José O'Connor", email.Name)
@@ -37,6 +43,8 @@ func TestNewEmail_SpecialCharacters(t *testing.T) {
 // =============================================================================
 
 func TestFormatAsDate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		time     time.Time
@@ -73,6 +81,8 @@ func TestFormatAsDate(t *testing.T) {
 }
 
 func TestFormatAsDuration(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -112,6 +122,8 @@ func TestFormatAsDuration(t *testing.T) {
 }
 
 func TestFormatAsDuration_ZeroMinutes(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	futureTime := now.Add(1 * time.Second)
 
@@ -124,6 +136,8 @@ func TestFormatAsDuration_ZeroMinutes(t *testing.T) {
 // =============================================================================
 
 func TestMockMailer_NewMockMailer(t *testing.T) {
+	t.Parallel()
+
 	mailer := NewMockMailer()
 
 	assert.NotNil(t, mailer)
@@ -132,6 +146,8 @@ func TestMockMailer_NewMockMailer(t *testing.T) {
 }
 
 func TestMockMailer_Send(t *testing.T) {
+	t.Parallel()
+
 	mailer := NewMockMailer()
 
 	msg := Message{
@@ -147,6 +163,8 @@ func TestMockMailer_Send(t *testing.T) {
 }
 
 func TestMockMailer_CustomSendFn(t *testing.T) {
+	t.Parallel()
+
 	mailer := NewMockMailer()
 
 	var capturedMessage Message
@@ -166,6 +184,8 @@ func TestMockMailer_CustomSendFn(t *testing.T) {
 }
 
 func TestMockMailer_SendFnReturnsError(t *testing.T) {
+	t.Parallel()
+
 	mailer := NewMockMailer()
 
 	expectedErr := assert.AnError
@@ -185,6 +205,8 @@ func TestMockMailer_SendFnReturnsError(t *testing.T) {
 // =============================================================================
 
 func TestMessage_Fields(t *testing.T) {
+	t.Parallel()
+
 	msg := Message{
 		From:     Email{Name: "From Name", Address: "from@example.com"},
 		To:       Email{Name: "To Name", Address: "to@example.com"},
@@ -206,6 +228,8 @@ func TestMessage_Fields(t *testing.T) {
 // =============================================================================
 
 func TestFMap_Contains_FormatFunctions(t *testing.T) {
+	t.Parallel()
+
 	assert.NotNil(t, fMap["formatAsDate"])
 	assert.NotNil(t, fMap["formatAsDuration"])
 }
@@ -227,6 +251,8 @@ func TestMailerInterface_SMTPMailerImplements(_ *testing.T) {
 // =============================================================================
 
 func TestLogMessage_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	// logMessage should not panic with various inputs
 	assert.NotPanics(t, func() {
 		logMessage(Message{
@@ -238,6 +264,8 @@ func TestLogMessage_DoesNotPanic(t *testing.T) {
 }
 
 func TestLogMessage_EmptyFields(t *testing.T) {
+	t.Parallel()
+
 	// Should not panic with empty fields
 	assert.NotPanics(t, func() {
 		logMessage(Message{})

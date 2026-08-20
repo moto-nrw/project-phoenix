@@ -15,6 +15,8 @@ import (
 // existing TestMapOperatorMFAError_StatusCodes table did not exercise:
 // the permission-denied 403 path and the unknown-error 500 fallback.
 func TestMapOperatorMFAError_RemainingCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("permission_denied_maps_to_403", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/", nil)

@@ -42,6 +42,8 @@ func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
 }
 
 func TestValidateStartTime(t *testing.T) {
+	t.Parallel()
+
 	inst := plannedLifecycleInstance()
 	tooEarly := time.Date(2026, 8, 13, 13, 0, 0, 0, timezone.Berlin)
 	inWindow := time.Date(2026, 8, 13, 13, 50, 0, 0, timezone.Berlin)
@@ -66,6 +68,8 @@ func TestValidateStartTime(t *testing.T) {
 }
 
 func TestValidateCompleteTime(t *testing.T) {
+	t.Parallel()
+
 	inst := plannedLifecycleInstance()
 	beforeEnd := time.Date(2026, 8, 13, 14, 30, 0, 0, timezone.Berlin)
 	atEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
@@ -92,11 +96,15 @@ func TestValidateCompleteTime(t *testing.T) {
 }
 
 func TestInstanceNowUsesWallClockWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	got := (&instanceService{}).now()
 	assert.False(t, got.IsZero())
 }
 
 func TestWithCompletionConfirmationStoresClone(t *testing.T) {
+	t.Parallel()
+
 	ids := []int64{42, 41}
 	ctx := WithCompletionConfirmation(context.Background(), ids)
 	ids[0] = 40
@@ -106,6 +114,8 @@ func TestWithCompletionConfirmationStoresClone(t *testing.T) {
 }
 
 func TestCanReopenInstance(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
 	until := now.Add(5 * time.Minute)
 	completedBy := int64(42)
@@ -161,6 +171,8 @@ func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64)
 }
 
 func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	eduGroupID := int64(70)
 	student := &usersModel.Student{GroupID: &eduGroupID}
@@ -170,7 +182,7 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 		StudentRepo: studentReadScopeStub{byID: map[int64]*usersModel.Student{42: student}},
 	}}
 
-	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, []int64{42})
+	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, []int64{42})
 
 	groupEvents := broadcaster.EventsOfType(realtime.EventBulkStudentCheckIn)
 	require.Len(t, groupEvents, 2)
@@ -224,6 +236,8 @@ func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (
 }
 
 func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
+	t.Parallel()
+
 	visitA := &activeModel.Visit{StudentID: 52}
 	visitA.ID = 20
 	visitB := &activeModel.Visit{StudentID: 41}
@@ -248,6 +262,8 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 }
 
 func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	visit := &activeModel.Visit{StudentID: 52}
 	visit.ID = 20
 	current := &activeModel.Visit{StudentID: 52}
@@ -268,6 +284,8 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 }
 
 func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {
+	t.Parallel()
+
 	svc := &instanceService{}
 	got, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{})
 	require.NoError(t, err)
@@ -275,13 +293,17 @@ func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {
 }
 
 func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
-	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, nil)
+	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, nil)
 	assert.Empty(t, broadcaster.Calls())
 }
 
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
+	t.Parallel()
+
 	saturday := timezone.NewDate(2026, time.May, 9)
 	monday := saturday.AddDays(2)
 
@@ -292,6 +314,8 @@ func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 }
 
 func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7301)
 	groupID := int64(410)
 	date := timezone.NewDate(2026, 7, 6)
@@ -315,6 +339,8 @@ func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *tes
 }
 
 func TestInstanceDelete_AmbiguousTemplateBackedDateDoesNotDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7302)
 	groupID := int64(411)
 	date := timezone.NewDate(2026, 7, 7)
@@ -333,6 +359,8 @@ func TestInstanceDelete_AmbiguousTemplateBackedDateDoesNotDelete(t *testing.T) {
 }
 
 func TestInstanceDelete_SpontaneousTemplateLinkedSkipsException(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7303)
 	groupID := int64(412)
 	inst := deleteUnitInstance(104, &groupID, timezone.NewDate(2026, 7, 8), scheduleModel.InstanceStatusPlanned, true)
@@ -350,6 +378,8 @@ func TestInstanceDelete_SpontaneousTemplateLinkedSkipsException(t *testing.T) {
 }
 
 func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7304)
 	groupID := int64(413)
 	date := timezone.NewDate(2026, 7, 9)
@@ -387,6 +417,8 @@ func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *te
 }
 
 func TestInstanceDelete_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7305)
 	groupID := int64(414)
 	date := timezone.NewDate(2026, 7, 10)
@@ -439,6 +471,8 @@ func TestInstanceDelete_ErrorBranches(t *testing.T) {
 }
 
 func TestInstanceDelete_RejectsProtectedStatuses(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7306)
 	for _, status := range []string{scheduleModel.InstanceStatusActive, scheduleModel.InstanceStatusCompleted} {
 		t.Run(status, func(t *testing.T) {

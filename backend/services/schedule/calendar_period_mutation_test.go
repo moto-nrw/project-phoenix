@@ -17,8 +17,9 @@ import (
 )
 
 func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
@@ -28,7 +29,6 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 			Where("tenant_id = ?", tenantID).
 			Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)

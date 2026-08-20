@@ -623,13 +623,17 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 		return s.validateManualRoomSelection(ctx, *roomID, strategy)
 	}
 
-	// Try to get planned room from activity configuration
-	if plannedRoomID := s.getPlannedRoomID(ctx, activityID); plannedRoomID > 0 {
+	// Try to get planned room from activity configuration.
+	plannedRoomID, err := s.getPlannedRoomID(ctx, activityID)
+	if err != nil {
+		return 0, err
+	}
+	if plannedRoomID > 0 {
 		return plannedRoomID, nil
 	}
 
-	// Default fallback room
-	return 1, nil
+	// No room selected and none planned: there is no tenant-safe default.
+	return 0, ErrNoRoomAvailable
 }
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy
@@ -655,13 +659,18 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 	return roomID, nil
 }
 
-// getPlannedRoomID retrieves the planned room ID from activity configuration
-func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) int64 {
+// getPlannedRoomID retrieves the planned room ID from activity configuration.
+// A missing planned room is distinct from a repository error: callers return
+// ErrNoRoomAvailable only for the former and preserve the latter's 5xx path.
+func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) (int64, error) {
 	activityGroup, err := s.ActivityGroupRepo.FindByID(ctx, activityID)
-	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-		return *activityGroup.PlannedRoomID
+	if err != nil {
+		return 0, err
 	}
-	return 0
+	if activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+		return *activityGroup.PlannedRoomID, nil
+	}
+	return 0, nil
 }
 
 // UpdateActiveGroupSupervisors replaces all supervisors for an active group

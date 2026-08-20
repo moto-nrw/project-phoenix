@@ -9,6 +9,8 @@ import (
 )
 
 func TestStudentAccessContext_HasFullAccess(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		access *StudentAccessContext
@@ -44,6 +46,8 @@ func TestStudentAccessContext_HasFullAccess(t *testing.T) {
 }
 
 func TestStudentAccessContext_HasFullAccessToStudent_NilGuards(t *testing.T) {
+	t.Parallel()
+
 	access := &StudentAccessContext{IsAdmin: true}
 
 	// Nil student is always denied even for admins — the caller should never

@@ -10,6 +10,8 @@ import (
 )
 
 func TestNetMinutes(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	t.Run("with checkout 8 hours no breaks", func(t *testing.T) {
@@ -65,6 +67,8 @@ func runningBreak(now time.Time, minutesAgo int) *activeModels.WorkSessionBreak 
 }
 
 func TestNetMinutesWithBreaks(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	t.Run("deducts a running break from an open session", func(t *testing.T) {
@@ -114,6 +118,8 @@ func TestNetMinutesWithBreaks(t *testing.T) {
 }
 
 func TestIsOvertime(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 20, 0, 0, 0, time.UTC)
 
 	t.Run("not overtime under 10 hours", func(t *testing.T) {
@@ -165,6 +171,8 @@ func TestIsOvertime(t *testing.T) {
 }
 
 func TestIsBreakCompliant(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 20, 0, 0, 0, time.UTC)
 
 	makeSession := func(hours, breakMin int) *activeModels.WorkSession {

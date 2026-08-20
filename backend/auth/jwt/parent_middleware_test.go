@@ -16,6 +16,8 @@ import (
 // context. tenant_id stays 0 by design — parent tokens aren't bound
 // to a single school.
 func TestParentMiddleware_AcceptsParentScope(t *testing.T) {
+	t.Parallel()
+
 	var gotTenantID int64
 	var gotScope string
 	var handlerCalled bool
@@ -48,6 +50,8 @@ func TestParentMiddleware_AcceptsParentScope(t *testing.T) {
 // TestParentMiddleware_NoClaims_Unauthorized — request with no claims
 // (no Authenticator middleware in front) gets 401.
 func TestParentMiddleware_NoClaims_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
@@ -66,6 +70,8 @@ func TestParentMiddleware_NoClaims_Unauthorized(t *testing.T) {
 // The host-only cookie + the proxy already make this leak path
 // impossible, but the hard reject closes the gap if either fails.
 func TestParentMiddleware_RejectsTenantScope(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("tenant-scope token must NOT reach the wrapped handler")
 	}))
@@ -88,6 +94,8 @@ func TestParentMiddleware_RejectsTenantScope(t *testing.T) {
 // TestParentMiddleware_RejectsOrgScope — org-scope tokens (multi-
 // school staff) are also rejected on parent routes.
 func TestParentMiddleware_RejectsOrgScope(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("org-scope token must NOT reach the wrapped handler")
 	}))
@@ -112,6 +120,8 @@ func TestParentMiddleware_RejectsOrgScope(t *testing.T) {
 // their own scope check (IsPlatformScope) and don't share the
 // parent surface.
 func TestParentMiddleware_RejectsPlatformScope(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("platform-scope token must NOT reach the wrapped handler")
 	}))
@@ -135,6 +145,8 @@ func TestParentMiddleware_RejectsPlatformScope(t *testing.T) {
 // non-parent scopes. Future-proofs against a deploy where a new
 // scope is added but the parent middleware isn't updated.
 func TestParentMiddleware_RejectsUnknownScope(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("unknown-scope token must NOT reach the wrapped handler")
 	}))
@@ -157,6 +169,8 @@ func TestParentMiddleware_RejectsUnknownScope(t *testing.T) {
 // malformed or downgraded token) are rejected before the scope check
 // runs.
 func TestParentMiddleware_ZeroID_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.ParentMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("ID=0 claims must NOT reach the wrapped handler")
 	}))

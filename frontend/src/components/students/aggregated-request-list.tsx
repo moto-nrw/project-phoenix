@@ -12,7 +12,7 @@
  * Umschalten Offen ↔ Historie (key={view}), wie zuvor die Einzelsektionen.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 
@@ -24,6 +24,7 @@ import { CareRequestReviewItem } from "~/components/students/care-request-review
 import { ExcusedRequestReviewItem } from "~/components/students/excused-request-review-item";
 import { MasterDataReviewItem } from "~/components/students/master-data-review-item";
 import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
+import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
 import { RequestHistoryItem } from "~/components/students/request-history-item";
 import { createLogger } from "~/lib/logger";
 import {
@@ -34,12 +35,31 @@ import {
   type AggregatedRequestType,
   listAggregatedOpenRequests,
   listAggregatedRequestHistory,
+  listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
+import {
+  createFeedState,
+  takeMergedPage,
+  type FeedSource,
+} from "~/lib/request-feed";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
 
 export interface AggregatedRequestFilters {
   readonly search: string;
+  /**
+   * Darf der Aggregator über die vier Kinderdaten-Arten abgefragt werden? Er
+   * verlangt users:update oder users:absence; wer nur Anmeldungsänderungen
+   * entscheidet, bekäme sonst für die ganze Liste einen 403. Ohne Angabe ja —
+   * er ist die Hauptquelle der Liste.
+   */
+  readonly includeAggregated?: boolean;
+  /**
+   * Dürfen Anmeldungsänderungen mitgeladen werden? Sie hängen an config:manage
+   * und kommen aus einem eigenen Endpunkt; ohne das Recht bleibt die Quelle
+   * weg, statt der Seite einen 403 einzuhandeln.
+   */
+  readonly includeEnrollment?: boolean;
   /** Leer = alle Arten. */
   readonly types: readonly AggregatedRequestType[];
   /** Nur Historie; leer = alle Status. */
@@ -56,6 +76,9 @@ function itemKey(item: AnyItem): string {
   return `${item.request_type}:${item.data.id}`;
 }
 
+/** Wie viele Zeilen eine Seite der zusammengeführten Liste zeigt. */
+const PAGE_SIZE = 25;
+
 export function AggregatedRequestList({
   view,
   filters,
@@ -64,7 +87,7 @@ export function AggregatedRequestList({
   filters: AggregatedRequestFilters;
 }>) {
   const [items, setItems] = useState<AnyItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,41 +97,76 @@ export function AggregatedRequestList({
   // dispatchEvent is synchronous, so the flag only has to cover that one call.
   const suppressSelfReloadRef = useRef(false);
 
-  const fetchPage = useCallback(
-    (cursor?: string) => {
-      const params: AggregatedRequestParams = {
-        search: filters.search,
-        types: filters.types,
-        cursor,
-        ...(view === "history"
-          ? { statuses: filters.statuses, from: filters.from, to: filters.to }
-          : {}),
+  // Die Quellen des Reiters: der Aggregator über die vier users:update-Arten
+  // und — mit config:manage — die Anmeldungsänderungen aus ihrem eigenen
+  // Endpunkt. Beide liefern nach Zeitpunkt sortierte Seiten; zusammengeführt
+  // wird in request-feed.
+  const sources = useMemo<FeedSource<AnyItem>[]>(() => {
+    const params: AggregatedRequestParams = {
+      search: filters.search,
+      ...(view === "history"
+        ? { statuses: filters.statuses, from: filters.from, to: filters.to }
+        : {}),
+    };
+    const wantsType = (type: AggregatedRequestType) =>
+      filters.types.length === 0 || filters.types.includes(type);
+    // Der Aggregator kennt die Anmeldungen nicht: seine Art-Liste kommt ohne
+    // sie, und ist NUR sie gewählt, wird er gar nicht erst gefragt (er würde
+    // die unbekannte Art mit 400 abweisen).
+    const aggregatedTypes = filters.types.filter(
+      (type) => type !== "enrollment",
+    );
+    const built: FeedSource<AnyItem>[] = [];
+    if (
+      filters.includeAggregated !== false &&
+      (filters.types.length === 0 || aggregatedTypes.length > 0)
+    ) {
+      const aggregatedParams: AggregatedRequestParams = {
+        ...params,
+        types: aggregatedTypes,
       };
-      return view === "history"
-        ? listAggregatedRequestHistory(params)
-        : listAggregatedOpenRequests(params);
-    },
-    [view, filters],
-  );
+      built.push({
+        key: "aggregated",
+        fetchPage: (cursor) =>
+          view === "history"
+            ? listAggregatedRequestHistory({ ...aggregatedParams, cursor })
+            : listAggregatedOpenRequests({ ...aggregatedParams, cursor }),
+      });
+    }
+    if (filters.includeEnrollment && wantsType("enrollment")) {
+      built.push({
+        key: "enrollment",
+        fetchPage: (cursor) =>
+          listEnrollmentChangeRequests(view, { ...params, cursor }),
+      });
+    }
+    return built;
+  }, [view, filters]);
 
-  // Bei sehr selektiven Filtern kann eine Server-Seite leer sein, aber einen
-  // Cursor tragen (Scan-Budget des Aggregators). Bis zu drei Folgeseiten
-  // automatisch nachziehen, damit niemand blind auf „Weitere Einträge laden"
-  // drücken muss; danach übernimmt der sichtbare Nachlade-Knopf.
-  const fetchFilledPage = useCallback(
-    async (cursor?: string) => {
-      let page = await fetchPage(cursor);
-      for (
-        let follows = 0;
-        page.items.length === 0 && page.next_cursor && follows < 3;
-        follows++
-      ) {
-        page = await fetchPage(page.next_cursor);
-      }
-      return page;
-    },
-    [fetchPage],
-  );
+  // Der Lesezustand je Quelle (Puffer + Cursor) lebt außerhalb des Renders:
+  // „Weitere Einträge laden" macht genau dort weiter, wo jede Quelle stand.
+  const feedRef = useRef(createFeedState<AnyItem>(sources));
+  // Jede Neu-Ladung erhält einen eigenen Zustand. Antworten einer älteren
+  // Ladung dürfen weder die sichtbare Liste noch den Cursor des neuen Feeds
+  // verändern.
+  const feedGenerationRef = useRef(0);
+  const feedLoadingRef = useRef(false);
+  const loadMoreInFlightRef = useRef(false);
+
+  const loadFirstPage = useCallback(() => {
+    const feed = createFeedState<AnyItem>(sources);
+    const generation = ++feedGenerationRef.current;
+    feedRef.current = feed;
+    feedLoadingRef.current = true;
+    return {
+      generation,
+      page: takeMergedPage(sources, feed, PAGE_SIZE).finally(() => {
+        if (generation === feedGenerationRef.current) {
+          feedLoadingRef.current = false;
+        }
+      }),
+    };
+  }, [sources]);
 
   // Erste Seite laden — auch bei jeder Such-/Filteränderung (fetchPage wechselt
   // die Identität), dann ersetzt die Antwort die Liste komplett.
@@ -116,25 +174,25 @@ export function AggregatedRequestList({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchFilledPage()
+    const { generation, page } = loadFirstPage();
+    page
       .then((page) => {
-        if (cancelled) return;
-        setItems([...page.items]);
-        setNextCursor(page.next_cursor);
+        if (cancelled || generation !== feedGenerationRef.current) return;
+        setItems(page.items);
+        setHasMore(page.hasMore);
+        setLoading(false);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled || generation !== feedGenerationRef.current) return;
         const message = err instanceof Error ? err.message : String(err);
         logger.warn("aggregated_request_list_load_failed", { error: message });
         setError("Anfragen konnten nicht geladen werden.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [fetchFilledPage]);
+  }, [loadFirstPage]);
 
   // Refetch ohne Spinner, wenn eine Entscheidung anderswo fällt: Entscheidungen
   // in diesem Fenster senden change-requests-refresh, Entscheidungen anderswo
@@ -142,15 +200,20 @@ export function AggregatedRequestList({
   // an. Nur die offene Arbeitsliste braucht das — die Historie mountet beim
   // Umschalten frisch.
   const reloadInPlace = useCallback(async () => {
+    const { generation, page } = loadFirstPage();
     try {
-      const page = await fetchFilledPage();
-      setItems([...page.items]);
-      setNextCursor(page.next_cursor);
+      const result = await page;
+      if (generation !== feedGenerationRef.current) return;
+      setItems(result.items);
+      setHasMore(result.hasMore);
+      setLoading(false);
     } catch (err) {
+      if (generation !== feedGenerationRef.current) return;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("aggregated_request_list_reload_failed", { error: message });
+      setLoading(false);
     }
-  }, [fetchFilledPage]);
+  }, [loadFirstPage]);
 
   useEffect(() => {
     if (view !== "open") return;
@@ -177,23 +240,30 @@ export function AggregatedRequestList({
   }, [view, reloadInPlace]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor) return;
+    if (!hasMore || feedLoadingRef.current || loadMoreInFlightRef.current)
+      return;
+    const generation = feedGenerationRef.current;
+    const feed = feedRef.current;
+    loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
     try {
-      const page = await fetchFilledPage(nextCursor);
+      const page = await takeMergedPage(sources, feed, PAGE_SIZE);
+      if (generation !== feedGenerationRef.current) return;
       setItems((prev) => [...prev, ...page.items]);
-      setNextCursor(page.next_cursor);
+      setHasMore(page.hasMore);
     } catch (err) {
+      if (generation !== feedGenerationRef.current) return;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("aggregated_request_list_load_more_failed", {
         error: message,
       });
       setError("Weitere Anfragen konnten nicht geladen werden.");
     } finally {
+      loadMoreInFlightRef.current = false;
       setLoadingMore(false);
     }
-  }, [fetchFilledPage, nextCursor]);
+  }, [sources, hasMore]);
 
   // Nach einer Entscheidung: Zeile entfernen, Hinweis zeigen und das
   // Badge/die Geschwister-Ansichten über change-requests-refresh anstoßen.
@@ -243,6 +313,13 @@ export function AggregatedRequestList({
       ) : (
         items.map((item) => {
           const key = itemKey(item);
+          // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
+          // Entschieden wird in der Detailansicht, hierhin verlinkt sie nur.
+          if (item.request_type === "enrollment") {
+            return (
+              <EnrollmentRequestItem key={key} row={item.data} view={view} />
+            );
+          }
           if (view === "history") {
             return (
               <RequestHistoryItem
@@ -290,7 +367,7 @@ export function AggregatedRequestList({
           }
         })
       )}
-      {nextCursor && (
+      {hasMore && (
         <div className="flex justify-center pt-1">
           <Button
             type="button"

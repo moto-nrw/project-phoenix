@@ -1,13 +1,23 @@
 import { Suspense } from "react";
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-const { mockFetchEnrollmentEditBootstrap, mockUpdateEnrollmentRequest } =
-  vi.hoisted(() => ({
-    mockFetchEnrollmentEditBootstrap: vi.fn(),
-    mockUpdateEnrollmentRequest: vi.fn(),
-  }));
+const {
+  mockCreateEnrollmentChangeRequest,
+  mockFetchEnrollmentEditBootstrap,
+  mockUpdateEnrollmentRequest,
+} = vi.hoisted(() => ({
+  mockCreateEnrollmentChangeRequest: vi.fn(),
+  mockFetchEnrollmentEditBootstrap: vi.fn(),
+  mockUpdateEnrollmentRequest: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/parents/enroll/status/tok/edit",
@@ -36,6 +46,7 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
+    createEnrollmentChangeRequest: mockCreateEnrollmentChangeRequest,
     fetchEnrollmentEditBootstrap: mockFetchEnrollmentEditBootstrap,
     updateEnrollmentRequest: mockUpdateEnrollmentRequest,
   };
@@ -51,17 +62,20 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
     gradeLevelMax,
     restrictToOfferings,
     lockChildStructure,
+    submitter,
   }: {
     submitLabel: string;
     gradeLevelMax: number;
     restrictToOfferings?: boolean;
     lockChildStructure?: boolean;
+    submitter: (payload: unknown) => Promise<unknown>;
   }) => (
     <button
       type="button"
       data-grade-level-max={gradeLevelMax}
       data-restrict-to-offerings={restrictToOfferings ? "true" : "false"}
       data-lock-child-structure={lockChildStructure ? "true" : "false"}
+      onClick={() => void submitter({})}
     >
       {submitLabel}
     </button>
@@ -104,6 +118,7 @@ const bootstrap = {
 describe("EnrollmentEditPage", () => {
   beforeEach(() => {
     mockFetchEnrollmentEditBootstrap.mockReset();
+    mockCreateEnrollmentChangeRequest.mockReset();
     mockUpdateEnrollmentRequest.mockReset();
   });
 
@@ -193,5 +208,33 @@ describe("EnrollmentEditPage adjustOnly (#2251)", () => {
     const form = screen.getByRole("button", { name: "Send adjustment" });
     expect(form.getAttribute("data-restrict-to-offerings")).toBe("true");
     expect(form.getAttribute("data-lock-child-structure")).toBe("true");
+  });
+});
+
+describe("EnrollmentEditPage change requests", () => {
+  it("refreshes request badges after submitting a change request", async () => {
+    mockFetchEnrollmentEditBootstrap.mockResolvedValueOnce({
+      ...bootstrap,
+      edit_mode: "change_request",
+    });
+    mockCreateEnrollmentChangeRequest.mockResolvedValueOnce({
+      request_id: "99",
+    });
+    const refreshListener = vi.fn();
+    window.addEventListener("change-requests-refresh", refreshListener);
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage params={Promise.resolve({ token: "tok" })} />
+        </Suspense>,
+      );
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "changeRequestSubmit" }),
+    );
+
+    await waitFor(() => expect(refreshListener).toHaveBeenCalledTimes(1));
+    window.removeEventListener("change-requests-refresh", refreshListener);
   });
 });

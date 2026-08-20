@@ -56,6 +56,8 @@ func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessi
 // ============================================================================
 
 func TestWSExportSessions_CSV_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -113,6 +115,8 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 }
 
 func TestWSExportSessions_XLSX_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -148,6 +152,8 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 }
 
 func TestWSExportSessions_GetHistoryError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -161,6 +167,8 @@ func TestWSExportSessions_GetHistoryError(t *testing.T) {
 }
 
 func TestWSExportSessions_GetAbsencesError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -190,6 +198,8 @@ func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 // ============================================================================
 
 func TestWSBuildExportRows_SessionsOnly(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date1 := timezone.NewDate(2024, 1, 2)
@@ -231,6 +241,8 @@ func TestWSBuildExportRows_SessionsOnly(t *testing.T) {
 }
 
 func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	dateStart := timezone.NewDate(2024, 1, 2)
@@ -262,6 +274,8 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 }
 
 func TestClampAbsencesToRange_BoundsOverlappingAbsence(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	from := timezone.NewDate(2024, 1, 2)
 	to := timezone.NewDate(2024, 1, 3)
@@ -286,6 +300,8 @@ func TestClampAbsencesToRange_BoundsOverlappingAbsence(t *testing.T) {
 }
 
 func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffIDs := []int64{100, 200}
@@ -353,6 +369,8 @@ func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
 }
 
 func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	date := timezone.NewDate(2026, time.July, 24)
 
@@ -369,6 +387,8 @@ func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
 }
 
 func TestWSBuildExportRows_Mixed(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date1 := timezone.NewDate(2024, 1, 2)
@@ -411,6 +431,8 @@ func TestWSBuildExportRows_Mixed(t *testing.T) {
 }
 
 func TestWSBuildExportRows_SortsByDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date1 := timezone.NewDate(2024, 1, 5)
@@ -447,6 +469,8 @@ func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 }
 
 func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
+	t.Parallel()
+
 	data, err := writeMonthCSV([]MonthExportRow{{
 		LastName:       "=1+1",
 		FirstName:      "+SUM(A1:A2)",
@@ -485,6 +509,8 @@ func TestCrossStaffCSV_SanitizesUntrustedTextOnly(t *testing.T) {
 }
 
 func TestWriteMonthXLSX_DecimalDurationsAreNumeric(t *testing.T) {
+	t.Parallel()
+
 	data, err := writeMonthXLSX([]MonthExportRow{{
 		CarryInMinutes: 750,
 		BalanceMinutes: -90,
@@ -515,6 +541,8 @@ func TestWriteMonthXLSX_DecimalDurationsAreNumeric(t *testing.T) {
 // ============================================================================
 
 func TestWSSessionToRow_Complete(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15) // Monday
@@ -559,6 +587,8 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 // print the live total, not the stale cache — otherwise the row reads "Pause 0"
 // next to a Netto that visibly excludes those 35 minutes (#1842).
 func TestWSSessionToRow_RunningBreakUsesLiveTotal(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
@@ -585,6 +615,8 @@ func TestWSSessionToRow_RunningBreakUsesLiveTotal(t *testing.T) {
 }
 
 func TestWSSessionToRow_NFC(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: an NFC-stamped session must be distinguishable from an
 	// App-stamped one in the export. Status and Quelle are now in separate
 	// columns (Status row[6], Quelle row[7]) so the channel survives even
@@ -615,6 +647,8 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 // Issue #1368: the audit trail must distinguish "we know it was App" from
 // "we never recorded the channel".
 func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
@@ -637,6 +671,8 @@ func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 }
 
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
@@ -660,6 +696,8 @@ func TestWSSessionToRow_NoCheckOut(t *testing.T) {
 }
 
 func TestWSSessionToRow_HomeOffice(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
@@ -683,6 +721,8 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 }
 
 func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: Auto-Checkout overlays the Quelle cell so the
 	// OGS-Leitung sees the session was closed by the scheduler. Status
 	// remains the underlying work mode. Vor Ort is preserved here even
@@ -712,6 +752,8 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 }
 
 func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: a manual correction overlays Quelle, but Status still
 	// shows the underlying work mode (Homeoffice), so the OGS-Leitung can
 	// see both the corrected-state signal AND what the staff actually did.
@@ -738,6 +780,8 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 }
 
 func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	tests := []struct {
@@ -774,6 +818,8 @@ func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
 }
 
 func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	weekdays := []struct {
@@ -814,6 +860,8 @@ func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
 // ============================================================================
 
 func TestWSExportCSV_Headers(t *testing.T) {
+	t.Parallel()
+
 	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 
 	require.NoError(t, err)
@@ -841,6 +889,8 @@ func TestWSExportCSV_Headers(t *testing.T) {
 }
 
 func TestWSExportCSV_UTF8BOM(t *testing.T) {
+	t.Parallel()
+
 	data, err := writeExportCSV(timeTrackingHeaders(), nil, []int{8})
 	require.NoError(t, err)
 
@@ -850,6 +900,8 @@ func TestWSExportCSV_UTF8BOM(t *testing.T) {
 }
 
 func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "Test"},
 	}
@@ -868,6 +920,8 @@ func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
 // spreadsheet software cannot evaluate it (#1568 migration hardening; the
 // cross-staff CSV always did this, the single-staff CSV now shares the path).
 func TestWSExportCSV_SanitizesNotes(t *testing.T) {
+	t.Parallel()
+
 	rows := [][]string{
 		{"15.01.2024", "Montag", "08:00", "16:00", "30", "7h 30min", "In der OGS", "App", "=1+1"},
 	}
@@ -890,6 +944,8 @@ func TestWSExportCSV_SanitizesNotes(t *testing.T) {
 // ============================================================================
 
 func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
+	t.Parallel()
+
 	service, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := timezone.NewDate(2024, 1, 15)
@@ -913,6 +969,8 @@ func TestWSBuildTimeTrackingDocument_ShapesRows(t *testing.T) {
 }
 
 func TestWSExportSessions_PDF_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -937,6 +995,8 @@ func TestWSExportSessions_PDF_Success(t *testing.T) {
 }
 
 func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -968,6 +1028,8 @@ func TestWSExportSessions_PDF_StaffLookupError(t *testing.T) {
 // ============================================================================
 
 func TestWSUpdateSession_StatusChange(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: status changes require a non-empty reason in notes. The
 	// happy path now sends notes alongside the new status.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
@@ -1012,6 +1074,8 @@ func TestWSUpdateSession_StatusChange(t *testing.T) {
 }
 
 func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: a status change without a reason must be rejected so the
 	// audit trail can never silently lose the "why" of a Vor Ort ↔ Homeoffice
 	// switch. Empty/whitespace-only notes count as missing.
@@ -1065,6 +1129,8 @@ func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
 }
 
 func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
+	t.Parallel()
+
 	// Issue #1368: the gate is specifically for status changes. Editing only
 	// notes (e.g., adding a comment) must still work without a reason field.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
@@ -1098,6 +1164,8 @@ func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
 }
 
 func TestWSUpdateSession_NotesChange(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -1135,6 +1203,8 @@ func TestWSUpdateSession_NotesChange(t *testing.T) {
 }
 
 func TestWSUpdateSession_BreakMinutesWithoutIndividualBreaks(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -1172,6 +1242,8 @@ func TestWSUpdateSession_BreakMinutesWithoutIndividualBreaks(t *testing.T) {
 }
 
 func TestWSUpdateSession_CheckOutTimeChange(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -1211,6 +1283,8 @@ func TestWSUpdateSession_CheckOutTimeChange(t *testing.T) {
 }
 
 func TestWSUpdateSession_NoChanges(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -1244,6 +1318,8 @@ func TestWSUpdateSession_NoChanges(t *testing.T) {
 }
 
 func TestWSUpdateSession_AuditRepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -1284,6 +1360,8 @@ func TestWSUpdateSession_AuditRepoError(t *testing.T) {
 // ============================================================================
 
 func TestWSCleanupOpenSessions_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -1297,6 +1375,8 @@ func TestWSCleanupOpenSessions_RepoError(t *testing.T) {
 }
 
 func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	yesterday := timezone.TodayDate().AddDays(-1)
 
@@ -1317,6 +1397,8 @@ func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
 }
 
 func TestWSGetHistory_AuditCountError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -1336,6 +1418,8 @@ func TestWSGetHistory_AuditCountError(t *testing.T) {
 }
 
 func TestWSGetHistory_BreaksError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -1359,6 +1443,8 @@ func TestWSGetHistory_BreaksError(t *testing.T) {
 }
 
 func TestWSGetTodayPresenceMap_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getTodayPresenceMapFunc = func(_ context.Context) (map[int64]string, error) {
@@ -1371,6 +1457,8 @@ func TestWSGetTodayPresenceMap_RepoError(t *testing.T) {
 }
 
 func TestWSGetSessionEdits_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, auditRepo, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	staffID := int64(100)
 	sessionID := int64(500)
@@ -1393,6 +1481,8 @@ func TestWSGetSessionEdits_RepoError(t *testing.T) {
 }
 
 func TestWSGetSessionBreaks_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	staffID := int64(100)
 	sessionID := int64(501)
@@ -1415,6 +1505,8 @@ func TestWSGetSessionBreaks_RepoError(t *testing.T) {
 }
 
 func TestWSCheckOut_BreakCheckError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1436,6 +1528,8 @@ func TestWSCheckOut_BreakCheckError(t *testing.T) {
 }
 
 func TestWSCheckOut_CloseSessionError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1461,6 +1555,8 @@ func TestWSCheckOut_CloseSessionError(t *testing.T) {
 }
 
 func TestWSCheckOut_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1494,6 +1590,8 @@ func TestWSCheckOut_FindByIDError(t *testing.T) {
 }
 
 func TestWSStartBreak_NilSession(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1507,6 +1605,8 @@ func TestWSStartBreak_NilSession(t *testing.T) {
 }
 
 func TestWSEndBreak_EndBreakError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1536,6 +1636,8 @@ func TestWSEndBreak_EndBreakError(t *testing.T) {
 }
 
 func TestWSEndBreak_RecalcBreakMinutesError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1569,6 +1671,8 @@ func TestWSEndBreak_RecalcBreakMinutesError(t *testing.T) {
 }
 
 func TestWSEndBreak_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1610,6 +1714,8 @@ func TestWSEndBreak_FindByIDError(t *testing.T) {
 }
 
 func TestWSCheckIn_CreateError(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {

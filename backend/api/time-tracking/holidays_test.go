@@ -28,6 +28,8 @@ func (m *mockHolidayService) HolidayDates(_ context.Context, _, _ timezone.Date)
 }
 
 func TestGetHolidays(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{HolidayService: &mockHolidayService{list: []holidays.Holiday{
 		{Date: timezone.NewDate(2026, 5, 1), Name: "Tag der Arbeit"},
 	}}}
@@ -50,6 +52,8 @@ func TestGetHolidays(t *testing.T) {
 }
 
 func TestGetHolidaysInvalidRange(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{HolidayService: &mockHolidayService{}}
 
 	w := httptest.NewRecorder()
@@ -62,6 +66,8 @@ func TestGetHolidaysInvalidRange(t *testing.T) {
 }
 
 func TestGetHolidaysServiceError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{HolidayService: &mockHolidayService{err: errors.New("boom")}}
 
 	w := httptest.NewRecorder()

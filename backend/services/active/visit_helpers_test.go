@@ -24,11 +24,12 @@ import (
 // =============================================================================
 
 func TestCreateVisit_WithDevice(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
 		// ARRANGE: Create fixtures using testpkg (proven to work)
@@ -38,8 +39,6 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RFID", "Checkin", "2a")
 		staff := testpkg.CreateTestStaff(t, db, "RFID", "Staff")
 		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 		// Create context with both staff and device (simulates RFID check-in)
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -67,18 +66,18 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 }
 
 func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "completed-visit")
 	room := testpkg.CreateTestRoom(t, db, "Completed Visit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, db, "Completed", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Completed", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-COMPLETED-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
@@ -89,11 +88,9 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 		EntryTime: entryTime, ExitTime: &exitTime,
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
 	require.NotNil(t, attendance.CheckedOutBy)
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
@@ -101,32 +98,30 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 }
 
 func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "revised-visit")
 	room := testpkg.CreateTestRoom(t, db, "Revised Visit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, db, "Revised", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Revised", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REVISED-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 	entryTime := time.Now().Add(-2 * time.Hour)
 	visit := &activeModels.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	exitTime := entryTime.Add(time.Hour)
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
 
@@ -139,11 +134,12 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 }
 
 func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "moved-visit-checkout")
 	sourceRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Source Room")
 	targetRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Target Room")
@@ -152,10 +148,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	student := testpkg.CreateTestStudent(t, db, "Moved", "Visit", "2a")
 	staff := testpkg.CreateTestStaff(t, db, "Moved", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-MOVED-VISIT-001")
-	defer testpkg.CleanupActivityFixtures(
-		t, db, activity.ID, sourceRoom.ID, targetRoom.ID, sourceGroup.ID,
-		targetGroup.ID, student.ID, staff.ID, rfidDevice.ID,
-	)
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
@@ -164,7 +156,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	exitTime := entryTime.Add(time.Hour)
 	visit.ActiveGroupID = targetGroup.ID
@@ -173,7 +164,6 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 
 	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime,
 		"a combined group move and checkout must not leave daily attendance open")
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
@@ -184,11 +174,12 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 // =============================================================================
 
 func TestCreateVisit_ReEntry(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("keeps the completed session and creates a new one on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -202,8 +193,6 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		// Create existing attendance with checkout time (student left earlier)
 		checkoutTime := time.Now().Add(-2 * time.Hour)
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID, existingAttendance.ID)
 
 		// Create context with staff and device
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -244,11 +233,12 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 // TestCreateVisit_AutoClearsSick — with default settings (sick_clear_mode =
 // next_checkin), a sick student's flag is cleared when they check in.
 func TestCreateVisit_AutoClearsSick(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-sick-test")
 	room := testpkg.CreateTestRoom(t, db, "Autoclear Sick Room")
@@ -256,7 +246,6 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Sick", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACS-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	// Pre-state: mark student sick
 	sickTrue := true
@@ -295,11 +284,12 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 // overrides operations.excused_clear_mode to "next_checkin", an excused
 // student gets the flag cleared on check-in (same behavior path as sick).
 func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert a per-tenant override for excused_clear_mode = next_checkin.
 	// We write directly to config.setting_values so the test doesn't depend
@@ -307,13 +297,13 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	// its own tests).
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.excused_clear_mode', '"next_checkin"', NULL)
+		VALUES (?, 'operations.excused_clear_mode', '"next_checkin"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.excused_clear_mode'`).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.excused_clear_mode'`, testpkg.Tenant(t)).Exec(context.Background())
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-exc-test")
@@ -322,7 +312,6 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Excused", "4c")
 	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACE-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	excusedTrue := true
 	now := time.Now()
@@ -358,11 +347,12 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 // TestCreateVisit_DoesNotClearExcused_WhenDefaultMode — excused default is
 // end_of_day, so check-in must NOT clear the flag.
 func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "keepexc-test")
 	room := testpkg.CreateTestRoom(t, db, "Keep Excused Room")
@@ -370,7 +360,6 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "KeepExc", "Student", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "KeepExc", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-KEX-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	excusedTrue := true
 	now := time.Now()
@@ -404,12 +393,13 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 }
 
 func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
 	room := testpkg.CreateTestRoom(t, db, "Planned Clear Room")
@@ -417,7 +407,6 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Clear", "4d")
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PCS-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	trueVal := true
 	now := time.Now()
@@ -481,12 +470,13 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 // the next-checkin clear must drop the still-active parent row — otherwise
 // status reads keep treating the child as sick after they showed up.
 func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	repoFactory := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "parent-clear-test")
 	room := testpkg.CreateTestRoom(t, db, "Parent Clear Room")
@@ -494,7 +484,6 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Parent", "Clear", "4e")
 	staff := testpkg.CreateTestStaff(t, db, "Parent", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PRC-001")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.
@@ -527,6 +516,8 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 // =============================================================================
 
 func TestWebManualDeviceCode(t *testing.T) {
+	t.Parallel()
+
 	// Verify the constant is set correctly
 	assert.Equal(t, "WEB-MANUAL-001", active.WebManualDeviceCode, "WebManualDeviceCode should be 'WEB-MANUAL-001'")
 }
@@ -574,7 +565,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		CheckedOutBy: &checkedOutBy,
 		DeviceID:     deviceID,
 	}
-	attendance.SetTenantID(1)
+	attendance.SetTenantID(testpkg.Tenant(t))
 
 	_, err := db.NewInsert().
 		Model(attendance).

@@ -108,6 +108,8 @@ func requestWithDeviceContext() *http.Request {
 }
 
 func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		UsersService: personServiceWithTeacherRepo{
 			PersonServiceMock: &userstest.PersonServiceMock{},
@@ -128,6 +130,8 @@ func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
 }
 
 func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		UsersService: personServiceWithTeacherRepo{
 			PersonServiceMock: &userstest.PersonServiceMock{},

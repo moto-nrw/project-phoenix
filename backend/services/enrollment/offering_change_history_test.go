@@ -9,7 +9,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestOfferingChangeRequestService_ListHistory proves the staff history:
@@ -17,9 +16,11 @@ import (
 // name, the decision reason, and the FROZEN snapshot diff — while pending rows
 // stay out.
 func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "History")
 
@@ -32,7 +33,6 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// While pending, the history is empty.
 	items, next, err := svc.ListHistory(ctx, time.Time{}, 0, 25)
@@ -77,7 +77,6 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", withdrawn.ID) })
 	require.NoError(t, svc.Withdraw(ctx, withdrawn.ID, env.creatorID, fx.studentID))
 
 	items, _, err = svc.ListHistory(ctx, time.Time{}, 0, 25)

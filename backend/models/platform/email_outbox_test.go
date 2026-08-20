@@ -22,12 +22,16 @@ func validOutbox() *EmailOutbox {
 }
 
 func TestEmailOutbox_Validate_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.NextRetryAt = time.Now()
 	assert.NoError(t, o.Validate())
 }
 
 func TestEmailOutbox_Validate_RequiresKind(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.Kind = ""
 	err := o.Validate()
@@ -36,6 +40,8 @@ func TestEmailOutbox_Validate_RequiresKind(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_TrimsKind(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.Kind = "   enrollment_submitted   "
 	require.NoError(t, o.Validate())
@@ -43,6 +49,8 @@ func TestEmailOutbox_Validate_TrimsKind(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_KindWhitespaceOnlyRejected(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.Kind = "   "
 	err := o.Validate()
@@ -50,6 +58,8 @@ func TestEmailOutbox_Validate_KindWhitespaceOnlyRejected(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_DefaultsStatusToPending(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.Status = ""
 	require.NoError(t, o.Validate())
@@ -58,6 +68,8 @@ func TestEmailOutbox_Validate_DefaultsStatusToPending(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_AcceptsAllValidStatuses(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		EmailOutboxStatusPending,
 		EmailOutboxStatusSending,
@@ -71,6 +83,8 @@ func TestEmailOutbox_Validate_AcceptsAllValidStatuses(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_RejectsUnknownStatus(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.Status = "weird"
 	err := o.Validate()
@@ -79,6 +93,8 @@ func TestEmailOutbox_Validate_RejectsUnknownStatus(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_DefaultsNextRetryAt(t *testing.T) {
+	t.Parallel()
+
 	o := validOutbox()
 	o.NextRetryAt = time.Time{}
 	before := time.Now()
@@ -90,6 +106,8 @@ func TestEmailOutbox_Validate_DefaultsNextRetryAt(t *testing.T) {
 }
 
 func TestEmailOutbox_Validate_PreservesExplicitNextRetryAt(t *testing.T) {
+	t.Parallel()
+
 	future := time.Now().Add(2 * time.Hour)
 	o := validOutbox()
 	o.NextRetryAt = future
@@ -109,6 +127,8 @@ func TestEmailOutbox_Validate_PreservesExplicitNextRetryAt(t *testing.T) {
 // against the wire shape used in jsonb payloads + audit rows.
 
 func TestEmailKind_StableValues(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "guardian_invitation", EmailKindGuardianInvitation)
 	assert.Equal(t, "enrollment_submitted", EmailKindEnrollmentSubmitted)
 	assert.Equal(t, "enrollment_admin_notification", EmailKindEnrollmentAdminNotify)
@@ -120,6 +140,8 @@ func TestEmailKind_StableValues(t *testing.T) {
 }
 
 func TestEmailOutboxStatus_StableValues(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "pending", EmailOutboxStatusPending)
 	assert.Equal(t, "sending", EmailOutboxStatusSending)
 	assert.Equal(t, "sent", EmailOutboxStatusSent)

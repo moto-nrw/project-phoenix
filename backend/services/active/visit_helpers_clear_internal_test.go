@@ -38,6 +38,8 @@ func (f *fakeSettingsResolver) ResolveInt(_ context.Context, _ string) (int, err
 // TestResolveClearMode_NilSettings — when no SettingsResolver is injected the
 // fallback value is returned untouched.
 func TestResolveClearMode_NilSettings(t *testing.T) {
+	t.Parallel()
+
 	s := &service{}
 	got := s.resolveClearMode(context.Background(), "operations.sick_clear_mode", "next_checkin")
 	assert.Equal(t, "next_checkin", got)
@@ -46,6 +48,8 @@ func TestResolveClearMode_NilSettings(t *testing.T) {
 // TestResolveClearMode_HasOverrideError — override check failure must not
 // crash and must degrade gracefully to the fallback.
 func TestResolveClearMode_HasOverrideError(t *testing.T) {
+	t.Parallel()
+
 	s := &service{
 		settings: &fakeSettingsResolver{
 			hasOverrideErr: errors.New("db error"),
@@ -60,6 +64,8 @@ func TestResolveClearMode_HasOverrideError(t *testing.T) {
 // ResolveString would return the registry default, which the caller wants to
 // distinguish from a real override).
 func TestResolveClearMode_NoOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &service{
 		settings: &fakeSettingsResolver{hasOverride: false},
 	}
@@ -70,6 +76,8 @@ func TestResolveClearMode_NoOverride(t *testing.T) {
 // TestResolveClearMode_ResolveStringError — override exists but read fails;
 // fall through to the caller-supplied fallback.
 func TestResolveClearMode_ResolveStringError(t *testing.T) {
+	t.Parallel()
+
 	s := &service{
 		settings: &fakeSettingsResolver{
 			hasOverride: true,
@@ -84,6 +92,8 @@ func TestResolveClearMode_ResolveStringError(t *testing.T) {
 // the caller's fallback wins (matches the scheduler's resolveStringSetting
 // contract).
 func TestResolveClearMode_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	s := &service{
 		settings: &fakeSettingsResolver{
 			hasOverride: true,
@@ -97,6 +107,8 @@ func TestResolveClearMode_EmptyString(t *testing.T) {
 // TestResolveClearMode_OverrideReturned — the tenant value wins when
 // everything succeeds.
 func TestResolveClearMode_OverrideReturned(t *testing.T) {
+	t.Parallel()
+
 	s := &service{
 		settings: &fakeSettingsResolver{
 			hasOverride: true,
@@ -140,6 +152,8 @@ func newTestServiceWithLogger(s SettingsResolver, repo userModels.StudentReposit
 // TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin — no studentRepo
 // calls happen when the tenant has chosen a different clear mode.
 func TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockStudentRepoForClear{
 		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
 			t.Fatal("repo should not be called when mode != next_checkin")
@@ -156,6 +170,8 @@ func TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin(t *testing.T) {
 // TestAutoClearStudentSickness_FindByIDError — error from repo is swallowed
 // (logged), and no Update call happens.
 func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockStudentRepoForClear{
 		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
 			return nil, errors.New("db down")
@@ -172,6 +188,8 @@ func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
 // TestAutoClearStudentSickness_AlreadyHealthy — student has sick=false, so no
 // Update is issued (early return path).
 func TestAutoClearStudentSickness_AlreadyHealthy(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	healthy := &userModels.Student{Model: base.Model{ID: 1}, Sick: &falseVal}
 	repo := &mockStudentRepoForClear{
@@ -188,6 +206,8 @@ func TestAutoClearStudentSickness_AlreadyHealthy(t *testing.T) {
 // TestAutoClearStudentSickness_UpdateErrorIsLogged — Update failure is logged
 // but does not panic or leak outside the helper.
 func TestAutoClearStudentSickness_UpdateErrorIsLogged(t *testing.T) {
+	t.Parallel()
+
 	trueVal := true
 	sickStudent := &userModels.Student{Model: base.Model{ID: 2}, Sick: &trueVal}
 	repo := &mockStudentRepoForClear{
@@ -205,6 +225,8 @@ func TestAutoClearStudentSickness_UpdateErrorIsLogged(t *testing.T) {
 // TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin — excused default is
 // end_of_day, so a nil settings resolver keeps the flag untouched.
 func TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockStudentRepoForClear{
 		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
 			t.Fatal("repo should not be called under default end_of_day mode")
@@ -220,6 +242,8 @@ func TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin(t *testing.T) {
 // TestAutoClearStudentExcused_FindByIDError — with override set to
 // next_checkin, repo error must be swallowed without Update being called.
 func TestAutoClearStudentExcused_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockStudentRepoForClear{
 		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Student, error) {
 			return nil, errors.New("db down")
@@ -234,6 +258,8 @@ func TestAutoClearStudentExcused_FindByIDError(t *testing.T) {
 
 // TestAutoClearStudentExcused_AlreadyNotExcused — no-op when excused=false.
 func TestAutoClearStudentExcused_AlreadyNotExcused(t *testing.T) {
+	t.Parallel()
+
 	falseVal := false
 	notExcused := &userModels.Student{Model: base.Model{ID: 1}, Excused: &falseVal}
 	repo := &mockStudentRepoForClear{
@@ -251,6 +277,8 @@ func TestAutoClearStudentExcused_AlreadyNotExcused(t *testing.T) {
 // TestAutoClearStudentExcused_Clears — happy path: mode=next_checkin,
 // student excused, Update succeeds, flag and timestamp both zeroed.
 func TestAutoClearStudentExcused_Clears(t *testing.T) {
+	t.Parallel()
+
 	trueVal := true
 	excStudent := &userModels.Student{Model: base.Model{ID: 3}, Excused: &trueVal}
 	repo := &mockStudentRepoForClear{
@@ -272,6 +300,8 @@ func TestAutoClearStudentExcused_Clears(t *testing.T) {
 // TestAutoClearStudentExcused_UpdateError — Update failure is swallowed; no
 // panic. Complements the sickness equivalent to close the branch matrix.
 func TestAutoClearStudentExcused_UpdateError(t *testing.T) {
+	t.Parallel()
+
 	trueVal := true
 	excStudent := &userModels.Student{Model: base.Model{ID: 4}, Excused: &trueVal}
 	repo := &mockStudentRepoForClear{

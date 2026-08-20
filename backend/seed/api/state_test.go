@@ -11,6 +11,8 @@ import (
 )
 
 func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test-state.json")
 
@@ -80,6 +82,8 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 }
 
 func TestWriteSeedState_CreatesFileWithRestrictedPermissions(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
 
@@ -93,6 +97,8 @@ func TestWriteSeedState_CreatesFileWithRestrictedPermissions(t *testing.T) {
 }
 
 func TestWriteSeedState_ErrorOnInvalidPath(t *testing.T) {
+	t.Parallel()
+
 	state := &SeedState{BaseURL: "http://localhost:8080"}
 	err := WriteSeedState(state, "/nonexistent/dir/state.json")
 	assert.Error(t, err)
@@ -100,12 +106,16 @@ func TestWriteSeedState_ErrorOnInvalidPath(t *testing.T) {
 }
 
 func TestLoadSeedState_ErrorOnMissingFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadSeedState("/nonexistent/state.json")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "read seed state")
 }
 
 func TestLoadSeedState_ErrorOnInvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
 	require.NoError(t, os.WriteFile(path, []byte("not json"), 0o600))
@@ -116,6 +126,8 @@ func TestLoadSeedState_ErrorOnInvalidJSON(t *testing.T) {
 }
 
 func TestLoadSeedState_EmptyState(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.json")
 	require.NoError(t, os.WriteFile(path, []byte("{}"), 0o600))

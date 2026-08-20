@@ -14,8 +14,9 @@ import (
 )
 
 func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repo := repositories.NewFactory(db).StudentDeletion
 
 	_, err := repo.Preview(context.Background(), 1)
@@ -35,10 +36,11 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 }
 
 func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Locked", "1a")
 	guardian := testpkg.CreateTestAccount(t, db, "delete-preview-message-guardian@example.com")
 	var threadID int64
@@ -47,11 +49,6 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 		VALUES (?, ?, ?)
 		RETURNING id
 	`, target.TenantID, target.ID, guardian.ID).Scan(ctx, &threadID))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", target.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", target.PersonID)
-		testpkg.CleanupAuthFixtures(t, db, guardian.ID)
-	})
 
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -73,10 +70,11 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 }
 
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	target := testpkg.CreateTestStudent(t, db, "DeletePreview", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, db, "DeletePreview", "Spared", "1a")
 	room := testpkg.CreateTestRoom(t, db, "delete-preview-room")
@@ -86,14 +84,6 @@ func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
 	})
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, spared.ID, "")
-
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, nil,
-			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID})
-		testpkg.CleanupTableRecords(t, db, "users.students", target.ID, spared.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", target.PersonID, spared.PersonID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	})
 
 	repo := repositories.NewFactory(db).StudentDeletion
 	preview, err := repo.Preview(ctx, target.ID)

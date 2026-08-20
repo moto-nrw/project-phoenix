@@ -53,6 +53,8 @@ func allClassesTestService() *reportService {
 }
 
 func TestClassRosterAllClassesSortsClassFirstThenName(t *testing.T) {
+	t.Parallel()
+
 	svc := allClassesTestService()
 
 	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, AllClasses: true})
@@ -92,6 +94,8 @@ func (r *fakeCaseVariantStudentRepo) FindBySchoolClass(_ context.Context, school
 }
 
 func TestClassRosterAllClassesDeduplicatesCaseVariantClasses(t *testing.T) {
+	t.Parallel()
+
 	persons := map[int64]*userModels.Person{
 		11: {FirstName: "Mila", LastName: "Anders"},
 		12: {FirstName: "Finn", LastName: "Becker"},
@@ -124,6 +128,8 @@ func TestClassRosterAllClassesDeduplicatesCaseVariantClasses(t *testing.T) {
 }
 
 func TestClassRosterFilterValidation(t *testing.T) {
+	t.Parallel()
+
 	svc := allClassesTestService()
 
 	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", AllClasses: true})

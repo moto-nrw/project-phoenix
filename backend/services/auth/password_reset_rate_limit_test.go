@@ -67,6 +67,10 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	return service, accountRepo, tokenRepo, rateRepo, mailer, mock, cleanup
 }
 
+// Deliberately NOT parallel: process-global state — the rate-limit and
+// password-reset tests switch viper keys (rate_limit_enabled, the reset
+// expiry and URL) on and restore them in t.Cleanup, which would yank the
+// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 	service, _, tokenRepo, rateRepo, mailer, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 1},
@@ -99,6 +103,10 @@ func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: process-global state — the rate-limit and
+// password-reset tests switch viper keys (rate_limit_enabled, the reset
+// expiry and URL) on and restore them in t.Cleanup, which would yank the
+// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 42},
@@ -145,6 +153,10 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: process-global state — the rate-limit and
+// password-reset tests switch viper keys (rate_limit_enabled, the reset
+// expiry and URL) on and restore them in t.Cleanup, which would yank the
+// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 7},
@@ -178,6 +190,10 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: process-global state — the rate-limit and
+// password-reset tests switch viper keys (rate_limit_enabled, the reset
+// expiry and URL) on and restore them in t.Cleanup, which would yank the
+// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_IncrementsCounter(t *testing.T) {
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 5},

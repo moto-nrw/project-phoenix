@@ -7,6 +7,8 @@ import (
 )
 
 func TestTeacher_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		teacher *Teacher
@@ -64,6 +66,8 @@ func TestTeacher_Validate(t *testing.T) {
 }
 
 func TestTeacher_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		inputSpecialization    string
@@ -125,6 +129,8 @@ func TestTeacher_Validate_Normalization(t *testing.T) {
 }
 
 func TestTeacher_SetStaff(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set staff", func(t *testing.T) {
 		teacher := &Teacher{}
 
@@ -166,6 +172,8 @@ func TestTeacher_SetStaff(t *testing.T) {
 }
 
 func TestTeacher_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		teacher  *Teacher
@@ -217,6 +225,8 @@ func TestTeacher_GetFullName(t *testing.T) {
 }
 
 func TestTeacher_GetTitle(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		teacher  *Teacher
@@ -262,6 +272,8 @@ func TestTeacher_GetTitle(t *testing.T) {
 }
 
 func TestTeacher_HasQualifications(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		teacher  *Teacher

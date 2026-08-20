@@ -11,6 +11,8 @@ import (
 )
 
 func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T) {
+	t.Parallel()
+
 	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
 		{
 			Key:       enrollmentModels.ConsentKeyDataProcessing,
@@ -49,6 +51,8 @@ func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T
 }
 
 func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	schema := &enrollmentModels.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
@@ -89,6 +93,8 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 }
 
 func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
+	t.Parallel()
+
 	texts := LegalTexts{
 		AGB:                 "AGB Text",
 		DSGVO:               "DSGVO Text",
@@ -107,6 +113,8 @@ func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing
 }
 
 func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.T) {
+	t.Parallel()
+
 	texts := LegalTexts{
 		AGB:            "AGB Text",
 		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
@@ -120,6 +128,8 @@ func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.
 }
 
 func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
+	t.Parallel()
+
 	texts := LegalTexts{
 		AGB:            "AGB Text",
 		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
@@ -136,6 +146,8 @@ func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
 }
 
 func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
 		{
 			Key:         enrollmentModels.ConsentKeyAGB,
@@ -159,6 +171,8 @@ func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
 }
 
 func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
+	t.Parallel()
+
 	texts := LegalTexts{
 		AGB:                 "AGB Text",
 		DSGVO:               "DSGVO Text",
@@ -207,6 +221,8 @@ func (s *legalSettingsStub) ResolveBool(_ context.Context, key string) (bool, er
 func (s *legalSettingsStub) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
 
 func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testing.T) {
+	t.Parallel()
+
 	// A template whose blocks are ALL disabled must behave like a template
 	// without blocks: the tenant-wide settings contract stays in force, so
 	// the DSGVO acknowledgment cannot be erased by an empty snapshot.
@@ -237,6 +253,8 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 }
 
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {
+	t.Parallel()
+
 	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
 		{Key: "custom_b", Kind: enrollmentModels.LegalBlockKindConsent, Title: "B", Label: "B", Enabled: true, SortOrder: 30},
 		{Key: "custom_a", Kind: enrollmentModels.LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true, SortOrder: 10},
@@ -250,6 +268,8 @@ func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {
 }
 
 func TestFilterConsentFlags_DropsKeysOutsideContract(t *testing.T) {
+	t.Parallel()
+
 	blocks := []LegalBlock{
 		{Key: enrollmentModels.ConsentKeyDataProcessing},
 		{Key: "custom_pool"},

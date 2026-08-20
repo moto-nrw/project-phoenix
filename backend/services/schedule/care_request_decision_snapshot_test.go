@@ -61,6 +61,8 @@ func historyItemByID(t *testing.T, f *careFixture, id int64) *schedule.CareReque
 // approve a request, then change the live data — the history keeps showing
 // the alt → neu comparison that existed at decision time, not a live diff.
 func TestDecide_FreezesAltNeuDiffInHistory(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -92,6 +94,8 @@ func TestDecide_FreezesAltNeuDiffInHistory(t *testing.T) {
 // TestDecide_RejectAlsoFreezesDiff: a rejection freezes the comparison the
 // reviewer declined, even though nothing was applied.
 func TestDecide_RejectAlsoFreezesDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -117,6 +121,8 @@ func TestDecide_RejectAlsoFreezesDiff(t *testing.T) {
 }
 
 func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
 	rejectingService := schedule.NewCareScheduleRequestService(
@@ -146,6 +152,8 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 }
 
 func TestListPending_FallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
 	service := schedule.NewCareScheduleRequestService(
@@ -179,6 +187,8 @@ func TestListPending_FallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 // decision — the row keeps no frozen diff and the history falls back to the
 // payload-derived requested summary.
 func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 
 	req := f.createPending(t, careWeekdays(
@@ -196,6 +206,8 @@ func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
 // the snapshot existed (simulated by clearing the column) carries no Diff and
 // the history keeps serving the payload-derived requested summary.
 func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 
 	req := f.createPending(t, careWeekdays(
@@ -222,6 +234,8 @@ func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
 // TestDecide_PickupChangeFreezesDiff covers the pickup-change kind: the
 // one-day exception's alt → neu is frozen on decision too.
 func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	upsertMondayPickup(t, f, 15, 0)
 

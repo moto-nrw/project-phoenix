@@ -12,6 +12,8 @@ import (
 
 // TestStudentHomeRoomMapping tests the logic for determining if a student is in their Heimatraum
 func TestStudentHomeRoomMapping(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		studentID      int64
@@ -82,6 +84,8 @@ func TestStudentHomeRoomMapping(t *testing.T) {
 
 // TestMultipleStudentsInRooms tests counting multiple students across different rooms
 func TestMultipleStudentsInRooms(t *testing.T) {
+	t.Parallel()
+
 	// Setup: 3 students, 2 groups, 2 rooms
 	// Group 10 (Class 5a) -> Room 101
 	// Group 11 (Class 5b) -> Room 102
@@ -134,6 +138,8 @@ func TestMultipleStudentsInRooms(t *testing.T) {
 
 // TestEdgeCaseEmptyRooms tests behavior with no students
 func TestEdgeCaseEmptyRooms(t *testing.T) {
+	t.Parallel()
+
 	studentHomeRoomMap := map[int64]int64{}
 	emptyRoomStudents := map[int64]struct{}{}
 
@@ -152,6 +158,8 @@ func TestEdgeCaseEmptyRooms(t *testing.T) {
 // TestCountStudentsInIndoorRooms tests the indoor room student counting logic,
 // including the edge case where a student's visit belongs to a playground/outdoor group
 func TestCountStudentsInIndoorRooms(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		activeVisits  []*active.Visit

@@ -19,36 +19,50 @@ import (
 // =============================================================================
 
 func TestStringField_StringValue(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"name": "Test Room"}
 	assert.Equal(t, "Test Room", stringField(m, "name"))
 }
 
 func TestStringField_MissingKey(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"name": "Test"}
 	assert.Equal(t, "", stringField(m, "missing"))
 }
 
 func TestStringField_NilValue(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"name": nil}
 	assert.Equal(t, "", stringField(m, "name"))
 }
 
 func TestStringField_NumericValue(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"id": float64(42)}
 	assert.Equal(t, "42", stringField(m, "id"))
 }
 
 func TestStringField_BoolValue(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"active": true}
 	assert.Equal(t, "true", stringField(m, "active"))
 }
 
 func TestStringField_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{"name": ""}
 	assert.Equal(t, "", stringField(m, "name"))
 }
 
 func TestStringField_EmptyMap(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]any{}
 	assert.Equal(t, "", stringField(m, "anything"))
 }
@@ -58,29 +72,39 @@ func TestStringField_EmptyMap(t *testing.T) {
 // =============================================================================
 
 func TestPrintActiveGroups_EmptyGroups(t *testing.T) {
+	t.Parallel()
+
 	// Should not panic with empty data
 	data := `{"status":"success","data":[]}`
 	printActiveGroups([]byte(data))
 }
 
 func TestPrintActiveGroups_WithGroups(t *testing.T) {
+	t.Parallel()
+
 	data := `{"status":"success","data":[{"id":1,"activity_name":"Fußball","room_name":"Sporthalle","supervisor_names":"Julia Klein"}]}`
 	// Should not panic
 	printActiveGroups([]byte(data))
 }
 
 func TestPrintActiveGroups_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	// Should not panic with invalid JSON
 	printActiveGroups([]byte("not json"))
 }
 
 func TestPrintActiveGroups_DirectArray(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"id":1,"name":"Fußball","room_name":"Sporthalle"}]`
 	// Should handle direct array (no envelope)
 	printActiveGroups([]byte(data))
 }
 
 func TestPrintActiveGroups_FallbackToNameField(t *testing.T) {
+	t.Parallel()
+
 	data := `{"status":"success","data":[{"id":1,"name":"Fußball"}]}`
 	// When activity_name is missing, should use "name"
 	printActiveGroups([]byte(data))
@@ -91,26 +115,36 @@ func TestPrintActiveGroups_FallbackToNameField(t *testing.T) {
 // =============================================================================
 
 func TestPrintActiveVisits_EmptyVisits(t *testing.T) {
+	t.Parallel()
+
 	data := `{"status":"success","data":[]}`
 	printActiveVisits([]byte(data))
 }
 
 func TestPrintActiveVisits_WithVisits(t *testing.T) {
+	t.Parallel()
+
 	data := `{"status":"success","data":[{"student_id":1,"room_name":"OGS-Raum 1"},{"student_id":2,"room_name":"OGS-Raum 1"},{"student_id":3,"room_name":"Sporthalle"}]}`
 	printActiveVisits([]byte(data))
 }
 
 func TestPrintActiveVisits_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	printActiveVisits([]byte("not json"))
 }
 
 func TestPrintActiveVisits_UnknownRoom(t *testing.T) {
+	t.Parallel()
+
 	data := `{"status":"success","data":[{"student_id":1}]}`
 	// room_name missing → should use "(unknown)"
 	printActiveVisits([]byte(data))
 }
 
 func TestPrintActiveVisits_DirectArray(t *testing.T) {
+	t.Parallel()
+
 	data := `[{"student_id":1,"room_name":"OGS-Raum 1"}]`
 	printActiveVisits([]byte(data))
 }
@@ -157,6 +191,8 @@ func statusAPIMock(t *testing.T) *httptest.Server {
 }
 
 func TestRunStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := statusAPIMock(t)
 	defer srv.Close()
 
@@ -186,12 +222,16 @@ func TestRunStatus_Success(t *testing.T) {
 }
 
 func TestRunStatus_InvalidStatePath(t *testing.T) {
+	t.Parallel()
+
 	err := RunStatus(context.Background(), StatusOptions{StatePath: "/nonexistent/state.json"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load seed state")
 }
 
 func TestRunStatus_NoAdminAccounts(t *testing.T) {
+	t.Parallel()
+
 	srv := statusAPIMock(t)
 	defer srv.Close()
 
@@ -210,6 +250,8 @@ func TestRunStatus_NoAdminAccounts(t *testing.T) {
 }
 
 func TestRunStatus_ServerDown(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
 
@@ -227,6 +269,8 @@ func TestRunStatus_ServerDown(t *testing.T) {
 }
 
 func TestRunStatus_GroupsFetchError(t *testing.T) {
+	t.Parallel()
+
 	// Server that returns errors on /api/active/groups
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -263,6 +307,8 @@ func TestRunStatus_GroupsFetchError(t *testing.T) {
 // =============================================================================
 
 func TestStatusOptions_Fields(t *testing.T) {
+	t.Parallel()
+
 	opts := StatusOptions{
 		StatePath: ".seed-state.json",
 		Verbose:   true,

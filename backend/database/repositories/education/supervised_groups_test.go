@@ -28,24 +28,21 @@ func staffIDsFor(pairs []education.StaffGroupID, groupID int64) map[int64]struct
 // group on a given day: teacher assignments plus substitutions active on that
 // day, and nobody else.
 func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	today := timezone.TodayDate()
 
 	t.Run("names the assigned teacher and the substitute of today", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ByGroupAssigned")
 		teacher := testpkg.CreateTestTeacher(t, db, "ByGroup", "Teacher")
-		link := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 		substitute := testpkg.CreateTestStaff(t, db, "ByGroup", "Substitute")
-		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
+		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-1), today.AddDays(1))
-
-		defer testpkg.CleanupActivityFixtures(t, db, sub.ID, link.ID, group.ID)
-		defer testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
-		defer testpkg.CleanupStaffFixtures(t, db, teacher.StaffID, substitute.ID)
 
 		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
 		require.NoError(t, err)
@@ -58,11 +55,8 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 	t.Run("a substitution outside the day is not counted", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ByGroupPastSub")
 		substitute := testpkg.CreateTestStaff(t, db, "Past", "Substitute")
-		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
+		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-10), today.AddDays(-5))
-
-		defer testpkg.CleanupActivityFixtures(t, db, sub.ID, group.ID)
-		defer testpkg.CleanupStaffFixtures(t, db, substitute.ID)
 
 		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
 		require.NoError(t, err)
@@ -77,11 +71,10 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 	})
 
 	t.Run("another school's group resolves to nobody", func(t *testing.T) {
-		const otherTenant int64 = 99046
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "ByGroupForeign")
-		defer testpkg.CleanupActivityFixturesForTenant(t, db, otherTenant, foreignGroup.ID)
 
 		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{foreignGroup.ID}, today)
 		require.NoError(t, err)

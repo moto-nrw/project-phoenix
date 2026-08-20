@@ -23,10 +23,14 @@ func validCareOffering() *CareOffering {
 }
 
 func TestCareOffering_Validate_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, validCareOffering().Validate())
 }
 
 func TestCareOffering_Validate_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.Name = "  "
 	err := c.Validate()
@@ -35,6 +39,8 @@ func TestCareOffering_Validate_RequiresName(t *testing.T) {
 }
 
 func TestCareOffering_Validate_TrimsName(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.Name = "  Spätbetreuung  "
 	require.NoError(t, c.Validate())
@@ -42,6 +48,8 @@ func TestCareOffering_Validate_TrimsName(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RequiresPhaseID(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.PhaseID = 0
 	err := c.Validate()
@@ -50,6 +58,8 @@ func TestCareOffering_Validate_RequiresPhaseID(t *testing.T) {
 }
 
 func TestCareOffering_Validate_DefaultsDaysModeToFixed(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.DaysOfWeekMode = ""
 	require.NoError(t, c.Validate())
@@ -57,6 +67,8 @@ func TestCareOffering_Validate_DefaultsDaysModeToFixed(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsUnknownDaysMode(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.DaysOfWeekMode = "wild_choice"
 	err := c.Validate()
@@ -65,12 +77,16 @@ func TestCareOffering_Validate_RejectsUnknownDaysMode(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsParentChoiceMode(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.DaysOfWeekMode = DaysOfWeekModeParentChoice
 	assert.NoError(t, c.Validate())
 }
 
 func TestCareOffering_Validate_RejectsUnknownAvailableDay(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.AvailableDays = []string{"mon", "funday"}
 	err := c.Validate()
@@ -79,12 +95,16 @@ func TestCareOffering_Validate_RejectsUnknownAvailableDay(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsAllCanonicalDays(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.AvailableDays = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 	assert.NoError(t, c.Validate())
 }
 
 func TestCareOffering_Validate_AvailableDaysIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	// canonicalDaySet check lowercases on the fly; mixed-case input
 	// shouldn't reject just because of casing.
 	c := validCareOffering()
@@ -93,6 +113,8 @@ func TestCareOffering_Validate_AvailableDaysIsCaseInsensitive(t *testing.T) {
 }
 
 func TestCareOffering_Validate_EmptyAvailableDaysRejected(t *testing.T) {
+	t.Parallel()
+
 	// Business rule changed with #1885: the weekday selection is a
 	// deliberate, required input. An offering without days silently
 	// hid the misconfiguration that produced wrong enrollments in
@@ -105,6 +127,8 @@ func TestCareOffering_Validate_EmptyAvailableDaysRejected(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsNegativeCapacity(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	cap := -1
 	c.Capacity = &cap
@@ -114,6 +138,8 @@ func TestCareOffering_Validate_RejectsNegativeCapacity(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsZeroCapacity(t *testing.T) {
+	t.Parallel()
+
 	// Zero is legal and explicit — "full from the start, no enrollments
 	// allowed until admin raises the cap".
 	c := validCareOffering()
@@ -123,6 +149,8 @@ func TestCareOffering_Validate_AcceptsZeroCapacity(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsNegativePrice(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	price := -50
 	c.PriceCents = &price
@@ -132,6 +160,8 @@ func TestCareOffering_Validate_RejectsNegativePrice(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsZeroPrice(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	price := 0
 	c.PriceCents = &price
@@ -139,6 +169,8 @@ func TestCareOffering_Validate_AcceptsZeroPrice(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsRequiredWithoutCapacity(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.IsRequired = true
 	c.Capacity = nil
@@ -146,6 +178,8 @@ func TestCareOffering_Validate_AcceptsRequiredWithoutCapacity(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsRequiredWithCapacity(t *testing.T) {
+	t.Parallel()
+
 	// A required offering must be available to every child, so a hard
 	// capacity limit (which could fill up and block enrollments) is illegal.
 	c := validCareOffering()
@@ -158,6 +192,8 @@ func TestCareOffering_Validate_RejectsRequiredWithCapacity(t *testing.T) {
 }
 
 func TestCareOffering_Validate_AcceptsCapacityWhenNotRequired(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.IsRequired = false
 	cap := 20
@@ -166,6 +202,8 @@ func TestCareOffering_Validate_AcceptsCapacityWhenNotRequired(t *testing.T) {
 }
 
 func TestCareOffering_Validate_NormalizesAutoAddGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.AutoAddGradeLevels = []int{2, 1, 2, 4}
 
@@ -175,6 +213,8 @@ func TestCareOffering_Validate_NormalizesAutoAddGradeLevels(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsInvalidAutoAddGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	for _, level := range []int{0, -1, 14} {
 		t.Run(fmt.Sprintf("grade_%d", level), func(t *testing.T) {
 			c := validCareOffering()
@@ -189,12 +229,16 @@ func TestCareOffering_Validate_RejectsInvalidAutoAddGradeLevels(t *testing.T) {
 }
 
 func TestCareOffering_HasUnlimitedCapacity_NilIsUnlimited(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.Capacity = nil
 	assert.True(t, c.HasUnlimitedCapacity())
 }
 
 func TestCareOffering_HasUnlimitedCapacity_SetIsBounded(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	cap := 30
 	c.Capacity = &cap
@@ -204,12 +248,16 @@ func TestCareOffering_HasUnlimitedCapacity_SetIsBounded(t *testing.T) {
 // ---- selection group + rule ----------------------------------------------
 
 func TestCareOffering_Validate_DefaultsRuleToOptional(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering() // SelectionRule left empty
 	require.NoError(t, c.Validate())
 	assert.Equal(t, SelectionRuleOptional, c.SelectionRule)
 }
 
 func TestCareOffering_Validate_AcceptsGroupedRule(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.SelectionGroup = "Betreuungsumfang"
 	c.SelectionRule = SelectionRuleExactlyOne
@@ -217,6 +265,8 @@ func TestCareOffering_Validate_AcceptsGroupedRule(t *testing.T) {
 }
 
 func TestCareOffering_Validate_TrimsGroup(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.SelectionGroup = "  Betreuungsumfang  "
 	c.SelectionRule = SelectionRuleAtLeastOne
@@ -225,6 +275,8 @@ func TestCareOffering_Validate_TrimsGroup(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RejectsUnknownRule(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.SelectionGroup = "G"
 	c.SelectionRule = "pick_three"
@@ -234,6 +286,8 @@ func TestCareOffering_Validate_RejectsUnknownRule(t *testing.T) {
 }
 
 func TestCareOffering_Validate_RuleRequiresGroup(t *testing.T) {
+	t.Parallel()
+
 	c := validCareOffering()
 	c.SelectionRule = SelectionRuleExactlyOne // no group
 	err := c.Validate()

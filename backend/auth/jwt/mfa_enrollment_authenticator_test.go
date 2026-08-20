@@ -135,6 +135,8 @@ func TestMFAEnrollmentAuthenticator_RejectsRegularAccessToken(t *testing.T) {
 }
 
 func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
+	t.Parallel()
+
 	auth, err := NewTokenAuthWithSecret(testSecret)
 	require.NoError(t, err)
 
@@ -153,6 +155,8 @@ func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 }
 
 func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
+	t.Parallel()
+
 	auth, err := NewTokenAuthWithSecret(testSecret)
 	require.NoError(t, err)
 

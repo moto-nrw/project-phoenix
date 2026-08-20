@@ -10,6 +10,8 @@ import (
 )
 
 func TestCheckActivityCapacitySkipsUnlimitedActivity(t *testing.T) {
+	t.Parallel()
+
 	service := &CheckinService{}
 	group := &activeModel.Group{
 		ActualGroup: &activitiesModel.Group{

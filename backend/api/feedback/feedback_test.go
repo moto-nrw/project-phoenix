@@ -66,7 +66,7 @@ func feedbackRequest(t *testing.T, method, target string, body interface{}) *htt
 // via a real DB setting override. Cleanup is deferred automatically.
 func enableFeedback(t *testing.T, ctx *testContext) {
 	t.Helper()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	err := ctx.services.Settings.SetValue(tenantCtx, configModel.KeyFeedbackEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -79,8 +79,9 @@ func enableFeedback(t *testing.T, ctx *testContext) {
 // =============================================================================
 
 func TestListFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -92,8 +93,9 @@ func TestListFeedback_Success(t *testing.T) {
 }
 
 func TestListFeedback_WithStudentFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -105,8 +107,9 @@ func TestListFeedback_WithStudentFilter(t *testing.T) {
 }
 
 func TestListFeedback_WithDateFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -118,8 +121,9 @@ func TestListFeedback_WithDateFilter(t *testing.T) {
 }
 
 func TestListFeedback_WithMensaFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -135,8 +139,9 @@ func TestListFeedback_WithMensaFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetFeedback_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -148,8 +153,9 @@ func TestGetFeedback_NotFound(t *testing.T) {
 }
 
 func TestGetFeedback_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -165,13 +171,13 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 	enableFeedback(t, ctx)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -183,8 +189,9 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 }
 
 func TestGetStudentFeedback_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 	enableFeedback(t, ctx)
 
 	router := newRouter(ctx)
@@ -201,8 +208,9 @@ func TestGetStudentFeedback_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetDateFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -214,8 +222,9 @@ func TestGetDateFeedback_Success(t *testing.T) {
 }
 
 func TestGetDateFeedback_InvalidDate(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -231,8 +240,9 @@ func TestGetDateFeedback_InvalidDate(t *testing.T) {
 // =============================================================================
 
 func TestGetMensaFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -244,8 +254,9 @@ func TestGetMensaFeedback_Success(t *testing.T) {
 }
 
 func TestGetMensaFeedback_WithFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -261,8 +272,9 @@ func TestGetMensaFeedback_WithFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetDateRangeFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -274,12 +286,12 @@ func TestGetDateRangeFeedback_Success(t *testing.T) {
 }
 
 func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -292,8 +304,9 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 }
 
 func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -305,8 +318,9 @@ func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
 }
 
 func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -318,8 +332,9 @@ func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
 }
 
 func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -336,12 +351,12 @@ func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 // =============================================================================
 
 func TestCreateFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -362,12 +377,12 @@ func TestCreateFeedback_Success(t *testing.T) {
 }
 
 func TestCreateFeedback_MissingValue(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -386,8 +401,9 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 }
 
 func TestCreateFeedback_MissingStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -406,12 +422,12 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 }
 
 func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -431,12 +447,12 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 }
 
 func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -460,15 +476,14 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 // =============================================================================
 
 func TestCreateBatchFeedback_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test students
 	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "One", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID)
 
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Two", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
 
 	router := newRouter(ctx)
 
@@ -500,8 +515,9 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 }
 
 func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -517,12 +533,12 @@ func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
 }
 
 func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -555,8 +571,9 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 // =============================================================================
 
 func TestDeleteFeedback_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 
@@ -568,8 +585,9 @@ func TestDeleteFeedback_NotFound(t *testing.T) {
 }
 
 func TestDeleteFeedback_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := newRouter(ctx)
 

@@ -11,7 +11,6 @@ import (
 
 func TestPreserveStudentDeletionAuditMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	var foreignKeyExists bool
 	require.NoError(t, db.NewRaw(`

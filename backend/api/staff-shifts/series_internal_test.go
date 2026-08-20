@@ -98,6 +98,8 @@ func validSeriesBody() string {
 }
 
 func TestCreateSeriesHandler_MapsPayloadAndSkippedDates(t *testing.T) {
+	t.Parallel()
+
 	var got *scheduleModel.StaffShiftSeries
 	service := &fakeSeriesService{
 		createFn: func(_ context.Context, series *scheduleModel.StaffShiftSeries) (*scheduleSvc.SeriesResult, error) {
@@ -137,6 +139,8 @@ func TestCreateSeriesHandler_MapsPayloadAndSkippedDates(t *testing.T) {
 }
 
 func TestCreateSeriesHandler_RejectsBadInput(t *testing.T) {
+	t.Parallel()
+
 	resource := seriesTestResource(&fakeSeriesService{})
 	for name, body := range map[string]string{
 		"invalid json":      `{`,
@@ -155,6 +159,8 @@ func TestCreateSeriesHandler_RejectsBadInput(t *testing.T) {
 }
 
 func TestCreateSeriesHandler_RequiresIdentity(t *testing.T) {
+	t.Parallel()
+
 	resource := seriesTestResource(&fakeSeriesService{})
 	recorder := httptest.NewRecorder()
 	// No JWT claims in context: editorStaffID must reject.
@@ -164,6 +170,8 @@ func TestCreateSeriesHandler_RequiresIdentity(t *testing.T) {
 }
 
 func TestSeriesHandlers_MapServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	for name, test := range map[string]struct {
 		err  error
 		want int
@@ -196,6 +204,8 @@ func splitTestRouter(resource *Resource) chi.Router {
 }
 
 func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.SplitSeriesInput
 	service := &fakeSeriesService{
 		splitFn: func(_ context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error) {
@@ -235,6 +245,8 @@ func TestSplitSeriesHandler_InheritsOmittedFields(t *testing.T) {
 }
 
 func TestSplitSeriesHandler_AcceptsLosslessOccurrenceID(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.SplitSeriesInput
 	service := &fakeSeriesService{
 		splitFn: func(_ context.Context, input scheduleSvc.SplitSeriesInput) (*scheduleSvc.SeriesResult, error) {
@@ -253,6 +265,8 @@ func TestSplitSeriesHandler_AcceptsLosslessOccurrenceID(t *testing.T) {
 }
 
 func TestSeriesResponses_SerializeIDsAsStrings(t *testing.T) {
+	t.Parallel()
+
 	series := &scheduleModel.StaffShiftSeries{}
 	series.ID = 9223372036854775807
 	encoded, err := json.Marshal(toSeriesResponse(&scheduleSvc.SeriesResult{
@@ -268,6 +282,8 @@ func TestSeriesResponses_SerializeIDsAsStrings(t *testing.T) {
 }
 
 func TestSplitSeriesHandler_RejectsBadEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	resource := seriesTestResource(&fakeSeriesService{})
 	router := splitTestRouter(resource)
 	body := `{"effective_date": "Montag", "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
@@ -278,6 +294,8 @@ func TestSplitSeriesHandler_RejectsBadEffectiveDate(t *testing.T) {
 }
 
 func TestEndSeriesHandler(t *testing.T) {
+	t.Parallel()
+
 	t.Run("happy path", func(t *testing.T) {
 		var gotID int64
 		var gotFrom timezone.Date
@@ -331,6 +349,8 @@ func TestEndSeriesHandler(t *testing.T) {
 // Out-of-range weekdays must be a 400, not a silent int16 wrap: 65538 would
 // otherwise truncate to 2 and pass both model validation and the DB CHECK.
 func TestCreateSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
+	t.Parallel()
+
 	resource := seriesTestResource(&fakeSeriesService{})
 	for name, weekdays := range map[string]string{
 		"zero":           "[0]",
@@ -350,6 +370,8 @@ func TestCreateSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
 }
 
 func TestSplitSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
+	t.Parallel()
+
 	router := splitTestRouter(seriesTestResource(&fakeSeriesService{}))
 	body := `{"effective_date": "2026-10-05", "weekdays": [65538], "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
 	recorder := httptest.NewRecorder()
@@ -369,6 +391,8 @@ func seriesRuleRouter(resource *Resource) chi.Router {
 }
 
 func TestGetSeriesHandler_ReturnsStoredRule(t *testing.T) {
+	t.Parallel()
+
 	series := &scheduleModel.StaffShiftSeries{
 		StaffID:          5,
 		Weekdays:         []int16{1, 3},

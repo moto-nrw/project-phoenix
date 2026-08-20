@@ -127,6 +127,8 @@ func (m *mockOperatorSuggestionsService) DeletePost(ctx context.Context, postID 
 }
 
 func TestListSuggestions_Success(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mockService := &mockOperatorSuggestionsService{
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
@@ -179,6 +181,8 @@ func TestListSuggestions_Success(t *testing.T) {
 }
 
 func TestListSuggestions_WithStatusFilter(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
 			assert.Equal(t, "open", status)
@@ -200,6 +204,8 @@ func TestListSuggestions_WithStatusFilter(t *testing.T) {
 }
 
 func TestListSuggestions_WithSortParam(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
 			assert.Equal(t, "score", sortBy)
@@ -221,6 +227,8 @@ func TestListSuggestions_WithSortParam(t *testing.T) {
 }
 
 func TestListSuggestions_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
 			return nil, errors.New("database error")
@@ -241,6 +249,8 @@ func TestListSuggestions_ServiceError(t *testing.T) {
 }
 
 func TestGetSuggestion_Success(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mockService := &mockOperatorSuggestionsService{
 		getPostFn: func(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
@@ -301,6 +311,8 @@ func TestGetSuggestion_Success(t *testing.T) {
 }
 
 func TestGetSuggestion_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{}
 	resource := operator.NewSuggestionsResource(mockService)
 
@@ -317,6 +329,8 @@ func TestGetSuggestion_InvalidID(t *testing.T) {
 }
 
 func TestGetSuggestion_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		getPostFn: func(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
 			return nil, nil, &platformSvc.PostNotFoundError{}
@@ -340,6 +354,8 @@ func TestGetSuggestion_NotFound(t *testing.T) {
 }
 
 func TestUpdateStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		updatePostStatusFn: func(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, testPostID, postID)
@@ -371,6 +387,8 @@ func TestUpdateStatus_Success(t *testing.T) {
 }
 
 func TestUpdateStatus_EmptyStatus(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{}
 	resource := operator.NewSuggestionsResource(mockService)
 
@@ -395,6 +413,8 @@ func TestUpdateStatus_EmptyStatus(t *testing.T) {
 }
 
 func TestAddComment_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		addCommentFn: func(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error {
 			assert.Equal(t, testPostID, comment.PostID)
@@ -426,6 +446,8 @@ func TestAddComment_Success(t *testing.T) {
 }
 
 func TestAddComment_EmptyContent(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{}
 	resource := operator.NewSuggestionsResource(mockService)
 
@@ -450,6 +472,8 @@ func TestAddComment_EmptyContent(t *testing.T) {
 }
 
 func TestDeleteComment_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		deleteCommentFn: func(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, testCommentID, commentID)
@@ -475,6 +499,8 @@ func TestDeleteComment_Success(t *testing.T) {
 }
 
 func TestDeleteComment_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{}
 	resource := operator.NewSuggestionsResource(mockService)
 
@@ -493,6 +519,8 @@ func TestDeleteComment_InvalidID(t *testing.T) {
 }
 
 func TestDeleteComment_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		deleteCommentFn: func(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
 			return &suggestionsSvc.CommentNotFoundError{}
@@ -516,6 +544,8 @@ func TestDeleteComment_NotFound(t *testing.T) {
 }
 
 func TestDeleteComment_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		deleteCommentFn: func(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
 			return &suggestionsSvc.ForbiddenError{}
@@ -539,6 +569,8 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 }
 
 func TestMarkCommentsRead_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		markCommentsReadFn: func(ctx context.Context, operatorAccountID, postID int64) error {
 			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
@@ -564,6 +596,8 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 }
 
 func TestGetUnreadCount_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		getTotalUnreadCountFn: func(ctx context.Context, operatorAccountID int64) (int, error) {
 			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
@@ -592,6 +626,8 @@ func TestGetUnreadCount_Success(t *testing.T) {
 }
 
 func TestMarkPostViewed_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		markPostViewedFn: func(ctx context.Context, operatorAccountID, postID int64) error {
 			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
@@ -617,6 +653,8 @@ func TestMarkPostViewed_Success(t *testing.T) {
 }
 
 func TestGetUnviewedCount_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		getUnviewedPostCountFn: func(ctx context.Context, operatorAccountID int64) (int, error) {
 			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
@@ -645,6 +683,8 @@ func TestGetUnviewedCount_Success(t *testing.T) {
 }
 
 func TestHidePost_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		hidePostFn: func(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, testPostID, postID)
@@ -674,6 +714,8 @@ func TestHidePost_Success(t *testing.T) {
 }
 
 func TestHidePost_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewSuggestionsResource(&mockOperatorSuggestionsService{})
 
 	body := map[string]any{}
@@ -695,6 +737,8 @@ func TestHidePost_InvalidRequest(t *testing.T) {
 }
 
 func TestHidePost_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		hidePostFn: func(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
 			return &platformSvc.PostNotFoundError{}
@@ -721,6 +765,8 @@ func TestHidePost_ServiceError(t *testing.T) {
 }
 
 func TestDeletePost_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		deletePostFn: func(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, testPostID, postID)
@@ -746,6 +792,8 @@ func TestDeletePost_Success(t *testing.T) {
 }
 
 func TestDeletePost_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorSuggestionsService{
 		deletePostFn: func(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
 			return &platformSvc.PostNotFoundError{}
@@ -769,6 +817,8 @@ func TestDeletePost_NotFound(t *testing.T) {
 }
 
 func TestUpdateStatusRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/status", nil)
 	updateReq := &operator.UpdateStatusRequest{}
 
@@ -777,6 +827,8 @@ func TestUpdateStatusRequest_Bind(t *testing.T) {
 }
 
 func TestAddCommentRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", nil)
 	addReq := &operator.AddCommentRequest{}
 
@@ -785,6 +837,8 @@ func TestAddCommentRequest_Bind(t *testing.T) {
 }
 
 func TestHidePostRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/hidden", nil)
 
 	valid := &operator.HidePostRequest{Hidden: func() *bool {

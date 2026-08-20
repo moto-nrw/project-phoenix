@@ -49,7 +49,7 @@ func assertGroupAccessChanged(t *testing.T, b *testpkg.RecordingBroadcaster, sou
 	t.Helper()
 
 	event := testpkg.AssertSingleTenantEvent(t, b, realtime.EventGroupAccessChanged,
-		int64(testutil.DefaultTestClaims().TenantID))
+		testpkg.Tenant(t))
 	require.NotNil(t, event.Data.Source)
 	assert.Equal(t, source, *event.Data.Source)
 }
@@ -59,15 +59,14 @@ func substitutionFixtures(t *testing.T, ctx *testContext, label string) (staffID
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, label, "Substitute")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID) })
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSE"+label)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID) })
 
 	return staff.ID, group.ID
 }
 
 func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Create")
 
@@ -87,22 +86,19 @@ func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data, ok := response["data"].(map[string]interface{})
+	_, ok := response["data"].(map[string]interface{})
 	require.True(t, ok)
-	if id, ok := data["id"].(float64); ok {
-		defer cleanupSubstitution(t, ctx.db, int64(id))
-	}
 
 	assertGroupAccessChanged(t, broadcaster, "substitution_create")
 }
 
 func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Update")
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	body := map[string]interface{}{
 		"group_id":            groupID,
@@ -129,12 +125,12 @@ func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "UpdateReason")
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	body := map[string]interface{}{
 		"group_id":            groupID,
@@ -153,12 +149,12 @@ func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
 }
 
 func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Delete")
 
 	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, groupID, nil, staffID, today, today.AddDays(3))
-	defer cleanupSubstitution(t, ctx.db, substitution.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -173,6 +169,7 @@ func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 // A rejected write must stay silent: a client that refetches on a phantom
 // event pays a full round trip for a change that never happened.
 func TestCreateSubstitution_Rejected_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 
 	// Missing group_id — rejected before any write.

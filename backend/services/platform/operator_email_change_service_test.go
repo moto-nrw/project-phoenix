@@ -87,6 +87,8 @@ func (m *mockEmailChangeTokenRepo) DeleteStaleTokens(ctx context.Context) (int, 
 // =============================================================================
 
 func TestPersistEmailChangeDelivery_Success(t *testing.T) {
+	t.Parallel()
+
 	var capturedSentAt *time.Time
 	var capturedErr *string
 	var capturedRetry int
@@ -119,6 +121,8 @@ func TestPersistEmailChangeDelivery_Success(t *testing.T) {
 }
 
 func TestPersistEmailChangeDelivery_Failure(t *testing.T) {
+	t.Parallel()
+
 	var capturedSentAt *time.Time
 	var capturedErr *string
 	var capturedRetry int
@@ -151,6 +155,8 @@ func TestPersistEmailChangeDelivery_Failure(t *testing.T) {
 }
 
 func TestPersistEmailChangeDelivery_UpdateError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockEmailChangeTokenRepo{
 		updateDeliveryResultFn: func(_ context.Context, _ int64, _ *time.Time, _ *string, _ int) error {
 			return fmt.Errorf("database unavailable")
@@ -166,6 +172,8 @@ func TestPersistEmailChangeDelivery_UpdateError(t *testing.T) {
 }
 
 func TestPersistEmailChangeDelivery_PendingStatus(t *testing.T) {
+	t.Parallel()
+
 	var capturedSentAt *time.Time
 	var capturedErr *string
 
@@ -197,6 +205,8 @@ func TestPersistEmailChangeDelivery_PendingStatus(t *testing.T) {
 // =============================================================================
 
 func TestDispatchVerificationEmail_NilDispatcher(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	token := &platform.OperatorEmailChangeToken{OperatorID: 42, Token: "test-token"}
@@ -205,6 +215,8 @@ func TestDispatchVerificationEmail_NilDispatcher(t *testing.T) {
 }
 
 func TestDispatchNotificationEmail_NilDispatcher(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	op := &platform.Operator{Email: "old@example.com", DisplayName: "Test"}
@@ -213,6 +225,8 @@ func TestDispatchNotificationEmail_NilDispatcher(t *testing.T) {
 }
 
 func TestDispatchChangeConfirmedEmail_NilDispatcher(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Dispatcher: nil, Logger: slog.Default()}}
 
 	// Should not panic
@@ -224,6 +238,8 @@ func TestDispatchChangeConfirmedEmail_NilDispatcher(t *testing.T) {
 // =============================================================================
 
 func TestCleanupExpiredEmailChangeTokens_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: nil, Logger: slog.Default()}}
 
 	count, err := svc.CleanupExpiredEmailChangeTokens(context.Background())
@@ -232,6 +248,8 @@ func TestCleanupExpiredEmailChangeTokens_NilRepo(t *testing.T) {
 }
 
 func TestCleanupExpiredEmailChangeTokens_InvalidateError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockEmailChangeTokenRepo{
 		invalidateExpiredTokensFn: func(_ context.Context) (int, error) {
 			return 0, fmt.Errorf("database error")
@@ -246,6 +264,8 @@ func TestCleanupExpiredEmailChangeTokens_InvalidateError(t *testing.T) {
 }
 
 func TestCleanupExpiredEmailChangeTokens_Success(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockEmailChangeTokenRepo{
 		invalidateExpiredTokensFn: func(_ context.Context) (int, error) {
 			return 3, nil
@@ -263,6 +283,8 @@ func TestCleanupExpiredEmailChangeTokens_Success(t *testing.T) {
 }
 
 func TestCleanupExpiredEmailChangeTokens_NoInvalidated(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockEmailChangeTokenRepo{
 		invalidateExpiredTokensFn: func(_ context.Context) (int, error) {
 			return 0, nil
@@ -284,6 +306,8 @@ func TestCleanupExpiredEmailChangeTokens_NoInvalidated(t *testing.T) {
 // =============================================================================
 
 func TestInitiateEmailChange_MissingFrontendURL(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "", EmailChangeTokenRepo: &mockEmailChangeTokenRepo{}, Dispatcher: &email.Dispatcher{}, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
@@ -292,6 +316,8 @@ func TestInitiateEmailChange_MissingFrontendURL(t *testing.T) {
 }
 
 func TestInitiateEmailChange_MissingTokenRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "https://example.com", EmailChangeTokenRepo: nil, Dispatcher: &email.Dispatcher{}, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
@@ -300,6 +326,8 @@ func TestInitiateEmailChange_MissingTokenRepo(t *testing.T) {
 }
 
 func TestInitiateEmailChange_MissingDispatcher(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{FrontendURL: "https://example.com", EmailChangeTokenRepo: &mockEmailChangeTokenRepo{}, Dispatcher: nil, Logger: slog.Default()}}
 
 	err := svc.InitiateEmailChange(context.Background(), 1, "new@example.com", "pass", net.IPv4(127, 0, 0, 1))
@@ -308,6 +336,8 @@ func TestInitiateEmailChange_MissingDispatcher(t *testing.T) {
 }
 
 func TestConfirmEmailChange_MissingTokenRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{EmailChangeTokenRepo: nil, Logger: slog.Default()}}
 
 	_, err := svc.ConfirmEmailChange(context.Background(), "some-token", net.IPv4(127, 0, 0, 1))
@@ -320,10 +350,14 @@ func TestConfirmEmailChange_MissingTokenRepo(t *testing.T) {
 // =============================================================================
 
 func TestIsUniqueViolation_NilError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, modelBase.IsUniqueViolation(nil))
 }
 
 func TestIsUniqueViolation_NonPgError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, modelBase.IsUniqueViolation(errors.New("some generic error")))
 }
 
@@ -332,18 +366,24 @@ func TestIsUniqueViolation_NonPgError(t *testing.T) {
 // =============================================================================
 
 func TestGetLogger_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
 	logger := svc.getLogger()
 	assert.NotNil(t, logger, "should return slog.Default() when logger is nil")
 }
 
 func TestGetLogger_WithLogger(t *testing.T) {
+	t.Parallel()
+
 	customLogger := slog.Default().With("test", true)
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: customLogger}}
 	assert.Equal(t, customLogger, svc.getLogger())
 }
 
 func TestLogOperatorRefreshDecision_NilLoggerDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
 	assert.NotPanics(t, func() {
 		svc.logOperatorRefreshDecision("expired", 42, 3)
@@ -377,6 +417,8 @@ func trySend(ch chan<- struct{}) {
 }
 
 func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
+	t.Parallel()
+
 	var captured email.Message
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
@@ -424,6 +466,8 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 }
 
 func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
+	t.Parallel()
+
 	var captured email.Message
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
@@ -469,6 +513,8 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 }
 
 func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
+	t.Parallel()
+
 	var captured email.Message
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
@@ -509,6 +555,8 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 }
 
 func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
+	t.Parallel()
+
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			return nil
@@ -547,6 +595,8 @@ func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
 }
 
 func TestDispatchNotificationEmail_NoCallback(t *testing.T) {
+	t.Parallel()
+
 	// The notification dispatch uses nil Callback — verify that no delivery
 	// persistence is attempted (fire-and-forget).
 	var updateCalled bool
@@ -585,6 +635,8 @@ func TestDispatchNotificationEmail_NoCallback(t *testing.T) {
 // =============================================================================
 
 func TestPersistEmailChangeDelivery_FinalFailure(t *testing.T) {
+	t.Parallel()
+
 	var capturedSentAt *time.Time
 	var capturedErr *string
 	var capturedRetry int
@@ -822,6 +874,8 @@ func testOperator(id int64, emailAddr, passwordHash string) *platform.Operator {
 // returns an error inside the transaction, the service propagates
 // "failed to lock operator row" and the transaction rolls back.
 func TestInitiateEmailChange_LockFailure(t *testing.T) {
+	t.Parallel()
+
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 
@@ -848,6 +902,8 @@ func TestInitiateEmailChange_LockFailure(t *testing.T) {
 // TestInitiateEmailChange_RateLimitRepoError verifies that a repository error
 // from CountRecentByOperatorID propagates as "failed to check rate limit".
 func TestInitiateEmailChange_RateLimitRepoError(t *testing.T) {
+	t.Parallel()
+
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 
@@ -879,6 +935,8 @@ func TestInitiateEmailChange_RateLimitRepoError(t *testing.T) {
 // FindByID is called twice: once outside the tx (returns hash-A), once inside
 // the tx (returns hash-B, simulating a concurrent ChangePassword commit).
 func TestInitiateEmailChange_TOCTOURace(t *testing.T) {
+	t.Parallel()
+
 	hashA := fastHashPassword(t, "test-password")
 	hashB := fastHashPassword(t, "other-password")
 	opA := testOperator(42, "current@example.com", hashA)
@@ -922,6 +980,8 @@ func TestInitiateEmailChange_TOCTOURace(t *testing.T) {
 // behaviour: when the new email is already in use, the service returns nil
 // without creating a token or dispatching any email.
 func TestInitiateEmailChange_EmailTaken_SilentSuccess(t *testing.T) {
+	t.Parallel()
+
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 	existingOp := testOperator(99, "new@example.com", "irrelevant-hash")
@@ -970,6 +1030,8 @@ func TestInitiateEmailChange_EmailTaken_SilentSuccess(t *testing.T) {
 // TestInitiateEmailChange_InvalidateError verifies that an error from
 // InvalidateByOperatorID is propagated.
 func TestInitiateEmailChange_InvalidateError(t *testing.T) {
+	t.Parallel()
+
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 
@@ -1006,6 +1068,8 @@ func TestInitiateEmailChange_InvalidateError(t *testing.T) {
 // audit log write failure does not prevent the email from being dispatched.
 // The audit log is fire-and-forget by design.
 func TestInitiateEmailChange_AuditLogFailure_DoesNotBlockEmails(t *testing.T) {
+	t.Parallel()
+
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 
@@ -1065,6 +1129,8 @@ func TestInitiateEmailChange_AuditLogFailure_DoesNotBlockEmails(t *testing.T) {
 // TestConfirmEmailChange_ConsumeTokenError verifies that an error from
 // ConsumeByToken propagates as "failed to consume".
 func TestConfirmEmailChange_ConsumeTokenError(t *testing.T) {
+	t.Parallel()
+
 	svc, mock, _ := newEmailChangeTestService(t, func(s *emailChangeTestSetup) {
 		s.TokenRepo.consumeByTokenFn = func(_ context.Context, _ string) (*platform.OperatorEmailChangeToken, error) {
 			return nil, fmt.Errorf("consume query failed")
@@ -1085,6 +1151,8 @@ func TestConfirmEmailChange_ConsumeTokenError(t *testing.T) {
 // TestConfirmEmailChange_EmailUniquenessRecheckError verifies that an error
 // from FindByEmail during the uniqueness recheck propagates correctly.
 func TestConfirmEmailChange_EmailUniquenessRecheckError(t *testing.T) {
+	t.Parallel()
+
 	token := &platform.OperatorEmailChangeToken{
 		OperatorID: 42,
 		NewEmail:   "new@example.com",
@@ -1116,6 +1184,8 @@ func TestConfirmEmailChange_EmailUniquenessRecheckError(t *testing.T) {
 // TestConfirmEmailChange_OperatorUpdateError verifies that a non-unique-violation
 // error from operatorRepo.Update propagates as "failed to update operator email".
 func TestConfirmEmailChange_OperatorUpdateError(t *testing.T) {
+	t.Parallel()
+
 	token := &platform.OperatorEmailChangeToken{
 		OperatorID: 42,
 		NewEmail:   "new@example.com",
@@ -1155,6 +1225,8 @@ func TestConfirmEmailChange_OperatorUpdateError(t *testing.T) {
 // failures after a successful email change do not prevent the new email from
 // being returned. The dispatcher should still fire.
 func TestConfirmEmailChange_AuditLogFailure_DoesNotBlock(t *testing.T) {
+	t.Parallel()
+
 	token := &platform.OperatorEmailChangeToken{
 		OperatorID: 42,
 		NewEmail:   "new@example.com",

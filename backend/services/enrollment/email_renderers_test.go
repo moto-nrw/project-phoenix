@@ -75,6 +75,8 @@ func defaultCfg() EmailRendererConfig {
 // --- NewEnrollmentSubmittedRenderer ---------------------------------------
 
 func TestNewEnrollmentSubmittedRenderer_RejectsMissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validSubmittedRow()
 	delete(row.Payload, EnrollmentPayloadRecipientEmail)
 	_, err := NewEnrollmentSubmittedRenderer(defaultCfg())(context.Background(), row)
@@ -83,6 +85,8 @@ func TestNewEnrollmentSubmittedRenderer_RejectsMissingRecipient(t *testing.T) {
 }
 
 func TestNewEnrollmentSubmittedRenderer_RejectsMissingStatusURL(t *testing.T) {
+	t.Parallel()
+
 	row := validSubmittedRow()
 	delete(row.Payload, EnrollmentPayloadStatusURL)
 	_, err := NewEnrollmentSubmittedRenderer(defaultCfg())(context.Background(), row)
@@ -91,6 +95,8 @@ func TestNewEnrollmentSubmittedRenderer_RejectsMissingStatusURL(t *testing.T) {
 }
 
 func TestNewEnrollmentSubmittedRenderer_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	msg, err := NewEnrollmentSubmittedRenderer(defaultCfg())(context.Background(), validSubmittedRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-submitted.html", msg.Template)
@@ -100,6 +106,8 @@ func TestNewEnrollmentSubmittedRenderer_HappyPath(t *testing.T) {
 }
 
 func TestNewEnrollmentSubmittedRenderer_NoSchoolBareSubject(t *testing.T) {
+	t.Parallel()
+
 	row := validSubmittedRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	msg, err := NewEnrollmentSubmittedRenderer(defaultCfg())(context.Background(), row)
@@ -110,6 +118,8 @@ func TestNewEnrollmentSubmittedRenderer_NoSchoolBareSubject(t *testing.T) {
 // --- NewEnrollmentAdminNotificationRenderer -------------------------------
 
 func TestNewEnrollmentAdminNotificationRenderer_RejectsMissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validAdminRow()
 	delete(row.Payload, EnrollmentPayloadRecipientEmail)
 	_, err := NewEnrollmentAdminNotificationRenderer(defaultCfg())(context.Background(), row)
@@ -117,6 +127,8 @@ func TestNewEnrollmentAdminNotificationRenderer_RejectsMissingRecipient(t *testi
 }
 
 func TestNewEnrollmentAdminNotificationRenderer_RejectsMissingAdminURL(t *testing.T) {
+	t.Parallel()
+
 	row := validAdminRow()
 	delete(row.Payload, EnrollmentPayloadAdminURL)
 	_, err := NewEnrollmentAdminNotificationRenderer(defaultCfg())(context.Background(), row)
@@ -125,6 +137,8 @@ func TestNewEnrollmentAdminNotificationRenderer_RejectsMissingAdminURL(t *testin
 }
 
 func TestNewEnrollmentAdminNotificationRenderer_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	msg, err := NewEnrollmentAdminNotificationRenderer(defaultCfg())(context.Background(), validAdminRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-admin-notification.html", msg.Template)
@@ -136,6 +150,8 @@ func TestNewEnrollmentAdminNotificationRenderer_HappyPath(t *testing.T) {
 }
 
 func TestNewEnrollmentAdminNotificationRenderer_NoSchoolBareSubject(t *testing.T) {
+	t.Parallel()
+
 	row := validAdminRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	msg, err := NewEnrollmentAdminNotificationRenderer(defaultCfg())(context.Background(), row)
@@ -146,6 +162,8 @@ func TestNewEnrollmentAdminNotificationRenderer_NoSchoolBareSubject(t *testing.T
 // --- NewEnrollmentRolloverOptInRenderer -----------------------------------
 
 func TestNewEnrollmentRolloverOptInRenderer_RejectsMissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	delete(row.Payload, EnrollmentPayloadRecipientEmail)
 	_, err := NewEnrollmentRolloverOptInRenderer(defaultCfg())(context.Background(), row)
@@ -153,6 +171,8 @@ func TestNewEnrollmentRolloverOptInRenderer_RejectsMissingRecipient(t *testing.T
 }
 
 func TestNewEnrollmentRolloverOptInRenderer_RejectsMissingStatusURL(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	delete(row.Payload, EnrollmentPayloadStatusURL)
 	_, err := NewEnrollmentRolloverOptInRenderer(defaultCfg())(context.Background(), row)
@@ -160,6 +180,8 @@ func TestNewEnrollmentRolloverOptInRenderer_RejectsMissingStatusURL(t *testing.T
 }
 
 func TestNewEnrollmentRolloverOptInRenderer_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	msg, err := NewEnrollmentRolloverOptInRenderer(defaultCfg())(context.Background(), validRolloverRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-rollover-opt-in.html", msg.Template)
@@ -170,6 +192,8 @@ func TestNewEnrollmentRolloverOptInRenderer_HappyPath(t *testing.T) {
 }
 
 func TestNewEnrollmentRolloverOptInRenderer_PhaseOnlySubject(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	msg, err := NewEnrollmentRolloverOptInRenderer(defaultCfg())(context.Background(), row)
@@ -178,6 +202,8 @@ func TestNewEnrollmentRolloverOptInRenderer_PhaseOnlySubject(t *testing.T) {
 }
 
 func TestNewEnrollmentRolloverOptInRenderer_BareSubjectWhenNothingSet(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	row.Payload[EnrollmentPayloadPhaseName] = ""
@@ -189,6 +215,8 @@ func TestNewEnrollmentRolloverOptInRenderer_BareSubjectWhenNothingSet(t *testing
 // --- NewEnrollmentRolloverOptOutRenderer ----------------------------------
 
 func TestNewEnrollmentRolloverOptOutRenderer_RejectsMissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	delete(row.Payload, EnrollmentPayloadRecipientEmail)
 	_, err := NewEnrollmentRolloverOptOutRenderer(defaultCfg())(context.Background(), row)
@@ -196,6 +224,8 @@ func TestNewEnrollmentRolloverOptOutRenderer_RejectsMissingRecipient(t *testing.
 }
 
 func TestNewEnrollmentRolloverOptOutRenderer_RejectsMissingStatusURL(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	delete(row.Payload, EnrollmentPayloadStatusURL)
 	_, err := NewEnrollmentRolloverOptOutRenderer(defaultCfg())(context.Background(), row)
@@ -203,6 +233,8 @@ func TestNewEnrollmentRolloverOptOutRenderer_RejectsMissingStatusURL(t *testing.
 }
 
 func TestNewEnrollmentRolloverOptOutRenderer_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	msg, err := NewEnrollmentRolloverOptOutRenderer(defaultCfg())(context.Background(), validRolloverRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-rollover-opt-out.html", msg.Template)
@@ -210,6 +242,8 @@ func TestNewEnrollmentRolloverOptOutRenderer_HappyPath(t *testing.T) {
 }
 
 func TestNewEnrollmentRolloverOptOutRenderer_PhaseOnlySubject(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	msg, err := NewEnrollmentRolloverOptOutRenderer(defaultCfg())(context.Background(), row)
@@ -218,6 +252,8 @@ func TestNewEnrollmentRolloverOptOutRenderer_PhaseOnlySubject(t *testing.T) {
 }
 
 func TestNewEnrollmentRolloverOptOutRenderer_BareSubjectWhenNothingSet(t *testing.T) {
+	t.Parallel()
+
 	row := validRolloverRow()
 	row.Payload[EnrollmentPayloadSchoolName] = ""
 	row.Payload[EnrollmentPayloadPhaseName] = ""

@@ -56,6 +56,8 @@ func (f *fakeTimetableCleanup) GetStats(_ context.Context) (*scheduleSvc.Timetab
 // -----------------------------------------------------------------------------
 
 func TestSetTimetableCleanup(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	assert.Nil(t, s.timetableCleanup)
 
@@ -69,6 +71,8 @@ func TestSetTimetableCleanup(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestScheduleTimetableCleanupTask_NilService(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
@@ -79,6 +83,8 @@ func TestScheduleTimetableCleanupTask_NilService(t *testing.T) {
 }
 
 func TestScheduleTimetableCleanupTask_RegistersTask(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:             make(chan struct{}),
 		logger:           slog.Default(),
@@ -104,6 +110,8 @@ func TestScheduleTimetableCleanupTask_RegistersTask(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestRunTimetableCleanupTaskPolling_ExitsOnDone(t *testing.T) {
+	t.Parallel()
+
 	// Pre-close done so waitUntilNextMinute returns false right after the
 	// startup check completes.
 	svc := &fakeTimetableCleanup{}
@@ -131,6 +139,8 @@ func TestRunTimetableCleanupTaskPolling_ExitsOnDone(t *testing.T) {
 }
 
 func TestRunTimetableCleanupTaskPolling_TickerFires(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		svc := &fakeTimetableCleanup{}
 		s := &Scheduler{
@@ -163,6 +173,8 @@ func TestRunTimetableCleanupTaskPolling_TickerFires(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestCheckAndRunTimetableCleanup_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeTimetableCleanup{}
 	s := &Scheduler{
 		logger:           slog.Default(),
@@ -176,6 +188,8 @@ func TestCheckAndRunTimetableCleanup_AlreadyRunning(t *testing.T) {
 }
 
 func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
+	t.Parallel()
+
 	// When the KeyDataCleanupEnabled setting resolves to false, cleanup must
 	// skip. With no settings resolver and no env vars, resolveBoolSetting
 	// returns the defaultVal (true) — so flip it explicitly via the resolver.
@@ -200,6 +214,8 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 }
 
 func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
+	t.Parallel()
+
 	// Enabled, but the configured cleanup time doesn't match now. Use a string
 	// that is guaranteed to differ from the current wall clock minute.
 	future := time.Now().Add(2 * time.Hour).Format("15:04")
@@ -224,6 +240,8 @@ func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 }
 
 func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
+	t.Parallel()
+
 	// Enabled + matching time, but lastTimetableCleanup is already stamped for
 	// today → dedupe must prevent a second run.
 	now := time.Now().Format("15:04")
@@ -250,6 +268,8 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 }
 
 func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Format("15:04")
 
 	svc := &fakeTimetableCleanup{
@@ -290,6 +310,8 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 }
 
 func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Format("15:04")
 
 	svc := &fakeTimetableCleanup{err: errors.New("cleanup blew up")}
@@ -319,6 +341,8 @@ func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T)
 }
 
 func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T) {
+	t.Parallel()
+
 	// When InstancesDeleted == 0 and ExceptionsDeleted == 0, the success Info
 	// log is suppressed — but the call still counts and the today-mark is set.
 	now := time.Now().Format("15:04")

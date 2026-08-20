@@ -27,11 +27,12 @@ import (
 // would commit straight through the guard's window. These tests fail if the
 // FOR SHARE clauses are ever dropped from either statement.
 func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	// Registered as a cleanup, not deferred: defers run BEFORE t.Cleanup, so a
 	// deferred close would shut the pool down under every fixture teardown
 	// below and leave their rows in the shared test database.
-	t.Cleanup(func() { _ = db.Close() })
 
 	repo := authRepo.NewPermissionRepository(db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

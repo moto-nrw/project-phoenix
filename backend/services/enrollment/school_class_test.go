@@ -49,6 +49,8 @@ func phaseWithClasses(classes []string, require bool) *enrollmentModels.Phase {
 }
 
 func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	classes := []string{"2a", "2b", "3a"}
 
 	tests := []struct {
@@ -201,6 +203,8 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 }
 
 func TestDecisionService_ResolveSchoolClass(t *testing.T) {
+	t.Parallel()
+
 	s := &decisionService{}
 
 	tests := []struct {
@@ -240,6 +244,8 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 }
 
 func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
+	t.Parallel()
+
 	s := &decisionService{}
 
 	tests := []struct {
@@ -326,6 +332,8 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 }
 
 func TestIsBareGradePlaceholderClass(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in   string
 		want bool

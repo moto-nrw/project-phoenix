@@ -20,11 +20,15 @@ func capacityOccurrence(date timezone.Date, children, staff int) activities.Temp
 }
 
 func TestUnionCountDeduplicatesRosterAndTargetStudents(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 3, unionCount([]int64{1, 2}, []int64{2, 3}))
 	assert.Zero(t, unionCount(nil, nil))
 }
 
 func TestWorstTemplateOccurrenceRanking(t *testing.T) {
+	t.Parallel()
+
 	jan1 := timezone.NewDate(2026, 1, 1)
 
 	tests := []struct {
@@ -95,6 +99,8 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 }
 
 func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
+	t.Parallel()
+
 	jan1 := timezone.NewDate(2026, 1, 1)
 	// A manual override of 3 applies uniformly to every occurrence. A
 	// fully-staffed 3/3 day must NOT hide a 0/3 day that only looks fine under
@@ -118,6 +124,8 @@ func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 }
 
 func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) {
+	t.Parallel()
+
 	// Template 1 has a manual override of 3; its two occurrences are a
 	// fully-staffed 3/3 day and an empty 0/3 day. The override must steer the
 	// worst-occurrence pick to the 0/3 day so the list shows the true shortfall.
@@ -136,6 +144,8 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 }
 
 func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.T) {
+	t.Parallel()
+
 	rows := []activities.TemplateListRow{
 		{TemplateID: 1, CapacityEnrollmentCount: 8, CapacitySupervisorCount: 2},
 		{TemplateID: 2, CapacityEnrollmentCount: 9, CapacitySupervisorCount: 3},
@@ -153,6 +163,8 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 }
 
 func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
+	t.Parallel()
+
 	// Template 1 has a real occurrence, template 2 has none (every date
 	// cancelled / AB-week-filtered / unmaterializable). The flag lets the
 	// handler suppress the manual required_staff override for template 2 so a

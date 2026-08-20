@@ -2,9 +2,7 @@ package checkin_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,64 +15,16 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// cleanupWCTestArtifacts removes WC infrastructure created by auto-create tests.
-func cleanupWCTestArtifacts(t *testing.T, tc *svcTestContext) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.WCRoomName),
-	}
-	for _, stmt := range stmts {
-		_, _ = tc.db.ExecContext(ctx, stmt)
-	}
-}
-
-// cleanupSchulhofTestArtifacts removes Schulhof infrastructure created by auto-create tests.
-func cleanupSchulhofTestArtifacts(t *testing.T, tc *svcTestContext) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.SchulhofCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.SchulhofRoomName),
-	}
-	for _, stmt := range stmts {
-		_, _ = tc.db.ExecContext(ctx, stmt)
-	}
-}
-
 // =============================================================================
 // WC auto-create paths
 // =============================================================================
 
 func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room, err := tc.svc.EnsureWCRoomForTest(ctx)
 
 	require.NoError(t, err, "ensureWCRoom should not return error")
@@ -84,13 +34,11 @@ func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
 }
 
 func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room1, err := tc.svc.EnsureWCRoomForTest(ctx)
 	require.NoError(t, err)
@@ -104,13 +52,11 @@ func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
 }
 
 func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	category, err := tc.svc.EnsureWCCategoryForTest(ctx)
 
 	require.NoError(t, err, "ensureWCCategory should not return error")
@@ -120,13 +66,11 @@ func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
 }
 
 func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	cat1, err := tc.svc.EnsureWCCategoryForTest(ctx)
 	require.NoError(t, err)
@@ -140,20 +84,16 @@ func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
 }
 
 func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
-	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
+	t.Parallel()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
+	tc := setupCheckinServiceTest(t)
 
 	// Create staff for the created_by FK constraint
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -164,19 +104,15 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 }
 
 func TestWcActivityGroup_FindsExisting(t *testing.T) {
-	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
+	t.Parallel()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
+	tc := setupCheckinServiceTest(t)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group1, err := tc.svc.WCActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -194,13 +130,11 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 // =============================================================================
 
 func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 
 	require.NoError(t, err, "ensureSchulhofRoom should not return error")
@@ -210,13 +144,11 @@ func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
 }
 
 func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room1, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 	require.NoError(t, err)
@@ -230,13 +162,11 @@ func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
 }
 
 func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	category, err := tc.svc.EnsureSchulhofCategoryForTest(ctx)
 
 	require.NoError(t, err, "ensureSchulhofCategory should not return error")
@@ -246,13 +176,11 @@ func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
 }
 
 func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	cat1, err := tc.svc.EnsureSchulhofCategoryForTest(ctx)
 	require.NoError(t, err)
@@ -266,19 +194,15 @@ func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
 }
 
 func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
-	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
+	t.Parallel()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
+	tc := setupCheckinServiceTest(t)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -289,19 +213,15 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 }
 
 func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
-	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
+	t.Parallel()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
+	tc := setupCheckinServiceTest(t)
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
 
 	group1, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -319,13 +239,11 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 // =============================================================================
 
 func TestWcActivityGroup_NoStaffContext(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -337,13 +255,11 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 }
 
 func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -359,13 +275,11 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 // =============================================================================
 
 func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room, err := tc.svc.EnsureWCRoomForTest(ctx)
 	require.NoError(t, err)
@@ -384,13 +298,11 @@ func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
 }
 
 func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
+	t.Parallel()
+
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
 
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 
 	room, err := tc.svc.EnsureSchulhofRoomForTest(ctx)
 	require.NoError(t, err)
@@ -412,70 +324,15 @@ func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
 // WC room-name alias handling
 // =============================================================================
 
-func cleanupWCRoomAliasTestArtifacts(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	aliasArgs := []interface{}{constants.WCRoomName, constants.WCRoomAliasName}
-	type stmt struct {
-		sql  string
-		args []interface{}
-	}
-	stmts := []stmt{
-		{
-			`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE LOWER(r.name) IN (LOWER(?), LOWER(?)))`,
-			aliasArgs,
-		},
-		{
-			`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE LOWER(r.name) IN (LOWER(?), LOWER(?)))`,
-			aliasArgs,
-		},
-		{
-			`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE LOWER(r.name) IN (LOWER(?), LOWER(?)))`,
-			aliasArgs,
-		},
-		{
-			`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE LOWER(name) IN (LOWER(?), LOWER(?)))`,
-			aliasArgs,
-		},
-		{
-			`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = ?)`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = ?)`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.groups WHERE name = ?`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.categories WHERE name = ?`,
-			[]interface{}{constants.WCCategoryName},
-		},
-		{
-			`DELETE FROM facilities.rooms WHERE LOWER(name) IN (LOWER(?), LOWER(?))`,
-			aliasArgs,
-		},
-	}
-
-	for _, s := range stmts {
-		_, _ = db.NewRaw(s.sql, s.args...).Exec(ctx)
-	}
-}
-
 func createWCRoomAliasRoom(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(room).
@@ -487,15 +344,13 @@ func createWCRoomAliasRoom(t *testing.T, db *bun.DB, name string) *facilities.Ro
 }
 
 func TestEnsureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
-	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
+	t.Parallel()
 
-	cleanupWCRoomAliasTestArtifacts(t, tc.db)
-	defer cleanupWCRoomAliasTestArtifacts(t, tc.db)
+	tc := setupCheckinServiceTest(t)
 
 	aliasRoom := createWCRoomAliasRoom(t, tc.db, constants.WCRoomAliasName)
 
-	room, err := tc.svc.EnsureWCRoomForTest(tenant.WithTenantID(context.Background(), 1))
+	room, err := tc.svc.EnsureWCRoomForTest(testpkg.Ctx(t))
 
 	require.NoError(t, err)
 	require.NotNil(t, room)
@@ -504,19 +359,17 @@ func TestEnsureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 }
 
 func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
+	t.Parallel()
+
 	// Contract per issue #1184 review: only exact-case "WC" and "Toilette"
 	// are toilet system rooms. ensureWCRoom goes through
 	// services/facilities.FindToiletRoom which re-filters via IsWCRoomName, so a
 	// lowercase "wc" must not be silently adopted here either.
 	tc := setupCheckinServiceTest(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCRoomAliasTestArtifacts(t, tc.db)
-	defer cleanupWCRoomAliasTestArtifacts(t, tc.db)
 
 	lowercaseWC := createWCRoomAliasRoom(t, tc.db, "wc")
 
-	room, err := tc.svc.EnsureWCRoomForTest(tenant.WithTenantID(context.Background(), 1))
+	room, err := tc.svc.EnsureWCRoomForTest(testpkg.Ctx(t))
 
 	require.Error(t, err, "ensureWCRoom must not silently reuse lowercase wc; the duplicate-name collision must surface as an error")
 	assert.Nil(t, room)
@@ -527,7 +380,7 @@ func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 		Table("facilities.rooms").
 		Column("name").
 		Where("id = ?", lowercaseWC.ID).
-		Scan(tenant.WithTenantID(context.Background(), 1), &nameAfter)
+		Scan(testpkg.Ctx(t), &nameAfter)
 	require.NoError(t, err)
 	assert.Equal(t, "wc", nameAfter)
 }

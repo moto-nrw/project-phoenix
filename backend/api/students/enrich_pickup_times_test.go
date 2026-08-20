@@ -46,6 +46,8 @@ func (m *mockPickupScheduleService) GetStudentPickupSchedules(_ context.Context,
 }
 
 func TestEnrichWithPickupTimes_FullAccessGating(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 	pickupAt := time.Date(2026, 4, 14, 15, 30, 0, 0, time.UTC)
 
@@ -86,6 +88,8 @@ func TestEnrichWithPickupTimes_FullAccessGating(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_NilService(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: nil, Logger: slog.Default()}}
 
 	responses := []StudentResponse{
@@ -98,6 +102,8 @@ func TestEnrichWithPickupTimes_NilService(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_EmptyIDs(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPickupScheduleService{}
 	rs := &Resource{ResourceConfig: ResourceConfig{PickupScheduleService: mock, Logger: slog.Default()}}
 
@@ -109,6 +115,8 @@ func TestEnrichWithPickupTimes_EmptyIDs(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_NoPickupTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 
 	mock := &mockPickupScheduleService{
@@ -129,6 +137,8 @@ func TestEnrichWithPickupTimes_NoPickupTime(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_ExceptionWithNotes(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 	pickupAt := time.Date(2026, 4, 14, 14, 0, 0, 0, time.UTC)
 
@@ -160,6 +170,8 @@ func TestEnrichWithPickupTimes_ExceptionWithNotes(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_ExceptionWithoutPickupTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 
 	mock := &mockPickupScheduleService{
@@ -186,6 +198,8 @@ func TestEnrichWithPickupTimes_ExceptionWithoutPickupTime(t *testing.T) {
 }
 
 func TestBuildPickupNotes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		ept      *scheduleService.EffectivePickupTime
@@ -243,6 +257,8 @@ func TestBuildPickupNotes(t *testing.T) {
 }
 
 func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 
 	mock := &mockPickupScheduleService{
@@ -264,6 +280,8 @@ func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
 }
 
 func TestEnrichWithArrivalTimes_FullAccessGating(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 	arrivalAt := time.Date(2026, 4, 14, 8, 15, 0, 0, time.UTC)
 
@@ -294,6 +312,8 @@ func TestEnrichWithArrivalTimes_FullAccessGating(t *testing.T) {
 }
 
 func TestEnrichWithArrivalTimes_ExceptionWithoutArrivalTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 
 	mock := &mockArrivalScheduleService{
@@ -317,6 +337,8 @@ func TestEnrichWithArrivalTimes_ExceptionWithoutArrivalTime(t *testing.T) {
 }
 
 func TestBuildArrivalNotes(t *testing.T) {
+	t.Parallel()
+
 	eat := &scheduleService.EffectiveArrivalTime{
 		Notes: "Später",
 		DayNotes: []scheduleService.ArrivalNoteData{

@@ -19,6 +19,8 @@ import (
 // A brand-new shift marked cancelled is a deliberately-open gap; it never
 // collides with an existing shift because it does not take place.
 func TestShiftService_CreateCancelledSkipsOverlap(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(7) // 08:00–16:00
@@ -36,6 +38,8 @@ func TestShiftService_CreateCancelledSkipsOverlap(t *testing.T) {
 
 // A cancelled existing shift frees its window: a real shift may reuse it.
 func TestShiftService_OverlapIgnoresCancelledExisting(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	cancelled := validShift(7) // 08:00–16:00, absent
@@ -52,6 +56,8 @@ func TestShiftService_OverlapIgnoresCancelledExisting(t *testing.T) {
 }
 
 func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return nil, sql.ErrNoRows
@@ -67,6 +73,8 @@ func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
 }
 
 func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		origin := validShift(7)
@@ -85,6 +93,8 @@ func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
 }
 
 func TestShiftService_CreateReplacementAcceptsSameDayCancelledOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	created := false
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
@@ -111,6 +121,8 @@ func TestShiftService_CreateReplacementAcceptsSameDayCancelledOrigin(t *testing.
 // A replacement may only cover a cancelled origin: an active origin still
 // contributes its own planned minutes, so covering it would double-count.
 func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		origin := validShift(7) // same date, but NOT cancelled
@@ -132,6 +144,8 @@ func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
 // origin) would inflate the covering employee's planned minutes and auto-
 // checkout beyond the actual gap (#1841).
 func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		origin := validShift(7) // same date, cancelled, 08:00–16:00
@@ -154,6 +168,8 @@ func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 // A replacement whose window sits exactly inside the origin's gap is accepted:
 // containment is inclusive of shared boundaries.
 func TestShiftService_CreateReplacementAcceptsWindowInsideOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	created := false
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
@@ -181,6 +197,8 @@ func TestShiftService_CreateReplacementAcceptsWindowInsideOrigin(t *testing.T) {
 // rejected: the create-time invariant (a cover shares its origin's cancelled
 // same-day gap) must hold after an update too (#1841).
 func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(8) // replacement on 2026-07-06
@@ -213,6 +231,8 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 // attach to an 08:00-16:00 origin and inflate planned minutes / auto-checkout
 // beyond the actual gap (#1841).
 func TestShiftService_UpdateReplacementRejectsWindowOutsideOrigin(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(8) // replacement on 2026-07-06, 08:00–16:00, inside origin
@@ -244,6 +264,8 @@ func TestShiftService_UpdateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 // cancellation flow's job, so a plain resize that leaves a cover hanging out is
 // refused (#1841).
 func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
@@ -274,6 +296,8 @@ func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
 // containment guard only blocks edits that would strand a cover, never a widen
 // that keeps every cover inside the gap (#1841).
 func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
@@ -312,6 +336,8 @@ func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
 // A plain edit never re-points the cover link: it stays whatever it was at
 // creation, even when the request omits it.
 func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(8)
@@ -340,6 +366,8 @@ func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
 // that marks them absent (the cancelled origin) and present (an active cover)
 // at once, and the cancelled origin is invisible to overlap checks (#1841).
 func TestShiftService_CreateReplacementRejectsSelfReplacement(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		origin := validShift(7) // same staff member as the replacement below
@@ -360,6 +388,8 @@ func TestShiftService_CreateReplacementRejectsSelfReplacement(t *testing.T) {
 // Moving a covered ORIGIN to another date on a plain edit is rejected: its
 // covers would be stranded on the old date while still pointing at it (#1841).
 func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(7) // origin on 2026-07-06, cancelled, not a replacement
@@ -390,6 +420,8 @@ func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
 // An origin with no covers may still change date on a plain edit: the guard only
 // fires when replacements actually reference the row.
 func TestShiftService_UpdateOriginAllowsDateMoveWithoutCovers(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(7)
@@ -415,6 +447,8 @@ func TestShiftService_UpdateOriginAllowsDateMoveWithoutCovers(t *testing.T) {
 
 // Marking an existing shift cancelled records the absence and skips overlap.
 func TestShiftService_UpdateCanCancelShift(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existing := validShift(8)
@@ -445,6 +479,8 @@ func TestShiftService_UpdateCanCancelShift(t *testing.T) {
 
 // An omitted change_reason preserves the stored one; an explicit value replaces it.
 func TestShiftService_UpdatePreservesChangeReasonWhenOmitted(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	existingReason := "krank"
@@ -475,6 +511,8 @@ func TestShiftService_UpdatePreservesChangeReasonWhenOmitted(t *testing.T) {
 // Cancelling a shift with replacements flips the origin and creates each cover
 // pointing at the (now cancelled) origin, in one call.
 func TestShiftService_ApplyCancellation_CancelsAndCreatesReplacements(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7)
@@ -519,6 +557,8 @@ func TestShiftService_ApplyCancellation_CancelsAndCreatesReplacements(t *testing
 // the cancellation applies them instead of preserving the stored values, so a
 // time change made in the same save is not silently dropped (#1841).
 func TestShiftService_ApplyCancellation_AppliesOriginEdits(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7) // stored 08:00–16:00
@@ -556,6 +596,8 @@ func TestShiftService_ApplyCancellation_AppliesOriginEdits(t *testing.T) {
 // Without ApplyOriginEdits the stored window/type is preserved: a caller that
 // only flips the flag must not zero out the origin's times.
 func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7) // stored 08:00–16:00
@@ -586,6 +628,8 @@ func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing
 // re-sends that type and must not be rejected, mirroring the ordinary-edit rule
 // that lets a shift keep its already-attached inactive type (#1841).
 func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
 		4: {IsActive: false}, // deactivated after the cover was first created
 	})
@@ -630,6 +674,8 @@ func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T)
 // A brand-new cover (not in the existing set) with an inactive type is still
 // rejected — only types a current cover already carries are grandfathered.
 func TestShiftService_ApplyCancellation_RejectsNewInactiveCoverType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
 		4: {IsActive: false},
 	})
@@ -664,6 +710,8 @@ func TestShiftService_ApplyCancellation_RejectsNewInactiveCoverType(t *testing.T
 // Reactivating a cancelled shift removes every existing replacement and creates
 // none, so the plan never counts both the restored origin and its old covers.
 func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7)
@@ -710,6 +758,8 @@ func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testi
 // Replacements only make sense while cancelling; supplying them on a
 // reactivation is rejected before any write happens.
 func TestShiftService_ApplyCancellation_RejectsReplacementsWhenNotCancelled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := shiftServiceFixture()
 
 	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
@@ -723,6 +773,8 @@ func TestShiftService_ApplyCancellation_RejectsReplacementsWhenNotCancelled(t *t
 
 // A replacement shift covers a gap; it is not itself a cancellable gap.
 func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(8)
 	existing.ID = 11
@@ -743,6 +795,8 @@ func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing
 // Cancelled shifts contribute zero planned minutes so the weekly Sollzeit delta
 // reflects the real gap.
 func TestPlannedShiftMinutes_ExcludesCancelled(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 6)
 	worked := testShift(t, 7, date, "08:00", "16:00") // 480 net minutes
 	absent := testShift(t, 7, date, "08:00", "16:00")
@@ -760,6 +814,8 @@ func TestPlannedShiftMinutes_ExcludesCancelled(t *testing.T) {
 // A cancelled shift covers nothing, so a timetable assignment inside its window
 // reads as fully uncovered.
 func TestUncoveredShiftIntervals_CancelledShiftCoversNothing(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 6)
 	shift := testShift(t, 7, date, "08:00", "16:00")
 	shift.Cancelled = true
@@ -780,6 +836,8 @@ func TestUncoveredShiftIntervals_CancelledShiftCoversNothing(t *testing.T) {
 // with the origin's reason, while a genuinely new cover takes the origin's
 // reason (#1841).
 func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7)
@@ -836,6 +894,8 @@ func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing
 // cover carries the type. Transferring that type to a different person on the
 // rebuild is rejected just like a brand-new cover would be (#1841).
 func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
 		4: {IsActive: false},
 	})
@@ -877,6 +937,8 @@ func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T
 // re-read (locked) origin — preserving the newer window — not the stale pre-lock
 // snapshot (#1841).
 func TestShiftService_ApplyCancellation_ReloadsOriginAfterLock(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	stale := validShift(7) // pre-lock snapshot: 08:00–16:00
@@ -917,6 +979,8 @@ func TestShiftService_ApplyCancellation_ReloadsOriginAfterLock(t *testing.T) {
 // (#1841). The advisory lock is a no-op without a DB, so the lock set is observed
 // directly via the test seam.
 func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7) // origin owned by staff 7
@@ -961,6 +1025,8 @@ func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
 }
 
 func TestShiftService_ApplyCancellation_RejectsCoverMovedAfterDiscovery(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 
 	origin := validShift(7)

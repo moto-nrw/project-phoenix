@@ -14,6 +14,8 @@ import (
 // --- ListPublicOpen: audience filtering (#1663) ------------------------
 
 func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	openName := uniquePhaseName("audienceOpen")
 	newStudentsName := uniquePhaseName("audienceNew")
@@ -59,6 +61,8 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 // (audienceRequiresGuardianAccount), so listing one would advertise a card
 // whose form 404s on the very next request (#1663).
 func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	openName := uniquePhaseName("audienceOpenB")
 	existingName := uniquePhaseName("audienceExisting")
@@ -97,6 +101,8 @@ func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T
 // --- Create/Update roundtrip of the eligibility columns ----------------
 
 func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("eligibilityRoundtrip")
 	defer wipePhases(db, tenantID, name)
@@ -144,6 +150,8 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 // the columns above, plus the driver has to bind []int as JSON rather than a
 // Postgres array (#1663).
 func TestPhaseRepository_EligibleGradeLevelsRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("gradeEligibilityRoundtrip")
 	defer wipePhases(db, tenantID, name)
@@ -181,6 +189,8 @@ func TestPhaseRepository_EligibleGradeLevelsRoundtrip(t *testing.T) {
 // Backs the settings guard that refuses to disable grade-level collection
 // while a phase would then reject every submission (#1663).
 func TestPhaseRepository_ExistsActiveWithEligibleGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	unrestrictedName := uniquePhaseName("gradeGuardUnrestricted")
 	inactiveName := uniquePhaseName("gradeGuardInactive")
@@ -226,6 +236,8 @@ func TestPhaseRepository_ExistsActiveWithEligibleGradeLevels(t *testing.T) {
 // Backs the settings guard that refuses to LOWER enrollment.grade_level_max
 // below a grade an active phase already restricts itself to (#1663).
 func TestPhaseRepository_MaxActiveEligibleGradeLevel(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	unrestrictedName := uniquePhaseName("gradeCapUnrestricted")
 	inactiveName := uniquePhaseName("gradeCapInactive")

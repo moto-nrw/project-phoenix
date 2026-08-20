@@ -354,11 +354,15 @@ func expectedRow(id int64) *scheduleModel.InstanceStudent {
 // -----------------------------------------------------------------------------
 
 func TestMirrorCheckIn_B1_NilVisit(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), nil))
 }
 
 func TestMirrorCheckIn_B1_ZeroActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = 0
@@ -366,6 +370,8 @@ func TestMirrorCheckIn_B1_ZeroActiveGroup(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B1_NegativeActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = -1
@@ -373,6 +379,8 @@ func TestMirrorCheckIn_B1_NegativeActiveGroup(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B2_InstanceLookupError(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{findErr: errors.New("connection lost")}
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(instRepo, isRepo)
@@ -383,11 +391,15 @@ func TestMirrorCheckIn_B2_InstanceLookupError(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B3_NoInstance(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: nil}, &fakeInstanceStudentRepo{})
 	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), validVisit()))
 }
 
 func TestMirrorCheckIn_B4_InstanceStudentLookupError(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findErr: errors.New("scan error")}
 	syncer := newUnitSyncer(instRepo, isRepo)
@@ -397,6 +409,8 @@ func TestMirrorCheckIn_B4_InstanceStudentLookupError(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B5_NoInstanceStudentRow(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findRow: nil, unplannedRow: &scheduleModel.InstanceStudent{
 		InstanceID: 7, StudentID: validVisit().StudentID,
@@ -412,6 +426,8 @@ func TestMirrorCheckIn_B5_NoInstanceStudentRow(t *testing.T) {
 }
 
 func TestMirrorCheckIn_UnplannedPersistenceError(t *testing.T) {
+	t.Parallel()
+
 	isRepo := &fakeInstanceStudentRepo{unplannedErr: errors.New("insert failed")}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
@@ -420,6 +436,8 @@ func TestMirrorCheckIn_UnplannedPersistenceError(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B6_AlreadyPresent_NoClobber(t *testing.T) {
+	t.Parallel()
+
 	late := scheduleModel.AttendanceSubstatusLate
 	note := "bus late"
 	row := expectedRow(3)
@@ -442,6 +460,8 @@ func TestMirrorCheckIn_B6_AlreadyPresent_NoClobber(t *testing.T) {
 }
 
 func TestMirrorCheckIn_ReopensCheckedOutPresentRow(t *testing.T) {
+	t.Parallel()
+
 	checkedIn := time.Now().Add(-2 * time.Hour)
 	checkedOut := time.Now().Add(-time.Hour)
 	row := expectedRow(4)
@@ -465,6 +485,8 @@ func TestMirrorCheckIn_ReopensCheckedOutPresentRow(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
+	t.Parallel()
+
 	row := expectedRow(11)
 	row.InstanceID = 77
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
@@ -479,6 +501,8 @@ func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_ReopensCheckedOutPresentRow(t *testing.T) {
+	t.Parallel()
+
 	checkedIn := time.Now().Add(-2 * time.Hour)
 	checkedOut := time.Now().Add(-time.Hour)
 	row := expectedRow(17)
@@ -500,6 +524,8 @@ func TestMirrorCheckInAt_ReopensCheckedOutPresentRow(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
+	t.Parallel()
+
 	first := expectedRow(12)
 	second := expectedRow(13)
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{first, second}}
@@ -510,6 +536,8 @@ func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_HandlesLookupAndUpdateFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("lookup error", func(t *testing.T) {
 		syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{candidateErr: errors.New("lookup failed")})
 		assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), 100, time.Now()))
@@ -533,6 +561,8 @@ func TestMirrorCheckInAt_HandlesLookupAndUpdateFailures(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
+	t.Parallel()
+
 	t.Run("manual status", func(t *testing.T) {
 		row := expectedRow(15)
 		row.Status = scheduleModel.AttendanceStatusAbsent
@@ -577,6 +607,8 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B6_Absent_NoClobber(t *testing.T) {
+	t.Parallel()
+
 	row := expectedRow(3)
 	row.Status = scheduleModel.AttendanceStatusAbsent
 
@@ -591,6 +623,8 @@ func TestMirrorCheckIn_B6_Absent_NoClobber(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B7_UpdateError(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{
 		findRow:   expectedRow(3),
@@ -604,6 +638,8 @@ func TestMirrorCheckIn_B7_UpdateError(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B8_RaceNoRowsAffected(t *testing.T) {
+	t.Parallel()
+
 	row := expectedRow(3)
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{
@@ -618,6 +654,8 @@ func TestMirrorCheckIn_B8_RaceNoRowsAffected(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B9_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{
 		findRow:      expectedRow(3),
@@ -632,6 +670,8 @@ func TestMirrorCheckIn_B9_HappyPath(t *testing.T) {
 }
 
 func TestMirrorCheckIn_B9_HappyPathWithSubstatusAndNote(t *testing.T) {
+	t.Parallel()
+
 	// B9 must propagate existing substatus/note from the row it just flipped.
 	excused := scheduleModel.AttendanceSubstatusExcused
 	note := "Arzttermin"
@@ -652,6 +692,8 @@ func TestMirrorCheckIn_B9_HappyPathWithSubstatusAndNote(t *testing.T) {
 }
 
 func TestMirrorCheckIn_PanicRecovery(t *testing.T) {
+	t.Parallel()
+
 	// Exercise the defer/recover belt-and-braces. The instance lookup panics;
 	// the service must swallow it and return nil without propagating.
 	instRepo := &fakeInstanceRepo{findPanic: "boom"}
@@ -679,11 +721,15 @@ type activeSvcSnapshot struct {
 // -----------------------------------------------------------------------------
 
 func TestLoadAttendance_NilVisit(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), nil))
 }
 
 func TestLoadAttendance_ZeroActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = 0
@@ -691,17 +737,23 @@ func TestLoadAttendance_ZeroActiveGroup(t *testing.T) {
 }
 
 func TestLoadAttendance_InstanceLookupError(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{findErr: errors.New("db down")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
 	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_NoInstance(t *testing.T) {
+	t.Parallel()
+
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: nil}, &fakeInstanceStudentRepo{})
 	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_InstanceStudentLookupError(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findErr: errors.New("scan failed")}
 	syncer := newUnitSyncer(instRepo, isRepo)
@@ -709,6 +761,8 @@ func TestLoadAttendance_InstanceStudentLookupError(t *testing.T) {
 }
 
 func TestLoadAttendance_NoRow(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findRow: nil}
 	syncer := newUnitSyncer(instRepo, isRepo)
@@ -716,6 +770,8 @@ func TestLoadAttendance_NoRow(t *testing.T) {
 }
 
 func TestLoadAttendance_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	late := scheduleModel.AttendanceSubstatusLate
 	note := "bus delay"
 	row := expectedRow(5)
@@ -737,6 +793,8 @@ func TestLoadAttendance_HappyPath(t *testing.T) {
 }
 
 func TestLoadAttendance_RecordsCheckout(t *testing.T) {
+	t.Parallel()
+
 	exit := time.Date(2026, 4, 20, 15, 0, 0, 0, time.UTC)
 	visit := validVisit()
 	visit.ExitTime = &exit
@@ -754,6 +812,8 @@ func TestLoadAttendance_RecordsCheckout(t *testing.T) {
 }
 
 func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
+	t.Parallel()
+
 	exit := time.Date(2026, 4, 20, 15, 0, 0, 0, time.UTC)
 	visit := validVisit()
 	visit.ExitTime = &exit
@@ -787,6 +847,8 @@ func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
 }
 
 func TestLoadAttendance_CheckoutError(t *testing.T) {
+	t.Parallel()
+
 	exit := time.Date(2026, 4, 20, 15, 0, 0, 0, time.UTC)
 	visit := validVisit()
 	visit.ExitTime = &exit
@@ -802,6 +864,8 @@ func TestLoadAttendance_CheckoutError(t *testing.T) {
 }
 
 func TestLoadAttendance_PanicRecovery(t *testing.T) {
+	t.Parallel()
+
 	instRepo := &fakeInstanceRepo{findPanic: errors.New("kaboom")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
 	require.NotPanics(t, func() {
@@ -811,6 +875,8 @@ func TestLoadAttendance_PanicRecovery(t *testing.T) {
 }
 
 func TestMirrorCheckOutAt_ClosesLatestOpenSlot(t *testing.T) {
+	t.Parallel()
+
 	checkedIn := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
 	closed := expectedRow(20)
 	closed.Status = scheduleModel.AttendanceStatusPresent
@@ -829,6 +895,8 @@ func TestMirrorCheckOutAt_ClosesLatestOpenSlot(t *testing.T) {
 }
 
 func TestMirrorVisitRevision_ReconcilesExactPreviousInterval(t *testing.T) {
+	t.Parallel()
+
 	previous := validVisit()
 	previousExit := previous.EntryTime.Add(time.Hour)
 	previous.ExitTime = &previousExit
@@ -849,6 +917,8 @@ func TestMirrorVisitRevision_ReconcilesExactPreviousInterval(t *testing.T) {
 }
 
 func TestMirrorVisitRevision_IgnoresIdentityAndGroupChanges(t *testing.T) {
+	t.Parallel()
+
 	previous := validVisit()
 	tests := []struct {
 		name   string
@@ -870,6 +940,8 @@ func TestMirrorVisitRevision_IgnoresIdentityAndGroupChanges(t *testing.T) {
 }
 
 func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("lookup error", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{dateErr: errors.New("lookup failed")}
 		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), 100, time.Now())
@@ -899,6 +971,8 @@ func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// When a nil logger is passed, the service must fall back to slog.Default()
 	// and still execute end-to-end without panicking.
 	svc := scheduleSvc.NewAttendanceSyncService(
@@ -971,6 +1045,8 @@ func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
 // -----------------------------------------------------------------------------
 
 func TestMirrorCheckInAtBatch_AssignsOnlyUniqueUnpreservedSlots(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
 
 	// Student 100: exactly one expected candidate — must be assigned.
@@ -1006,6 +1082,8 @@ func TestMirrorCheckInAtBatch_AssignsOnlyUniqueUnpreservedSlots(t *testing.T) {
 }
 
 func TestMirrorCheckInAtBatch_SwallowsLookupFailureAndPanic(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
 
 	failing := &fakeInstanceStudentRepo{candidateErr: errors.New("lookup failed")}
@@ -1020,6 +1098,8 @@ func TestMirrorCheckInAtBatch_SwallowsLookupFailureAndPanic(t *testing.T) {
 }
 
 func TestMirrorCheckOutAtBatch_ClosesLatestOpenSlotPerStudent(t *testing.T) {
+	t.Parallel()
+
 	checkedIn := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
 	laterCheckIn := checkedIn.Add(30 * time.Minute)
 
@@ -1059,6 +1139,8 @@ func TestMirrorCheckOutAtBatch_ClosesLatestOpenSlotPerStudent(t *testing.T) {
 }
 
 func TestMirrorCheckOutForVisits_ResolvesInstancePerGroupAndSkipsWalkIns(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 4, 20, 16, 0, 0, 0, time.UTC)
 	visitA := validVisit()
 	visitB := validVisit()
@@ -1080,6 +1162,8 @@ func TestMirrorCheckOutForVisits_ResolvesInstancePerGroupAndSkipsWalkIns(t *test
 }
 
 func TestMirrorCheckOutForVisits_NoInstanceBridgedIsNoop(t *testing.T) {
+	t.Parallel()
+
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
@@ -1089,12 +1173,16 @@ func TestMirrorCheckOutForVisits_NoInstanceBridgedIsNoop(t *testing.T) {
 }
 
 func TestMirrorCheckInAtBatch_EmptyIDsNoop(t *testing.T) {
+	t.Parallel()
+
 	isRepo := &fakeInstanceStudentRepo{}
 	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), nil, time.Now())
 	assert.Zero(t, isRepo.checkinBatchCalls)
 }
 
 func TestMirrorCheckInAtBatch_AllPreservedSkipsUpdate(t *testing.T) {
+	t.Parallel()
+
 	// The only candidate is already observably present-open — the preserve
 	// rule empties the key set and the guarded UPDATE must not run at all.
 	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
@@ -1110,6 +1198,8 @@ func TestMirrorCheckInAtBatch_AllPreservedSkipsUpdate(t *testing.T) {
 }
 
 func TestMirrorCheckInAtBatch_UpdateErrorLogged(t *testing.T) {
+	t.Parallel()
+
 	// A failing batch UPDATE degrades gracefully: logged, no panic, no retry.
 	row := expectedRow(51)
 	row.InstanceID = 75
@@ -1124,12 +1214,16 @@ func TestMirrorCheckInAtBatch_UpdateErrorLogged(t *testing.T) {
 }
 
 func TestMirrorCheckOutAtBatch_EmptyIDsNoop(t *testing.T) {
+	t.Parallel()
+
 	isRepo := &fakeInstanceStudentRepo{}
 	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), nil, time.Now())
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
 
 func TestMirrorCheckOutAtBatch_NoOpenRowsSkipsUpdate(t *testing.T) {
+	t.Parallel()
+
 	// Only closed / never-checked-in rows on the day: nothing to close, the
 	// guarded UPDATE must not run.
 	checkedIn := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
@@ -1146,6 +1240,8 @@ func TestMirrorCheckOutAtBatch_NoOpenRowsSkipsUpdate(t *testing.T) {
 }
 
 func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("lookup error", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{dateErr: errors.New("lookup failed")}
 		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
@@ -1176,6 +1272,8 @@ func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
 }
 
 func TestMirrorCheckOutForVisits_EmptyVisitsNoop(t *testing.T) {
+	t.Parallel()
+
 	isRepo := &fakeInstanceStudentRepo{}
 	newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
 		MirrorCheckOutForVisits(context.Background(), nil, time.Now())
@@ -1183,6 +1281,8 @@ func TestMirrorCheckOutForVisits_EmptyVisitsNoop(t *testing.T) {
 }
 
 func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("instance lookup error", func(t *testing.T) {
 		// The group's instance lookup fails: logged, the visit is skipped, and
 		// with no keys left the UPDATE never runs.

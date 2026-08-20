@@ -201,6 +201,8 @@ func newStaffInvitationServiceMock(err error) (*authtest.InvitationServiceMock, 
 }
 
 func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{roles: []*authModels.Role{
@@ -224,6 +226,8 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 }
 
 func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
@@ -252,6 +256,8 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 }
 
 func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
@@ -273,6 +279,8 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 }
 
 func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *testing.T) {
+	t.Parallel()
+
 	baseRole := authModels.BaseRoleUser
 	tenantID := staffImportTestTenantID
 	config := NewStaffImportConfig(StaffImportDeps{
@@ -309,6 +317,8 @@ func TestStaffImportConfig_Validate_RequiresManagePermissionForTenantRole(t *tes
 }
 
 func TestStaffImportConfig_Validate_RejectsRolesReservedForOtherFlows(t *testing.T) {
+	t.Parallel()
+
 	guardian := authModels.BaseRoleGuardian
 	tenantID := staffImportTestTenantID
 	role := &authModels.Role{
@@ -338,6 +348,8 @@ func TestStaffImportConfig_Validate_RejectsRolesReservedForOtherFlows(t *testing
 }
 
 func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalization(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{})
 	rows := []importModels.StaffImportRow{
 		{Email: "Max Mustermann <max@example.com>"},
@@ -355,6 +367,8 @@ func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalizatio
 }
 
 func TestStaffImportConfig_Validate_ReportsRequiredInvalidEmailAndRoleSuggestion(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
 			findByName: func(context.Context, string) (*authModels.Role, error) {
@@ -383,6 +397,8 @@ func TestStaffImportConfig_Validate_ReportsRequiredInvalidEmailAndRoleSuggestion
 }
 
 func TestStaffImportConfig_Validate_RoleLookupError(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("repo unavailable")
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
@@ -406,6 +422,8 @@ func TestStaffImportConfig_Validate_RoleLookupError(t *testing.T) {
 }
 
 func TestStaffImportConfig_FindExisting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("blank email skips lookup", func(t *testing.T) {
 		config := NewStaffImportConfig(StaffImportDeps{})
 
@@ -459,6 +477,8 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 }
 
 func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
+	t.Parallel()
+
 	invitations, req := newStaffInvitationServiceMock(nil)
 	config := NewStaffImportConfig(StaffImportDeps{InvitationService: invitations})
 	config.schoolName = "OGS Phoenix"
@@ -491,6 +511,8 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 }
 
 func TestStaffImportConfig_Create_ReturnsInvitationError(t *testing.T) {
+	t.Parallel()
+
 	inviteErr := errors.New("invite failed")
 	invitations, _ := newStaffInvitationServiceMock(inviteErr)
 	config := NewStaffImportConfig(StaffImportDeps{
@@ -503,6 +525,8 @@ func TestStaffImportConfig_Create_ReturnsInvitationError(t *testing.T) {
 }
 
 func TestStaffImportConfig_PreloadReferenceData_ReturnsRoleListError(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{listErr: errors.New("list failed")},
 	})
@@ -514,6 +538,8 @@ func TestStaffImportConfig_PreloadReferenceData_ReturnsRoleListError(t *testing.
 }
 
 func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
+	t.Parallel()
+
 	var _ authsvc.InvitationService = (*authtest.InvitationServiceMock)(nil)
 	var _ authModels.RoleRepository = stubStaffRoleRepo{}
 	var _ authModels.AccountRepository = stubStaffAccountRepo{}

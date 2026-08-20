@@ -243,12 +243,12 @@ function ChangeRequestsOverview({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Familien können nach einer Entscheidung Korrekturen einreichen.
-              Offene Anfragen prüfst du gesammelt in der Review-Ansicht.
+              Offene Anfragen prüfst du gesammelt im Anfragen-Modul.
             </p>
           </div>
         </div>
         <Link
-          href={tenantPath("/admin/enrollments/change-requests")}
+          href={tenantPath("/anfragen")}
           className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
         >
           Anfragen prüfen

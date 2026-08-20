@@ -27,7 +27,6 @@ import (
 func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,
@@ -44,7 +43,6 @@ func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,
@@ -83,7 +81,6 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 		return false
 	}
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abholung", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, author.ID) })
 	row := &scheduleModels.StudentPickupSchedule{
 		StudentID: studentID, Weekday: weekday, PickupTime: pickup, CreatedBy: author.ID,
 	}
@@ -114,7 +111,6 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 
 	// Real staff row rather than a guessed id: created_by carries a foreign key.
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Plan", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, author.ID) })
 
 	row := &scheduleModels.StudentArrivalSchedule{
 		StudentID:       studentID,
@@ -233,9 +229,10 @@ func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, ch
 // TestGetChildTodayStatusRejectsForeignChild ist die Mandantengrenze: ein
 // Elternkonto darf ausschliesslich verknuepfte Kinder lesen.
 func TestGetChildTodayStatusRejectsForeignChild(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID+999999)
 
@@ -245,9 +242,10 @@ func TestGetChildTodayStatusRejectsForeignChild(t *testing.T) {
 // TestGetChildTodayStatusPresent prueft den Gutfall Ende zu Ende gegen die
 // Datenbank: eine offene Anwesenheit ergibt die Ja-Aussage plus die Uhrzeit.
 func TestGetChildTodayStatusPresent(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	checkIn := timezone.Now().Add(-90 * time.Minute)
 	openAttendanceToday(t, db, chain.TenantID, chain.StudentID, checkIn)
@@ -267,9 +265,10 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 // Antwort keine Ja/Nein-Aussage, statt "nicht angekommen" zu behaupten und
 // Eltern grundlos zu beunruhigen.
 func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
 
@@ -283,9 +282,10 @@ func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
 // nicht da. Die Antwort darf jetzt "nein" sagen, weil ein Betreuungstag belegt
 // ist, und nennt die erwartete Ankunftszeit.
 func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))
 	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
@@ -308,9 +308,10 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 // Anwesenheit und nicht mehr der Plan. Die erwartete Ankunft verschwindet dann
 // aus der Antwort, sie wuerde neben "ist da seit ..." nur verwirren.
 func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 7, 30, 0, 0, time.UTC))
 	seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
@@ -331,9 +332,10 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 // heute hat keinen Betreuungstag, und ohne Betreuungstag gibt es auch keine
 // erwartete Ankunftszeit zu melden.
 func TestGetChildTodayStatusWithoutPlanIsNoCareDay(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
 
@@ -342,9 +344,10 @@ func TestGetChildTodayStatusWithoutPlanIsNoCareDay(t *testing.T) {
 }
 
 func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedPickupScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 15, 30, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
@@ -364,19 +367,16 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 // da" lauten statt zu schweigen. (Derselbe Fall trifft nach den Ferien jedes
 // Kind der Schule gleichzeitig.)
 func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 
 	// Die Historie gehoert einem MITSCHUELER, das angefragte Kind hat keine.
 	classmate := testpkg.CreateTestStudentForTenant(t, db, chain.TenantID, "Mit", "Schueler", "3a")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", classmate.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", classmate.PersonID)
-	})
 	seedClosedAttendanceOn(t, db, chain.TenantID, classmate.ID, timezone.TodayDate().AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
@@ -388,14 +388,14 @@ func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
 }
 
 func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
 	exception := &scheduleModels.StudentArrivalException{
 		StudentID: chain.StudentID, ExceptionDate: timezone.TodayDate(), ExpectedArrival: nil, CreatedBy: staff.ID,
 	}

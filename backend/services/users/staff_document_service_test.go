@@ -35,7 +35,6 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewStaffDocumentService(
@@ -51,29 +50,15 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	suffix := time.Now().UnixNano()
 	staff := testpkg.CreateTestStaff(t, db, "Dokumente", fmt.Sprintf("Service-%d", suffix))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("dokumente-%d@example.test", suffix))
-	t.Cleanup(func() {
-		cleanupStaffDocumentRows(t, db, staff.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-	})
 
 	return &staffDocumentScenario{
 		db:      db,
 		repos:   repos,
 		svc:     svc,
-		ctx:     testpkg.TenantContext(1),
+		ctx:     testpkg.Ctx(t),
 		staffID: staff.ID,
 		account: account.ID,
 	}
-}
-
-func cleanupStaffDocumentRows(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, staffID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, staffID)
-	require.NoError(t, err)
 }
 
 func (s *staffDocumentScenario) actor(perms ...string) usersSvc.StaffDocumentActor {
@@ -116,6 +101,8 @@ func documentCategories(infos []*usersSvc.StaffDocumentInfo) []string {
 }
 
 func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 
 	directory := s.actor("users:update")
@@ -210,6 +197,8 @@ func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*auditModels.Da
 }
 
 func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	directory := s.actor("users:update")
 
@@ -252,6 +241,8 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 }
 
 func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	info := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, s.actor("staff:financial"))
 
@@ -261,6 +252,8 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	actor := s.actor("users:update")
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
@@ -273,6 +266,8 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 }
 
 func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	admin := s.actor("admin:*")
 

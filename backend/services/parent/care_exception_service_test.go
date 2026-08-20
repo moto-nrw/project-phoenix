@@ -88,7 +88,6 @@ func (s careTestService) SubmitCareException(ctx context.Context, accountID, stu
 func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	pickup := repos.StudentPickupException
 	if w.pickup != nil {
@@ -124,7 +123,6 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.Stude
 func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -152,9 +150,10 @@ func wallClock(h, m int) *time.Time {
 }
 
 func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	date := timezone.TodayDate().AddDays(1)
 	result, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(14, 30), wallClock(8, 15))
@@ -186,9 +185,10 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 }
 
 func TestSubmitCareException_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate().AddDays(1), wallClock(15, 0), nil)
@@ -196,9 +196,10 @@ func TestSubmitCareException_FeatureDisabled(t *testing.T) {
 }
 
 func TestSubmitCareException_NoTimes(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate().AddDays(1), nil, nil)
@@ -206,9 +207,10 @@ func TestSubmitCareException_NoTimes(t *testing.T) {
 }
 
 func TestSubmitCareException_PastDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate().AddDays(-1), wallClock(15, 0), nil)
@@ -216,6 +218,8 @@ func TestSubmitCareException_PastDate(t *testing.T) {
 }
 
 func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Care", "Checkout")
@@ -223,8 +227,6 @@ func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("active.attendance").
 			Where("student_id = ?", chain.StudentID).Exec(context.Background())
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID)
-		testpkg.CleanupParentGuardianChain(t, db, chain)
 	})
 
 	_, err := svc.SubmitCareException(
@@ -248,9 +250,10 @@ func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
 }
 
 func TestSubmitCareException_TooFarDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// One day past the two-calendar-month cap is rejected; the boundary itself
 	// stays allowed.
@@ -267,9 +270,10 @@ func TestSubmitCareException_TooFarDate(t *testing.T) {
 }
 
 func TestSubmitCareException_NotOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
@@ -282,9 +286,10 @@ func TestSubmitCareException_NotOwnedChild(t *testing.T) {
 }
 
 func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 	date := timezone.TodayDate().AddDays(1)
 
@@ -308,9 +313,10 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 }
 
 func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -341,9 +347,10 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 // silently keeping the previously-saved value (the parents-portal modal sends
 // null for an emptied field).
 func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(1)
@@ -378,9 +385,10 @@ func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
 }
 
 func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(3)
@@ -424,11 +432,12 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 // is now ON DELETE SET NULL and chk_exception_author tolerates the orphaned
 // guardian row, so the time staff rely on stays put — only the author link clears.
 func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
+	t.Parallel()
+
 	_, _, db := buildCareService(t, true)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Orphan", "Care", "3c")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// A standalone account nothing else references, so deleting it exercises only
 	// the exception's created_by_guardian FK.
@@ -443,7 +452,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
-	exception.SetTenantID(1)
+	exception.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
 	require.NoError(t, repos.StudentPickupException.Create(ctx, exception))
 	defer func() {
@@ -466,9 +475,10 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 }
 
 func TestDeleteCareException_PastDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(-1)
@@ -499,9 +509,10 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 // days that must surface with Source = "staff" so the portal renders them
 // read-only.
 func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := context.Background()
 	repos := repositories.NewFactory(db)
@@ -582,9 +593,10 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 // back to the base-plan pickup. Such a row creates no status day, so the
 // care-schedule today_absent signal alone would miss it (#1725 review).
 func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := context.Background()
 	repos := repositories.NewFactory(db)
@@ -623,9 +635,10 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 // today_absent signal alone would miss it and the parent tile would wrongly fall
 // back to the base-plan pickup for a child who is not coming (#1725 review).
 func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := context.Background()
 	repos := repositories.NewFactory(db)
@@ -661,9 +674,10 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 // path (the pickup-only delete is covered by TestListAndDeleteCareException):
 // A legacy guardian arrival row is no longer part of the parent delete action.
 func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(2)
@@ -708,11 +722,12 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 // success/conflict), and that nothing is persisted. Guards against the service
 // silently absorbing a DB outage during the staff-ownership check.
 func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
 		return stubPickupRepo{StudentPickupExceptionRepository: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID,
@@ -734,11 +749,12 @@ func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 // wrapped and returned rather than yielding a silently empty list (which the UI
 // would render as "no overrides", hiding real ones).
 func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
 		return stubPickupRepo{StudentPickupExceptionRepository: r, rangeErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	rows, err := svc.ListCareExceptions(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
@@ -751,11 +767,12 @@ func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 // delete transaction is wrapped and returned, so the caller learns the day was
 // not reverted instead of seeing a false success.
 func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
 		return stubPickupRepo{StudentPickupExceptionRepository: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := svc.DeleteCareException(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate().AddDays(1))
@@ -766,13 +783,14 @@ func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
 // TestListCareExceptions_ArrivalRepoErrorSurfaces mirrors the pickup range-read
 // failure for the arrival leg.
 func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithRepos(t, careRepoWrap{
 		arrival: func(r scheduleModels.StudentArrivalExceptionRepository) scheduleModels.StudentArrivalExceptionRepository {
 			return stubArrivalRepo{StudentArrivalExceptionRepository: r, rangeErr: errBoom}
 		},
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	rows, err := svc.ListCareExceptions(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
@@ -782,10 +800,10 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 }
 
 func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 	date := timezone.TodayDate().AddDays(1)
 
@@ -821,9 +839,10 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 // guard authorization on the read/clear paths: both must reject a child the
 // account does not guard, mirroring the submit-path ownership check.
 func TestListCareExceptions_NotOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
@@ -836,9 +855,10 @@ func TestListCareExceptions_NotOwnedChild(t *testing.T) {
 }
 
 func TestDeleteCareException_NotOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
@@ -851,9 +871,10 @@ func TestDeleteCareException_NotOwnedChild(t *testing.T) {
 }
 
 func TestSubmitCareExceptionWithReasonPersistsReason(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	date := timezone.TodayDate().AddDays(1)
 	result, err := svc.SubmitCareExceptionWithReason(
@@ -879,9 +900,10 @@ func TestSubmitCareExceptionWithReasonPersistsReason(t *testing.T) {
 }
 
 func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	staff := testpkg.CreateTestStaff(t, db, "Ankunft", "Team")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -927,9 +949,10 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 }
 
 func TestSubmitCareExceptionWithReasonValidatesInput(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	date := timezone.TodayDate().AddDays(1)
 	_, err := svc.SubmitCareExceptionWithReason(

@@ -16,6 +16,8 @@ import (
 // nested maps, truthy strings, composite-decode fallbacks) without a DB.
 
 func TestStringifyValue(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		raw  any
@@ -41,6 +43,8 @@ func TestStringifyValue(t *testing.T) {
 }
 
 func TestIsTruthy(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		raw  any
 		want bool
@@ -66,6 +70,8 @@ func TestIsTruthy(t *testing.T) {
 }
 
 func TestStatusLabelDE_UnknownPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	if got := statusLabelDE(enrollmentModels.ChildStatusApproved); got != "Angenommen" {
 		t.Errorf("known status = %q, want Angenommen", got)
 	}
@@ -75,6 +81,8 @@ func TestStatusLabelDE_UnknownPassesThrough(t *testing.T) {
 }
 
 func TestGradeLabel(t *testing.T) {
+	t.Parallel()
+
 	if got := gradeLabel(nil); got != "" {
 		t.Errorf("nil grade = %q, want empty", got)
 	}
@@ -85,6 +93,8 @@ func TestGradeLabel(t *testing.T) {
 }
 
 func TestActivationSummary(t *testing.T) {
+	t.Parallel()
+
 	scheduled := &enrollmentModels.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled}
 	if got := activationSummary(scheduled); got != "Geplant" {
 		t.Errorf("scheduled w/o date = %q, want Geplant", got)
@@ -101,6 +111,8 @@ func TestActivationSummary(t *testing.T) {
 }
 
 func TestFormatDayCodes(t *testing.T) {
+	t.Parallel()
+
 	if got := formatDayCodes(nil); got != "" {
 		t.Errorf("empty = %q, want empty", got)
 	}
@@ -111,6 +123,8 @@ func TestFormatDayCodes(t *testing.T) {
 }
 
 func TestDecodeComposite_MarshalFailureReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	var dst map[string]string
 	// A channel cannot be JSON-marshalled → decodeComposite reports false.
 	if decodeComposite(make(chan int), &dst) {
@@ -119,6 +133,8 @@ func TestDecodeComposite_MarshalFailureReturnsFalse(t *testing.T) {
 }
 
 func TestFormatWeekdaySchedule_FallsBackOnGarbage(t *testing.T) {
+	t.Parallel()
+
 	// A bare string cannot decode into WeekdaySchedule (a map) → falls back
 	// to the generic stringifier rather than dropping the answer.
 	if got := formatWeekdaySchedule("not-a-schedule"); got != "not-a-schedule" {
@@ -131,12 +147,16 @@ func TestFormatWeekdaySchedule_FallsBackOnGarbage(t *testing.T) {
 }
 
 func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean}
 	raw := map[string]any{"fri": true, "mon": true, "wed": false}
 	assert.Equal(t, "Mo, Fr", formatCustomValue(field, raw))
 }
 
 func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
 	raw := map[string]any{"mon": "bus", "wed": "pickup", "thu": "alone"}
 	// Week order, alone/unset days skipped.
@@ -144,6 +164,8 @@ func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
 }
 
 func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
 	raw := map[string]any{
 		"mon": "alone",
@@ -156,16 +178,22 @@ func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
 }
 
 func TestFormatCustomValue_WeekdayMode_EmptyMapIsExplicitAllAlone(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
 	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, map[string]any{}))
 }
 
 func TestFormatCustomValue_WeekdayMode_NilStaysMissing(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
 	assert.Empty(t, formatCustomValue(field, nil))
 }
 
 func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {
+	t.Parallel()
+
 	if got := formatPhoneList("0151"); got != "0151" {
 		t.Errorf("garbage = %q, want passthrough", got)
 	}
@@ -176,6 +204,8 @@ func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {
 }
 
 func TestFormatContactList(t *testing.T) {
+	t.Parallel()
+
 	// Decode failure → generic fallback.
 	if got := formatContactList("garbage"); got != "garbage" {
 		t.Errorf("garbage = %q, want passthrough", got)
@@ -196,6 +226,8 @@ func TestFormatContactList(t *testing.T) {
 // (ContactEntry.Validate accepts email OR phone). The email is that
 // contact's only channel and must appear in the export.
 func TestFormatContactList_EmailOnlyContactKeepsEmail(t *testing.T) {
+	t.Parallel()
+
 	list := []any{
 		map[string]any{
 			"first_name":           "Jonas",
@@ -216,6 +248,8 @@ func TestFormatContactList_EmailOnlyContactKeepsEmail(t *testing.T) {
 // When a contact has both a phone number and an email, phone is rendered
 // first (priority channel in an outage) and the email is still kept.
 func TestFormatContactList_PhoneAndEmailBothRendered(t *testing.T) {
+	t.Parallel()
+
 	list := []any{
 		map[string]any{
 			"first_name": "Lea",
@@ -234,6 +268,8 @@ func TestFormatContactList_PhoneAndEmailBothRendered(t *testing.T) {
 }
 
 func TestTimeOrEmpty(t *testing.T) {
+	t.Parallel()
+
 	if got := timeOrEmpty(nil); got != "" {
 		t.Errorf("nil = %q, want empty", got)
 	}
@@ -244,6 +280,8 @@ func TestTimeOrEmpty(t *testing.T) {
 }
 
 func TestFormatOfferings_FallsBackToAvailableDaysAndOfferingID(t *testing.T) {
+	t.Parallel()
+
 	if got := formatOfferings(nil); got != "" {
 		t.Errorf("empty = %q, want empty", got)
 	}
@@ -258,6 +296,8 @@ func TestFormatOfferings_FallsBackToAvailableDaysAndOfferingID(t *testing.T) {
 }
 
 func TestFormatCustomValue_BooleanAndSelect(t *testing.T) {
+	t.Parallel()
+
 	boolField := enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
 	if got := formatCustomValue(boolField, false); got != "Nein" {
 		t.Errorf("boolean false = %q, want Nein", got)
