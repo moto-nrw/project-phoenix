@@ -688,7 +688,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten, Betreuungsangeboten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
           "Anfragen zu Betreuungsangeboten gelten ab dem gewünschten Datum: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot inzwischen voll, meldet die App das beim Freigeben und die Anfrage bleibt offen.",
           "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
-          "Über den Schalter `Historie` oben auf der Seite sehen Sie alle bereits entschiedenen Anfragen: wer wann freigegeben oder abgelehnt hat, mit welcher Begründung – und auch automatisch übernommene Stammdaten-Änderungen. Über `Weitere Einträge laden` blättern Sie weiter zurück.",
+          "Über den Schalter `Historie` oben auf der Seite sehen Sie alle bereits entschiedenen Anfragen: wer wann freigegeben oder abgelehnt hat, mit welcher Begründung – und auch automatisch übernommene Stammdaten-Änderungen. Änderungen, die Sie selbst an den gebuchten Angeboten eines Kindes vorgenommen haben, stehen dort als `Direkt-Korrektur`. Über `Weitere Einträge laden` blättern Sie weiter zurück.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -1677,6 +1677,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
           "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
           "Über den Schalter `Historie` stehen alle bereits entschiedenen Anfragen in derselben Liste, jeweils mit Datum, entscheidender Person und Begründung. Dort lässt sich zusätzlich nach `Status` (Angenommen, Abgelehnt, Zurückgezogen) und nach `Zeitraum` filtern.",
+          "In der Historie stehen auch Änderungen, die die OGS selbst an den gebuchten Angeboten eines Kindes vorgenommen hat, etwa nach einem Anruf. Sie sind mit `Direkt-Korrektur` gekennzeichnet und zeigen, wer wann was geändert hat und warum. Über den Filter `Anfrageart` lassen sie sich einzeln anzeigen.",
         ],
         callout: {
           title: "Wer darf entscheiden",

@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -98,10 +99,20 @@ func (f *aggCareFake) ListHistory(_ context.Context, before time.Time, beforeID 
 
 type aggOfferingFake struct {
 	enrollmentService.OfferingChangeRequestService
-	pending      []*enrollmentService.OfferingChangeView
-	rows         []*enrollmentService.OfferingChangeHistoryItem
-	pendingCalls int
-	historyCalls int
+	pending          []*enrollmentService.OfferingChangeView
+	rows             []*enrollmentService.OfferingChangeHistoryItem
+	corrections      []*enrollmentService.DirectCorrectionItem
+	pendingCalls     int
+	historyCalls     int
+	correctionsCalls int
+}
+
+func (f *aggOfferingFake) ListDirectCorrections(_ context.Context, before time.Time, beforeID int64, limit int) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
+	f.correctionsCalls++
+	items, next := keysetHistoryPage(f.corrections, func(it *enrollmentService.DirectCorrectionItem) (time.Time, int64) {
+		return it.Adjustment.ChangedAt, it.Adjustment.ID
+	}, before, beforeID, limit)
+	return items, next, nil
 }
 
 func (f *aggOfferingFake) ListPending(context.Context) ([]*enrollmentService.OfferingChangeView, error) {
@@ -501,4 +512,130 @@ func TestAggregatedChangeRequests_InvalidQuery(t *testing.T) {
 		rr, _ := execAggregated(t, rs, query, aggUpdatePerms)
 		assert.Equal(t, http.StatusBadRequest, rr.Code, fmt.Sprintf("query %q must be rejected", query))
 	}
+}
+
+// --- Direkt-Korrekturen in der zentralen Historie (#2436) -------------------
+
+func aggOfferingHistory(id int64, name, status string, decidedAt time.Time) *enrollmentService.OfferingChangeHistoryItem {
+	reviewed := decidedAt
+	return &enrollmentService.OfferingChangeHistoryItem{
+		Request: &enrollmentModels.OfferingChangeRequest{
+			Model:      modelBase.Model{ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt},
+			StudentID:  300 + id,
+			Status:     status,
+			ReviewedAt: &reviewed,
+		},
+		StudentName:  name,
+		ReviewerName: "Revi Ewer",
+	}
+}
+
+func aggDirectCorrection(id int64, name string, changedAt time.Time) *enrollmentService.DirectCorrectionItem {
+	actor := "Olga Office"
+	return &enrollmentService.DirectCorrectionItem{
+		Adjustment: &auditModels.EnrollmentOfferingAdjustment{
+			ID:                id,
+			StudentID:         500 + id,
+			ChangedAt:         changedAt,
+			Reason:            "Telefonisch gemeldet",
+			ActorNameSnapshot: &actor,
+			Source:            auditModels.OfferingAdjustmentSourceDirect,
+		},
+		StudentName: name,
+		ActorName:   actor,
+		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+			OfferingID: 9,
+			Label:      "Mittagessen",
+			OldState:   "booked",
+			OldDays:    []string{"mon"},
+			NewState:   "removed",
+		}},
+	}
+}
+
+func TestAggregatedChangeRequests_HistoryShowsDirectCorrections(t *testing.T) {
+	rs, fakes := newAggResource()
+	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
+		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
+	}
+	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+	}
+
+	rr, page := execAggregated(t, rs, "view=history", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, []string{"direct_correction", "offering"}, aggTypes(page))
+
+	var row DirectCorrectionResponse
+	require.NoError(t, json.Unmarshal(page.Items[0].Data, &row))
+	assert.Equal(t, "Anna Alt", row.StudentName)
+	assert.Equal(t, "Olga Office", row.ChangedByName)
+	assert.Equal(t, "Telefonisch gemeldet", row.Reason)
+	assert.Equal(t, aggBase.Add(3*time.Hour), row.ChangedAt.UTC())
+	require.Len(t, row.Diff, 1)
+	assert.Equal(t, "Mittagessen", row.Diff[0].Label)
+	assert.Equal(t, "Mo", row.Diff[0].Old)
+	assert.Equal(t, "abgemeldet", row.Diff[0].New)
+	// A correction is not a request: nothing decided, no status on the wire.
+	assert.NotContains(t, string(page.Items[0].Data), `"status"`)
+}
+
+func TestAggregatedChangeRequests_OpenNeverShowsDirectCorrections(t *testing.T) {
+	rs, fakes := newAggResource()
+	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+	}
+
+	for _, query := range []string{"", "view=open", "view=open&types=direct_correction"} {
+		rr, page := execAggregated(t, rs, query, aggUpdatePerms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Empty(t, aggTypes(page), "query %q", query)
+	}
+	assert.Zero(t, fakes.offering.correctionsCalls)
+}
+
+func TestAggregatedChangeRequests_DirectCorrectionsHonourSearchAndDateRange(t *testing.T) {
+	rs, fakes := newAggResource()
+	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+		aggDirectCorrection(8, "Ben Berg", aggBase.Add(2*time.Hour)),
+		aggDirectCorrection(9, "Anna Alt", aggBase.AddDate(0, 0, -40)),
+	}
+
+	_, byName := execAggregated(t, rs, "view=history&search=anna", aggUpdatePerms)
+	require.Len(t, byName.Items, 2)
+
+	from := aggBase.AddDate(0, 0, -1).Format("2006-01-02")
+	_, byRange := execAggregated(t, rs, "view=history&search=anna&from="+from, aggUpdatePerms)
+	require.Len(t, byRange.Items, 1)
+	var row DirectCorrectionResponse
+	require.NoError(t, json.Unmarshal(byRange.Items[0].Data, &row))
+	assert.Equal(t, "7", row.ID)
+}
+
+func TestAggregatedChangeRequests_StatusFilterExcludesDirectCorrections(t *testing.T) {
+	rs, fakes := newAggResource()
+	fakes.offering.rows = []*enrollmentService.OfferingChangeHistoryItem{
+		aggOfferingHistory(1, "Cem Can", "approved", aggBase.Add(2*time.Hour)),
+	}
+	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+	}
+
+	// Corrections carry no status, so a status filter is about requests only.
+	rr, page := execAggregated(t, rs, "view=history&status=approved", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []string{"offering"}, aggTypes(page))
+}
+
+func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *testing.T) {
+	rs, fakes := newAggResource()
+	fakes.offering.corrections = []*enrollmentService.DirectCorrectionItem{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+	}
+
+	rr, page := execAggregated(t, rs, "view=history", []string{"users:absence"})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Empty(t, aggTypes(page))
+	assert.Zero(t, fakes.offering.correctionsCalls)
 }

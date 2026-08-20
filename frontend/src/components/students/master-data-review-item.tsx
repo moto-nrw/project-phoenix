@@ -157,7 +157,7 @@ export function MasterDataReviewItem({
           <Alert type="error" message={error} />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         {/* Field name lives in the collapsed summary; the expanded panel
             shows only the value change. */}
         <div className="flex flex-wrap items-baseline gap-2 text-sm">

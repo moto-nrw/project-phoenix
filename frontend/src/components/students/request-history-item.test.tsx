@@ -156,6 +156,27 @@ describe("RequestHistoryItem", () => {
     expect(screen.getByText("Kreativ-AG: Di")).toBeInTheDocument();
   });
 
+  it("zeigt ohne Diff und beantragte Angebote keine leere Beantragt-Fläche", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "offering",
+      data: {
+        id: "offering-empty",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        status: "withdrawn",
+        effective_from: "2026-08-20",
+        diff: [],
+        requested: [],
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.queryByText("Beantragt")).not.toBeInTheDocument();
+  });
+
   it("zeigt bei einer entschuldigten Abmeldung Daten und Notiz", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "excused",
@@ -178,6 +199,68 @@ describe("RequestHistoryItem", () => {
     expect(screen.getByText("Freigegeben")).toBeInTheDocument();
     expect(
       screen.getByText("20.08.2026, 21.08.2026 · Arzttermin"),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt eine Direkt-Korrektur als eigene Zeilen-Art mit vorher → nachher", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      data: {
+        id: "9",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [
+          {
+            offering_id: "3",
+            label: "Mittagessen",
+            old: "Mo",
+            new: "abgemeldet",
+          },
+        ],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    // Keine Anfrage: nichts wurde eingereicht und nichts entschieden.
+    expect(
+      screen.getByText(/^Geändert am 18\.08\.2026 von Olga Office$/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Eingereicht am/)).not.toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mittagessen: Mo → abgemeldet"),
+    ).toBeInTheDocument();
+  });
+
+  it("hält eine Korrektur ohne Tagesänderung trotzdem fest", () => {
+    // Kommt vor, wenn sich nur intern etwas verschiebt (selbst gesetzte gegen
+    // automatisch übernommene Tage) und die gebuchten Tage gleich bleiben.
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      data: {
+        id: "10",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    // Jede Änderung wird dokumentiert, auch die ohne sichtbaren Unterschied
+    // an den Tagen — dann sagt die Karte das ausdrücklich.
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Änderung an den gebuchten Tagen"),
     ).toBeInTheDocument();
   });
 });

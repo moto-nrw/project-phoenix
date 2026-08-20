@@ -40,6 +40,9 @@ const (
 	requestTypeCareSchedule = "care_schedule"
 	requestTypeOffering     = "offering"
 	requestTypeExcused      = "excused"
+	// requestTypeDirectCorrection is not a request: it is the office's own
+	// correction to a child's bookings (#2436). History only.
+	requestTypeDirectCorrection = "direct_correction"
 )
 
 // aggregatedRequestTypeOrder is the canonical type order — it decides the
@@ -49,6 +52,7 @@ var aggregatedRequestTypeOrder = []string{
 	requestTypeCareSchedule,
 	requestTypeOffering,
 	requestTypeExcused,
+	requestTypeDirectCorrection,
 }
 
 const (
@@ -152,6 +156,12 @@ func parseAggregatedListQuery(r *http.Request) (aggregatedListQuery, error) {
 
 	if err := parseAggregatedHistoryFilters(&q, values); err != nil {
 		return q, err
+	}
+
+	// Corrections have no open state — the working list must never show them,
+	// not even when a client asks for the type explicitly.
+	if !q.history {
+		q.types = removeType(q.types, requestTypeDirectCorrection)
 	}
 
 	if raw := values.Get("limit"); raw != "" {
@@ -350,6 +360,16 @@ func (rs *Resource) listAggregatedChangeRequests(w http.ResponseWriter, r *http.
 		return
 	}
 	common.Respond(w, r, http.StatusOK, page, "Change requests retrieved")
+}
+
+func removeType(types []string, drop string) []string {
+	kept := make([]string, 0, len(types))
+	for _, typ := range types {
+		if typ != drop {
+			kept = append(kept, typ)
+		}
+	}
+	return kept
 }
 
 func intersectTypes(types []string, allowed ...string) []string {
@@ -664,6 +684,8 @@ func (rs *Resource) historySourceFor(typ string) *aggregatedHistorySource {
 		source.fetch = historyFetch(rs.OfferingChangeService.ListHistory, offeringHistoryRow)
 	case requestTypeExcused:
 		source.fetch = historyFetch(rs.ExcusedRequestService.ListHistory, excusedHistoryRow)
+	case requestTypeDirectCorrection:
+		source.fetch = historyFetch(rs.OfferingChangeService.ListDirectCorrections, directCorrectionRow)
 	}
 	return source
 }

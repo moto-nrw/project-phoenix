@@ -128,7 +128,7 @@ export function ExcusedRequestReviewItem({
           <Alert type="error" message={error} />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         <div className="text-sm">
           <span className="text-xs text-gray-500">Tage: </span>
           <span className="font-medium text-gray-900">

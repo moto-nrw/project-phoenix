@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -282,6 +283,10 @@ type OfferingChangeRequestService interface {
 	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
 	// page; next is nil when no older rows exist beyond this page.
 	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*OfferingChangeHistoryItem, next *usersService.HistoryCursor, err error)
+	// ListDirectCorrections returns the office's own corrections to bookings,
+	// newest change first, keyset paginated on (changed_at, id). They are not
+	// requests: no pending state, nothing to decide (#2436).
+	ListDirectCorrections(ctx context.Context, beforeChangedAt time.Time, beforeID int64, limit int) (items []*DirectCorrectionItem, next *usersService.HistoryCursor, err error)
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
 	// PreviewDecision materializes a pending approval with the supplied
@@ -306,7 +311,10 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
-	UserContext              authorize.StudentAccessUserContext
+	// OfferingAdjustmentRepo backs the direct-correction feed of the central
+	// history (#2436); the same append-only log the decision service writes.
+	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
+	UserContext            authorize.StudentAccessUserContext
 	// Applier performs the dated adjustment on approval. It is the decision
 	// service, reached through the same narrow interface the change-request
 	// service uses.

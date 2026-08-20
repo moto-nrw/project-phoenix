@@ -102,6 +102,17 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(
 	assert.Contains(t, err.Error(), "list enrollment offering adjustments")
 }
 
+func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
+	require.NoError(t, db.Close())
+
+	rows, err := repo.ListDirectForTenant(testpkg.TenantContext(1), time.Now(), 1, 10)
+	require.Error(t, err)
+	assert.Nil(t, rows)
+	assert.Contains(t, err.Error(), "list direct enrollment offering adjustments")
+}
+
 func createAuditAdjustmentPhase(t *testing.T, repoFactory *repositories.Factory) *enrollmentModels.Phase {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
@@ -149,4 +160,81 @@ func createAuditAdjustmentChild(t *testing.T, repoFactory *repositories.Factory,
 	}
 	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
 	return child
+}
+
+// The central history reads corrections through this keyset window (#2436):
+// newest first, request-applied rows excluded, and a follow-up page that
+// continues strictly before the last row of the previous one.
+func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	repo := repoFactory.EnrollmentOfferingAdjustment
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Direct", "Correction", "1a")
+	account := testpkg.CreateTestAccount(t, db, "direct-correction-admin@example.test")
+	phase := createAuditAdjustmentPhase(t, repoFactory)
+	request := createAuditAdjustmentRequest(t, repoFactory, phase.ID)
+	child := createAuditAdjustmentChild(t, repoFactory, request.ID)
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
+
+	// A far-future base keeps this window clear of rows other tests leave in
+	// the shared test database.
+	base := time.Date(2099, time.March, 3, 12, 0, 0, 0, time.UTC)
+	newRow := func(reason, source string, changedAt time.Time) *audit.EnrollmentOfferingAdjustment {
+		return &audit.EnrollmentOfferingAdjustment{
+			RequestID:      request.ID,
+			RequestChildID: child.ID,
+			StudentID:      student.ID,
+			ActorAccountID: account.ID,
+			ActorRole:      "admin",
+			Reason:         reason,
+			Source:         source,
+			Before:         []byte(`[]`),
+			After:          []byte(`[]`),
+			ChangedAt:      changedAt,
+		}
+	}
+	newest := newRow("newest", audit.OfferingAdjustmentSourceDirect, base.Add(2*time.Hour))
+	middle := newRow("middle", audit.OfferingAdjustmentSourceDirect, base.Add(time.Hour))
+	oldest := newRow("oldest", audit.OfferingAdjustmentSourceDirect, base)
+	applied := newRow("applied request", audit.OfferingAdjustmentSourceRequest, base.Add(3*time.Hour))
+	unknown := newRow("legacy adjustment", audit.OfferingAdjustmentSourceUnknown, base.Add(4*time.Hour))
+	for _, row := range []*audit.EnrollmentOfferingAdjustment{newest, middle, oldest, applied, unknown} {
+		require.NoError(t, repo.Create(ctx, row))
+	}
+	defer testpkg.CleanupTableRecords(t, db, "audit.enrollment_offering_adjustments",
+		newest.ID, middle.ID, oldest.ID, applied.ID, unknown.ID)
+
+	// First page: newest first; request-applied and unknown legacy rows stay
+	// out because neither is a verified direct correction.
+	first, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 2)
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	assert.Equal(t, []int64{newest.ID, middle.ID}, []int64{first[0].ID, first[1].ID})
+
+	// Follow-up page continues strictly before the last consumed row.
+	second, err := repo.ListDirectForTenant(ctx, first[1].ChangedAt, first[1].ID, 2)
+	require.NoError(t, err)
+	require.NotEmpty(t, second)
+	assert.Equal(t, oldest.ID, second[0].ID)
+	for _, row := range second {
+		assert.NotEqual(t, applied.ID, row.ID, "request-applied rows never appear")
+		assert.NotEqual(t, unknown.ID, row.ID, "unknown legacy rows never appear")
+	}
+
+	// The explicit repository predicate protects non-HTTP callers whose
+	// database connection bypasses RLS.
+	otherTenantRows, err := repo.ListDirectForTenant(testpkg.TenantContext(2), time.Time{}, 0, 2)
+	require.NoError(t, err)
+	assert.Empty(t, otherTenantRows)
+
+	// A non-positive limit asks for nothing and hits no database at all.
+	none, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, none)
 }
