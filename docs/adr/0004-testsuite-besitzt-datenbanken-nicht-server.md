@@ -85,8 +85,39 @@ mechanischer Sweep über alle Testdateien):
   die Paare, die es bei Einführung schon gab (tenant-lose Tabellen: Accounts,
   Operator-Portal, RBAC-Katalog); sie darf nur schrumpfen.
   `PHX_TEST_LEFTOVERS=1` zeigt zusätzlich die geduldeten. Sequence-Offsets
-  bleiben zunächst als Flake-Detektor und werden gestrichen, sobald die Suite
-  auf frischen Clones grün ist.
+  bleiben, solange die generischen Fixture-Cleanups mit ihren
+  tabellenübergreifenden `id = ?`-Armen noch Aufrufer haben.
+
+- **Teardown pro Zeile ist die Ausnahme, nicht die Regel.** Eine Zeile, die
+  einem Tenant gehört, stirbt mit dem Clone und ist für keinen anderen Test
+  sichtbar — ihr Teardown ist reine DB-Last. 5120 solcher Aufrufe sind
+  entfernt (587 bleiben, `cleanupCallBaseline` friert sie ein). Drei Formen
+  überleben mit Grund: eine Zeile in einer **tenant-losen** Tabelle
+  (auth.accounts, RBAC-Katalog, Plattform/Operator-Tabellen), die das
+  Leftover-Gate sonst zählt; ein **Zustands-Reset zwischen Subtests** eines
+  Tests, wo ein Unique-Index oder eine tenant-weite Zählung sonst kippt (der
+  bessere Weg ist `testpkg.OwnTenant` für diesen Subtest); und das Löschen,
+  das **selbst der Testschritt** ist (eine ID, die der Code als fehlend melden
+  muss). Gemessen: Volllauf 85 s → 53 s.
+
+- **Subtests dürfen einen eigenen Tenant beanspruchen.** Der Normalfall bleibt
+  „Subtests teilen den Tenant des Elterntests" — richtig, solange der Vater die
+  Fixtures baut, die sie lesen. Für die andere häufige Form (eine Tabelle von
+  Subtests, die je dieselbe Art Zeile anlegen und dann tenant-weit
+  assertieren) gibt es `testpkg.OwnTenant(t)` / `OwnCtx(t)`: der längste
+  Präfix von `t.Name()`, der das beansprucht hat, bestimmt den Tenant, und die
+  Fixtures des Subtests folgen dorthin.
+
+- **Klonen läuft unter dem SHARED Lebenszyklus-Lock.** `CREATE DATABASE …
+  TEMPLATE` nimmt auf der Quelle nur eine ShareLock, und zwei Cloner schreiben
+  nie dieselbe Ziel-Datenbank (der Name trägt Run-ID und Package) — was das
+  exklusive Lock hier fernhalten muss, ist der Template-Neubau, der die
+  kopierte Datenbank droppt, und die Generations-GC, die Clones droppt. Die GC
+  nimmt das exklusive Lock deshalb nur noch per `pg_try_advisory_lock`: ist es
+  belegt, wird sie übersprungen (ein toter Clone kostet Platz bis zum nächsten
+  Binary, dem Sweep oder dem nächsten Lauf) statt sich vor und hinter die
+  Cloner in die Warteschlange zu stellen. Gemessen waren es 6,0 s summiert
+  über 93 Binaries, alle hinter einem Lock serialisiert.
 
   Die Kosten sind eine Abfrage pro Package beim Beenden (gemessen 30-70 ms,
   alle Tabellen in einem Round-Trip), nicht eine pro Test — deshalb sitzt das
