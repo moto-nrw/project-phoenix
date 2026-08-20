@@ -1,4 +1,4 @@
-package api
+package api_test
 
 import (
 	"database/sql"
@@ -214,10 +214,13 @@ func TestSeedCoverageRatchet(t *testing.T) {
 		discovered[table] = struct{}{}
 	}
 
-	var uncovered, stale, unknownAllowlist []string
-	for table := range seedCoverageAllowlist {
+	var uncovered, stale, unknownAllowlist, missingAllowlistReasons []string
+	for table, reason := range seedCoverageAllowlist {
 		if _, ok := discovered[table]; !ok {
 			unknownAllowlist = append(unknownAllowlist, table)
+		}
+		if strings.TrimSpace(reason) == "" {
+			missingAllowlistReasons = append(missingAllowlistReasons, table)
 		}
 	}
 	for _, table := range tables {
@@ -238,6 +241,7 @@ func TestSeedCoverageRatchet(t *testing.T) {
 	sort.Strings(uncovered)
 	sort.Strings(stale)
 	sort.Strings(unknownAllowlist)
+	sort.Strings(missingAllowlistReasons)
 
 	if len(uncovered) > 0 {
 		t.Errorf("%d table(s) hold no seeded data and are not allowlisted:\n  %s\n\n"+
@@ -253,6 +257,10 @@ func TestSeedCoverageRatchet(t *testing.T) {
 	if len(unknownAllowlist) > 0 {
 		t.Errorf("%d seedCoverageAllowlist entry or entries do not name an application table:\n  %s",
 			len(unknownAllowlist), strings.Join(unknownAllowlist, "\n  "))
+	}
+	if len(missingAllowlistReasons) > 0 {
+		t.Errorf("%d seedCoverageAllowlist entry or entries have no reason:\n  %s",
+			len(missingAllowlistReasons), strings.Join(missingAllowlistReasons, "\n  "))
 	}
 
 	t.Logf("seed coverage: %d/%d tables filled, %d allowlisted",
