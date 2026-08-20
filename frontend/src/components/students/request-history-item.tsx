@@ -27,6 +27,7 @@ function MasterDataHistoryCard({
 }: Readonly<{ row: StaffMasterDataHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
       summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
       submittedAt={row.created_at}
@@ -54,6 +55,7 @@ function CareHistoryCard({
   const entries = showDiff ? (row.diff ?? []) : row.requested;
   return (
     <RequestReviewCard
+      type="care_schedule"
       childName={`${row.first_name} ${row.last_name}`}
       summary={
         row.request_kind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten"
@@ -89,6 +91,7 @@ function OfferingHistoryCard({
 }: Readonly<{ row: StaffOfferingRequestHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="offering"
       childName={row.student_name}
       summary="Betreuungsangebote und AGs"
       submittedAt={row.created_at}
@@ -126,6 +129,7 @@ function ExcusedHistoryCard({
 }: Readonly<{ row: StaffExcusedRequestHistoryEntry }>) {
   return (
     <RequestReviewCard
+      type="excused"
       childName={`${row.first_name} ${row.last_name}`}
       summary="Entschuldigte Abmeldung"
       submittedAt={row.created_at}
@@ -160,6 +164,7 @@ export function RequestHistoryItem({
       const row = item.data;
       return (
         <RequestReviewCard
+          type="direct_correction"
           childName={row.student_name}
           summary="Betreuungsangebote und AGs"
           history={{

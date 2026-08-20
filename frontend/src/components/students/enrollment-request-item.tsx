@@ -65,6 +65,7 @@ export function EnrollmentRequestItem({
 
   return (
     <RequestReviewCard
+      type="enrollment"
       childName={childNames}
       summary={
         row.origin === "admin" ? "Anmeldung · Korrektur der OGS" : "Anmeldung"

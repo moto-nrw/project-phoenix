@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -105,6 +105,8 @@ describe("StaffAbsenceRequestList", () => {
 
     expect(await screen.findByText("Abgelehnt")).toBeInTheDocument();
     expect(screen.getByText(/Lea Leitung/)).toBeInTheDocument();
+    // Die Begründung steht im aufgeklappten Teil der Zeile.
+    fireEvent.click(screen.getByRole("button"));
     expect(
       screen.getByText(/Zu viele Abwesenheiten in der Woche/),
     ).toBeInTheDocument();
@@ -153,10 +155,16 @@ describe("StaffAbsenceRequestList", () => {
       />,
     );
 
-    expect(await screen.findByText(/von Unbekannt/)).toBeInTheDocument();
+    // Zeitpunkt und Person stehen im aufgeklappten Teil, also beide Zeilen
+    // öffnen. Die Liste ist eine gemeinsame Fläche; eine einzelne Zeile wird
+    // über ihren eigenen Anker gegriffen, nicht mehr über die Fläche.
+    await screen.findByText("Zurückgezogen");
+    for (const row of screen.getAllByRole("button")) fireEvent.click(row);
+
+    expect(screen.getByText(/von Unbekannt/)).toBeInTheDocument();
     const canceledCard = screen
       .getByText("Zurückgezogen")
-      .closest(".moto-content-surface");
+      .closest("[data-request-row]");
     expect(canceledCard).toBeInTheDocument();
     expect(screen.getAllByText(/von /)).toHaveLength(1);
     expect(canceledCard).toHaveTextContent("Entschieden am 04.06.2027");

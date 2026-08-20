@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { EnrollmentRequestItem } from "./enrollment-request-item";
@@ -42,6 +42,8 @@ function request(
 describe("EnrollmentRequestItem", () => {
   it("zeigt Kinder, Einreichung und die betroffenen Teile der Anmeldung", () => {
     render(<EnrollmentRequestItem row={request()} view="open" />);
+    // Die Zeile ist zugeklappt; das Detail steht erst danach.
+    fireEvent.click(screen.getByRole("button"));
 
     expect(screen.getByText("Lina Beispiel, Timo Beispiel")).toBeVisible();
     expect(screen.getByText("Wartet auf Prüfung")).toBeVisible();
@@ -71,6 +73,8 @@ describe("EnrollmentRequestItem", () => {
         view="history"
       />,
     );
+    // Die Zeile ist zugeklappt; das Detail steht erst danach.
+    fireEvent.click(screen.getByRole("button"));
 
     expect(screen.getByText("Freigegeben")).toBeVisible();
     expect(
@@ -100,6 +104,8 @@ describe("EnrollmentRequestItem", () => {
         view="open"
       />,
     );
+    // Die Zeile ist zugeklappt; das Detail steht erst danach.
+    fireEvent.click(screen.getByRole("button"));
 
     expect(screen.getByText("und 3 weitere Änderungen")).toBeVisible();
   });
@@ -111,6 +117,8 @@ describe("EnrollmentRequestItem", () => {
         view="history"
       />,
     );
+    // Die Zeile ist zugeklappt; das Detail steht erst danach.
+    fireEvent.click(screen.getByRole("button"));
 
     expect(screen.getByText(/Korrektur der OGS/)).toBeVisible();
     expect(screen.queryByText(/von Anna Beispiel/)).toBeNull();

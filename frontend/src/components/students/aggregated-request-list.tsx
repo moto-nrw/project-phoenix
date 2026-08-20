@@ -26,6 +26,7 @@ import { MasterDataReviewItem } from "~/components/students/master-data-review-i
 import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
 import { RequestHistoryItem } from "~/components/students/request-history-item";
+import { RequestRowHeader } from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
 import {
   type AggregatedHistoryRequest,
@@ -327,61 +328,66 @@ export function AggregatedRequestList({
           variant="compact"
         />
       ) : (
-        items.map((item) => {
-          const key = itemKey(item);
-          // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
-          // Entschieden wird in der Detailansicht, hierhin verlinkt sie nur.
-          if (item.request_type === "enrollment") {
-            return (
-              <EnrollmentRequestItem key={key} row={item.data} view={view} />
-            );
-          }
-          if (view === "history") {
-            return (
-              <RequestHistoryItem
-                key={key}
-                item={item as AggregatedHistoryRequest}
-              />
-            );
-          }
-          const open = item as AggregatedOpenRequest;
-          const onDecided = (decidedNotice: string) =>
-            handleDecided(key, decidedNotice);
-          switch (open.request_type) {
-            case "master_data":
+        // Eine gemeinsame Fläche mit Spaltenkopf statt gestapelter Karten: so
+        // richten sich die Zeilen aneinander aus und lesen sich als Tabelle.
+        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+          <RequestRowHeader view={view} />
+          {items.map((item) => {
+            const key = itemKey(item);
+            // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
+            // Entschieden wird in der Detailansicht, hierhin verlinkt sie nur.
+            if (item.request_type === "enrollment") {
               return (
-                <MasterDataReviewItem
+                <EnrollmentRequestItem key={key} row={item.data} view={view} />
+              );
+            }
+            if (view === "history") {
+              return (
+                <RequestHistoryItem
                   key={key}
-                  row={open.data}
-                  onDecided={onDecided}
+                  item={item as AggregatedHistoryRequest}
                 />
               );
-            case "care_schedule":
-              return (
-                <CareRequestReviewItem
-                  key={key}
-                  row={open.data}
-                  onDecided={onDecided}
-                />
-              );
-            case "offering":
-              return (
-                <OfferingRequestReviewItem
-                  key={key}
-                  row={open.data}
-                  onDecided={onDecided}
-                />
-              );
-            case "excused":
-              return (
-                <ExcusedRequestReviewItem
-                  key={key}
-                  row={open.data}
-                  onDecided={onDecided}
-                />
-              );
-          }
-        })
+            }
+            const open = item as AggregatedOpenRequest;
+            const onDecided = (decidedNotice: string) =>
+              handleDecided(key, decidedNotice);
+            switch (open.request_type) {
+              case "master_data":
+                return (
+                  <MasterDataReviewItem
+                    key={key}
+                    row={open.data}
+                    onDecided={onDecided}
+                  />
+                );
+              case "care_schedule":
+                return (
+                  <CareRequestReviewItem
+                    key={key}
+                    row={open.data}
+                    onDecided={onDecided}
+                  />
+                );
+              case "offering":
+                return (
+                  <OfferingRequestReviewItem
+                    key={key}
+                    row={open.data}
+                    onDecided={onDecided}
+                  />
+                );
+              case "excused":
+                return (
+                  <ExcusedRequestReviewItem
+                    key={key}
+                    row={open.data}
+                    onDecided={onDecided}
+                  />
+                );
+            }
+          })}
+        </div>
       )}
       {hasMore && (
         <div className="flex justify-center pt-1">

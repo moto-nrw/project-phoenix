@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { RequestHistoryItem } from "./request-history-item";
@@ -30,9 +30,19 @@ function masterDataItem(
   };
 }
 
+/**
+ * Eine Historien-Zeile ist zugeklappt; Zeitpunkt, Begruendung und das
+ * Aenderungspanel stehen erst danach. Die Zeile ist die einzige Schaltflaeche
+ * einer gerenderten Karte, deshalb reicht der Rollen-Zugriff ohne Namen.
+ */
+function aufklappen() {
+  fireEvent.click(screen.getByRole("button"));
+}
+
 describe("RequestHistoryItem", () => {
   it("zeigt bei Stammdaten Status, Person, Begründung und alt → neu", () => {
     render(<RequestHistoryItem item={masterDataItem()} />);
+    aufklappen();
 
     expect(screen.getByText("Lara Lehmann")).toBeInTheDocument();
     expect(screen.getByText("Abgelehnt")).toBeInTheDocument();
@@ -53,6 +63,7 @@ describe("RequestHistoryItem", () => {
         })}
       />,
     );
+    aufklappen();
 
     expect(screen.getByText("Automatisch übernommen")).toBeInTheDocument();
     expect(
@@ -87,7 +98,11 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
-    expect(screen.getByText(/· Abholzeit$/)).toBeInTheDocument();
+    aufklappen();
+
+    // Die Zusammenfassung steht in einer eigenen Spalte; der frühere Trenner
+    // vor ihr war der zum Kindernamen auf derselben Zeile.
+    expect(screen.getByText("Abholzeit")).toBeInTheDocument();
     expect(screen.getByText("Beantragt")).toBeInTheDocument();
     expect(
       screen.getByText("20.08.2026 · Abholzeit: 15:30"),
@@ -129,6 +144,8 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Änderungen")).toBeInTheDocument();
     expect(
       screen.getByText("Montag · Abholzeit: 15:00 → 16:00"),
@@ -155,6 +172,8 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Zurückgezogen")).toBeInTheDocument();
     expect(screen.getByText("Beantragt")).toBeInTheDocument();
     expect(screen.getByText("Kreativ-AG: Di")).toBeInTheDocument();
@@ -179,6 +198,8 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.queryByText("Beantragt")).not.toBeInTheDocument();
   });
 
@@ -201,6 +222,8 @@ describe("RequestHistoryItem", () => {
     };
 
     render(<RequestHistoryItem item={item} />);
+
+    aufklappen();
 
     expect(screen.getByText("Freigegeben")).toBeInTheDocument();
     expect(
@@ -232,6 +255,8 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
     // Keine Anfrage: nichts wurde eingereicht und nichts entschieden.
     expect(
@@ -262,6 +287,8 @@ describe("RequestHistoryItem", () => {
     };
 
     render(<RequestHistoryItem item={item} />);
+
+    aufklappen();
 
     // Jede Änderung wird dokumentiert, auch die ohne sichtbaren Unterschied
     // an den Tagen — dann sagt die Karte das ausdrücklich.

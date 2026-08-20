@@ -142,6 +142,7 @@ export function MasterDataReviewItem({
 
   return (
     <RequestReviewCard
+      type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
       summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
       submittedAt={row.created_at}

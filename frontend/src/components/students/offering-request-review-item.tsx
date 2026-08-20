@@ -183,6 +183,7 @@ export function OfferingRequestReviewItem({
 
   return (
     <RequestReviewCard
+      type="offering"
       childName={row.student_name}
       summary={`Betreuungsangebote und AGs · ab ${formatDate(row.effective_from)}`}
       badge={

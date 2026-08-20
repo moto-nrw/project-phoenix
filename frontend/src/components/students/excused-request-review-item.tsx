@@ -105,6 +105,7 @@ export function ExcusedRequestReviewItem({
 
   return (
     <RequestReviewCard
+      type="excused"
       childName={`${row.first_name} ${row.last_name}`}
       summary={`Entschuldigte Abmeldung · ${datesSummary(row.dates)}`}
       submittedAt={row.created_at}

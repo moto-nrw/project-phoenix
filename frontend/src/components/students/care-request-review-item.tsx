@@ -120,6 +120,7 @@ export function CareRequestReviewItem({
 
   return (
     <RequestReviewCard
+      type="care_schedule"
       childName={`${row.first_name} ${row.last_name}`}
       summary={summary}
       submittedAt={row.created_at}

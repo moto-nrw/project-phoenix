@@ -9,7 +9,8 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { formatDate, relativeDaysLabel } from "~/lib/date-helpers";
 
 const HISTORY_STATUS_META: Record<
   string,
@@ -24,6 +25,55 @@ const HISTORY_STATUS_META: Record<
 // Eine Direkt-Korrektur ist keine entschiedene Anfrage, sondern eine Änderung
 // der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
 const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
+
+/** Die Anfragearten, die eine Zeile tragen kann. */
+export type RequestRowType =
+  | "master_data"
+  | "care_schedule"
+  | "offering"
+  | "excused"
+  | "enrollment"
+  | "direct_correction"
+  | "absence";
+
+/**
+ * Farbe je Anfrageart, damit eine lange Liste nach Art scanbar ist, ohne dass
+ * jede Zeile ihren Typ noch einmal ausschreibt. Alle sieben Werte sind
+ * verschiedene Farbtöne: zwei Arten, die nebeneinander stehen können, dürfen
+ * nie auf denselben Hex fallen (siehe .claude/rules/frontend-ui-kit.md).
+ */
+const TYPE_COLOR: Record<RequestRowType, string> = {
+  master_data: LOCATION_COLORS.OTHER_ROOM,
+  care_schedule: LOCATION_COLORS.GROUP_ROOM,
+  offering: LOCATION_COLORS.SCHOOLYARD,
+  excused: LOCATION_COLORS.EXCUSED,
+  enrollment: LOCATION_COLORS.NOT_ARRIVAL,
+  direct_correction: LOCATION_COLORS.UNKNOWN,
+  absence: LOCATION_COLORS.TRANSIT,
+};
+
+/**
+ * Spaltenraster der Zeilen. Die Listen rendern damit ihre Kopfzeile, die
+ * Karten ihre Zeile — eine Quelle, damit Kopf und Inhalt nicht auseinander
+ * laufen. Unterhalb von `sm` gibt es kein Raster: eine echte Tabelle ist auf
+ * einem Telefon unbenutzbar, dort stapelt die Zeile.
+ */
+export const OPEN_ROW_GRID =
+  "sm:grid sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto_1rem] sm:items-center sm:gap-3";
+export const HISTORY_ROW_GRID =
+  "sm:grid sm:grid-cols-[5.5rem_minmax(0,10rem)_minmax(0,1fr)_auto_minmax(0,8rem)_1rem] sm:items-center sm:gap-3";
+
+/** Der farbige Punkt, der die Anfrageart trägt. */
+function TypeDot({ type }: Readonly<{ type?: RequestRowType }>) {
+  if (!type) return null;
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+      style={{ backgroundColor: TYPE_COLOR[type] }}
+    />
+  );
+}
 
 type RequestReviewCardHistoryBase = {
   readonly decidedAt: string;
@@ -63,10 +113,17 @@ type RequestReviewCardHistory =
  * an optional reason, and Freigeben / Ablehnen. Shared by the master-data and
  * care-schedule review lists. Color is intentionally sparse — monochrome
  * buttons, no filled green/red.
+ *
+ * Seit dem Tabellenraster (#2413) sind beide Zustände Zeilen einer gemeinsamen
+ * Fläche: der eingeklappte Kopf sitzt in einem festen Spaltenraster, damit alle
+ * Zeilen einer Liste aneinander ausgerichtet stehen. Auch die Historie klappt
+ * auf — vorher stand ihr Änderungspanel dauerhaft offen, drei Einträge füllten
+ * den Bildschirm.
  */
 export function RequestReviewCard({
   childName,
   summary,
+  type,
   badge,
   submittedAt,
   submittedByName,
@@ -83,6 +140,8 @@ export function RequestReviewCard({
 }: Readonly<{
   childName: string;
   summary?: string;
+  /** Anfrageart; färbt den Punkt vor der Zusammenfassung. */
+  type?: RequestRowType;
   /**
    * Hinweis, der schon in der zugeklappten Zeile stehen muss, etwa die
    * Warnung vor einer Komplett-Abmeldung (#2434).
@@ -109,65 +168,96 @@ export function RequestReviewCard({
   onReject?: () => void;
 }>) {
   const [open, setOpen] = useState(false);
+  // Wie lange die Anfrage schon liegt — die Dringlichkeit der Arbeitsliste.
+  const waitingLabel = submittedAt ? relativeDaysLabel(submittedAt) : null;
+
   if (history) {
     const meta = readOnlyCardMeta(history);
+    // Eine Anfrage, über die woanders entschieden wird, steht auch in der
+    // Arbeitsliste — dort ist sie noch nicht entschieden und trägt weder
+    // Zeitpunkt noch Person. Sie nimmt deshalb das Raster der Arbeitsliste,
+    // sonst stünden ihre Spalten quer zu deren Kopfzeile.
+    const decided = Boolean(history.decidedAt);
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-medium text-gray-900">{childName}</span>
-          {summary && (
-            <span className="text-sm text-gray-600">· {summary}</span>
+      <div data-request-row className="border-b border-gray-100 last:border-0">
+        <RowButton
+          open={open}
+          onToggle={() => setOpen((o) => !o)}
+          grid={decided ? HISTORY_ROW_GRID : OPEN_ROW_GRID}
+        >
+          {history.decidedAt && (
+            <span className="hidden text-xs text-gray-500 sm:block">
+              {formatDate(history.decidedAt)}
+            </span>
           )}
-          <StatusBadge label={meta.label} tone={meta.tone} />
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          {submittedAt
-            ? `Eingereicht am ${formatDate(submittedAt)}${
-                submittedByName ? ` von ${submittedByName}` : ""
-              }`
-            : ""}
-          {submittedAt && history.decidedAt ? " · " : ""}
-          {history.decidedAt
-            ? `${history.kind === "correction" ? "Geändert am " : "Entschieden am "}${formatDate(history.decidedAt)}${
-                history.decidedByName ? ` von ${history.decidedByName}` : ""
-              }`
-            : ""}
-        </p>
-        {history.reason && (
-          <p className="mt-1 text-sm text-gray-600 italic">
-            „{history.reason}“
-          </p>
+          <span className="truncate text-sm font-semibold text-gray-900">
+            {childName}
+          </span>
+          <span className="flex min-w-0 items-center gap-2">
+            <TypeDot type={type} />
+            {summary && (
+              <span className="truncate text-sm text-gray-600">{summary}</span>
+            )}
+            {!decided && <StatusBadge label={meta.label} tone={meta.tone} />}
+          </span>
+          {decided && <StatusBadge label={meta.label} tone={meta.tone} />}
+          <span className="hidden truncate text-xs text-gray-500 sm:block">
+            {decided ? (history.decidedByName ?? "") : (waitingLabel ?? "")}
+          </span>
+        </RowButton>
+        {open && (
+          <div className="px-4 pb-4 sm:px-5">
+            <p className="text-xs text-gray-500">
+              {submittedAt
+                ? `Eingereicht am ${formatDate(submittedAt)}${
+                    submittedByName ? ` von ${submittedByName}` : ""
+                  }`
+                : ""}
+              {submittedAt && history.decidedAt ? " · " : ""}
+              {history.decidedAt
+                ? `${history.kind === "correction" ? "Geändert am " : "Entschieden am "}${formatDate(history.decidedAt)}${
+                    history.decidedByName ? ` von ${history.decidedByName}` : ""
+                  }`
+                : ""}
+            </p>
+            {history.reason && (
+              <p className="mt-1 text-sm text-gray-600 italic">
+                „{history.reason}“
+              </p>
+            )}
+            {children && <div className="mt-2">{children}</div>}
+            {action && <div className="mt-3">{action}</div>}
+          </div>
         )}
-        {children && <div className="mt-2">{children}</div>}
-        {action && <div className="mt-3">{action}</div>}
       </div>
     );
   }
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50/60 sm:px-5"
+    <div data-request-row className="border-b border-gray-100 last:border-0">
+      <RowButton
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        grid={OPEN_ROW_GRID}
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+        <span className="truncate text-sm font-semibold text-gray-900">
           {childName}
         </span>
-        {badge}
-        <span className="hidden shrink-0 truncate text-sm text-gray-500 sm:block">
-          {summary}
+        <span className="flex min-w-0 items-center gap-2">
+          <TypeDot type={type} />
+          {badge}
+          <span className="hidden truncate text-sm text-gray-500 sm:block">
+            {summary}
+          </span>
         </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
+        <span className="hidden text-xs text-gray-400 sm:block">
+          {waitingLabel ?? ""}
+        </span>
+      </RowButton>
       {open && (
-        <div className="border-t border-gray-100 px-4 pb-4 sm:px-5">
+        <div className="px-4 pb-4 sm:px-5">
           {submittedAt && (
-            <p className="mt-3 text-xs text-gray-500">
+            <p className="text-xs text-gray-500">
               Eingereicht am {formatDate(submittedAt)}
             </p>
           )}
@@ -210,6 +300,37 @@ export function RequestReviewCard({
   );
 }
 
+/**
+ * Der aufklappbare Zeilenkopf. Trägt das Spaltenraster und den Pfeil; die
+ * Zellen kommen als children, damit jede Ansicht ihre eigenen Spalten setzt.
+ */
+function RowButton({
+  open,
+  onToggle,
+  grid,
+  children,
+}: Readonly<{
+  open: boolean;
+  onToggle: () => void;
+  grid: string;
+  children: ReactNode;
+}>) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-gray-50/60 sm:px-5 ${grid}`}
+    >
+      {children}
+      <ChevronDown
+        className={`ml-auto h-4 w-4 shrink-0 text-gray-400 transition-transform sm:ml-0 ${open ? "rotate-180" : ""}`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
 /** Beschriftung und Farbe der Lese-Karte, je nach Art der Zeile. */
 function readOnlyCardMeta(history: RequestReviewCardHistory): {
   label: string;
@@ -242,6 +363,42 @@ export function ReviewDiffPanel({
         {title}
       </p>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Die Spaltenüberschriften über einer Zeilenliste. Nutzt dieselben Raster wie
+ * die Zeilen selbst und erscheint erst ab `sm` — darunter stapeln die Zeilen
+ * und eine Kopfzeile hätte nichts, worüber sie stehen könnte.
+ */
+export function RequestRowHeader({
+  view,
+}: Readonly<{ view: "open" | "history" }>) {
+  const cell = "truncate";
+  return (
+    <div
+      aria-hidden
+      className={`hidden border-b border-gray-100 px-4 py-2.5 text-xs font-medium text-gray-500 sm:px-5 ${
+        view === "history" ? HISTORY_ROW_GRID : OPEN_ROW_GRID
+      }`}
+    >
+      {view === "history" ? (
+        <>
+          <span className={cell}>Entschieden</span>
+          <span className={cell}>Kind</span>
+          <span className={cell}>Was geändert wurde</span>
+          <span className={cell}>Status</span>
+          <span className={cell}>Von</span>
+        </>
+      ) : (
+        <>
+          <span className={cell}>Kind</span>
+          <span className={cell}>Was geändert werden soll</span>
+          <span className={cell}>Wartet seit</span>
+        </>
+      )}
+      <span />
     </div>
   );
 }

@@ -366,3 +366,32 @@ export function getStartDateForTimeRange(
   startDate.setHours(0, 0, 0, 0);
   return startDate;
 }
+
+/**
+ * Wie lange etwas schon liegt, als kurze deutsche Angabe ("heute",
+ * "gestern", "vor 5 Tagen"). Für Warteschlangen, in denen das Alter eines
+ * Eintrags die eigentliche Dringlichkeit trägt und ein Datum erst im Kopf
+ * ausgerechnet werden müsste.
+ *
+ * Gezählt werden Berliner Kalendertage, nicht 24-Stunden-Blöcke: eine
+ * Anfrage von gestern 23:00 Uhr ist heute früh "gestern" und nicht "heute".
+ * `at` ist injizierbar, damit Tests nicht an der echten Uhr hängen.
+ *
+ * Gibt null zurück, wenn der Wert nicht lesbar ist — dann zeigt die Zeile
+ * eben kein Alter, statt "NaN" zu schreiben.
+ */
+export function relativeDaysLabel(
+  dateString: string,
+  at: Date = new Date(),
+): string | null {
+  const then = berlinDayFromISO(dateString);
+  if (then === null) return null;
+  const today = parseISODate(berlinTodayISO(at));
+  const days = Math.round(
+    (today.getTime() - then.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  if (Number.isNaN(days) || days < 0) return null;
+  if (days === 0) return "heute";
+  if (days === 1) return "gestern";
+  return `vor ${days} Tagen`;
+}
