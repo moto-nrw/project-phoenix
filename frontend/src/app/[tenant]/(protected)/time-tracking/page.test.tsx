@@ -661,6 +661,14 @@ function setupDefaultMocks(overrides?: {
         isValidating: false,
         error: undefined,
       } as never;
+    } else if (key === "staff-absence-types") {
+      return {
+        data: [],
+        isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
     } else {
       return {
         data: absences,
