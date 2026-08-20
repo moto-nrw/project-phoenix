@@ -14,18 +14,12 @@ import (
 // RootCmd Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestRootCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "phoenix", RootCmd.Use)
 	assert.Contains(t, RootCmd.Short, "RFID-based")
 	assert.Contains(t, RootCmd.Long, "Project Phoenix")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestRootCmd_HasCommands(t *testing.T) {
 	commands := RootCmd.Commands()
 	assert.NotEmpty(t, commands, "RootCmd should have subcommands")
@@ -43,18 +37,12 @@ func TestRootCmd_HasCommands(t *testing.T) {
 	assert.Contains(t, names, "simulate")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestRootCmd_PersistentFlags(t *testing.T) {
 	f := RootCmd.PersistentFlags()
 	assert.NotNil(t, f.Lookup("config"))
 	assert.NotNil(t, f.Lookup("db_debug"))
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestRootCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	RootCmd.SetOut(buf)
@@ -72,9 +60,6 @@ func TestRootCmd_UsageOutput(t *testing.T) {
 // initConfig Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestInitConfig_DefaultConfig(t *testing.T) {
 	oldCfgFile := cfgFile
 	cfgFile = ""
@@ -86,9 +71,6 @@ func TestInitConfig_DefaultConfig(t *testing.T) {
 	assert.NotNil(t, viper.GetViper())
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestInitConfig_WithConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := tmpDir + "/test.env"
@@ -104,9 +86,6 @@ func TestInitConfig_WithConfigFile(t *testing.T) {
 	assert.Equal(t, configPath, viper.ConfigFileUsed())
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestInitConfig_WithNonExistentConfigFile(t *testing.T) {
 	oldCfgFile := cfgFile
 	cfgFile = "/nonexistent/path/config.env"

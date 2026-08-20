@@ -70,7 +70,7 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 			return nil, err
 		}
 		if opts.CheckLeftovers && len(own) > 0 {
-			labels, err := packageLabels(ctx, conn, own)
+			labels, err := packageLabels(ctx, conn, runPrefix)
 			if err != nil {
 				return nil, err
 			}
@@ -123,23 +123,13 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 // timestamp, and EnsureTemplate rebuilds them when their hash comes back.
 // Callers must hold the lifecycle lock.
 func gcTemplatesLocked(ctx context.Context, maint sqlExecutor, cfg *Config, now time.Time) ([]string, error) {
-	prefix := cfg.BaseTemplateName() + "_"
-	rows, err := maint.QueryContext(ctx, `
-		SELECT d.datname, COALESCE(sd.description, '')
-		FROM pg_database d
-		LEFT JOIN pg_shdescription sd ON sd.objoid = d.oid AND sd.classoid = 'pg_database'::regclass
-		WHERE LEFT(d.datname, char_length($1)) = $1`, prefix)
+	comments, err := databaseComments(ctx, maint, cfg.BaseTemplateName()+"_")
 	if err != nil {
 		return nil, fmt.Errorf("list test database templates: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	var stale []string
-	for rows.Next() {
-		var name, comment string
-		if err := rows.Scan(&name, &comment); err != nil {
-			return nil, fmt.Errorf("scan template name: %w", err)
-		}
+	for name, comment := range comments {
 		if name == cfg.TemplateName() {
 			continue
 		}
@@ -149,9 +139,7 @@ func gcTemplatesLocked(ctx context.Context, maint sqlExecutor, cfg *Config, now 
 		}
 		stale = append(stale, name)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list test database templates: %w", err)
-	}
+	sort.Strings(stale)
 
 	var dropped []string
 	for _, name := range stale {
@@ -200,24 +188,61 @@ func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string
 	return names, rows.Err()
 }
 
-// tenantIdentityTables are the two tables whose own primary key IS the tenant
-// (a school's ID is the tenant ID, and its organization is created under the
-// same ID by the test fixtures). They carry no tenant_id column, so the band
-// check reads their id instead.
+// sharedRowPredicates answers, per table, the question "is this row SHARED
+// state rather than a test's own?" — as a SQL condition over the table
+// aliased `t`. An empty condition means every row of the table is shared.
+//
+// Three shapes, in the order the resolver tries them:
+//
+//  1. A tenant_id column: below the test band (or absent) means shared.
+//     That is the default and covers ~90% of the schema.
+//  2. Tables whose own primary key IS the tenant (a school's ID is the tenant
+//     ID; the fixtures create its organization under the same ID).
+//  3. Tables that reach their tenant through a mapping row. auth.accounts is
+//     the important one: an account carries no tenant_id at all — the link to
+//     a school lives in auth.account_tenants. An account that maps to a test
+//     tenant was created by a test and dies with the clone; only one that
+//     maps nowhere, or nowhere test-owned, is shared state.
+//
+// Shape 3 is why this is a predicate and not a column name. Enumerating the
+// mapping tables by hand is the price; the alternative was tolerating
+// auth.accounts as a leftover in three quarters of all packages.
 var tenantIdentityTables = map[string]string{
 	"platform.schools":       "id",
 	"platform.organizations": "id",
 }
 
-// tableOwnerColumns maps every base table in dsn's non-system schemas to the
-// column that decides tenant ownership: "tenant_id" where the column exists,
-// "id" for the two tenant-identity tables, "" for genuinely shared tables
-// (platform operators, migration bookkeeping, …) where every row is shared
-// state.
+// mappedTenantTables reach their tenant through a join table.
+var mappedTenantTables = map[string]struct{ mappingTable, foreignKey string }{
+	"auth.accounts": {"auth.account_tenants", "account_id"},
+}
+
+func sharedRowPredicate(table string, hasTenantID bool) string {
+	switch {
+	case hasTenantID:
+		return fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase)
+	case tenantIdentityTables[table] != "":
+		return fmt.Sprintf("t.%s < %d", tenantIdentityTables[table], TenantIDBase)
+	default:
+		if m, ok := mappedTenantTables[table]; ok {
+			return fmt.Sprintf(
+				"NOT EXISTS (SELECT 1 FROM %s m WHERE m.%s = t.id AND m.tenant_id >= %d)",
+				m.mappingTable, m.foreignKey, TenantIDBase)
+		}
+		return ""
+	}
+}
+
+// tableOwnerColumns maps every base table in dsn's non-system schemas to its
+// shared-row predicate (see sharedRowPredicates).
 func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, error) {
 	db := openSQL(dsn)
 	defer func() { _ = db.Close() }()
+	return tableSharedPredicates(ctx, db)
+}
 
+// tableSharedPredicates is tableOwnerColumns on a pool the caller already has.
+func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]string, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT n.nspname || '.' || c.relname,
 		       EXISTS (
@@ -241,12 +266,7 @@ func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, erro
 		if err := rows.Scan(&table, &hasTenantID); err != nil {
 			return nil, err
 		}
-		switch {
-		case hasTenantID:
-			owners[table] = "tenant_id"
-		default:
-			owners[table] = tenantIdentityTables[table]
-		}
+		owners[table] = sharedRowPredicate(table, hasTenantID)
 	}
 	return owners, rows.Err()
 }
@@ -258,12 +278,16 @@ func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, erro
 func countSharedRows(ctx context.Context, dsn string, owners map[string]string) (map[string]int64, error) {
 	db := openSQL(dsn)
 	defer func() { _ = db.Close() }()
+	return countSharedRowsDB(ctx, db, owners)
+}
 
+// countSharedRowsDB is countSharedRows on a pool the caller already has.
+func countSharedRowsDB(ctx context.Context, db sqlExecutor, predicates map[string]string) (map[string]int64, error) {
 	// One round trip for ~300 tables instead of ~300: the per-table counts are
 	// pushed into the server as query_to_xml sub-selects. The sweep runs this
 	// once per clone (~160 per suite run), so the difference is minutes.
-	tables := make([]string, 0, len(owners))
-	for table := range owners {
+	tables := make([]string, 0, len(predicates))
+	for table := range predicates {
 		tables = append(tables, table)
 	}
 	sort.Strings(tables)
@@ -272,10 +296,9 @@ func countSharedRows(ctx context.Context, dsn string, owners map[string]string) 
 	args := make([]any, 0, 2*len(tables))
 	for i, table := range tables {
 		// table and owner come from pg_catalog of the trusted test server.
-		count := `SELECT count(*) AS c FROM ` + quoteQualified(table)
-		if owners[table] != "" {
-			col := quoteIdentifier(owners[table])
-			count += fmt.Sprintf(` WHERE %s IS NULL OR %s < %d`, col, col, TenantIDBase)
+		count := `SELECT count(*) AS c FROM ` + quoteQualified(table) + ` AS t`
+		if pred := predicates[table]; pred != "" {
+			count += ` WHERE ` + pred
 		}
 		if i > 0 {
 			values.WriteString(",")
@@ -295,7 +318,7 @@ func countSharedRows(ctx context.Context, dsn string, owners map[string]string) 
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := make(map[string]int64, len(owners))
+	counts := make(map[string]int64, len(predicates))
 	for rows.Next() {
 		var table string
 		var n int64
@@ -308,39 +331,46 @@ func countSharedRows(ctx context.Context, dsn string, owners map[string]string) 
 }
 
 // packageLabels reads the package stamp off each clone.
-func packageLabels(ctx context.Context, maint sqlExecutor, clones []string) (map[string]string, error) {
-	labels := make(map[string]string, len(clones))
+func packageLabels(ctx context.Context, maint sqlExecutor, prefix string) (map[string]string, error) {
+	comments, err := databaseComments(ctx, maint, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("read clone package labels: %w", err)
+	}
+	labels := make(map[string]string, len(comments))
+	for name, comment := range comments {
+		labels[name] = PackageLabelOf(comment)
+	}
+	return labels, nil
+}
+
+// databaseComments returns the shared comment of every database whose name
+// starts with prefix. Both stamps the lifecycle writes live in that comment:
+// a template's migrations hash and a clone's package label.
+func databaseComments(ctx context.Context, maint sqlExecutor, prefix string) (map[string]string, error) {
 	rows, err := maint.QueryContext(ctx, `
 		SELECT d.datname, COALESCE(sd.description, '')
 		FROM pg_database d
 		LEFT JOIN pg_shdescription sd ON sd.objoid = d.oid AND sd.classoid = 'pg_database'::regclass
-		WHERE d.datname = ANY($1)`, pgArray(clones))
+		WHERE LEFT(d.datname, char_length($1)) = $1`, prefix)
 	if err != nil {
-		return nil, fmt.Errorf("read clone package labels: %w", err)
+		return nil, fmt.Errorf("read database comments for prefix %q: %w", prefix, err)
 	}
 	defer func() { _ = rows.Close() }()
+
+	comments := make(map[string]string)
 	for rows.Next() {
 		var name, comment string
 		if err := rows.Scan(&name, &comment); err != nil {
 			return nil, err
 		}
-		labels[name] = PackageLabelOf(comment)
+		comments[name] = comment
 	}
-	return labels, rows.Err()
-}
-
-// pgArray renders a string slice as a postgres array literal for `= ANY(...)`.
-// Clone names are generated identifiers ([a-z0-9_]), so no escaping is needed
-// beyond the braces.
-func pgArray(values []string) string {
-	return "{" + strings.Join(values, ",") + "}"
+	return comments, rows.Err()
 }
 
 func quoteQualified(schemaDotTable string) string {
-	for i := 0; i < len(schemaDotTable); i++ {
-		if schemaDotTable[i] == '.' {
-			return quoteIdentifier(schemaDotTable[:i]) + "." + quoteIdentifier(schemaDotTable[i+1:])
-		}
+	if schema, table, ok := strings.Cut(schemaDotTable, "."); ok {
+		return quoteIdentifier(schema) + "." + quoteIdentifier(table)
 	}
 	return quoteIdentifier(schemaDotTable)
 }
@@ -350,12 +380,15 @@ func quoteQualified(schemaDotTable string) string {
 // yields no deltas: there is nothing to compare against, and a missing
 // snapshot must not read as "this package left rows behind".
 func leftoverDeltas(ctx context.Context, cloneDSN string) ([]TableDelta, error) {
-	baseline, owners, ok, err := readSharedBaseline(ctx, cloneDSN)
+	db := openSQL(cloneDSN)
+	defer func() { _ = db.Close() }()
+
+	baseline, predicates, ok, err := readSharedBaseline(ctx, db)
 	if err != nil || !ok {
 		return nil, err
 	}
 
-	cloneCounts, err := countSharedRows(ctx, cloneDSN, owners)
+	cloneCounts, err := countSharedRowsDB(ctx, db, predicates)
 	if err != nil {
 		return nil, err
 	}

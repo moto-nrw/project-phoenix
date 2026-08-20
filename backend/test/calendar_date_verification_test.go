@@ -18,6 +18,7 @@ package test
 
 import (
 	"bufio"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -260,7 +261,7 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 				continue
 			}
 
-			ref := "database/migrations/" + entry.Name() + ":" + itoa(lineNo)
+			ref := fmt.Sprintf("database/migrations/%s:%d", entry.Name(), lineNo)
 			if m := addColRe.FindStringSubmatch(line); m != nil {
 				result[currentTable+"."+m[1]] = ref
 			} else if m := colDeclRe.FindStringSubmatch(line); m != nil {
@@ -356,7 +357,7 @@ func scanModelDateFields(t *testing.T, root string, dateColumns map[string]strin
 				result[key] = append(result[key], fi)
 				if strings.Contains(bunTag, "type:date") {
 					if _, known := dateColumns[key]; !known {
-						dateColumns[key] = rel + ":" + itoa(fi.line) + " (type:date tag)"
+						dateColumns[key] = fmt.Sprintf("%s:%d (type:date tag)", rel, fi.line)
 					}
 				}
 			}

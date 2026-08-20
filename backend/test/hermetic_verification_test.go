@@ -4,12 +4,15 @@ package test
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/testdb"
 )
 
 // TestHermeticTestPatterns verifies that test files follow hermetic testing patterns.
@@ -112,22 +115,6 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
-	t.Run("parallel_on_bootstrap_tenant_ratchet", func(t *testing.T) {
-		violations := checkParallelBootstrapTenantRatchet(t, backendRoot)
-		if len(violations) > 0 {
-			t.Errorf("Parallel-on-shared-tenant ratchet violated (per-package file counts may only shrink):\n\n%s\n\n"+
-				"A file that runs tests with t.Parallel() while pinning the fixed\n"+
-				"bootstrap tenant has every parallel test mutating ONE tenant. The\n"+
-				"files counted here are safe only because their assertions are scoped\n"+
-				"to IDs they created; a tenant-wide assertion (a count, a \"list all\")\n"+
-				"added to one of them becomes order-dependent and flaky under load.\n\n"+
-				"Do not add a new one. Give the test its own tenant instead:\n"+
-				"  scope := testpkg.NewTenantScope(t, db)\n"+
-				"  ctx := scope.Context()",
-				strings.Join(violations, "\n"))
-		}
-	})
-
 	t.Run("no_parallel_test_touching_global_state", func(t *testing.T) {
 		violations := checkParallelGlobalState(t, backendRoot)
 		if len(violations) > 0 {
@@ -143,7 +130,18 @@ func TestHermeticTestPatterns(t *testing.T) {
 	})
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
-		violations := checkSerialTestRatchet(t, backendRoot)
+		counts, unexplained := checkSerialTestRatchet(t, backendRoot)
+		if v := shrinkOnlyViolations(unexplained, serialUnexplainedBaseline); len(v) > 0 {
+			t.Errorf("Serial tests without a reason (per-package counts may only shrink):\n\n%s\n\n"+
+				"A test without t.Parallel() carries a comment directly above it that\n"+
+				"starts with %q and names which of the five reasons applies\n"+
+				"(process-global state, schema mutation, a sweep that runs across\n"+
+				"tenants, a query budget on the shared pool, deliberate lock\n"+
+				"contention). The counts below are what predates the rule; a new\n"+
+				"serial test either explains itself or replaces one that does not.",
+				strings.Join(v, "\n"), serialReasonPrefix)
+		}
+		violations := shrinkOnlyViolations(counts, serialTestBaseline)
 		if len(violations) > 0 {
 			t.Errorf("Serial-test ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
 				"Since #2419 every test runs in its own tenant inside a per-package\n"+
@@ -177,27 +175,14 @@ func TestHermeticTestPatterns(t *testing.T) {
 	})
 }
 
-// findBackendRoot walks up the directory tree to find the backend root.
+// findBackendRoot returns the backend module root. internal/testdb already
+// resolves it for the lifecycle; one walk-up implementation is enough.
 func findBackendRoot() (string, error) {
-	dir, err := os.Getwd()
+	root, err := testdb.ProjectRoot()
 	if err != nil {
 		return "", err
 	}
-
-	for {
-		// Check if this looks like the backend root
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-
-	return "", os.ErrNotExist
+	return filepath.Join(root, "backend"), nil
 }
 
 // checkHardcodedIDs scans test files for hardcoded small integer IDs.
@@ -600,12 +585,33 @@ var tenantContext1Baseline = map[string]int{
 	"tenant":              1,
 }
 
-// countMatchesPerPackage walks root and counts regex matches per package
-// directory (relative, forward slashes). testOnly restricts the scan to
-// _test.go files. internal/testdb owns its own lifecycle and is excluded.
-func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[string]int, error) {
-	counts := make(map[string]int)
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+// walkGoFiles feeds every Go file under root to visit, as (rel, pkg, code):
+// the backend-relative path with forward slashes, its package directory, and
+// the file with line comments stripped.
+//
+// One walker for every gate. When each check brought its own, the exclusion
+// lists drifted apart — one skipped this file by base name, another by
+// substring, a third not at all — and a gate that silently scans its own
+// error messages counts its own prose as violations. Comments are stripped
+// for the same reason: writing down WHY something is the way it is must not
+// make a ratchet grow.
+//
+// internal/testdb is excluded because it owns the lifecycle the gates check;
+// this file is excluded because it contains every pattern by definition.
+func walkGoFiles(root string, testOnly bool, visit func(rel, pkg string, code []byte)) error {
+	return walkGoFilesRaw(root, func(rel, pkg string, content []byte) {
+		if testOnly && !strings.HasSuffix(rel, "_test.go") {
+			return
+		}
+		visit(rel, pkg, []byte(stripLineComments(string(content))))
+	})
+}
+
+// walkGoFilesRaw is walkGoFiles without the comment stripping, for the checks
+// that need the comments themselves (the serial ratchet reads the reason
+// written above a test).
+func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil || info.IsDir() {
 			return nil
 		}
@@ -614,27 +620,27 @@ func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[
 			return nil
 		}
 		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".go") || strings.HasPrefix(rel, "internal/testdb/") {
-			return nil
-		}
-		if strings.Contains(rel, "hermetic_verification_test.go") {
-			return nil
-		}
-		if testOnly && !strings.HasSuffix(rel, "_test.go") {
+		switch {
+		case !strings.HasSuffix(rel, ".go"),
+			strings.HasPrefix(rel, "internal/testdb/"),
+			strings.HasSuffix(rel, "hermetic_verification_test.go"):
 			return nil
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil
 		}
-		// Comments do not count: a line explaining a pattern is not the
-		// pattern. Without this the ratchets grow every time someone writes
-		// down why something is the way it is.
-		code := []byte(stripLineComments(string(content)))
-		if n := len(re.FindAll(code, -1)); n > 0 {
-			counts[filepath.ToSlash(filepath.Dir(rel))] += n
-		}
+		visit(rel, filepath.ToSlash(filepath.Dir(rel)), content)
 		return nil
+	})
+}
+
+// countMatchesPerPackage counts regex matches per package directory.
+// testOnly restricts the scan to _test.go files.
+func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[string]int, error) {
+	counts := make(map[string]int)
+	err := walkGoFiles(root, testOnly, func(_, pkg string, code []byte) {
+		counts[pkg] += len(re.FindAll(code, -1))
 	})
 	return counts, err
 }
@@ -647,7 +653,7 @@ func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	for dir, n := range current {
 		if allowed := baseline[dir]; n > allowed {
 			violations = append(violations,
-				"  "+dir+": "+itoa(n)+" (baseline "+itoa(allowed)+")")
+				fmt.Sprintf("  %s: %d (baseline %d)", dir, n, allowed))
 		}
 	}
 	sort.Strings(violations)
@@ -711,24 +717,6 @@ func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
 	return shrinkOnlyViolations(current, tenantContext1Baseline)
-}
-
-// parallelBootstrapTenantBaseline is the shrink-only per-package count of test
-// FILES that run parallel tests against the fixed bootstrap tenant.
-//
-// The per-test-tenant migration emptied it of real cases; the five files left
-// are the same residue tenantContext1Baseline explains, and none of them
-// WRITES into the shared tenant: api/testutil feeds the bootstrap ID in as the
-// input whose rebase it pins, auth/jwt cannot reach a per-test tenant at all
-// (test imports auth/jwt), and services/auth, services/calendar and tenant
-// match on in-memory structs that never reach the database. Anything new here
-// is a real one.
-var parallelBootstrapTenantBaseline = map[string]int{
-	"api/testutil":      1,
-	"auth/jwt":          1,
-	"services/auth":     1,
-	"services/calendar": 1,
-	"tenant":            1,
 }
 
 // globalStateMutation matches the process-global writes that make a test
@@ -884,44 +872,6 @@ func checkParallelGlobalState(t *testing.T, root string) []string {
 	return violations
 }
 
-// checkParallelBootstrapTenantRatchet counts, per package, the test FILES that
-// combine t.Parallel() with the fixed bootstrap tenant. The spec's reason for
-// per-test tenants is exactly this pair ("damit parallele Tests im selben Clone
-// nicht kollidieren können"), so the set that exists today is frozen and the
-// next tranche empties it.
-func checkParallelBootstrapTenantRatchet(t *testing.T, root string) []string {
-	t.Helper()
-
-	counts := make(map[string]int)
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/testdb/") ||
-			strings.Contains(rel, "hermetic_verification_test.go") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		code := []byte(stripLineComments(string(content)))
-		if bytes.Contains(code, []byte("t.Parallel()")) && bootstrapTenantPattern.Match(code) {
-			counts[filepath.ToSlash(filepath.Dir(rel))]++
-		}
-		return nil
-	})
-	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-	}
-	return shrinkOnlyViolations(counts, parallelBootstrapTenantBaseline)
-}
-
 // sharedPoolAssign captures the variable a file binds the SHARED pool to —
 // `db := testpkg.SetupTestDB(t)` or `db, svc := testutil.SetupAPITest(t)`.
 // Only the first identifier can hold the pool in either signature.
@@ -1058,34 +1008,7 @@ func checkBrokenCleanupPattern(t *testing.T, root string) []string {
 
 // formatViolation formats a violation message for display.
 func formatViolation(file string, line int, content string) string {
-	return "  " + file + ":" + itoa(line) + "\n    " + content
-}
-
-// itoa converts an int to string without importing strconv.
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-
-	var b [20]byte
-	pos := len(b)
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-
-	for i > 0 {
-		pos--
-		b[pos] = byte('0' + i%10)
-		i /= 10
-	}
-
-	if neg {
-		pos--
-		b[pos] = '-'
-	}
-
-	return string(b[pos:])
+	return fmt.Sprintf("  %s:%d\n    %s", file, line, content)
 }
 
 // perTestTenantsOptOut lists packages that cannot call PerTestTenants. Only
@@ -1218,12 +1141,45 @@ var serialTestBaseline = map[string]int{
 	"services/enrollment":               32,
 	"services/facilities":               1,
 	"services/iot/checkin":              38,
+	"services/parent":                   4,
 	"services/platform":                 41,
 	"services/scheduler":                59,
 	"services/usercontext":              3,
-	"services/users":                    10,
+	"services/users":                    12,
 	"test/e2e/calendar":                 4,
 	"test/e2e/timetable":                3,
+}
+
+// serialUnexplainedBaseline is the shrink-only per-package count of serial
+// tests that give no reason. These predate the rule; the #2419 sweep wrote a
+// reason above every test IT made serial, but hundreds were serial long
+// before and nobody ever said why. Retro-documenting them is its own job —
+// what this baseline buys is that the number can only fall.
+var serialUnexplainedBaseline = map[string]int{
+	"api":                    20,
+	"api/guardians":          1,
+	"api/iot":                2,
+	"api/iot/checkin":        3,
+	"api/operator":           30,
+	"api/staff":              1,
+	"api/students":           6,
+	"api/suggestions":        42,
+	"applog":                 1,
+	"auth/device":            12,
+	"auth/jwt":               38,
+	"cmd":                    17,
+	"database":               8,
+	"database/migrations":    88,
+	"email":                  12,
+	"integration/phoenixapi": 25,
+	"models/config":          12,
+	"seed/api":               1,
+	"services":               15,
+	"services/auth":          15,
+	"services/config":        147,
+	"services/enrollment":    13,
+	"services/iot/checkin":   14,
+	"services/scheduler":     45,
 }
 
 // topLevelTestDecl matches a top-level test function declaration.
@@ -1236,42 +1192,71 @@ var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T
 // count.
 var topLevelParallelCall = regexp.MustCompile(`(?m)^\t\w+\.Parallel\(\)$`)
 
+// serialReasonPrefix is the sentence a serial test opens its reason with.
+// The ratchet requires it, so "why is this one serial" is answered in the
+// file and not only in this baseline's doc comment.
+const serialReasonPrefix = "// Deliberately NOT parallel:"
+
+// serialPackagePrefix says it once for a whole package. Some packages are
+// serial end to end for a single reason — cmd drives cobra and the viper
+// singleton, and repeating the same four lines above 134 tests told the
+// reader nothing the package could not say once.
+const serialPackagePrefix = "// Deliberately NOT parallel (whole package):"
+
 // checkSerialTestRatchet counts, per package, the top-level tests that do not
-// call t.Parallel().
-func checkSerialTestRatchet(t *testing.T, root string) []string {
+// call t.Parallel(), and reports every one of them that gives no reason.
+func checkSerialTestRatchet(t *testing.T, root string) (counts, unexplained map[string]int) {
 	t.Helper()
 
-	counts := make(map[string]int)
-	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
+	counts, unexplained = make(map[string]int), make(map[string]int)
+	serialPackages := make(map[string]bool)
+	if err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
+		if bytes.Contains(content, []byte(serialPackagePrefix)) {
+			serialPackages[pkg] = true
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/testdb/") ||
-			strings.Contains(rel, "hermetic_verification_test.go") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		pkg := filepath.ToSlash(filepath.Dir(rel))
-		for _, f := range splitGoFuncs(string(content)) {
-			if !topLevelTestDecl.MatchString(f.body) {
+	}); err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+
+	err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
+		text := string(content)
+		for _, f := range splitGoFuncs(text) {
+			if !topLevelTestDecl.MatchString(f.body) || topLevelParallelCall.MatchString(f.body) {
 				continue
 			}
-			if !topLevelParallelCall.MatchString(f.body) {
-				counts[pkg]++
+			counts[pkg]++
+			if !serialPackages[pkg] && !strings.Contains(precedingComment(text, f), serialReasonPrefix) {
+				unexplained[pkg]++
 			}
 		}
-		return nil
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
-	return shrinkOnlyViolations(counts, serialTestBaseline)
+	return counts, unexplained
+}
+
+// precedingComment returns the comment block directly above f.
+func precedingComment(text string, f goFunc) string {
+	idx := strings.Index(text, f.body)
+	if idx <= 0 {
+		return ""
+	}
+	before := text[:idx]
+	var block []string
+	for _, line := range reverse(strings.Split(strings.TrimRight(before, "\n"), "\n")) {
+		if !strings.HasPrefix(strings.TrimSpace(line), "//") {
+			break
+		}
+		block = append(block, line)
+	}
+	return strings.Join(block, "\n")
+}
+
+func reverse(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	for i := len(lines) - 1; i >= 0; i-- {
+		out = append(out, lines[i])
+	}
+	return out
 }

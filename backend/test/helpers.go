@@ -86,11 +86,15 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 // CleanupTableRecords removes records from a schema-qualified table by ID.
 // Use this for simple single-table cleanup without FK dependencies.
 //
+// The ID type is generic because the suite has both: most tables use bigint
+// keys, RFID cards use strings. Two copies of this function drifted apart
+// once already.
+//
 // Usage:
 //
-//	defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-//	defer testpkg.CleanupTableRecords(t, db, "iot.devices", device1.ID, device2.ID)
-func CleanupTableRecords(tb testing.TB, db *bun.DB, table string, ids ...int64) {
+//	testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+//	testpkg.CleanupTableRecords(t, db, "users.rfid_cards", card.ID)
+func CleanupTableRecords[ID int64 | string](tb testing.TB, db *bun.DB, table string, ids ...ID) {
 	tb.Helper()
 	if len(ids) == 0 {
 		return
@@ -108,24 +112,11 @@ func CleanupTableRecords(tb testing.TB, db *bun.DB, table string, ids ...int64) 
 	}
 }
 
-// CleanupTableRecordsByStringID removes records from a table by string ID.
-// Use this for tables with string primary keys (e.g., RFID cards).
+// CleanupTableRecordsByStringID is CleanupTableRecords for string keys. It
+// exists only so the ~14 existing call sites keep compiling.
 func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids ...string) {
 	tb.Helper()
-	if len(ids) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr(table).
-		Where("id IN (?)", bun.List(ids)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
-	}
+	CleanupTableRecords(tb, db, table, ids...)
 }
 
 // CleanupRateLimitsByEmail removes password reset rate limit records by email.

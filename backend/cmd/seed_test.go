@@ -12,18 +12,12 @@ import (
 // Command Registration Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "seed", seedCmd.Use)
 	assert.Contains(t, seedCmd.Short, "Seed the database")
 	assert.NotNil(t, seedCmd.Run)
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_IsRegisteredOnRoot(t *testing.T) {
 	found := false
 	for _, cmd := range RootCmd.Commands() {
@@ -35,9 +29,6 @@ func TestSeedCmd_IsRegisteredOnRoot(t *testing.T) {
 	assert.True(t, found, "seedCmd should be registered on RootCmd")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_Flags(t *testing.T) {
 	f := seedCmd.Flags()
 
@@ -51,9 +42,6 @@ func TestSeedCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("admin-email"))
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_FlagDefaults(t *testing.T) {
 	f := seedCmd.Flags()
 
@@ -62,9 +50,6 @@ func TestSeedCmd_FlagDefaults(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080", urlFlag.DefValue)
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	seedCmd.SetOut(buf)
@@ -81,18 +66,12 @@ func TestSeedCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "--url")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_LongDescription(t *testing.T) {
 	assert.Contains(t, seedCmd.Long, "HTTP API")
 	assert.Contains(t, seedCmd.Long, "REQUIRES")
 	assert.Contains(t, seedCmd.Long, ".seed-state.json")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestSeedCmd_FlagTypes(t *testing.T) {
 	f := seedCmd.Flags()
 

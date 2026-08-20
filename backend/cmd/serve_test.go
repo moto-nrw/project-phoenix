@@ -14,9 +14,6 @@ import (
 // Command Registration Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestServeCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "serve", serveCmd.Use)
 	assert.Contains(t, serveCmd.Short, "start http server")
@@ -24,9 +21,6 @@ func TestServeCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, serveCmd.Run)
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestServeCmd_IsRegisteredOnRoot(t *testing.T) {
 	found := false
 	for _, cmd := range RootCmd.Commands() {
@@ -38,9 +32,6 @@ func TestServeCmd_IsRegisteredOnRoot(t *testing.T) {
 	assert.True(t, found, "serveCmd should be registered on RootCmd")
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestServeCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	serveCmd.SetOut(buf)
@@ -127,9 +118,6 @@ func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
 	require.NoError(t, validateServeConfig())
 }
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 	event := &sentry.Event{
 		Request: &sentry.Request{

@@ -4,9 +4,6 @@ import (
 	"testing"
 )
 
-// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
-// initConfig, which read and write the viper singleton and os.Stdout. Nothing
-// in this package is isolated from the next test.
 func TestAssertNonProductionURL(t *testing.T) {
 	allowed := []string{
 		"http://localhost:8080",

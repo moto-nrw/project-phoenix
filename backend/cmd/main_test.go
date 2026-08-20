@@ -1,3 +1,8 @@
+// Deliberately NOT parallel (whole package): the cmd tests drive cobra
+// commands and initConfig, which read and write the viper singleton and
+// os.Stdout. Nothing here is isolated from the next test, so no test in this
+// package calls t.Parallel() — said once here instead of above each of the
+// 134 tests (#2419).
 package cmd
 
 import (
