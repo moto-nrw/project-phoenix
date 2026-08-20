@@ -282,7 +282,7 @@ describe("SupervisionProvider", () => {
   });
 
   it("does not setup the former periodic refresh when token exists", async () => {
-    // Mock setInterval to verify it's called
+    // Spy on setInterval to prove the deleted poll is not reintroduced.
     const intervalSpy = vi.spyOn(global, "setInterval");
 
     setupFetchMock(); // Use defaults

@@ -142,6 +142,30 @@ func TestIDFetch(t *testing.T) {
 	})
 }
 
+func TestFetch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success wraps the payload in the standard envelope", func(t *testing.T) {
+		h := common.Fetch(func(_ context.Context) (string, error) {
+			return "payload", nil
+		}, common.ErrorInternalServer, "Retrieved")
+
+		rec := route(t, http.MethodGet, "/things", "/things", h, "")
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), `"data":"payload"`)
+	})
+
+	t.Run("fetch error renders through renderErr", func(t *testing.T) {
+		h := common.Fetch(func(_ context.Context) (string, error) {
+			return "", errors.New("gone")
+		}, common.ErrorNotFound, "")
+
+		rec := route(t, http.MethodGet, "/things", "/things", h, "")
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "gone")
+	})
+}
+
 type bindReq struct {
 	Name string `json:"name"`
 }

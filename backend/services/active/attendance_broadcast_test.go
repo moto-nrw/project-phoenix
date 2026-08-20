@@ -198,15 +198,16 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 
 	// Tenant-wide invalidation, group-scoped so clients skip every other group.
-	counts := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped aggregate refresh")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged),
-		"the old paired dashboard refresh doubles client requests")
+	require.NotNil(t, counts[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
+		"the old paired active refresh doubles client requests")
 
 	// #2085: the child id rides the group-scoped topics only.
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -259,10 +260,10 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 	assert.Equal(t, f.activeGroupTopic(), roomEvents[0].ActiveGroupID)
 	assert.Len(t, checkoutEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"the healed visit must emit an educational-group checkout")
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"the healed visit must emit one aggregate refresh")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
-	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
 		"ending the orphaned visit changed the room roster")
 
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -415,9 +416,9 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 	require.NotNil(t, eduEvents[0].Data.Source)
 	assert.Equal(t, "daily_checkout", *eduEvents[0].Data.Source)
 
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"the daily checkout must emit one aggregate refresh")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
 }
 
 // =============================================================================
@@ -565,7 +566,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 		"exactly one student_checkin on the active-group topic")
 	assert.Len(t, checkinEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"exactly one student_checkin on the edu:{id} topic")
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
 		"exactly one aggregate refresh")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
 }

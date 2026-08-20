@@ -64,7 +64,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session start affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonActivityStarted, nil)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonActivityStarted, nil)
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members

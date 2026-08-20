@@ -84,16 +84,25 @@ func defaultRateLimitKey(r *http.Request) string {
 }
 
 func (rl *RateLimiter) requestKey(r *http.Request) string {
+	return rl.requestKeyForBucket(r, rl.requestBucket(r))
+}
+
+func (rl *RateLimiter) requestBucket(r *http.Request) string {
+	if rl.bucketFunc == nil {
+		return ""
+	}
+	return rl.bucketFunc(r)
+}
+
+func (rl *RateLimiter) requestKeyForBucket(r *http.Request, bucket string) string {
 	key := defaultRateLimitKey(r)
 	if rl.keyFunc == nil {
 		// Keep the IP key.
 	} else if customKey := rl.keyFunc(r); customKey != "" {
 		key = customKey
 	}
-	if rl.bucketFunc != nil {
-		if bucket := rl.bucketFunc(r); bucket != "" {
-			return key + ":" + bucket
-		}
+	if bucket != "" {
+		return key + ":" + bucket
 	}
 	return key
 }
@@ -141,7 +150,8 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			limiter := rl.getVisitor(rl.requestKey(r))
+			bucket := rl.requestBucket(r)
+			limiter := rl.getVisitor(rl.requestKeyForBucket(r, bucket))
 
 			if !limiter.Allow() {
 				retryAfter := rl.retryAfterSeconds()
@@ -150,13 +160,11 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Duration(retryAfter)*time.Second).Unix()))
 				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 				if rl.rejectObserver != nil {
-					bucket := "shared"
-					if rl.bucketFunc != nil {
-						if classified := rl.bucketFunc(r); classified != "" {
-							bucket = classified
-						}
+					observedBucket := bucket
+					if observedBucket == "" {
+						observedBucket = "shared"
 					}
-					rl.rejectObserver(bucket)
+					rl.rejectObserver(observedBucket)
 				}
 
 				// Log rate limit violation if logger is available

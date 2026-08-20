@@ -408,11 +408,7 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *active.Visit, sna
 		data,
 	)
 
-	topics := []string{activeGroupID}
-	if studentRec != nil && studentRec.GroupID != nil {
-		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
-	}
-	if err := s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event); err != nil {
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -420,10 +416,38 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *active.Visit, sna
 			slog.String("student_id", studentID),
 		)
 	}
+	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
 	// One precise tenant event replaces the old dashboard_counts_changed +
 	// active_supervision_changed pair.
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
+}
+
+// broadcastRosterRefreshToTopics preserves active-supervision invalidation for
+// an older frontend during a rolling deploy. It is group-scoped rather than
+// tenant-wide, so only clients entitled to this roster pay for the compatibility
+// frame; BroadcastToGroups still deduplicates clients subscribed to both topics.
+func (s *service) broadcastRosterRefreshToTopics(ctx context.Context, activeGroupID string, studentRec *userModels.Student, eduGroupIDs []string) {
+	reason := activeSupervisionReasonStudentMoved
+	data := realtime.EventData{Reason: &reason}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
+	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+		s.getLogger().Warn("SSE roster compatibility broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("active_group_id", activeGroupID),
+		)
+	}
+}
+
+func (s *service) broadcastVisitEvent(ctx context.Context, activeGroupID string, studentRec *userModels.Student, event realtime.Event) error {
+	topics := []string{activeGroupID}
+	if studentRec != nil && studentRec.GroupID != nil {
+		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
+	}
+	return s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event)
 }
 
 // getStudentForSSE resolves only routing data. Names are never consumed by SSE

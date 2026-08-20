@@ -971,7 +971,7 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
 }
 
-// emitVisitCheckout is broadcastVisitCheckout with the student display data
+// emitVisitCheckout is broadcastVisitCheckout with the student routing data
 // already resolved. Split out so the attendance checkout paths can read the
 // student inside their request transaction and defer only the emission to a
 // tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
@@ -1009,11 +1009,7 @@ func (s *service) emitVisitCheckout(
 		data,
 	)
 
-	topics := []string{activeGroupID}
-	if studentRec != nil && studentRec.GroupID != nil {
-		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
-	}
-	if err := s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event); err != nil {
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkout"),
@@ -1021,10 +1017,11 @@ func (s *service) emitVisitCheckout(
 			slog.String("student_id", studentID),
 		)
 	}
+	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
 // broadcastVisitMoved publishes a checkout from the source active group and a
@@ -1138,7 +1135,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// Single tenant-wide broadcast for the entire batch, scoped to the
 	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
+		s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	}
 }
 
@@ -1169,7 +1166,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
-	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.

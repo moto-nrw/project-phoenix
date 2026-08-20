@@ -504,7 +504,7 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 
 		// Single tenant-wide refresh for the entire batch. The group-specific
 		// events above carry the individual roster topics.
-		s.broadcastActiveSupervisionChanged(ctx, "", activeSupervisionReasonStudentMoved, allEduGroupIDs)
+		s.broadcastSupervisionRefresh(ctx, "", activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	})
 }
 

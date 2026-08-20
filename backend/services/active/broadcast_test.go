@@ -87,20 +87,23 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	err := svc.CreateVisit(deviceCtx, visit)
 	require.NoError(t, err)
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
-		"expected active_supervision_changed after CreateVisit")
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
+		"expected the rolling-deploy-compatible combined refresh after CreateVisit")
 
 	// #2057: the supervision refresh is tenant-scoped (not broadcast to every
 	// school on the deployment) and carries the student's educational group id
 	// so clients can scope their ogs-students-{gid} revalidation.
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
-	refreshes := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 1, "CreateVisit must emit one aggregate refresh, not a paired dashboard event")
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	assert.NotZero(t, refreshes[0].TenantID, "tenant id from the request context must reach the broadcast")
-	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "active_supervision_changed must carry the educational group id")
+	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
 	assert.Equal(t, []string{eduGroupIDStr}, *refreshes[0].Event.Data.GroupIDs)
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged), "the old paired refresh doubles client requests")
+	require.NotNil(t, refreshes[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), "the old paired tenant refresh doubles client requests")
+	assert.Len(t, broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged), 2,
+		"one compatibility frame per topic keeps an older roster live during rolling deploys")
 
 	// The scoped student_checkin carries the edu group id too, so the client's
 	// backpressure fallback path (checkin delivered, counts event dropped)
@@ -144,17 +147,18 @@ func TestBroadcast_EndVisitSendsOnePreciseRefresh(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{student.ID}, waker.studentIDs)
 
-	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
-		"expected active_supervision_changed after EndVisit")
+	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
+		"expected the rolling-deploy-compatible combined refresh after EndVisit")
 
 	// #2057: tenant-scoped, carrying the student's educational group id.
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
-	refreshes := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 1, "EndVisit must emit one aggregate refresh, not a paired dashboard event")
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
-	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "active_supervision_changed must carry the educational group id")
+	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
 	assert.Equal(t, []string{eduGroupIDStr}, *refreshes[0].Event.Data.GroupIDs)
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged), "the old paired refresh doubles client requests")
+	require.NotNil(t, refreshes[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), "the old paired tenant refresh doubles client requests")
 
 	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
 	require.NotEmpty(t, checkouts)
@@ -213,10 +217,10 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	require.NotEmpty(t, checkins, "expected student_checkin for target group")
 	assert.Equal(t, strconv.FormatInt(targetGroup.ID, 10), checkins[0].ActiveGroupID)
 
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 2,
 		"source checkout and target checkin each need one precise aggregate refresh")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged),
-		"visit move must not emit the old paired dashboard refreshes")
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
+		"visit move must not emit the old paired active refreshes")
 }
 
 func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
@@ -242,14 +246,14 @@ func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
 	// (#2057). The student here has no educational group, so
 	// group_ids must be ABSENT (nil, never an empty slice) — clients read the
 	// absence as "scope unknown → refresh broadly".
-	refreshes := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 2, "batch checkout and activity end each emit one bounded refresh")
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	for _, c := range refreshes {
 		assert.Nil(t, c.Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 	}
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged),
-		"session end must not emit paired dashboard refreshes")
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
+		"session end must not emit paired active refreshes")
 }
 
 // TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:
@@ -305,9 +309,9 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 
 	// Aggregate refreshes are constant per batch, not one-per-student: the
 	// checkout batch fires one and broadcastActivityEndEvent fires one.
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged), 2,
+	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 2,
 		"session end fires a fixed number of aggregate refreshes regardless of student count")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
 }
 
 // TestBroadcast_EndActivitySessionBatchesPerEducationGroup verifies the edu-group
@@ -399,12 +403,12 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	// The batch's single aggregate refresh is tenant-scoped and lists every
 	// affected edu group; the activity-end refresh right after carries none
 	// (session end affects room occupancy across groups -> broad refresh).
-	refreshes := tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged)
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 2, "batch + activity end fire one aggregate refresh each")
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "batch refresh must carry the affected edu group ids")
 	assert.ElementsMatch(t, []string{gidX, gidY}, *refreshes[0].Event.Data.GroupIDs)
 	assert.Nil(t, refreshes[1].Event.Data.GroupIDs, "activity-end refresh is deliberately unscoped")
-	assert.Empty(t, broadcaster.EventsOfType(realtime.EventDashboardCountsChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 }
 
@@ -551,8 +555,8 @@ func assertBothHalvesOfTheContract(
 
 	testpkg.AssertNoTenantWideStudentIdentity(tb, broadcaster)
 
-	refreshes := broadcaster.EventsOfType(realtime.EventActiveSupervisionChanged)
-	require.NotEmpty(tb, refreshes, "expected an active_supervision_changed refresh")
+	refreshes := broadcaster.EventsOfType(realtime.EventDashboardCountsChanged)
+	require.NotEmpty(tb, refreshes, "expected a combined dashboard/supervision refresh")
 	for _, e := range refreshes {
 		assert.NotNil(tb, e.Data.Reason, "the refresh reason is what clients branch on instead of an id")
 	}

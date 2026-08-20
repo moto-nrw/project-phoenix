@@ -10,15 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// broadcastActiveSupervisionChanged sends the generic tenant-wide refresh
-// signal consumed by the active-supervisions page. Specific events still carry
-// their detailed semantics; this adapter event gives every client one stable
-// cache invalidation path regardless of the write source.
+// broadcastSupervisionRefresh sends the combined tenant-wide refresh used by
+// attendance and activity changes. It keeps the legacy dashboard event type so
+// clients from the previous frontend release still refresh during a rolling
+// deploy; current clients recognize Reason as the combined supervision signal.
 //
-// Carries no child identity — see realtime.EventActiveSupervisionChanged for
-// why (#2085). The scoped student_checkin / student_checkout emitted alongside
-// it still carry the id.
-func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
+// Carries no child identity (#2085). The scoped student_checkin /
+// student_checkout emitted alongside it still carry the id.
+func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
 	if s.Broadcaster == nil {
 		return
 	}
@@ -31,9 +30,9 @@ func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeG
 	}
 
 	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	event := realtime.NewEvent(realtime.EventDashboardCountsChanged, activeGroupID, data)
 	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("SSE active supervision broadcast failed",
+		s.getLogger().Warn("SSE combined supervision broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("active_group_id", activeGroupID),
 			slog.String("reason", reason),

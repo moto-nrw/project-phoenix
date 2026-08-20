@@ -301,21 +301,22 @@ describe("useGlobalSSE", () => {
     it("load budget: one remote check-in revalidates the supervision aggregate once", () => {
       renderHook(() => useGlobalSSE());
 
-      // Include the legacy dashboard companion to pin mixed-version deploys.
-      // Current backends emit only check-in + active-supervision frames.
+      // Current backends emit the scoped movement, one group-scoped legacy
+      // roster refresh, and one combined tenant refresh (#2115).
       fire({
         type: "student_checkin",
         active_group_id: "123",
         data: { student_id: "42", group_ids: ["7"] },
       });
       fire({
-        type: "dashboard_counts_changed",
-        data: { group_ids: ["7"] },
-      });
-      fire({
         type: "active_supervision_changed",
         active_group_id: "123",
-        data: { reason: "student_moved" },
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
       });
 
       vi.advanceTimersByTime(DEBOUNCE_MS);
@@ -345,6 +346,11 @@ describe("useGlobalSSE", () => {
       });
       fire({
         type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
         active_group_id: "123",
         data: { reason: "student_moved", group_ids: ["7"] },
       });
@@ -781,6 +787,53 @@ describe("useGlobalSSE", () => {
       // covered by the (scoped) ogs-students refetch.
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
+    });
+
+    it("treats a reasoned dashboard event as the combined rolling-deploy refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:active-supervision-dashboard-0",
+          "tenant:room-detail-12",
+          "tenant:ogs-students-7",
+          "tenant:ogs-students-8",
+        ]),
+      ).toEqual([
+        "tenant:active-supervision-dashboard-0",
+        "tenant:room-detail-12",
+        "tenant:ogs-students-7",
+      ]);
+    });
+
+    it("keeps the dashboard broad fallback on an unscoped combined refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved" },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:ogs-students-7",
+          "tenant:search-students-gall-name-asc",
+          "tenant:room-detail-12",
+        ]),
+      ).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:search-students-gall-name-asc",
+        "tenant:room-detail-12",
+      ]);
     });
 
     it("invalidates staff time-account caches after a work-session change", () => {

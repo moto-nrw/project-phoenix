@@ -855,6 +855,38 @@ export function useGlobalSSE(): SSEHookState {
     }
   }, []);
 
+  const collectActiveSupervisionChange = useCallback(
+    (event: SSEEvent) => {
+      if (event.active_group_id) {
+        pendingGroupIds.current.add(event.active_group_id);
+      }
+      // The tenant-wide event carries no student_id (#2085). Still wake a
+      // child detail/care-plan view that this user already has open: the id
+      // comes from the viewer's own route and the refetch remains subject to
+      // the backend access check.
+      const openStudentId = currentStudentDetailId();
+      if (openStudentId) {
+        pendingOpenStudentIds.current.add(openStudentId);
+      }
+      hasPendingActiveSupervisionEvent.current = true;
+      if (event.data.group_ids && event.data.group_ids.length > 0) {
+        collectEduGroupScope(event.data.group_ids);
+      } else {
+        // During a frontend-first rolling deploy, the legacy dashboard
+        // companion may still supply the precise group scope before flush.
+        hasPendingUnscopedActiveEvent.current = true;
+      }
+      if (
+        event.data.reason === "activity_started" ||
+        event.data.reason === "activity_ended"
+      ) {
+        hasPendingActivityEvent.current = true;
+        hasPendingBroadOgsEvent.current = true;
+      }
+    },
+    [collectEduGroupScope],
+  );
+
   // Date-bound substitutions can start or expire at Berlin midnight without
   // a database write. Detect the boundary here in the always-mounted global
   // hook: an OGS page opened after midnight has no previous day to compare,
@@ -950,52 +982,22 @@ export function useGlobalSSE(): SSEHookState {
         }
 
         case "active_supervision_changed": {
-          if (event.active_group_id) {
-            pendingGroupIds.current.add(event.active_group_id);
-          }
-          // The tenant-wide event carries no student_id (#2085). Still wake a
-          // child detail/care-plan view that this user already has open: the id
-          // comes from the viewer's own route and the refetch remains subject
-          // to the backend access check. This covers all_staff users outside
-          // the child's group and timetable attendance patches, which have no
-          // child-identifying companion event. Group-scoped check-in/checkout
-          // events continue to target background caches for entitled group
-          // supervisors.
-          const openStudentId = currentStudentDetailId();
-          if (openStudentId) {
-            pendingOpenStudentIds.current.add(openStudentId);
-          }
-          hasPendingActiveSupervisionEvent.current = true;
-          if (event.data.group_ids && event.data.group_ids.length > 0) {
-            collectEduGroupScope(event.data.group_ids);
-          } else {
-            // Current backends omit the scope only when it is genuinely
-            // unknown. During a mixed-version deploy the legacy companion
-            // dashboard event may still supply it; defer the broad fallback
-            // until flush so that precise companion wins.
-            hasPendingUnscopedActiveEvent.current = true;
-          }
-          if (
-            event.data.reason === "activity_started" ||
-            event.data.reason === "activity_ended"
-          ) {
-            hasPendingActivityEvent.current = true;
-            hasPendingBroadOgsEvent.current = true;
-          }
+          // Kept for unpaired emitters and a frontend-first rolling deploy.
+          collectActiveSupervisionChange(event);
           scheduleFlush();
           break;
         }
 
         case "dashboard_counts_changed": {
-          // Tenant-wide broadcast on every check-in/out — only refresh
-          // dashboard counts and the (scoped) OGS student lists, NOT
-          // room/supervision/active caches (those are for activity events).
-          // group_ids carries the affected educational groups (#2057) so the
-          // ogs-students invalidation can skip every other group's tab; an
-          // event without them (old backend, activity lifecycle, student
-          // without OGS group) falls back to the broad refresh.
+          // The current backend folds the former paired supervision signal
+          // into this legacy event type. Old frontends still refresh their
+          // dashboard/OGS caches; current frontends recognize `reason` and
+          // apply the union of both former invalidation sets (#2115).
           hasPendingDashboardEvent.current = true;
           collectEduGroupScope(event.data.group_ids);
+          if (event.data.reason) {
+            collectActiveSupervisionChange(event);
+          }
           scheduleFlush();
           break;
         }
@@ -1127,7 +1129,7 @@ export function useGlobalSSE(): SSEHookState {
         }
       }
     },
-    [scheduleFlush, collectEduGroupScope],
+    [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],
   );
 
   // Use the underlying SSE hook with global event handler.

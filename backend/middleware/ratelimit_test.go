@@ -627,7 +627,9 @@ func TestRateLimiter_Middleware_SeparatesConfiguredReadAndWriteBuckets(t *testin
 	t.Parallel()
 
 	rl := NewRateLimiter(1, 1)
+	classifierCalls := 0
 	rl.SetBucketFunc(func(r *http.Request) string {
+		classifierCalls++
 		if r.Method == http.MethodGet {
 			return "read"
 		}
@@ -652,6 +654,7 @@ func TestRateLimiter_Middleware_SeparatesConfiguredReadAndWriteBuckets(t *testin
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	assert.Equal(t, 3, classifierCalls, "the classifier must run once per request")
 }
 
 // =============================================================================
