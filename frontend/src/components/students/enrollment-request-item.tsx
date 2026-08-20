@@ -16,7 +16,7 @@ import { RequestReviewCard } from "~/components/students/request-review-card";
 import { ButtonLink } from "~/components/ui/button";
 import type { EnrollmentChangeRequest } from "~/lib/change-request-list-api";
 import { enrollmentChangeRequestFieldLabel } from "~/lib/enrollment-change-request-diff";
-import { enrollmentChangeRequestStatusMeta } from "~/lib/enrollment-change-request-status";
+import { enrollmentChangeRequestStatusMeta } from "~/components/enrollment/enrollment-change-request-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 /** „Vorname, Telefon" — welche Teile der Anmeldung die Anfrage betrifft. */

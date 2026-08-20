@@ -24,7 +24,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/lib/enrollment-change-request-status";
+import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
