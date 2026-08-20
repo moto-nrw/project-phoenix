@@ -57,6 +57,23 @@ describe("change request list API", () => {
     );
   });
 
+  it("scopes the history to one child via the student filter", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: { items: [] } }), { status: 200 }),
+      );
+
+    await expect(
+      listAggregatedRequestHistory({ studentId: "42" }),
+    ).resolves.toEqual({ items: [] });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/change-requests?view=history&student_id=42",
+      { cache: "no-store" },
+    );
+  });
+
   it("uses the response error message when loading fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
@@ -204,6 +221,24 @@ describe("enrollment change request list", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/enrollment/admin/change-requests/list?view=open",
+      { cache: "no-store" },
+    );
+  });
+
+  it("drops the student filter, which this endpoint does not know", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: { items: [] } }), { status: 200 }),
+      );
+
+    await listEnrollmentChangeRequests("open", {
+      studentId: "42",
+      search: "Mia",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/enrollment/admin/change-requests/list?view=open&search=Mia",
       { cache: "no-store" },
     );
   });
