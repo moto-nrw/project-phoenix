@@ -106,4 +106,39 @@ describe("takeMergedPage", () => {
 
     expect(ids(page.items)).toEqual(["a1"]);
   });
+
+  it("überspringt Quellen ohne Zustandseintrag", async () => {
+    const known = pagedSource("a", [
+      { items: [row("a1", "2026-08-20T10:00:00Z")] },
+    ]);
+    const unknown = pagedSource("ohne-zustand", [
+      { items: [row("x1", "2026-08-21T10:00:00Z")] },
+    ]);
+    // Nur die bekannte Quelle bekommt einen Zustand.
+    const state = createFeedState([known]);
+
+    const page = await takeMergedPage([known, unknown], state, 5);
+
+    expect(ids(page.items)).toEqual(["a1"]);
+    expect(page.hasMore).toBe(false);
+    expect(unknown.fetchPage).not.toHaveBeenCalled();
+  });
+
+  it("bricht das Nachziehen leerer Seiten nach vier Versuchen ab", async () => {
+    const source = pagedSource(
+      "a",
+      Array.from({ length: 6 }, (_, index) => ({
+        items: [],
+        next_cursor: `a-${index}`,
+      })),
+    );
+    const state = createFeedState([source]);
+
+    const page = await takeMergedPage([source], state, 5);
+
+    expect(page.items).toEqual([]);
+    expect(source.fetchPage).toHaveBeenCalledTimes(4);
+    // Der Cursor lebt weiter, „Weitere Einträge laden" bleibt möglich.
+    expect(page.hasMore).toBe(true);
+  });
 });
