@@ -2250,7 +2250,7 @@ func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO platform.organizations (id, name, slug, active)
 		VALUES (?, ?, ?, true)
-		ON CONFLICT (id) DO NOTHING`,
+		ON CONFLICT DO NOTHING`,
 		tenantID, fmt.Sprintf("Test Org %d", tenantID), fmt.Sprintf("test-org-%d", tenantID)); err != nil {
 		return fmt.Errorf("ensure test organization: %w", err)
 	}
@@ -2258,7 +2258,7 @@ func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
 		VALUES (?, ?, ?, ?, ?, true)
-		ON CONFLICT (id) DO NOTHING`,
+		ON CONFLICT DO NOTHING`,
 		tenantID, tenantID,
 		fmt.Sprintf("Test School %d", tenantID),
 		fmt.Sprintf("test-school-%d", tenantID),

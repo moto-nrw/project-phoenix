@@ -168,8 +168,7 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 	event := realtime.Event{
 		Type: realtime.EventStudentCheckIn,
 		Data: realtime.EventData{
-			StudentID:   ptr("123"),
-			StudentName: ptr("Test Student"),
+			StudentID: ptr("123"),
 		},
 	}
 
@@ -178,7 +177,7 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 
 	body := mf.Body.String()
 	assert.Contains(t, body, "event: student_checkin\n")
-	assert.Contains(t, body, "Test Student")
+	assert.Contains(t, body, `"student_id":"123"`)
 }
 
 func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {

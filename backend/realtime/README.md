@@ -120,8 +120,7 @@ Trigger a check-in via the IoT API endpoint (e.g., using curl or the frontend UI
   "type": "student_checkin",
   "active_group_id": "123",
   "data": {
-    "student_id": "456",
-    "student_name": "Test Student"
+    "student_id": "456"
   },
   "timestamp": "2025-10-13T18:30:00Z"
 }
@@ -180,8 +179,7 @@ func (s *service) CreateVisit(ctx context.Context, studentID, roomID int64) (*Vi
             realtime.EventStudentCheckIn,
             activeGroupID,
             realtime.EventData{
-                StudentID:   &studentIDStr,
-                StudentName: &studentName,
+                StudentID: &studentIDStr,
             },
         )
         _ = s.broadcaster.BroadcastToGroup(activeGroupID, event)

@@ -45,6 +45,9 @@ type countingBroadcaster struct {
 }
 
 func (b *countingBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
+func (b *countingBroadcaster) BroadcastToGroups(int64, []string, realtime.Event) error {
+	return nil
+}
 func (b *countingBroadcaster) BroadcastToStaffAccounts(_ int64, _ []int64, _ realtime.Event) error {
 	return nil
 }

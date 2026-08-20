@@ -19,7 +19,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -65,8 +64,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session start affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
-	s.broadcastDashboardCountsChanged(ctx, nil)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonActivityStarted)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonActivityStarted, nil)
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members
@@ -190,7 +188,6 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 // trail to distinguish kiosk scans from app check-ins. Without the loop here,
 // /api/iot/* started sessions silently miss the NFC stamp (Issue #1368).
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
-	// Deduplicate supervisor IDs
 	uniqueSupervisors := make(map[int64]bool)
 	for _, id := range supervisorIDs {
 		uniqueSupervisors[id] = true
@@ -202,60 +199,64 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 	)
 
 	for staffID := range uniqueSupervisors {
-		supervisor := &active.GroupSupervisor{
-			StaffID:   staffID,
-			GroupID:   groupID,
-			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(startDate),
-		}
-		supervisor.SetTenantID(tenant.FromContext(ctx))
-		s.runBestEffortDB(ctx, "assign_supervisor", func() error {
-			return s.SupervisorRepo.Create(ctx, supervisor)
-		}, func(err error) {
-			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
-				slog.Int64("staff_id", staffID),
-				slog.Int64("group_id", groupID),
-				slog.String("error", err.Error()),
-			)
-		})
-
-		// NFC auto-check-in (kiosk-driven multi-supervisor flow). Same
-		// asymmetric-audit caveat as the single-supervisor path: if the
-		// staff member already checked out today, EnsureCheckedIn returns
-		// (nil, nil) and we log it so a dispute over the supervisor row
-		// without a matching NFC stamp can be traced later.
-		if s.WorkSessionService != nil {
-			s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
-				session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
-				if err != nil {
-					var plannedStart *PlannedStartNotReachedError
-					if errors.As(err, &plannedStart) {
-						s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
-							slog.Int64("staff_id", staffID),
-							slog.Int64("group_id", groupID),
-							slog.String("planned_start_time", plannedStart.PlannedStartTime),
-							slog.String("current_time", plannedStart.CurrentTime),
-						)
-						return nil
-					}
-					return err
-				}
-				if session == nil {
-					s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
-						slog.Int64("staff_id", staffID),
-						slog.Int64("group_id", groupID),
-					)
-				}
-				return nil
-			}, func(err error) {
-				s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
-					slog.Int64("staff_id", staffID),
-					slog.Int64("group_id", groupID),
-					slog.String("error", err.Error()),
-				)
-			})
-		}
+		s.assignSupervisorNonCritical(ctx, groupID, staffID, startDate)
 	}
+}
+
+func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
+	supervisor := &active.GroupSupervisor{
+		StaffID: staffID, GroupID: groupID, Role: "supervisor",
+		StartDate: timezone.DateFromTime(startDate),
+	}
+	supervisor.SetTenantID(tenant.FromContext(ctx))
+	s.runBestEffortDB(ctx, "assign_supervisor", func() error {
+		return s.SupervisorRepo.Create(ctx, supervisor)
+	}, func(err error) {
+		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+			slog.String("error", err.Error()),
+		)
+	})
+	if s.WorkSessionService != nil {
+		s.ensureNFCAutoCheckInNonCritical(ctx, groupID, staffID)
+	}
+}
+
+func (s *service) ensureNFCAutoCheckInNonCritical(ctx context.Context, groupID, staffID int64) {
+	s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
+		return s.ensureNFCAutoCheckIn(ctx, groupID, staffID)
+	}, func(err error) {
+		s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+			slog.String("error", err.Error()),
+		)
+	})
+}
+
+func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int64) error {
+	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+	var plannedStart *PlannedStartNotReachedError
+	if errors.As(err, &plannedStart) {
+		s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+			slog.String("planned_start_time", plannedStart.PlannedStartTime),
+			slog.String("current_time", plannedStart.CurrentTime),
+		)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+		)
+	}
+	return nil
 }
 
 // createSessionBase creates a new active group session and transfers visits from recent sessions
@@ -1010,24 +1011,6 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 		studentsMap = nil
 	}
 
-	// Collect unique person IDs from fetched students
-	personIDSet := make(map[int64]struct{})
-	for _, student := range studentsMap {
-		if student != nil {
-			personIDSet[student.PersonID] = struct{}{}
-		}
-	}
-
-	// Batch-fetch all persons (1 query instead of M)
-	var personsMap map[int64]*userModels.Person
-	if len(personIDSet) > 0 {
-		personIDs := slices.Collect(maps.Keys(personIDSet))
-		personsMap, err = s.PersonRepo.FindByIDs(ctx, personIDs)
-		if err != nil {
-			personsMap = nil
-		}
-	}
-
 	// Build result using map lookups (O(1) per visit)
 	result := make([]visitSSEData, 0, len(activeVisits))
 	for _, visit := range activeVisits {
@@ -1037,9 +1020,6 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 		}
 		if student, ok := studentsMap[visit.StudentID]; ok && student != nil {
 			data.Student = student
-			if person, ok := personsMap[student.PersonID]; ok && person != nil {
-				data.Name = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-			}
 		}
 		result = append(result, data)
 	}

@@ -1,7 +1,7 @@
 {
   "title": "Phoenix Capacity",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "time": {
     "from": "now-6h",
@@ -103,6 +103,30 @@
         {
           "expr": "phoenix_frontend_nodejs_eventloop_lag_p99_seconds",
           "legendFormat": "{{env}} p99"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests/s by Tenant",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (env, tenant_id) (rate(phoenix_tenant_http_requests_total[1m]))",
+          "legendFormat": "{{env}} tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate-limit Rejections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (env, bucket) (increase(phoenix_rate_limit_rejections_total[5m]))",
+          "legendFormat": "{{env}} {{bucket}}"
         }
       ]
     }

@@ -152,6 +152,25 @@ function make500Error(config: AxiosRequestConfig = {}): AxiosError {
   return err;
 }
 
+function make429Error(config: AxiosRequestConfig = {}): AxiosError {
+  const err = new Error("Request failed with status code 429") as AxiosError;
+  err.response = {
+    status: 429,
+    statusText: "Too Many Requests",
+    data: {},
+    headers: { "retry-after": "17" },
+    config: config as AxiosRequestConfig & {
+      headers: AxiosRequestHeaders;
+    },
+  };
+  err.config = config as AxiosRequestConfig & {
+    headers: AxiosRequestHeaders;
+  };
+  err.isAxiosError = true;
+  err.toJSON = () => ({});
+  return err;
+}
+
 function setupBrowserEnv() {
   const original = globalThis.window;
   Object.defineProperty(globalThis, "window", {
@@ -631,5 +650,19 @@ describe("response interceptor token refresh queue", () => {
     } as AxiosResponse;
     const result = responseInterceptorFulfilled(mockResponse);
     expect(result).toBe(mockResponse);
+  });
+
+  it("records Axios 429 responses and blocks subsequent browser requests", async () => {
+    const error = make429Error({ method: "get", url: "/api/students" });
+
+    await expect(responseInterceptorRejected(error)).rejects.toBe(error);
+    await expect(
+      requestInterceptorFulfilled({
+        method: "get",
+        url: "/api/students",
+        headers: {},
+      }),
+    ).rejects.toMatchObject({ status: 429, response: { status: 429 } });
+    expect(mockGetSession).not.toHaveBeenCalled();
   });
 });

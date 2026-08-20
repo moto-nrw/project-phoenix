@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,13 +20,15 @@ import (
 // environment; before scaling to multiple replicas, a shared store (e.g.
 // Redis) is required if aggregate limits must hold (#2064).
 type RateLimiter struct {
-	visitors map[string]*visitor
-	mu       sync.RWMutex
-	r        rate.Limit // requests per second
-	b        int        // burst size
-	ttl      time.Duration
-	logger   *SecurityLogger // optional security logger
-	keyFunc  func(*http.Request) string
+	visitors       map[string]*visitor
+	mu             sync.RWMutex
+	r              rate.Limit // requests per second
+	b              int        // burst size
+	ttl            time.Duration
+	logger         *SecurityLogger // optional security logger
+	keyFunc        func(*http.Request) string
+	bucketFunc     func(*http.Request) string
+	rejectObserver func(bucket string)
 }
 
 // visitor tracks rate limiting for a single request key.
@@ -62,19 +66,71 @@ func (rl *RateLimiter) SetKeyFunc(keyFunc func(*http.Request) string) {
 	rl.keyFunc = keyFunc
 }
 
+// SetBucketFunc partitions one identity's quota into independent buckets.
+// The general API limiter uses this to keep SSE-driven reads from consuming
+// the write budget. Auth limiters intentionally leave it unset.
+func (rl *RateLimiter) SetBucketFunc(bucketFunc func(*http.Request) string) {
+	rl.bucketFunc = bucketFunc
+}
+
+// SetRejectObserver records rejected requests without coupling this generic
+// middleware to a metrics implementation.
+func (rl *RateLimiter) SetRejectObserver(observer func(bucket string)) {
+	rl.rejectObserver = observer
+}
+
 func defaultRateLimitKey(r *http.Request) string {
 	return "ip:" + GetClientIP(r)
 }
 
 func (rl *RateLimiter) requestKey(r *http.Request) string {
-	if rl.keyFunc == nil {
-		return defaultRateLimitKey(r)
+	return rl.requestKeyForBucket(r, rl.requestBucket(r))
+}
+
+func (rl *RateLimiter) requestBucket(r *http.Request) string {
+	if rl.bucketFunc == nil {
+		return ""
 	}
-	key := rl.keyFunc(r)
-	if key == "" {
-		return defaultRateLimitKey(r)
+	return rl.bucketFunc(r)
+}
+
+func (rl *RateLimiter) requestKeyForBucket(r *http.Request, bucket string) string {
+	key := defaultRateLimitKey(r)
+	if rl.keyFunc == nil {
+		// Keep the IP key.
+	} else if customKey := rl.keyFunc(r); customKey != "" {
+		key = customKey
+	}
+	if bucket != "" {
+		return key + ":" + bucket
 	}
 	return key
+}
+
+func (rl *RateLimiter) retryAfterSeconds() int {
+	if rl.r <= 0 {
+		return 60
+	}
+	return max(1, int(math.Ceil(1/float64(rl.r))))
+}
+
+func (rl *RateLimiter) reject(w http.ResponseWriter, r *http.Request, bucket string) {
+	retryAfter := rl.retryAfterSeconds()
+	w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
+	w.Header().Set("X-RateLimit-Remaining", "0")
+	w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Duration(retryAfter)*time.Second).Unix()))
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+
+	if rl.rejectObserver != nil {
+		if bucket == "" {
+			bucket = "shared"
+		}
+		rl.rejectObserver(bucket)
+	}
+	if rl.logger != nil {
+		rl.logger.LogRateLimitExceeded(r)
+	}
+	http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 }
 
 // getVisitor returns the rate limiter for the given request key.
@@ -113,20 +169,10 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			limiter := rl.getVisitor(rl.requestKey(r))
-
+			bucket := rl.requestBucket(r)
+			limiter := rl.getVisitor(rl.requestKeyForBucket(r, bucket))
 			if !limiter.Allow() {
-				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
-				w.Header().Set("X-RateLimit-Remaining", "0")
-				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Minute).Unix()))
-				w.Header().Set("Retry-After", "60")
-
-				// Log rate limit violation if logger is available
-				if rl.logger != nil {
-					rl.logger.LogRateLimitExceeded(r)
-				}
-
-				http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+				rl.reject(w, r, bucket)
 				return
 			}
 

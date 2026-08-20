@@ -195,10 +195,16 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
       ? { Authorization: `Bearer ${token}` }
       : undefined;
 
-    const roomResponse = await fetch(`/api/rooms/${roomId}`, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-    });
+    const [roomResponse, historyResponse] = await Promise.all([
+      fetch(`/api/rooms/${roomId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+      }),
+      fetch(`/api/rooms/${roomId}/history`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+      }),
+    ]);
     if (!roomResponse.ok) {
       throw new Error("Fehler beim Laden der Raumdaten");
     }
@@ -210,10 +216,6 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
 
     let history: RoomHistoryEntry[] = [];
     let historyDisabled = false;
-    const historyResponse = await fetch(`/api/rooms/${roomId}/history`, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-    });
     if (!historyResponse.ok) {
       // A non-OK response is NOT the same as "no history". The proxy
       // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"

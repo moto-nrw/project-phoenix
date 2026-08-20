@@ -9,6 +9,12 @@ This directory versions the capacity-monitoring layer for production and staging
 - cAdvisor captures Docker container CPU, memory, network, filesystem I/O, restarts, and OOM signals.
 - Existing Grafana can import the Prometheus datasource and dashboard provisioning files from `grafana/provisioning`.
 
+The stack does not run `postgres_exporter`. Phoenix exports connection-pool
+metrics from the backend process. Do not enable the exporter's table-statistics
+collector: its repeated `pg_stat_user_tables` scan costs more database time than
+the application workload. Disable that collector in any older server-local
+monitoring setup before applying this overlay.
+
 ## Deploy
 
 On the server, merge these files into `/root/monitoring` next to the existing Loki/Grafana/Alloy setup. Do not delete the existing Loki, Grafana, or Alloy services when adding this stack.
@@ -66,4 +72,6 @@ histogram_quantile(0.95, sum by (le, route, env) (rate(phoenix_backend_http_requ
 sum by (env, tenant_id, outcome) (rate(phoenix_iot_requests_total[5m]))
 phoenix_db_in_use_connections / phoenix_db_open_connections
 phoenix_sse_clients
+sum by (env, tenant_id) (rate(phoenix_tenant_http_requests_total[1m]))
+sum by (env, bucket) (increase(phoenix_rate_limit_rejections_total[5m]))
 ```

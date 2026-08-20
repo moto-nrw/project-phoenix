@@ -10,15 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// broadcastActiveSupervisionChanged sends the generic tenant-wide refresh
-// signal consumed by the active-supervisions page. Specific events still carry
-// their detailed semantics; this adapter event gives every client one stable
-// cache invalidation path regardless of the write source.
+// broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
+// and activity changes. It preserves both legacy event types during a rolling
+// deploy: older clients use active_supervision_changed for supervision rosters,
+// while current clients recognize dashboard_counts_changed with Reason.
 //
-// Carries no child identity — see realtime.EventActiveSupervisionChanged for
-// why (#2085). The scoped student_checkin / student_checkout emitted alongside
-// it still carry the id.
-func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, reason string) {
+// Carries no child identity (#2085). The scoped student_checkin /
+// student_checkout emitted alongside it still carry the id.
+func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
 	if s.Broadcaster == nil {
 		return
 	}
@@ -26,11 +25,24 @@ func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeG
 	data := realtime.EventData{
 		Reason: &reason,
 	}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
 
 	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	event := realtime.NewEvent(realtime.EventDashboardCountsChanged, activeGroupID, data)
 	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("SSE active supervision broadcast failed",
+		s.getLogger().Warn("SSE combined supervision broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("reason", reason),
+			slog.Int64("tenant_id", tenantID),
+		)
+	}
+
+	legacyEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, legacyEvent); err != nil {
+		s.getLogger().Warn("SSE legacy supervision broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("active_group_id", activeGroupID),
 			slog.String("reason", reason),
@@ -70,8 +82,8 @@ func (s *service) broadcastDashboardCountsChanged(ctx context.Context, eduGroupI
 }
 
 // eduGroupIDsOf returns the educational group id of a student as a slice for
-// broadcastDashboardCountsChanged / EventData.GroupIDs, or nil when unknown
-// (nil student — e.g. a repo error during display-data lookup — or a student
+// tenant invalidations / EventData.GroupIDs, or nil when unknown
+// (nil student — e.g. a repository error during routing-data lookup — or a student
 // without an OGS group). nil keeps the field absent so clients fall back to a
 // broad refresh instead of scoping to nothing.
 func eduGroupIDsOf(student *userModels.Student) []string {

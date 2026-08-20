@@ -10,6 +10,7 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
+import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
   session: Awaited<ReturnType<typeof getSession>>;
@@ -32,6 +33,7 @@ export function clearSessionCache() {
   cached = null;
   cachedTenantId = undefined;
   inflight = null;
+  clearRateLimitBackoff();
 }
 
 export async function getCachedSession() {
