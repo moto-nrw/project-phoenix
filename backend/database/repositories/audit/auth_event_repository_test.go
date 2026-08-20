@@ -207,9 +207,12 @@ func TestAuthEventRepository_List(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
+// queries across all tenants and the assertion pins the exact result count,
+// so the pending event a parallel neighbour creates lands in it (CI found
+// this; the neighbour claims its event again, but not before this test
+// looks).
 func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
-	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent

@@ -554,6 +554,35 @@ func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
 	require.Error(t, err, "CreateClone must wait behind an exclusive lifecycle lock holder")
 }
 
+// TestPinAuthRolePasswordSurvivesConcurrentCallers reproduces the CI failure
+// that took 1041 tests down at once: every package binary pins the
+// phoenix_auth password on the lock-free fast path, and two sessions running
+// ALTER ROLE at the same moment fail with "tuple concurrently updated".
+func TestPinAuthRolePasswordSurvivesConcurrentCallers(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	require.NoError(t, EnsureServer(ctx, cfg))
+
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+	maint.SetMaxOpenConns(8)
+
+	const callers = 8
+	errs := make(chan error, callers)
+	start := make(chan struct{})
+	for range callers {
+		go func() {
+			<-start
+			errs <- pinAuthRolePassword(ctx, maint)
+		}()
+	}
+	close(start)
+	for range callers {
+		require.NoError(t, <-errs, "concurrent password pins must not collide on pg_authid")
+	}
+}
+
 func dropBareClone(t *testing.T, cfg *Config, name string) {
 	t.Helper()
 	maint := openSQL(cfg.MaintenanceDSN())

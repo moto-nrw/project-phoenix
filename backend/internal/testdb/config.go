@@ -18,6 +18,15 @@ const (
 	// clone lock so old and new binaries never interleave DDL.
 	lifecycleAdvisoryLockKey = int64(914735692)
 
+	// authRoleAdvisoryLockKey serializes the phoenix_auth password pin alone.
+	// ALTER ROLE writes a pg_authid tuple, and two sessions doing it at the
+	// same moment fail with "tuple concurrently updated" (XX000) — which
+	// takes the whole package binary down, because the pin runs during
+	// SetupTestDB. It needs its own key rather than the lifecycle lock: the
+	// pin sits on the lock-free fast path precisely so it does not queue
+	// behind clone creation.
+	authRoleAdvisoryLockKey = int64(914735693)
+
 	// ClonePrefix names every package clone. The generation GC drops any
 	// database with this prefix that belongs to no living run.
 	ClonePrefix = "phx_test_pkg_"

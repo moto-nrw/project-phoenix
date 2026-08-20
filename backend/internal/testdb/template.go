@@ -202,7 +202,7 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 	if fresh, err := templateIsFresh(ctx, maint, name, o.hash); err != nil {
 		return nil, err
 	} else if fresh {
-		if err := ensureAuthRolePassword(ctx, maint); err != nil {
+		if err := pinAuthRolePassword(ctx, maint); err != nil {
 			return nil, err
 		}
 		return tcfg, nil
@@ -312,12 +312,41 @@ func adoptBaseTemplate(ctx context.Context, conn sqlExecutor, cfg, tcfg *Config,
 	return true, nil
 }
 
+// pinAuthRolePassword is ensureAuthRolePassword for the callers that hold no
+// lifecycle lock. ALTER ROLE writes a pg_authid tuple, and two sessions doing
+// that at the same moment fail with "tuple concurrently updated" (XX000) — on
+// CI that took 1041 tests down at once, because the pin runs inside
+// SetupTestDB and a failure there fails the whole package binary.
+//
+// The lock is session-scoped, so it has to be taken on the SAME connection as
+// the ALTER — a pool would hand the two statements to different sessions and
+// the lock would guard nothing.
+func pinAuthRolePassword(ctx context.Context, db *sql.DB) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open connection for phoenix_auth password pin: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey); err != nil {
+		return fmt.Errorf("lock phoenix_auth password pin: %w", err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
+	}()
+
+	return ensureAuthRolePassword(ctx, conn)
+}
+
 // ensureAuthRolePassword pins the cluster-global phoenix_auth role of the
 // TEST server to AuthRolePassword. Migration 1.14.1 only creates the role IF
 // NOT EXISTS, so without this the first worktree to migrate decides the
 // password for every other worktree on the same container (#2419). No-op
 // when the role does not exist yet — the migration creates it with the same
 // value, because buildTemplate exports it.
+//
+// The caller must hold either the lifecycle lock or the auth-role lock — see
+// pinAuthRolePassword.
 func ensureAuthRolePassword(ctx context.Context, conn sqlExecutor) error {
 	_, err := conn.ExecContext(ctx, fmt.Sprintf(`
 		DO $$ BEGIN

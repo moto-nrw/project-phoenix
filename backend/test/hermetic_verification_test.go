@@ -1173,7 +1173,7 @@ var serialTestBaseline = map[string]int{
 	"cmd":                               190,
 	"database":                          8,
 	"database/migrations":               88,
-	"database/repositories/audit":       1,
+	"database/repositories/audit":       2,
 	"database/repositories/auth":        4,
 	"database/repositories/enrollment":  3,
 	"database/repositories/platform":    34,
