@@ -16,6 +16,8 @@ import (
 // The guard is scoped to ACTIVE phases — the same scope the settings side
 // enforces from its end — so the fixtures below are active.
 func TestValidateEligibleClassesCollectable(t *testing.T) {
+	t.Parallel()
+
 	eligible := &enrollmentModels.Phase{EligibleSchoolClasses: []string{"2a"}, IsActive: true}
 	empty := &enrollmentModels.Phase{EligibleSchoolClasses: []string{}, IsActive: true}
 

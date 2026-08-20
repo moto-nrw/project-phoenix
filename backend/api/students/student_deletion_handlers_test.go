@@ -26,6 +26,8 @@ func studentDeletionRowCount(t *testing.T, tc *testContext, table string, id int
 }
 
 func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	repos := repositories.NewFactory(tc.db)
 	studentService := userService.NewStudentService(
@@ -58,13 +60,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	var auditID int64
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, tc.db, "audit.student_deletions", auditID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.instance_students", targetAssignment.ID, sparedAssignment.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.students", target.ID, spared.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", target.PersonID, spared.PersonID)
-		testpkg.CleanupTableRecords(t, tc.db, "facilities.rooms", room.ID)
-		testpkg.CleanupAuthFixtures(t, tc.db, actor.ID)
 	})
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
@@ -127,6 +122,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		WHERE tenant_id = ? AND actor_account_id = ?
 		ORDER BY id DESC
 		LIMIT 1
-	`, int64(1), actor.ID).Scan(testpkg.TenantContext(1), &auditID))
+	`, testpkg.Tenant(t), actor.ID).Scan(testpkg.Ctx(t), &auditID))
 	assert.Positive(t, auditID)
 }

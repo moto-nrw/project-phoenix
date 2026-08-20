@@ -76,6 +76,8 @@ func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context
 }
 
 func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeOfferingChangeRequestService{}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true}`))
@@ -94,6 +96,8 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 }
 
 func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeOfferingChangeRequestService{preview: []enrollmentService.OfferingChangePreviewSelection{{
 		OfferingID: 11,
 		State:      "booked",
@@ -116,6 +120,8 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 }
 
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request: &enrollmentModels.OfferingChangeRequest{},
 		Diff: []enrollmentService.OfferingChangeDiffEntry{{
@@ -140,6 +146,8 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 }
 
 func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request:        &enrollmentModels.OfferingChangeRequest{},
 		FullWithdrawal: true,
@@ -171,6 +179,8 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 }
 
 func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request: &enrollmentModels.OfferingChangeRequest{},
 		Diff: []enrollmentService.OfferingChangeDiffEntry{{

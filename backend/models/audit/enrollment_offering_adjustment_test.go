@@ -9,6 +9,8 @@ import (
 )
 
 func TestEnrollmentOfferingAdjustmentAccessors(t *testing.T) {
+	t.Parallel()
+
 	changedAt := time.Date(2026, time.June, 20, 10, 30, 0, 0, time.UTC)
 	entry := &EnrollmentOfferingAdjustment{
 		ID:        42,

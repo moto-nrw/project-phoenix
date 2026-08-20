@@ -13,6 +13,8 @@ import (
 // identical content and change for any row/counter/label difference the export
 // would render.
 func TestListSignature(t *testing.T) {
+	t.Parallel()
+
 	gid := int64(7)
 	base := func() *Result {
 		return &Result{
@@ -75,6 +77,8 @@ func TestListSignature(t *testing.T) {
 // moving any row or counter, so the signature must track exportHeaderSig or the
 // 409 drift guard would hand out a file whose header differs from the preview.
 func TestListSignatureExportHeader(t *testing.T) {
+	t.Parallel()
+
 	base := func() *Result {
 		return &Result{
 			ListLabel:       "Ganztag",

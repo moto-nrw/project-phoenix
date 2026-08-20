@@ -9,6 +9,8 @@ import (
 )
 
 func TestGradeTransition_Validate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid transition", func(t *testing.T) {
 		transition := &GradeTransition{
 			AcademicYear: "2025-2026",
@@ -123,6 +125,8 @@ func TestGradeTransition_Validate(t *testing.T) {
 }
 
 func TestGradeTransition_StatusHelpers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("IsDraft", func(t *testing.T) {
 		transition := &GradeTransition{Status: TransitionStatusDraft}
 		assert.True(t, transition.IsDraft())
@@ -146,6 +150,8 @@ func TestGradeTransition_StatusHelpers(t *testing.T) {
 }
 
 func TestGradeTransition_CanModify(t *testing.T) {
+	t.Parallel()
+
 	t.Run("can modify draft", func(t *testing.T) {
 		transition := &GradeTransition{Status: TransitionStatusDraft}
 		assert.True(t, transition.CanModify())
@@ -163,6 +169,8 @@ func TestGradeTransition_CanModify(t *testing.T) {
 }
 
 func TestGradeTransition_CanApply(t *testing.T) {
+	t.Parallel()
+
 	t.Run("can apply draft with mappings", func(t *testing.T) {
 		transition := &GradeTransition{
 			Status: TransitionStatusDraft,
@@ -200,6 +208,8 @@ func TestGradeTransition_CanApply(t *testing.T) {
 }
 
 func TestGradeTransition_CanRevert(t *testing.T) {
+	t.Parallel()
+
 	t.Run("can revert applied", func(t *testing.T) {
 		transition := &GradeTransition{Status: TransitionStatusApplied}
 		assert.True(t, transition.CanRevert())
@@ -217,6 +227,8 @@ func TestGradeTransition_CanRevert(t *testing.T) {
 }
 
 func TestGradeTransitionMapping_Validate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid mapping with to_class", func(t *testing.T) {
 		mapping := &GradeTransitionMapping{
 			TransitionID: 1,
@@ -283,6 +295,8 @@ func TestGradeTransitionMapping_Validate(t *testing.T) {
 }
 
 func TestGradeTransitionMapping_GetAction(t *testing.T) {
+	t.Parallel()
+
 	t.Run("promote action", func(t *testing.T) {
 		mapping := &GradeTransitionMapping{
 			FromClass: "1a",
@@ -301,6 +315,8 @@ func TestGradeTransitionMapping_GetAction(t *testing.T) {
 }
 
 func TestGradeTransitionMapping_IsGraduating(t *testing.T) {
+	t.Parallel()
+
 	t.Run("is graduating when to_class is nil", func(t *testing.T) {
 		mapping := &GradeTransitionMapping{ToClass: nil}
 		assert.True(t, mapping.IsGraduating())
@@ -313,6 +329,8 @@ func TestGradeTransitionMapping_IsGraduating(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_Validate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid history promoted", func(t *testing.T) {
 		history := &GradeTransitionHistory{
 			TransitionID: 1,
@@ -410,6 +428,8 @@ func TestGradeTransitionHistory_Validate(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransition_GetID(t *testing.T) {
+	t.Parallel()
+
 	transition := &GradeTransition{}
 	transition.ID = 123
 
@@ -418,6 +438,8 @@ func TestGradeTransition_GetID(t *testing.T) {
 }
 
 func TestGradeTransition_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	transition := &GradeTransition{}
 	transition.CreatedAt = now
@@ -427,6 +449,8 @@ func TestGradeTransition_GetCreatedAt(t *testing.T) {
 }
 
 func TestGradeTransition_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	transition := &GradeTransition{}
 	transition.UpdatedAt = now
@@ -440,6 +464,8 @@ func TestGradeTransition_GetUpdatedAt(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionMapping_GetID(t *testing.T) {
+	t.Parallel()
+
 	mapping := &GradeTransitionMapping{}
 	mapping.ID = 456
 
@@ -448,6 +474,8 @@ func TestGradeTransitionMapping_GetID(t *testing.T) {
 }
 
 func TestGradeTransitionMapping_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mapping := &GradeTransitionMapping{}
 	mapping.CreatedAt = now
@@ -457,6 +485,8 @@ func TestGradeTransitionMapping_GetCreatedAt(t *testing.T) {
 }
 
 func TestGradeTransitionMapping_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mapping := &GradeTransitionMapping{}
 	mapping.UpdatedAt = now
@@ -470,6 +500,8 @@ func TestGradeTransitionMapping_GetUpdatedAt(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionHistory_GetID(t *testing.T) {
+	t.Parallel()
+
 	history := &GradeTransitionHistory{}
 	history.ID = 789
 
@@ -478,6 +510,8 @@ func TestGradeTransitionHistory_GetID(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	history := &GradeTransitionHistory{}
 	history.CreatedAt = now
@@ -487,6 +521,8 @@ func TestGradeTransitionHistory_GetCreatedAt(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	history := &GradeTransitionHistory{}
 	history.UpdatedAt = now
@@ -496,6 +532,8 @@ func TestGradeTransitionHistory_GetUpdatedAt(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_WasGraduated(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true for graduated action", func(t *testing.T) {
 		history := &GradeTransitionHistory{Action: ActionGraduated}
 		assert.True(t, history.WasGraduated())
@@ -513,6 +551,8 @@ func TestGradeTransitionHistory_WasGraduated(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_WasPromoted(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true for promoted action", func(t *testing.T) {
 		history := &GradeTransitionHistory{Action: ActionPromoted}
 		assert.True(t, history.WasPromoted())
@@ -534,6 +574,8 @@ func TestGradeTransitionHistory_WasPromoted(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionMapping_Validate_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	t.Run("trims whitespace from to_class", func(t *testing.T) {
 		toClass := "  2a  "
 		mapping := &GradeTransitionMapping{
@@ -560,6 +602,8 @@ func TestGradeTransitionMapping_Validate_TrimsWhitespace(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_Validate_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	t.Run("trims whitespace from to_class", func(t *testing.T) {
 		toClass := "  2a  "
 		history := &GradeTransitionHistory{
@@ -592,6 +636,8 @@ func TestGradeTransitionHistory_Validate_TrimsWhitespace(t *testing.T) {
 }
 
 func TestGradeTransitionHistory_Validate_ValidUnchangedAction(t *testing.T) {
+	t.Parallel()
+
 	history := &GradeTransitionHistory{
 		TransitionID: 1,
 		StudentID:    1,

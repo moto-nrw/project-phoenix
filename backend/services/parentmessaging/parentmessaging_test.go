@@ -143,6 +143,8 @@ func msg(id, sender int64, kind string) *usersModels.ParentMessage {
 // --- MessagingEnabled ---------------------------------------------------
 
 func TestMessagingEnabled(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	assert.True(t, MessagingEnabled(ctx, fakeSettings{val: true}, nil))
 	assert.False(t, MessagingEnabled(ctx, fakeSettings{val: false}, nil))
@@ -153,6 +155,8 @@ func TestMessagingEnabled(t *testing.T) {
 }
 
 func TestMessagingEnabledForTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	assert.True(t, MessagingEnabledForTenant(ctx, fakeTenantSettings{val: true}, 5, nil))
 	assert.False(t, MessagingEnabledForTenant(ctx, fakeTenantSettings{val: false}, 5, nil))
@@ -169,6 +173,8 @@ func TestMessagingEnabledForTenant(t *testing.T) {
 // from the list) does not; a repo error propagates; and an unwired emitter
 // returns a configuration error rather than silently granting access.
 func TestGuardianHasChildAccess(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	linked := &Emitter{threadRepo: &fakeThreadRepo{
@@ -194,6 +200,8 @@ func TestGuardianHasChildAccess(t *testing.T) {
 // --- AppendMessage ------------------------------------------------------
 
 func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
+	t.Parallel()
+
 	stamp := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
 	tr := &fakeThreadRepo{}
 	mr := &fakeMsgRepo{stampAt: stamp, beforeCreate: func() {
@@ -213,6 +221,8 @@ func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
 }
 
 func TestAppendMessage_LockErrorSkipsInsert(t *testing.T) {
+	t.Parallel()
+
 	mr := &fakeMsgRepo{}
 	tr := &fakeThreadRepo{lockErr: errors.New("lock failed")}
 	err := AppendMessage(context.Background(), mr, tr, &usersModels.ParentMessage{ThreadID: 42})
@@ -221,6 +231,8 @@ func TestAppendMessage_LockErrorSkipsInsert(t *testing.T) {
 }
 
 func TestAppendMessage_CreateErrorSkipsTouch(t *testing.T) {
+	t.Parallel()
+
 	mr := &fakeMsgRepo{createErr: errors.New("insert failed")}
 	tr := &fakeThreadRepo{}
 	err := AppendMessage(context.Background(), mr, tr, &usersModels.ParentMessage{})
@@ -237,6 +249,8 @@ func TestAppendMessage_CreateErrorSkipsTouch(t *testing.T) {
 // — stays dropped, so a disabled school never accumulates threads or dangling
 // pills.
 func TestIsTerminalRequestEvent(t *testing.T) {
+	t.Parallel()
+
 	refID := int64(7)
 	terminal := ChildEvent{
 		EventType: usersModels.ParentMessageEventRequestStatus,
@@ -262,6 +276,8 @@ func TestIsTerminalRequestEvent(t *testing.T) {
 // --- MarkReadToNewest ---------------------------------------------------
 
 func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// Oldest-first snapshot: two counterpart (guardian) messages then the reader's
 	// own just-sent staff message. The cursor must land on the newest COUNTERPART
@@ -280,6 +296,8 @@ func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
 }
 
 func TestMarkReadToNewest_DoesNotAdvancePastCounterpartViaOtherSideRow(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// A staff reader's snapshot: a guardian message, then a LATER staff row from a
 	// DIFFERENT staff account and a LATER system event the staff side triggered.
@@ -303,6 +321,8 @@ func TestMarkReadToNewest_DoesNotAdvancePastCounterpartViaOtherSideRow(t *testin
 }
 
 func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// A guardian reader: a staff message and a staff-triggered system event are the
 	// counterpart; the reader's own guardian message is not. The cursor must land on
@@ -323,6 +343,8 @@ func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
 }
 
 func TestMarkReadToNewest_DualRoleOwnSystemEventStillAdvances(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// Dual-role staff+guardian account reading the GUARDIAN portal. It triggered a
 	// confirm/reject as STAFF, so the system event carries its OWN account in
@@ -345,6 +367,8 @@ func TestMarkReadToNewest_DualRoleOwnSystemEventStillAdvances(t *testing.T) {
 }
 
 func TestMarkReadToNewest_DoesNotAdvanceOntoRequestCreatedPill(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// A staff reader's snapshot: an unread guardian message, then a LATER
 	// request_created pill (guardian-triggered system event). The unread SQL
@@ -369,6 +393,8 @@ func TestMarkReadToNewest_DoesNotAdvanceOntoRequestCreatedPill(t *testing.T) {
 }
 
 func TestMarkReadToNewest_RequestCreatedOnlyDoesNotMark(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	// The newest (and only counterpart-side) row is a request_created pill. Since
 	// it is excluded from the unread set, there is nothing to mark seen and the
@@ -385,6 +411,8 @@ func TestMarkReadToNewest_RequestCreatedOnlyDoesNotMark(t *testing.T) {
 }
 
 func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
+	t.Parallel()
+
 	reader := int64(100)
 	rr := &fakeReadRepo{}
 	// Empty snapshot.
@@ -400,6 +428,8 @@ func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 }
 
 func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	rr := &fakeReadRepo{markErr: errors.New("upsert failed")}
 	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
 	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, true, messages)
@@ -407,6 +437,8 @@ func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 }
 
 func TestMarkStaffHandledToVisible_BoundsToVisibleGuardianActivity(t *testing.T) {
+	t.Parallel()
+
 	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
 	staffReply := msg(2, 100, usersModels.ParentMessageSenderStaff)
 	concurrentGuardian := msg(3, 200, usersModels.ParentMessageSenderGuardian)
@@ -422,6 +454,8 @@ func TestMarkStaffHandledToVisible_BoundsToVisibleGuardianActivity(t *testing.T)
 }
 
 func TestMarkStaffHandledToVisible_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	rr := &fakeReadRepo{handledErr: errors.New("update failed")}
 	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, 1, []*usersModels.ParentMessage{
 		msg(1, 200, usersModels.ParentMessageSenderGuardian),
@@ -432,6 +466,8 @@ func TestMarkStaffHandledToVisible_PropagatesRepoError(t *testing.T) {
 // --- Decorate*ReadReceipts ----------------------------------------------
 
 func TestDecorateReadReceipts_StampsGuardianMessagesUpToStaffCursor(t *testing.T) {
+	t.Parallel()
+
 	guardianMsg := msg(1, 200, usersModels.ParentMessageSenderGuardian)
 	guardianMsg.CreatedAt = time.Now().Add(-time.Hour)
 	messages := []*usersModels.ParentMessage{guardianMsg}
@@ -442,6 +478,8 @@ func TestDecorateReadReceipts_StampsGuardianMessagesUpToStaffCursor(t *testing.T
 }
 
 func TestDecorateReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
+	t.Parallel()
+
 	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
 	rr := &fakeReadRepo{staffCursorErr: errors.New("cursor lookup failed")}
 	DecorateReadReceipts(context.Background(), rr, nil, 42, 200, messages)
@@ -449,6 +487,8 @@ func TestDecorateReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 }
 
 func TestDecorateGuardianReadReceipts_StampsStaffMessagesUpToGuardianCursor(t *testing.T) {
+	t.Parallel()
+
 	staffMsg := msg(1, 300, usersModels.ParentMessageSenderStaff)
 	staffMsg.CreatedAt = time.Now().Add(-time.Hour)
 	messages := []*usersModels.ParentMessage{staffMsg}
@@ -458,6 +498,8 @@ func TestDecorateGuardianReadReceipts_StampsStaffMessagesUpToGuardianCursor(t *t
 }
 
 func TestDecorateGuardianReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
+	t.Parallel()
+
 	messages := []*usersModels.ParentMessage{msg(1, 300, usersModels.ParentMessageSenderStaff)}
 	rr := &fakeReadRepo{guardianCursorErr: errors.New("cursor lookup failed")}
 	DecorateGuardianReadReceipts(context.Background(), rr, nil, 42, messages)
@@ -467,6 +509,8 @@ func TestDecorateGuardianReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 // --- Broadcast / BroadcastRead ------------------------------------------
 
 func TestBroadcast_FiresParentMessageEvent(t *testing.T) {
+	t.Parallel()
+
 	bc := testpkg.NewRecordingBroadcaster()
 	Broadcast(bc, nil, 1, 200, 42, 7)
 	require.Len(t, bc.Events(), 1)
@@ -474,6 +518,8 @@ func TestBroadcast_FiresParentMessageEvent(t *testing.T) {
 }
 
 func TestBroadcastRead_FiresReadEvent(t *testing.T) {
+	t.Parallel()
+
 	bc := testpkg.NewRecordingBroadcaster()
 	BroadcastRead(bc, nil, 1, 200, 42, 7)
 	require.Len(t, bc.Events(), 1)
@@ -481,6 +527,8 @@ func TestBroadcastRead_FiresReadEvent(t *testing.T) {
 }
 
 func TestBroadcast_NilBroadcasterAndBadTenantAreNoOps(t *testing.T) {
+	t.Parallel()
+
 	// nil broadcaster: nothing to call, no panic.
 	Broadcast(nil, nil, 1, 200, 42, 7)
 	BroadcastRead(nil, nil, 1, 200, 42, 7)
@@ -493,6 +541,8 @@ func TestBroadcast_NilBroadcasterAndBadTenantAreNoOps(t *testing.T) {
 }
 
 func TestBroadcast_DeliveryErrorIsSwallowed(t *testing.T) {
+	t.Parallel()
+
 	// A delivery error is logged, never returned (the message already committed).
 	bc := testpkg.NewRecordingBroadcaster()
 	bc.Err = errors.New("client buffer full")

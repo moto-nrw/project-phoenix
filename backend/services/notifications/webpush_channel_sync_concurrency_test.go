@@ -13,6 +13,8 @@ import (
 )
 
 func TestWebPushSynchronousDispatchBoundsWorkers(t *testing.T) {
+	t.Parallel()
+
 	var mu sync.Mutex
 	inFlight, maxInFlight := 0, 0
 	started := make(chan struct{}, 1)

@@ -15,11 +15,12 @@ import (
 )
 
 func TestSchoolRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewSchoolRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates school", func(t *testing.T) {
 		now := time.Now().UnixNano()
@@ -30,10 +31,6 @@ func TestSchoolRepository_Create(t *testing.T) {
 			Active: true,
 		}
 		require.NoError(t, platformRepo.NewOrganizationRepository(db).Create(ctx, org))
-		t.Cleanup(func() {
-			_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE organization_id = ?`, org.ID)
-			_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-		})
 
 		school := &platformModels.School{
 			Model:          modelBase.Model{ID: now + 1},
@@ -63,12 +60,13 @@ func TestSchoolRepository_Create(t *testing.T) {
 }
 
 func TestSchoolRepository_QueryMethods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewSchoolRepository(db)
 	orgRepo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now().UnixNano()
 
 	orgA := &platformModels.Organization{Model: modelBase.Model{ID: now}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}

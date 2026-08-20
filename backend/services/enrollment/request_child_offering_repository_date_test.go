@@ -12,9 +12,11 @@ import (
 )
 
 func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
 	require.NoError(t, env.repos.RequestChildOffering.ReplaceForRequestChild(ctx, fx.childID, nil))
@@ -42,9 +44,11 @@ func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(
 // editor seeded empty while the save still finds a selection to replace.
 // Whoever removes this fallback must also revisit ListChildOfferings.
 func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "PreStartFallback")
 
 	beforeStart := env.sourcePhase.ServiceStartDate.AddDays(-10)
@@ -61,9 +65,11 @@ func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t
 }
 
 func TestRequestChildOfferingRepository_ListAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
 	futureStart := env.sourcePhase.ServiceStartDate.AddDays(30)

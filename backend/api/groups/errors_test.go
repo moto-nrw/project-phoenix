@@ -12,6 +12,8 @@ import (
 )
 
 func TestErrorRenderer_NotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -33,6 +35,8 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ConflictErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -60,6 +64,8 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -81,6 +87,8 @@ func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownEducationError(t *testing.T) {
+	t.Parallel()
+
 	eduErr := &education.EducationError{Err: errors.New("unknown error")}
 	renderer := groupsAPI.ErrorRenderer(eduErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -90,6 +98,8 @@ func TestErrorRenderer_UnknownEducationError(t *testing.T) {
 }
 
 func TestErrorRenderer_NonEducationError(t *testing.T) {
+	t.Parallel()
+
 	plainErr := errors.New("generic error")
 	renderer := groupsAPI.ErrorRenderer(plainErr)
 	resp, ok := renderer.(*common.ErrResponse)

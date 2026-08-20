@@ -36,11 +36,10 @@ func createRequestedVacation(t *testing.T, tc *testContext, staffID int64) *acti
 		CreatedBy:   staffID,
 		RequestedAt: time.Now(),
 	}
-	absence.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(1), absence))
+	absence.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.Ctx(t), absence))
 	t.Cleanup(func() {
 		// Audit rows cascade with the absence (FK ON DELETE CASCADE).
-		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absence.ID)
 	})
 	return absence
 }
@@ -58,6 +57,8 @@ func postQuestion(t *testing.T, tc *testContext, token string, absenceID int64, 
 }
 
 func TestQuestionAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -65,7 +66,7 @@ func TestQuestionAbsence_Success(t *testing.T) {
 	rec := postQuestion(t, tc, token, absence.ID, "Bitte Vertretung klären")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	updated, err := repositories.NewFactory(tc.db).StaffAbsence.FindByID(testpkg.TenantContext(1), absence.ID)
+	updated, err := repositories.NewFactory(tc.db).StaffAbsence.FindByID(testpkg.Ctx(t), absence.ID)
 	require.NoError(t, err)
 	assert.Equal(t, activeModels.AbsenceStatusQuestion, updated.Status)
 	assert.Equal(t, "Bitte Vertretung klären", updated.DecisionNote)
@@ -73,6 +74,8 @@ func TestQuestionAbsence_Success(t *testing.T) {
 }
 
 func TestQuestionAbsence_RequiresNote(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -82,6 +85,8 @@ func TestQuestionAbsence_RequiresNote(t *testing.T) {
 }
 
 func TestQuestionAbsence_RequiresPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -91,6 +96,8 @@ func TestQuestionAbsence_RequiresPermission(t *testing.T) {
 }
 
 func TestQuestionAbsence_OnlyFromRequested(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -102,6 +109,8 @@ func TestQuestionAbsence_OnlyFromRequested(t *testing.T) {
 }
 
 func TestListPendingAbsences_IncludesQuestionStatus(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 

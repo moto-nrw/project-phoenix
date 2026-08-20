@@ -31,11 +31,10 @@ func init() {
 // phone number) for an existing student in one atomic request and verifies it is
 // persisted and linked.
 func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -64,20 +63,18 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	// The guardian is created and linked to the student.
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.TenantContext(1), student.ID)
+	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 1, "expected exactly one linked guardian")
 	assert.Equal(t, "Atomic", linked[0].Profile.FirstName)
-	defer cleanupGuardian(t, ctx.db, linked[0].Profile.ID)
 }
 
 // TestCreateStudentGuardians_EmptyGuardians_BadRequest rejects an empty batch.
 func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Empty", "Batch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -96,11 +93,10 @@ func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 // no staff record cannot attach guardians (same supervisor gate as the
 // single-link endpoint).
 func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Forbidden", "Batch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -111,7 +107,7 @@ func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	// Authenticated but not admin and not a staff member → canModifyStudent fails.
-	nonStaff := jwt.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: 1, Roles: []string{"user"}, Permissions: []string{"users:read"}}
+	nonStaff := jwt.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Permissions: []string{"users:read"}}
 	req := testutil.NewAuthenticatedRequest(t, "POST",
 		fmt.Sprintf("/students/%d/guardians/batch", student.ID), body,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, nonStaff)),

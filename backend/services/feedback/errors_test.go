@@ -10,23 +10,31 @@ import (
 )
 
 func TestEntryNotFoundError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &EntryNotFoundError{EntryID: 123}
 	assert.Equal(t, "feedback entry not found: 123", err.Error())
 }
 
 func TestEntryNotFoundError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &EntryNotFoundError{EntryID: 123}
 	assert.Equal(t, ErrEntryNotFound, err.Unwrap())
 	assert.True(t, errors.Is(err, ErrEntryNotFound))
 }
 
 func TestInvalidEntryDataError_Error(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("validation failed")
 	err := &InvalidEntryDataError{Err: originalErr}
 	assert.Equal(t, "invalid feedback entry data: validation failed", err.Error())
 }
 
 func TestInvalidEntryDataError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("validation failed")
 	err := &InvalidEntryDataError{Err: originalErr}
 
@@ -36,6 +44,8 @@ func TestInvalidEntryDataError_Unwrap(t *testing.T) {
 }
 
 func TestInvalidDateRangeError_Error(t *testing.T) {
+	t.Parallel()
+
 	startDate := timezone.NewDate(2026, 1, 20)
 	endDate := timezone.NewDate(2026, 1, 18)
 
@@ -49,6 +59,8 @@ func TestInvalidDateRangeError_Error(t *testing.T) {
 }
 
 func TestInvalidDateRangeError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &InvalidDateRangeError{
 		StartDate: timezone.TodayDate(),
 		EndDate:   timezone.TodayDate(),
@@ -59,6 +71,8 @@ func TestInvalidDateRangeError_Unwrap(t *testing.T) {
 }
 
 func TestBatchOperationError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &BatchOperationError{
 		Errors: []error{
 			errors.New("error 1"),
@@ -71,6 +85,8 @@ func TestBatchOperationError_Error(t *testing.T) {
 }
 
 func TestBatchOperationError_AddError(t *testing.T) {
+	t.Parallel()
+
 	batchErr := &BatchOperationError{}
 
 	// Initially empty
@@ -93,6 +109,8 @@ func TestBatchOperationError_AddError(t *testing.T) {
 }
 
 func TestBatchOperationError_HasErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		errors    []error
@@ -134,6 +152,8 @@ func TestBatchOperationError_HasErrors(t *testing.T) {
 }
 
 func TestBatchOperationError_ErrorCount(t *testing.T) {
+	t.Parallel()
+
 	batchErr := &BatchOperationError{}
 
 	// Add errors one by one

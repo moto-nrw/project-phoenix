@@ -11,6 +11,8 @@ import (
 )
 
 func TestOperatorPasskeyCredentialModel(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	credential := &OperatorPasskeyCredential{
 		Model:          base.Model{ID: 12, CreatedAt: now, UpdatedAt: now},
@@ -42,6 +44,8 @@ func TestOperatorPasskeyCredentialModel(t *testing.T) {
 }
 
 func TestOperatorPasskeySessionModel(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	session := &OperatorPasskeySession{
 		ID:             "session",

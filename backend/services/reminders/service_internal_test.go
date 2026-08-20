@@ -167,6 +167,8 @@ func plannedInstance(title string, roomID int64, startMin, endMin int) *schedule
 // --- pickupReminders ---------------------------------------------------------
 
 func TestPickupReminders(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 
@@ -319,6 +321,8 @@ func TestPickupReminders(t *testing.T) {
 // --- activityReminders -------------------------------------------------------
 
 func TestActivityReminders(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	const overdueThreshold = 5
@@ -446,6 +450,8 @@ func TestActivityReminders(t *testing.T) {
 // --- pickup / activity scope resolution --------------------------------------
 
 func TestPickupScopeStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("admin sees all present students", func(t *testing.T) {
 		svc := &service{Dependencies: Dependencies{Attendance: fakeAttendance{ids: []int64{1, 2, 3}}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: true}, timezone.TodayDate())
@@ -520,6 +526,8 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 }
 
 func TestSupervisedRoomIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns the deduplicated supervised rooms", func(t *testing.T) {
 		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{
 			supervisions: []*activeModel.GroupSupervisor{{GroupID: 100}, {GroupID: 200}},
@@ -550,6 +558,8 @@ func TestSupervisedRoomIDs(t *testing.T) {
 // --- threshold helpers -------------------------------------------------------
 
 func TestLeadAndThresholdFallbacks(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("configured value wins", func(t *testing.T) {
@@ -591,6 +601,8 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 // --- Compute (gating, enabled flag, sorting) ---------------------------------
 
 func TestComputeGating(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("nil settings returns an empty, disabled result", func(t *testing.T) {
@@ -630,6 +642,8 @@ func TestComputeGating(t *testing.T) {
 }
 
 func TestComputeSortsMostUrgentFirst(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	// Guard the wall-clock arithmetic against day wrap near midnight.
@@ -669,6 +683,8 @@ func TestComputeSortsMostUrgentFirst(t *testing.T) {
 // pin the boundary math the timer depends on.
 
 func TestNextChangeMinFutureHelper(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, -1, futureBoundary(600, 600), "a boundary at now is not in the future")
 	assert.Equal(t, -1, futureBoundary(590, 600), "a past boundary yields the absent sentinel")
 	assert.Equal(t, 610, futureBoundary(610, 600))
@@ -681,6 +697,8 @@ func TestNextChangeMinFutureHelper(t *testing.T) {
 }
 
 func TestPickupNextChange(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 
@@ -734,6 +752,8 @@ func TestPickupNextChange(t *testing.T) {
 // never emitted. Student 2 — omitted by FindReadScopeByIDs, the read boundary —
 // has the SOONER boundary; only student 1's must survive.
 func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	g100 := int64(100)
@@ -754,6 +774,8 @@ func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
 }
 
 func TestActivityNextChange(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	const overdueThreshold = 5
@@ -795,6 +817,8 @@ func TestActivityNextChange(t *testing.T) {
 }
 
 func TestComputeExposesNextChangeAt(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	// Guard the wall-clock arithmetic against day wrap near midnight.
@@ -820,6 +844,8 @@ func TestComputeExposesNextChangeAt(t *testing.T) {
 // --- pure helpers ------------------------------------------------------------
 
 func TestPureHelpers(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "10:05", formatMinutes(605))
 	assert.Equal(t, "00:00", formatMinutes(0))
 	assert.Equal(t, "09:55", formatMinutes(595))

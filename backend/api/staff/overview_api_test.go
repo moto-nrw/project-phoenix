@@ -36,11 +36,6 @@ func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Overview", fmt.Sprintf("Editor-%d", suffix))
 	editorStaff := testpkg.CreateTestStaffForPerson(t, tc.db, person.ID)
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, tc.db, editorStaff.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", person.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "auth.accounts", account.ID)
-	})
 
 	token := func(perms ...string) string {
 		claims := testutil.DefaultTestClaims()
@@ -79,6 +74,8 @@ func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 }
 
 func TestDashboardSummaryAPI(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 
 	rec := ctx.get("/staff/dashboard-summary", "users:read")
@@ -107,6 +104,8 @@ func TestDashboardSummaryAPI(t *testing.T) {
 // per-person Soll/Ist/Saldo needs time_tracking:manage, NOT the users:read that
 // merely lets someone see the staff list.
 func TestTimeTrackingOverviewAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 
 	rec := ctx.get("/staff/time-tracking/overview", "users:read")
@@ -120,6 +119,8 @@ func TestTimeTrackingOverviewAPI_PermissionSplit(t *testing.T) {
 }
 
 func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 
 	for _, query := range []string{
@@ -156,6 +157,8 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 // TestMonthCloseAPI covers the Monatsabschluss routes end to end through the
 // router, including the guard against closing a month that is not over.
 func TestMonthCloseAPI(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	today := timezone.TodayDate()
 
@@ -187,6 +190,8 @@ func TestMonthCloseAPI(t *testing.T) {
 // frontend branches on for its German copy (#1417 UI). The wire strings are
 // English; the codes are the contract.
 func TestMonthCloseAPI_StableErrorCodes(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	today := timezone.TodayDate()
 

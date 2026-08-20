@@ -20,12 +20,13 @@ import (
 // Their services scope per child but never re-check the permission, so an
 // absence-only caller would otherwise get a badge leading to three 403s.
 func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Count", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CountBadgeGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Count", "Kind", "CB1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -80,12 +81,13 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 // The badge counts only what its holder may open, and the queue behind it must
 // stay open to them: an absence reviewer sees the excused queue itself.
 func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "QueueReviewGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Queue", "Kind", "QR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 

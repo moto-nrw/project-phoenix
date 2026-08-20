@@ -81,22 +81,6 @@ func linkChildToAccountWithPermissions(
 	return profileID
 }
 
-// cleanupParentChild best-effort wipes the join rows so the next test
-// starts clean. Deletes in FK-friendly order.
-func cleanupParentChild(t *testing.T, db *bun.DB, accountID int64, tenantIDs ...int64) {
-	t.Helper()
-	bg := context.Background()
-	for _, tid := range tenantIDs {
-		_, _ = db.NewDelete().Table("users.students_guardians").
-			Where("tenant_id = ? AND guardian_profile_id IN (SELECT id FROM users.guardian_profiles WHERE tenant_id = ? AND account_id = ?)",
-				tid, tid, accountID).Exec(bg)
-		_, _ = db.NewDelete().Table("users.guardian_profiles").
-			Where("tenant_id = ? AND account_id = ?", tid, accountID).Exec(bg)
-		_, _ = db.NewDelete().Table("auth.account_tenants").
-			Where("account_id = ? AND tenant_id = ?", accountID, tid).Exec(bg)
-	}
-}
-
 func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
 	return tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
@@ -107,8 +91,9 @@ func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) er
 // --- ListByAccount ----------------------------------------------------
 
 func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	_, err := repo.ListByAccount(context.Background(), 0)
@@ -120,14 +105,14 @@ func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-happy")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -160,16 +145,16 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
+	t.Parallel()
+
 	// A parent who lost access to a school (account_tenants.status !=
 	// 'active') MUST NOT continue to see its children.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-inactive")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -199,14 +184,14 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-noportal")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -231,15 +216,15 @@ func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) 
 }
 
 func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
+	t.Parallel()
+
 	// Soft-deleted persons (deleted_at IS NOT NULL) must be excluded.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-softdel")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -269,20 +254,20 @@ func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
+	t.Parallel()
+
 	// One account → two children at two different tenants. Both rows
 	// must come back in a single call (cross-tenant join via
 	// account_tenants).
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	var tenantA int64 = 91501
-	var tenantB int64 = 91502
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-cross")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantA, tenantB)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -319,16 +304,16 @@ func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
+	t.Parallel()
+
 	// Result ordering is school_name ASC, first_name ASC, last_name
 	// ASC. Verify with two children at the same school.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-order")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})
@@ -362,8 +347,9 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	var list []*parentModels.ChildSummary
@@ -392,8 +378,9 @@ func findChild(t *testing.T, db *bun.DB, accountID, studentID int64) *parentMode
 }
 
 func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewChildRepository(db)
 
 	_, err := repo.FindForAccount(context.Background(), 0, 5)
@@ -403,14 +390,14 @@ func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-owned")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	})
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Owned", "1a")
@@ -427,14 +414,14 @@ func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-notlinked")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	})
 	// account is a guardian of `mine` but NOT of `other`.
@@ -454,14 +441,14 @@ func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-inactive")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	})
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Inactive", "1a")
@@ -486,14 +473,14 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 // because FindForAccount is the authorization gate for every per-child parent
 // write (#405 review).
 func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-alumnus")
 	t.Cleanup(func() {
-		cleanupParentChild(t, db, account.ID, tenantID)
 		_, _ = db.NewDelete().Table("auth.accounts").
 			Where("id = ?", account.ID).Exec(context.Background())
 	})

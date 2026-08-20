@@ -11,6 +11,8 @@ import (
 // TestRefreshTokenRaceCondition demonstrates the race condition fix
 // This is a simplified test that shows the concept
 func TestRefreshTokenRaceCondition(t *testing.T) {
+	t.Parallel()
+
 	t.Log("Race condition test would require full database setup")
 	t.Log("The fix has been implemented using SELECT ... FOR UPDATE")
 	t.Log("This prevents concurrent token refresh attempts")
@@ -49,6 +51,8 @@ func TestRefreshTokenRaceCondition(t *testing.T) {
 
 // TestDemonstrateRaceConditionScenario shows the race condition scenario
 func TestDemonstrateRaceConditionScenario(t *testing.T) {
+	t.Parallel()
+
 	t.Log("=== Demonstrating Race Condition Scenario ===")
 	t.Log("")
 	t.Log("WITHOUT FIX (Old behavior):")
@@ -80,6 +84,8 @@ func TestDemonstrateRaceConditionScenario(t *testing.T) {
 
 // TestManualRaceConditionVerification provides steps to manually test
 func TestManualRaceConditionVerification(t *testing.T) {
+	t.Parallel()
+
 	t.Log("=== Manual Test Instructions ===")
 	t.Log("")
 	t.Log("To manually verify the race condition fix:")
@@ -117,6 +123,8 @@ echo "  -d '{\"refresh_token\":\"'$REFRESH_TOKEN'\"}'"`
 
 // TestMockConcurrentRefreshAttempts simulates what happens with the fix
 func TestMockConcurrentRefreshAttempts(t *testing.T) {
+	t.Parallel()
+
 	type refreshAttempt struct {
 		id      int
 		success bool

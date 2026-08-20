@@ -60,6 +60,8 @@ func newLoginRequest(t *testing.T, email, password string) *http.Request {
 // TestLogin_MFARequiredResponseShape checks the new discriminated JSON shape
 // when the gate decides the user needs a second factor.
 func TestLogin_MFARequiredResponseShape(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		AuthService: &loginGateStub{
 			result: &authService.LoginResult{
@@ -86,6 +88,8 @@ func TestLogin_MFARequiredResponseShape(t *testing.T) {
 // TestLogin_AuthenticatedResponseShape is the regression guard for the
 // non-MFA path: regular logins still return access + refresh tokens.
 func TestLogin_AuthenticatedResponseShape(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		AuthService: &loginGateStub{
 			result: &authService.LoginResult{
@@ -116,6 +120,8 @@ func TestLogin_AuthenticatedResponseShape(t *testing.T) {
 // The previous "full session + flag" shape was the bypass the review
 // flagged as critical.
 func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		AuthService: &loginGateStub{
 			result: &authService.LoginResult{
@@ -143,6 +149,8 @@ func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
 // trust-device cookie off the request and forwards it to the gate so the
 // gate can skip MFA for previously-trusted browsers.
 func TestLogin_PassesTrustedDeviceCookie(t *testing.T) {
+	t.Parallel()
+
 	stub := &loginGateStub{
 		result: &authService.LoginResult{
 			Status:       authService.LoginStatusAuthenticated,
@@ -166,6 +174,8 @@ func TestLogin_PassesTrustedDeviceCookie(t *testing.T) {
 // mapping survived the handler refactor (the helper was extracted so the
 // MFA path could share it).
 func TestLogin_ServiceErrorMapping(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		err    error
@@ -203,6 +213,8 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 // ErrParentMustUseParentPortal after validateLoginCredentials accepted the
 // password, so the caller already owns the account.
 func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		AuthService: &loginGateStub{
 			err: &authService.AuthError{

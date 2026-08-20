@@ -234,7 +234,11 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 
 // List retrieves entities matching the filters
 func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, error) {
-	var entities []T
+	// Empty, not nil: "no rows" is an empty list, and callers serialize the
+	// result straight to JSON — a nil slice becomes null and every consumer
+	// has to special-case it (#2419 surfaced this once tests stopped sharing
+	// one tenant full of other tests' rows).
+	entities := make([]T, 0)
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
@@ -268,10 +272,10 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 
 // ListWithOptions retrieves entities matching the query options, supporting
 // the full Filter operator set plus sorting and pagination. The single-table
-// twin of the hand-rolled per-repo List(QueryOptions) copies; returns a nil
-// slice when nothing matches (callers that must serialize JSON [] coerce).
+// twin of the hand-rolled per-repo List(QueryOptions) copies; returns an empty
+// slice when nothing matches, so the JSON is [] rather than null.
 func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
-	var entities []T
+	entities := make([]T, 0)
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)

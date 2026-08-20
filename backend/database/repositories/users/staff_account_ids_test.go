@@ -12,19 +12,17 @@ import (
 // TestStaffRepository_ListAccountIDsByStaffIDs pins the staff -> login account
 // mapping used to address people by account instead of by staff row.
 func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("maps staff with an account and omits staff without one", func(t *testing.T) {
 		withAccount, account := testpkg.CreateTestStaffWithAccount(t, db, "Mapped", "Staff")
-		testpkg.MapAccountToTenant(t, db, account.ID, 1)
+		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 		withoutAccount := testpkg.CreateTestStaff(t, db, "Accountless", "Staff")
-
-		defer testpkg.CleanupStaffFixtures(t, db, withAccount.ID, withoutAccount.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{withAccount.ID, withoutAccount.ID})
 		require.NoError(t, err)
@@ -39,10 +37,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	t.Run("excludes a soft-deleted staff member", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Offboarded", "Staff")
-		testpkg.MapAccountToTenant(t, db, account.ID, 1)
-
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, err := db.NewUpdate().
 			TableExpr("users.staff").
@@ -60,12 +55,9 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	t.Run("excludes inactive accounts and tenant mappings", func(t *testing.T) {
 		inactiveAccountStaff, inactiveAccount := testpkg.CreateTestStaffWithAccount(t, db, "Inactive", "Account")
-		testpkg.MapAccountToTenant(t, db, inactiveAccount.ID, 1)
+		testpkg.MapAccountToTenant(t, db, inactiveAccount.ID, testpkg.Tenant(t))
 		inactiveMappingStaff, inactiveMappingAccount := testpkg.CreateTestStaffWithAccount(t, db, "Inactive", "Mapping")
-		testpkg.MapAccountToTenant(t, db, inactiveMappingAccount.ID, 1)
-
-		defer testpkg.CleanupStaffFixtures(t, db, inactiveAccountStaff.ID, inactiveMappingStaff.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID, inactiveMappingAccount.ID)
+		testpkg.MapAccountToTenant(t, db, inactiveMappingAccount.ID, testpkg.Tenant(t))
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.accounts").
@@ -77,7 +69,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 			TableExpr("auth.account_tenants").
 			Set("status = 'inactive'").
 			Where("account_id = ?", inactiveMappingAccount.ID).
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -93,11 +85,10 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 	})
 
 	t.Run("does not resolve another tenant's staff", func(t *testing.T) {
-		const otherTenant int64 = 99044
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignStaff := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Foreign", "Staff")
-		defer testpkg.CleanupStaffFixtures(t, db, foreignStaff.ID)
 
 		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{foreignStaff.ID})
 		require.NoError(t, err)
@@ -114,25 +105,26 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 // answer "may this person be addressed in this school right now", and two
 // answers to that question would drift.
 func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists mapped staff and skips the rest", func(t *testing.T) {
 		mapped, mappedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Mapped", "Colleague")
-		testpkg.MapAccountToTenant(t, db, mappedAccount.ID, 1)
+		testpkg.MapAccountToTenant(t, db, mappedAccount.ID, testpkg.Tenant(t))
 
 		unmapped, unmappedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Unmapped", "Colleague")
+		// "Unmapped" is the point of this fixture: drop the mapping
+		// CreateTestAccount adds for the test's own tenant (#2419).
+		testpkg.UnclaimTestAccount(t, db, unmappedAccount.ID)
 
 		deactivated, deactivatedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Deactivated", "Colleague")
-		testpkg.MapAccountToTenant(t, db, deactivatedAccount.ID, 1)
+		testpkg.MapAccountToTenant(t, db, deactivatedAccount.ID, testpkg.Tenant(t))
 
 		accountless := testpkg.CreateTestStaff(t, db, "Accountless", "Colleague")
-
-		defer testpkg.CleanupStaffFixtures(t, db, mapped.ID, unmapped.ID, deactivated.ID, accountless.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, mappedAccount.ID, unmappedAccount.ID, deactivatedAccount.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.accounts").
@@ -158,10 +150,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 
 	t.Run("excludes a soft-deleted staff member", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Offboarded", "Colleague")
-		testpkg.MapAccountToTenant(t, db, account.ID, 1)
-
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, err := db.NewUpdate().
 			TableExpr("users.staff").
@@ -178,11 +167,10 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 	})
 
 	t.Run("does not list another school's staff", func(t *testing.T) {
-		const otherTenant int64 = 99045
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreign := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Foreign", "Colleague")
-		defer testpkg.CleanupStaffFixtures(t, db, foreign.ID)
 
 		result, err := repo.ListAllStaffAccountIDs(ctx)
 		require.NoError(t, err)

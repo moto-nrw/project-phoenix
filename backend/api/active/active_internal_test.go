@@ -23,6 +23,8 @@ import (
 // =============================================================================
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	errResp := &common.ErrResponse{
 		HTTPStatusCode: http.StatusNotFound,
 		Status:         "Not Found",
@@ -46,6 +48,8 @@ func TestErrResponse_Render(t *testing.T) {
 // =============================================================================
 
 func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		err          error
@@ -80,6 +84,8 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		err          error
@@ -152,6 +158,8 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 // =============================================================================
 
 func TestErrorInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	testErr := assert.AnError
 	renderer := ErrorInvalidRequest(testErr)
 
@@ -165,6 +173,8 @@ func TestErrorInvalidRequest(t *testing.T) {
 }
 
 func TestErrorInternalServer(t *testing.T) {
+	t.Parallel()
+
 	testErr := assert.AnError
 	renderer := ErrorInternalServer(testErr)
 
@@ -178,6 +188,8 @@ func TestErrorInternalServer(t *testing.T) {
 }
 
 func TestErrorForbidden(t *testing.T) {
+	t.Parallel()
+
 	testErr := assert.AnError
 	renderer := ErrorForbidden(testErr)
 
@@ -191,6 +203,8 @@ func TestErrorForbidden(t *testing.T) {
 }
 
 func TestErrorUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	testErr := assert.AnError
 	renderer := ErrorUnauthorized(testErr)
 
@@ -211,6 +225,8 @@ func TestErrorUnauthorized(t *testing.T) {
 // =============================================================================
 
 func TestCheckinError_Respond(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusBadRequest,
 		message:    "Test error message",
@@ -229,6 +245,8 @@ func TestCheckinError_Respond(t *testing.T) {
 // =============================================================================
 
 func TestCheckoutContext_Fields(t *testing.T) {
+	t.Parallel()
+
 	attendance := &activeService.AttendanceStatus{Status: "checked_in"}
 
 	ctx := &checkoutContext{
@@ -241,6 +259,8 @@ func TestCheckoutContext_Fields(t *testing.T) {
 }
 
 func TestCheckoutContext_NilFields(t *testing.T) {
+	t.Parallel()
+
 	ctx := &checkoutContext{
 		StudentID:        456,
 		AttendanceStatus: nil,
@@ -251,6 +271,8 @@ func TestCheckoutContext_NilFields(t *testing.T) {
 }
 
 func TestCheckoutResult_Fields(t *testing.T) {
+	t.Parallel()
+
 	result := &activeService.AttendanceResult{Action: "checked_out"}
 	attendance := &activeService.AttendanceStatus{Status: "checked_out"}
 
@@ -264,6 +286,8 @@ func TestCheckoutResult_Fields(t *testing.T) {
 }
 
 func TestCheckinRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := CheckinRequest{
 		ActiveGroupID: 789,
 	}
@@ -272,6 +296,8 @@ func TestCheckinRequest_Fields(t *testing.T) {
 }
 
 func TestCheckinContext_Fields(t *testing.T) {
+	t.Parallel()
+
 	group := &active.Group{GroupID: base.Int64Ptr(100)}
 	staff := &users.Staff{PersonID: 200}
 	request := CheckinRequest{ActiveGroupID: 300}
@@ -290,6 +316,8 @@ func TestCheckinContext_Fields(t *testing.T) {
 }
 
 func TestCheckinContext_ZeroValues(t *testing.T) {
+	t.Parallel()
+
 	ctx := &checkinContext{}
 
 	assert.Equal(t, int64(0), ctx.studentID)
@@ -299,6 +327,8 @@ func TestCheckinContext_ZeroValues(t *testing.T) {
 }
 
 func TestCheckinRequest_ZeroValue(t *testing.T) {
+	t.Parallel()
+
 	var req CheckinRequest
 	assert.Equal(t, int64(0), req.ActiveGroupID)
 }
@@ -308,6 +338,8 @@ func TestCheckinRequest_ZeroValue(t *testing.T) {
 // =============================================================================
 
 func TestCheckinError_Fields(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusNotFound,
 		message:    "Test message",
@@ -318,6 +350,8 @@ func TestCheckinError_Fields(t *testing.T) {
 }
 
 func TestCheckinError_Respond_NotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusNotFound,
 		message:    "Not found",
@@ -332,6 +366,8 @@ func TestCheckinError_Respond_NotFound(t *testing.T) {
 }
 
 func TestCheckinError_Respond_Conflict(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusConflict,
 		message:    "Conflict",
@@ -346,6 +382,8 @@ func TestCheckinError_Respond_Conflict(t *testing.T) {
 }
 
 func TestCheckinError_Respond_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusForbidden,
 		message:    "Not authorized",
@@ -360,6 +398,8 @@ func TestCheckinError_Respond_Forbidden(t *testing.T) {
 }
 
 func TestCheckinError_Respond_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusUnauthorized,
 		message:    "Invalid token",
@@ -374,6 +414,8 @@ func TestCheckinError_Respond_Unauthorized(t *testing.T) {
 }
 
 func TestCheckinError_Respond_InternalServerError(t *testing.T) {
+	t.Parallel()
+
 	err := &checkinError{
 		statusCode: http.StatusInternalServerError,
 		message:    "Internal error",
@@ -394,6 +436,8 @@ func TestCheckinError_Respond_InternalServerError(t *testing.T) {
 // =============================================================================
 
 func TestActiveGroupResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	endTime := now.Add(1 * time.Hour)
 
@@ -430,6 +474,8 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 }
 
 func TestGroupSupervisorSimple_Fields(t *testing.T) {
+	t.Parallel()
+
 	supervisor := GroupSupervisorSimple{
 		StaffID: 123,
 		Role:    "supervisor",
@@ -440,6 +486,8 @@ func TestGroupSupervisorSimple_Fields(t *testing.T) {
 }
 
 func TestRoomSimple_Fields(t *testing.T) {
+	t.Parallel()
+
 	room := RoomSimple{
 		ID:   456,
 		Name: "Room A",
@@ -450,6 +498,8 @@ func TestRoomSimple_Fields(t *testing.T) {
 }
 
 func TestVisitResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	checkOutTime := now.Add(1 * time.Hour)
 

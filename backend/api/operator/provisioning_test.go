@@ -11,6 +11,8 @@ import (
 )
 
 func TestProvisioningErrorRendererMapsInvitationValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "create invitation",
 		Err: authSvc.ErrEmailAlreadyExists,
@@ -23,6 +25,8 @@ func TestProvisioningErrorRendererMapsInvitationValidationErrors(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "create invitation",
 		Err: errors.New("invalid email address"),
@@ -35,6 +39,8 @@ func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T)
 }
 
 func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "create invitation",
 		Err: authSvc.ErrInvitationNameRequired,
@@ -47,6 +53,8 @@ func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "accept invitation",
 		Err: authSvc.ErrPasswordMismatch,
@@ -59,6 +67,8 @@ func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "accept invitation",
 		Err: authSvc.ErrPasswordTooWeak,
@@ -71,6 +81,8 @@ func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "create invitation",
 		Err: nil,
@@ -83,6 +95,8 @@ func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
+	t.Parallel()
+
 	// An AuthError with a DatabaseError inner error should hit the default branch
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
 		Op:  "create invitation",
@@ -96,6 +110,8 @@ func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 }
 
 func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.ConflictError{
 		Err: errors.New("school subdomain already exists"),
 	})

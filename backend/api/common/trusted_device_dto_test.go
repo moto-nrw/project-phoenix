@@ -18,6 +18,8 @@ var (
 )
 
 func TestNewTrustedDeviceDTO_FullRow(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (testbot)"
 	row := common.TrustedDeviceRow{
 		ID:         42,
@@ -41,6 +43,8 @@ func TestNewTrustedDeviceDTO_FullRow(t *testing.T) {
 }
 
 func TestNewTrustedDeviceDTO_OmitsNilOptionalFields(t *testing.T) {
+	t.Parallel()
+
 	row := common.TrustedDeviceRow{
 		ID:        7,
 		CreatedAt: testCreated,
@@ -60,6 +64,8 @@ func TestNewTrustedDeviceDTO_OmitsNilOptionalFields(t *testing.T) {
 }
 
 func TestNewTrustedDeviceDTO_NormalisesTimestampsToUTC(t *testing.T) {
+	t.Parallel()
+
 	// Build a non-UTC moment to verify the helper normalises to RFC3339-Z
 	// rather than leaking the source location.
 	cet, err := time.LoadLocation("Europe/Berlin")
@@ -80,6 +86,8 @@ func TestNewTrustedDeviceDTO_NormalisesTimestampsToUTC(t *testing.T) {
 }
 
 func TestMapTrustedDevices_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	out := common.MapTrustedDevices(
 		[]struct{ ID int64 }{},
 		func(struct{ ID int64 }) common.TrustedDeviceRow {
@@ -91,6 +99,8 @@ func TestMapTrustedDevices_EmptyInput(t *testing.T) {
 }
 
 func TestMapTrustedDevices_PreservesOrderAndProjection(t *testing.T) {
+	t.Parallel()
+
 	// Use a tiny stand-in struct so we don't pull a real model dependency.
 	type fakeDevice struct {
 		ID       int64

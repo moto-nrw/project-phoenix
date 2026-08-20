@@ -41,6 +41,8 @@ func (m *mockPostReadRepo) CountUnviewed(ctx context.Context, accountID int64, r
 }
 
 func TestListAllPosts_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedPosts := []*suggestions.Post{{}, {}}
 
@@ -69,6 +71,8 @@ func TestListAllPosts_Success(t *testing.T) {
 }
 
 func TestListAllPosts_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -94,6 +98,8 @@ func TestListAllPosts_RepoError(t *testing.T) {
 }
 
 func TestGetPost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedPost := &suggestions.Post{Title: "Test Post"}
 	expectedComments := []*suggestions.Comment{{Content: "Test Comment"}}
@@ -130,6 +136,8 @@ func TestGetPost_Success(t *testing.T) {
 }
 
 func TestGetPost_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -156,6 +164,8 @@ func TestGetPost_NotFound(t *testing.T) {
 }
 
 func TestGetPost_RepoErrorOnFindByIDWithVote(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -182,6 +192,8 @@ func TestGetPost_RepoErrorOnFindByIDWithVote(t *testing.T) {
 }
 
 func TestGetPost_RepoErrorOnFindByPostID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("comment repo error")
 
@@ -214,6 +226,8 @@ func TestGetPost_RepoErrorOnFindByPostID(t *testing.T) {
 }
 
 func TestMarkCommentsRead_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -246,6 +260,8 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 }
 
 func TestMarkCommentsRead_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -269,6 +285,8 @@ func TestMarkCommentsRead_PostNotFound(t *testing.T) {
 }
 
 func TestMarkCommentsRead_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -292,6 +310,8 @@ func TestMarkCommentsRead_RepoErrorOnFindByID(t *testing.T) {
 }
 
 func TestMarkCommentsRead_RepoErrorOnUpsert(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("upsert error")
 
@@ -322,6 +342,8 @@ func TestMarkCommentsRead_RepoErrorOnUpsert(t *testing.T) {
 }
 
 func TestGetTotalUnreadCount_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
@@ -347,6 +369,8 @@ func TestGetTotalUnreadCount_Success(t *testing.T) {
 }
 
 func TestGetTotalUnreadCount_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -372,6 +396,8 @@ func TestGetTotalUnreadCount_RepoError(t *testing.T) {
 }
 
 func TestMarkPostViewed_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -404,6 +430,8 @@ func TestMarkPostViewed_Success(t *testing.T) {
 }
 
 func TestMarkPostViewed_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -427,6 +455,8 @@ func TestMarkPostViewed_PostNotFound(t *testing.T) {
 }
 
 func TestMarkPostViewed_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -450,6 +480,8 @@ func TestMarkPostViewed_RepoErrorOnFindByID(t *testing.T) {
 }
 
 func TestMarkPostViewed_RepoErrorOnMarkViewed(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("mark viewed error")
 
@@ -480,6 +512,8 @@ func TestMarkPostViewed_RepoErrorOnMarkViewed(t *testing.T) {
 }
 
 func TestGetUnviewedPostCount_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postReadRepo := &mockPostReadRepo{
@@ -505,6 +539,8 @@ func TestGetUnviewedPostCount_Success(t *testing.T) {
 }
 
 func TestGetUnviewedPostCount_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -530,6 +566,8 @@ func TestGetUnviewedPostCount_RepoError(t *testing.T) {
 }
 
 func TestUpdatePostStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -574,6 +612,8 @@ func TestUpdatePostStatus_Success(t *testing.T) {
 }
 
 func TestUpdatePostStatus_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -592,6 +632,8 @@ func TestUpdatePostStatus_InvalidStatus(t *testing.T) {
 }
 
 func TestUpdatePostStatus_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -616,6 +658,8 @@ func TestUpdatePostStatus_PostNotFound(t *testing.T) {
 }
 
 func TestUpdatePostStatus_RepoErrorOnUpdate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("update error")
@@ -643,6 +687,8 @@ func TestUpdatePostStatus_RepoErrorOnUpdate(t *testing.T) {
 }
 
 func TestUpdatePostStatus_NilPostReadRepo(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -669,6 +715,8 @@ func TestUpdatePostStatus_NilPostReadRepo(t *testing.T) {
 }
 
 func TestAddComment_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -713,6 +761,8 @@ func TestAddComment_Success(t *testing.T) {
 }
 
 func TestAddComment_NilComment(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -731,6 +781,8 @@ func TestAddComment_NilComment(t *testing.T) {
 }
 
 func TestAddComment_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -761,6 +813,8 @@ func TestAddComment_PostNotFound(t *testing.T) {
 }
 
 func TestAddComment_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -791,6 +845,8 @@ func TestAddComment_ValidationError(t *testing.T) {
 }
 
 func TestAddComment_RepoErrorOnCreate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("create error")
@@ -827,6 +883,8 @@ func TestAddComment_RepoErrorOnCreate(t *testing.T) {
 }
 
 func TestGetComments_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedComments := []*suggestions.Comment{{Content: "Test"}}
 
@@ -852,6 +910,8 @@ func TestGetComments_Success(t *testing.T) {
 }
 
 func TestGetComments_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -876,6 +936,8 @@ func TestGetComments_RepoError(t *testing.T) {
 }
 
 func TestDeleteComment_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -910,6 +972,8 @@ func TestDeleteComment_Success(t *testing.T) {
 }
 
 func TestDeleteComment_CommentNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -934,6 +998,8 @@ func TestDeleteComment_CommentNotFound(t *testing.T) {
 }
 
 func TestDeleteComment_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("repo error")
@@ -958,6 +1024,8 @@ func TestDeleteComment_RepoErrorOnFindByID(t *testing.T) {
 }
 
 func TestUpdatePostStatus_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("find error")
@@ -982,6 +1050,8 @@ func TestUpdatePostStatus_RepoErrorOnFindByID(t *testing.T) {
 }
 
 func TestUpdatePostStatus_MarkViewedFails_StillSucceeds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1015,6 +1085,8 @@ func TestUpdatePostStatus_MarkViewedFails_StillSucceeds(t *testing.T) {
 }
 
 func TestUpdatePostStatus_AuditLogFails_StillSucceeds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1048,6 +1120,8 @@ func TestUpdatePostStatus_AuditLogFails_StillSucceeds(t *testing.T) {
 }
 
 func TestAddComment_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("find error")
@@ -1078,6 +1152,8 @@ func TestAddComment_RepoErrorOnFindByID(t *testing.T) {
 }
 
 func TestAddComment_AuditLogFails_StillSucceeds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1119,6 +1195,8 @@ func TestAddComment_AuditLogFails_StillSucceeds(t *testing.T) {
 }
 
 func TestDeleteComment_AuditLogFails_StillSucceeds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1151,6 +1229,8 @@ func TestDeleteComment_AuditLogFails_StillSucceeds(t *testing.T) {
 }
 
 func TestNewOperatorSuggestionsService_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1175,6 +1255,8 @@ func TestNewOperatorSuggestionsService_NilLogger(t *testing.T) {
 }
 
 func TestHasDB_WithNilDB(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1200,6 +1282,8 @@ func TestHasDB_WithNilDB(t *testing.T) {
 }
 
 func TestHasDB_WithZeroValueDB(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1225,6 +1309,8 @@ func TestHasDB_WithZeroValueDB(t *testing.T) {
 }
 
 func TestDeleteComment_RepoErrorOnDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("delete error")
@@ -1254,6 +1340,8 @@ func TestDeleteComment_RepoErrorOnDelete(t *testing.T) {
 // --- HidePost tests ---
 
 func TestHidePost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1293,6 +1381,8 @@ func TestHidePost_Success(t *testing.T) {
 }
 
 func TestHidePost_Unhide(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1322,6 +1412,8 @@ func TestHidePost_Unhide(t *testing.T) {
 }
 
 func TestHidePost_Idempotent_AlreadyHidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1358,6 +1450,8 @@ func TestHidePost_Idempotent_AlreadyHidden(t *testing.T) {
 }
 
 func TestHidePost_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1380,6 +1474,8 @@ func TestHidePost_PostNotFound(t *testing.T) {
 }
 
 func TestHidePost_RepoErrorOnFindByID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("db connection failed")
@@ -1404,6 +1500,8 @@ func TestHidePost_RepoErrorOnFindByID(t *testing.T) {
 // --- DeletePost tests ---
 
 func TestDeletePost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1443,6 +1541,8 @@ func TestDeletePost_Success(t *testing.T) {
 }
 
 func TestDeletePost_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
@@ -1465,6 +1565,8 @@ func TestDeletePost_PostNotFound(t *testing.T) {
 }
 
 func TestDeletePost_RepoErrorOnDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 	expectedErr := errors.New("delete failed")

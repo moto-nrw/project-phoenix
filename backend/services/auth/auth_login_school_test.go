@@ -137,11 +137,12 @@ func setSchoolActive(t *testing.T, db *bun.DB, tenantID int64, active bool) {
 }
 
 func TestLoginSchool_NoPortalRole_Refused(t *testing.T) {
+	t.Parallel()
+
 	// An account that is mapped to a school but holds no school-portal role
 	// (here: no role at all) must be refused with the portal sentinel — the
 	// handler maps it to 403.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -157,11 +158,12 @@ func TestLoginSchool_NoPortalRole_Refused(t *testing.T) {
 }
 
 func TestLoginSchool_Lehrkraft_IssuesSchoolScopedTokens(t *testing.T) {
+	t.Parallel()
+
 	// Happy path: lehrkraft system role at one school → token pair with
 	// scope=school and the school pinned as tenant_id (school tokens are
 	// tenant-bound, unlike parent tokens).
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -184,8 +186,9 @@ func TestLoginSchool_Lehrkraft_IssuesSchoolScopedTokens(t *testing.T) {
 }
 
 func TestLoginSchool_WrongPassword_Refused(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -198,11 +201,12 @@ func TestLoginSchool_WrongPassword_Refused(t *testing.T) {
 }
 
 func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
+	t.Parallel()
+
 	// A school-scope refresh token must round-trip as a school token — a
 	// silent demotion to tenant scope would fail SchoolMiddleware on the
 	// next request and dead-end the portal session.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -221,13 +225,14 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 }
 
 func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing.T) {
+	t.Parallel()
+
 	// A school-scope refresh token that names no school is refused, and the
 	// refusal must land BEFORE the rotation. Judged only afterwards (as it
 	// was), the rotation had already resolved the account's default mapping,
 	// minted a successor for a school this session never proved access to, and
 	// burned the presented token on the way to the error.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -265,11 +270,12 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 }
 
 func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
+	t.Parallel()
+
 	// Revoking the lehrkraft role must cut the session at the next refresh:
 	// the refresh path re-verifies the school-portal role instead of
 	// trusting the (still unexpired) refresh token.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -292,11 +298,12 @@ func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
 }
 
 func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
+	t.Parallel()
+
 	// A Lehrkraft mapped to two schools can switch only where the portal
 	// role exists: mapping alone (school B without lehrkraft role) is not
 	// enough.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantA, _ := newSchoolTenant(t, db)
@@ -332,11 +339,12 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 }
 
 func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.T) {
+	t.Parallel()
+
 	// With MFA required and enrolled, the school login must hand out a
 	// challenge started with the SCHOOL challenge scope — that is what
 	// keeps the challenge redeemable only at the school verify endpoint.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -366,10 +374,11 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 }
 
 func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
+	t.Parallel()
+
 	// The school MFA verify path must not mint school tokens for an account
 	// whose portal role disappeared between challenge start and verify.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -384,11 +393,12 @@ func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
 }
 
 func TestLoginSchool_InactiveSchool_Refused(t *testing.T) {
+	t.Parallel()
+
 	// An operator deactivating a school must cut its Lehrkräfte's school
 	// logins: the portal-tenant finder skips inactive schools, so an
 	// account whose only lehrkraft school is deactivated is refused.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -406,11 +416,12 @@ func TestLoginSchool_InactiveSchool_Refused(t *testing.T) {
 }
 
 func TestLoginSchool_DeadOldestSchool_PicksNextValidSchool(t *testing.T) {
+	t.Parallel()
+
 	// A soft-deleted school in the OLDEST mapping must not shadow a valid
 	// second school: the finder skips dead schools instead of pinning the
 	// login to them.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	// Oldest mapping first: the dead school.
@@ -433,11 +444,12 @@ func TestLoginSchool_DeadOldestSchool_PicksNextValidSchool(t *testing.T) {
 }
 
 func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
+	t.Parallel()
+
 	// A trusted-device cookie proven for (account, school) replaces the
 	// second factor: the login must mint the token pair directly instead
 	// of starting another email-code challenge.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -474,11 +486,12 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 }
 
 func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// Fail-closed gate: when the MFA status cannot be determined the login
 	// is refused with the 503 sentinel instead of silently degrading to
 	// "MFA not required".
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -536,10 +549,11 @@ func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
 }
 
 func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
+	t.Parallel()
+
 	// The school MFA verify path mints the session once the second factor
 	// is proven — same scope and school binding as the password login.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -561,8 +575,9 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 }
 
 func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -609,8 +624,9 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 }
 
 func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, slug := newSchoolTenant(t, db)
@@ -648,11 +664,12 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 }
 
 func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *testing.T) {
+	t.Parallel()
+
 	// MFA required + not enrolled → the enrollment token must carry the
 	// SCHOOL enrollment scope. A tenant-scope token here would let the
 	// enrollment detour convert a school login into a tenant session.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -678,13 +695,14 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 }
 
 func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
+	t.Parallel()
+
 	// Membership is revoked by flipping auth.account_tenants.status, not by
 	// touching roles. Every path that mints a school token must re-read that
 	// status: an in-flight MFA challenge, a school switch, and a refresh all
 	// used to trust the mapping resolved at password time and kept minting
 	// tokens for an account already removed from the school.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, slug := newSchoolTenant(t, db)
@@ -737,11 +755,12 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 }
 
 func TestIssueSchoolTokens_SoftDeletedSchool_Refused(t *testing.T) {
+	t.Parallel()
+
 	// A school soft-deleted while `active` stays true must still cut the
 	// token mint — the liveness gate checks deleted_at as well, not only the
 	// active flag.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)
@@ -760,6 +779,8 @@ func TestIssueSchoolTokens_SoftDeletedSchool_Refused(t *testing.T) {
 }
 
 func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
+	t.Parallel()
+
 	// /auth/logout is a pre-deauthentication route: nothing has put a tenant
 	// in the context by the time the event is written. logAuthEvent then
 	// falls back to the account's FIRST active mapping, so a Lehrkraft who
@@ -767,7 +788,6 @@ func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
 	// filed under the school they never logged into. The tenant on the token
 	// row is what the session actually was.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	// Mapped first (and therefore the oldest mapping — the wrong answer the
@@ -800,6 +820,8 @@ func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
 }
 
 func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(t *testing.T) {
+	t.Parallel()
+
 	// The MFA gate runs before the token transaction, so its verdict is a
 	// snapshot. Under `required_admins` an admin role granted in that window
 	// used to produce a full school session that never saw a second factor:
@@ -816,7 +838,6 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	// a test artifact — it is the reason the in-transaction resolver reads on
 	// the caller's transaction and never opens a second one.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 
 	tenantID, _ := newSchoolTenant(t, db)

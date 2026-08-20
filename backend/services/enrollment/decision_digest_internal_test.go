@@ -22,6 +22,8 @@ func (s digestSettingsStub) ResolveString(context.Context, string) (string, erro
 }
 
 func TestResolveDecisionNotificationMode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		settings decisionNotificationSettings
@@ -48,6 +50,8 @@ func TestResolveDecisionNotificationMode(t *testing.T) {
 }
 
 func TestDecisionDigestIdempotencyKeyTracksCanonicalStatusVector(t *testing.T) {
+	t.Parallel()
+
 	firstReview := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
 	secondReview := firstReview.Add(time.Minute)
 	children := []*enrollmentModels.RequestChild{

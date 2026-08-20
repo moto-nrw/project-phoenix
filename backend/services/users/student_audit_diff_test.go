@@ -23,6 +23,8 @@ func editByField(edits []*auditModels.StudentFieldEdit) map[string]*auditModels.
 // TestDiffStudentFields_NoChange verifies that an identical before/after pair,
 // including equivalent nil and empty-string values, records nothing.
 func TestDiffStudentFields_NoChange(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name          string
 		before, after *userModels.Student
@@ -50,6 +52,8 @@ func TestDiffStudentFields_NoChange(t *testing.T) {
 // one edit with the correct field token and display-ready German old/new
 // values.
 func TestDiffStudentFields_PerField(t *testing.T) {
+	t.Parallel()
+
 	t.Run("status maps to German labels", func(t *testing.T) {
 		edits := diffStudentFields(
 			&userModels.Student{Status: userModels.StudentStatusPending},
@@ -157,6 +161,8 @@ func TestDiffStudentFields_PerField(t *testing.T) {
 // TestDiffStudentFields_MultipleFields verifies several simultaneous changes
 // each record their own edit.
 func TestDiffStudentFields_MultipleFields(t *testing.T) {
+	t.Parallel()
+
 	edits := diffStudentFields(
 		&userModels.Student{
 			Status:          userModels.StudentStatusActive,

@@ -7,6 +7,8 @@ import (
 )
 
 func TestFamilyFingerprintUsesStableSHA256(t *testing.T) {
+	t.Parallel()
+
 	const familyID = "family-123"
 
 	fingerprint := FamilyFingerprint(familyID)

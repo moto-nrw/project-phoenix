@@ -44,9 +44,10 @@ func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (
 }
 
 func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Fields", "3a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	linkedStudentID := student.ID
 	otherStudentID := student.ID + 999
@@ -150,9 +151,10 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 }
 
 func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "No", "Extras", "3a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{}
 	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{}
@@ -169,9 +171,10 @@ func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) 
 }
 
 func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Failure", "3a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	linkedStudentID := student.ID
 	schemaID := int64(42)
@@ -210,9 +213,10 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 }
 
 func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Missing", "3a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	linkedStudentID := student.ID
 	schemaID := int64(42)

@@ -23,6 +23,8 @@ import (
 // =============================================================================
 
 func TestPickupScheduleRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
@@ -103,6 +105,8 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 // =============================================================================
 
 func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
@@ -176,6 +180,8 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 // =============================================================================
 
 func TestPickupExceptionRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
@@ -276,6 +282,8 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 // =============================================================================
 
 func TestBulkPickupTimeRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
@@ -345,6 +353,8 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 // =============================================================================
 
 func TestParseTimeOnly(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid time", func(t *testing.T) {
 		result, err := parseTimeOnly("15:30")
 		require.NoError(t, err)
@@ -370,6 +380,8 @@ func TestParseTimeOnly(t *testing.T) {
 // =============================================================================
 
 func TestMapScheduleToResponse(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps schedule without notes", func(t *testing.T) {
 		schedule := createTestScheduleModel(1, 1, "15:30", nil)
 		resp := mapScheduleToResponse(schedule)
@@ -394,6 +406,8 @@ func TestMapScheduleToResponse(t *testing.T) {
 }
 
 func TestMapExceptionToResponse(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps exception with pickup time", func(t *testing.T) {
 		exception := createTestExceptionModel(1, "2026-02-15", "12:00", "Doctor appointment")
 		resp := mapExceptionToResponse(exception)
@@ -461,6 +475,8 @@ func createTestExceptionModelAbsent(studentID int64, date, reason string) *sched
 // =============================================================================
 
 func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("weekday_boundary_monday", func(t *testing.T) {
@@ -522,6 +538,8 @@ func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 }
 
 func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("all_weekdays", func(t *testing.T) {
@@ -563,6 +581,8 @@ func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 }
 
 func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("reason_boundary_255_chars", func(t *testing.T) {
@@ -599,6 +619,8 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 }
 
 func TestMapScheduleToResponse_WeekdayNames(t *testing.T) {
+	t.Parallel()
+
 	weekdays := []struct {
 		day  int
 		name string
@@ -620,6 +642,8 @@ func TestMapScheduleToResponse_WeekdayNames(t *testing.T) {
 }
 
 func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("exactly_500_student_ids", func(t *testing.T) {
@@ -653,6 +677,8 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 }
 
 func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
+	t.Parallel()
+
 	t.Run("formats created_at and updated_at as RFC3339", func(t *testing.T) {
 		now := time.Now()
 		studentID := int64(12345)
@@ -696,6 +722,8 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 }
 
 func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
+	t.Parallel()
+
 	t.Run("formats timestamps as RFC3339", func(t *testing.T) {
 		now := time.Now()
 		studentID := int64(12345)
@@ -726,6 +754,8 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 }
 
 func TestBulkPickupScheduleRequest_Bind_AllValidationPaths(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("schedule with notes too long", func(t *testing.T) {
@@ -760,6 +790,8 @@ func TestBulkPickupScheduleRequest_Bind_AllValidationPaths(t *testing.T) {
 // =============================================================================
 
 func TestHandlerAccessorMethods(t *testing.T) {
+	t.Parallel()
+
 	// Create a minimal Resource for testing accessor methods
 	rs := &Resource{}
 
@@ -814,6 +846,8 @@ func TestHandlerAccessorMethods(t *testing.T) {
 // =============================================================================
 
 func TestParseTimeOnly_Variations(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses morning time", func(t *testing.T) {
 		result, err := parseTimeOnly("08:30")
 		require.NoError(t, err)
@@ -861,6 +895,8 @@ func TestParseTimeOnly_Variations(t *testing.T) {
 // =============================================================================
 
 func TestPickupDataResponse_Structure(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty response has empty slices", func(t *testing.T) {
 		resp := PickupDataResponse{
 			Schedules:  []PickupScheduleResponse{},
@@ -906,6 +942,8 @@ func TestPickupDataResponse_Structure(t *testing.T) {
 // =============================================================================
 
 func TestBulkPickupTimeResponse_Structure(t *testing.T) {
+	t.Parallel()
+
 	t.Run("response with pickup time", func(t *testing.T) {
 		pickupTime := "14:30"
 		resp := BulkPickupTimeResponse{
@@ -944,6 +982,8 @@ func TestBulkPickupTimeResponse_Structure(t *testing.T) {
 // =============================================================================
 
 func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil pickup time results in nil response pickup time", func(t *testing.T) {
 		now := time.Now()
 		studentID := int64(12345)
@@ -973,6 +1013,8 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 }
 
 func TestBulkPickupTimeRequest_Bind_EmptyStringDate(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("empty string date is valid and skips date parsing", func(t *testing.T) {
@@ -987,6 +1029,8 @@ func TestBulkPickupTimeRequest_Bind_EmptyStringDate(t *testing.T) {
 }
 
 func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request with nil pickup time (absent student)", func(t *testing.T) {

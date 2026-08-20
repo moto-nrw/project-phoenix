@@ -46,6 +46,8 @@ func (s failingSnapshotActiveService) GetStudentsAttendanceStatuses(context.Cont
 }
 
 func TestLoadStudentDataSnapshotStrictPropagatesSubLoadErrors(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("snapshot source unavailable")
 
 	tests := []struct {

@@ -14,6 +14,8 @@ import (
 // tab enforces, and reading "Ärztliches Attest: Attest_Epilepsie.pdf" in the
 // Historie tab becomes a way around student_documents:health.
 func TestStudentDocumentFieldRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	field := audit.StudentDocumentField("attest")
 	assert.Equal(t, "document_attest", field)
 	assert.Equal(t, "attest", audit.StudentDocumentCategoryFromField(field))
@@ -21,6 +23,8 @@ func TestStudentDocumentFieldRoundTrip(t *testing.T) {
 }
 
 func TestStudentDocumentCategoryFromFieldIgnoresOtherFields(t *testing.T) {
+	t.Parallel()
+
 	// An ordinary field carries no category...
 	assert.Empty(t, audit.StudentDocumentCategoryFromField(audit.StudentFieldHealthInfo))
 	assert.False(t, audit.IsStudentDocumentField(audit.StudentFieldHealthInfo))
@@ -33,6 +37,8 @@ func TestStudentDocumentCategoryFromFieldIgnoresOtherFields(t *testing.T) {
 }
 
 func TestStudentFieldEditValidateAcceptsDocumentFields(t *testing.T) {
+	t.Parallel()
+
 	newValue := "Ärztliches Attest: Attest.pdf"
 	edit := &audit.StudentFieldEdit{
 		StudentID:    91,

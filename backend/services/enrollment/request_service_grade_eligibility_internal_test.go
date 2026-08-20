@@ -23,6 +23,8 @@ func gradeEligibilityPhase(levels ...int) *enrollmentModels.Phase {
 func gradeLevelPtr(v int16) *int16 { return &v }
 
 func TestValidateChildGradeEligibility_UnrestrictedPhaseAcceptsEverything(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validateChildGradeEligibility(gradeEligibilityPhase(),
 		[]SubmitChild{{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(2)}}))
 	require.NoError(t, validateChildGradeEligibility(gradeEligibilityPhase(),
@@ -30,11 +32,15 @@ func TestValidateChildGradeEligibility_UnrestrictedPhaseAcceptsEverything(t *tes
 }
 
 func TestValidateChildGradeEligibility_AcceptsEligibleGrade(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validateChildGradeEligibility(gradeEligibilityPhase(3),
 		[]SubmitChild{{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(3)}}))
 }
 
 func TestValidateChildGradeEligibility_RejectsOtherGrade(t *testing.T) {
+	t.Parallel()
+
 	err := validateChildGradeEligibility(gradeEligibilityPhase(3),
 		[]SubmitChild{{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(4)}})
 	require.ErrorIs(t, err, ErrChildGradeNotEligible)
@@ -45,6 +51,8 @@ func TestValidateChildGradeEligibility_RejectsOtherGrade(t *testing.T) {
 // child's grade is nil, and treating that as eligible would silently disable
 // the restriction instead of surfacing the misconfiguration.
 func TestValidateChildGradeEligibility_RejectsMissingGrade(t *testing.T) {
+	t.Parallel()
+
 	err := validateChildGradeEligibility(gradeEligibilityPhase(3),
 		[]SubmitChild{{FirstName: "Kim"}})
 	require.ErrorIs(t, err, ErrChildGradeNotEligible)
@@ -52,6 +60,8 @@ func TestValidateChildGradeEligibility_RejectsMissingGrade(t *testing.T) {
 
 // Every child in a multi-child submission is checked, not just the first.
 func TestValidateChildGradeEligibility_RejectsIneligibleSibling(t *testing.T) {
+	t.Parallel()
+
 	err := validateChildGradeEligibility(gradeEligibilityPhase(3, 4), []SubmitChild{
 		{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(3)},
 		{FirstName: "Alex", TargetGradeLevel: gradeLevelPtr(1)},
@@ -62,6 +72,8 @@ func TestValidateChildGradeEligibility_RejectsIneligibleSibling(t *testing.T) {
 // The gate runs on the shared child-eligibility path, so submit AND the
 // editable-request path enforce it — the same wiring the class gate uses.
 func TestValidatePhaseChildEligibility_AppliesGradeRestriction(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := gradeEligibilityPhase(3)
 
@@ -78,6 +90,8 @@ func TestValidatePhaseChildEligibility_AppliesGradeRestriction(t *testing.T) {
 // A late invite / admin manual submission sets AllowClosedPhase and bypasses
 // every eligibility gate, grades included — same override the class gate honors.
 func TestValidatePhaseEligibility_AllowClosedPhaseBypassesGradeRestriction(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	err := svc.validatePhaseEligibility(context.Background(), gradeEligibilityPhase(3), SubmitRequest{
 		AllowClosedPhase: true,
@@ -92,6 +106,8 @@ func TestValidatePhaseEligibility_AllowClosedPhaseBypassesGradeRestriction(t *te
 // submit fails with class_not_eligible after the whole form was filled in
 // (#1663).
 func TestNarrowOfferedGradesToEligibleClassesForForm(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		available []string
@@ -150,6 +166,8 @@ func TestNarrowOfferedGradesToEligibleClassesForForm(t *testing.T) {
 // The derived restriction is presentation only: Submit reloads the phase, so a
 // child in a derived grade is still decided by the class gate.
 func TestNarrowOfferedGradesToEligibleClassesForForm_DerivedGradeStillPassesClassGate(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		Audience:               enrollmentModels.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"3a", "3b", "4a"},

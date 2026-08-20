@@ -30,13 +30,14 @@ import (
 // its users:read prerequisite.
 
 func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// A staff member (the Sekretariat case) who supervises nothing, and a child
 	// with no group at all.
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sekretariat", "Barnstorf")
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sekretariat", "Barnstorf")
 	student := testpkg.CreateTestStudent(t, tc.db, "Gruppenlos", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	absencePerms := []string{"users:read", "users:absence"}
@@ -168,12 +169,13 @@ func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 // users:update check in authorizeStudentUpdate every absence writer would
 // inherit the full record write — address, class, notes — from being staff.
 func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceWriterGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Supervised", "Kind", "AW1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -222,11 +224,12 @@ func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
 // below. Whether that flag should carry the permission is an open follow-up —
 // this test asserts the enforced behavior, not the advisory flag.
 func TestAbsenceWriter_DetailFlags(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Flag", "Staff")
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Flag", "Staff")
 	student := testpkg.CreateTestStudent(t, tc.db, "Flag", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	absencePerms := []string{"users:read", "users:absence"}
@@ -256,12 +259,12 @@ func TestAbsenceWriter_DetailFlags(t *testing.T) {
 // non-admin in a school without groups, so the queue and the decision follow
 // the same absence gate (#2232).
 func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Queue", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Queue", "Staff")
 
 	day := timezone.TodayDate().AddDays(3)
 	var pending *activeModels.ExcusedAbsenceRequest
@@ -307,15 +310,16 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 // reviewer reads the child fully, so the note travels alongside the rest of the
 // record — a badge withheld from its decider would hide work they own.
 func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
 	student := testpkg.CreateTestStudent(t, tc.db, "Note", "Kind", "1a")
-	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Einreicher")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID, submitter.ID)
+	_, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Einreicher")
 
 	const note = "Kommt später, Termin beim Kinderarzt"
-	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
@@ -348,12 +352,13 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 // and the guardian requests behind it — from merely being staff, in a school
 // that never granted the pair.
 func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoRead", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoReadGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "NoRead", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 

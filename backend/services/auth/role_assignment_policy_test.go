@@ -19,15 +19,17 @@ import (
 // The shared policy behind every path that attaches an account to a school
 // (issue #1021): operator-led school access and /auth/link-to-tenant.
 func TestValidateAssignableSchoolRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	roleRepo := repoFactory.Role
 	ctx := context.Background()
 
-	const homeTenantID int64 = 1
-	const foreignTenantID int64 = 1021002
+	homeTenantID := testpkg.UniqueTestTenantID(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, homeTenantID)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")

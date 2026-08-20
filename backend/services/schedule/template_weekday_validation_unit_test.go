@@ -12,6 +12,8 @@ import (
 )
 
 func TestValidateTemplateCreateInputRejectsWeekendWeekday(t *testing.T) {
+	t.Parallel()
+
 	err := validateTemplateCreateInput(CreateTemplateInput{
 		Name:     "Wochenende",
 		Weekdays: []int{activitiesModel.WeekdaySaturday},
@@ -21,6 +23,8 @@ func TestValidateTemplateCreateInputRejectsWeekendWeekday(t *testing.T) {
 }
 
 func TestValidateSplitRecurrenceRejectsWeekendWeekday(t *testing.T) {
+	t.Parallel()
+
 	err := validateSplitRecurrence(TemplateSplitInput{
 		Weekdays: []int{activitiesModel.WeekdaySunday},
 	})
@@ -29,6 +33,8 @@ func TestValidateSplitRecurrenceRejectsWeekendWeekday(t *testing.T) {
 }
 
 func TestValidateSplitInputAcceptsTargetsWithoutLegacyMirror(t *testing.T) {
+	t.Parallel()
+
 	gradeTwo := int16(2)
 	gradeThree := int16(3)
 	in := TemplateSplitInput{
@@ -56,6 +62,8 @@ func TestValidateSplitInputAcceptsTargetsWithoutLegacyMirror(t *testing.T) {
 }
 
 func TestResolveTemplateRosterRejectsPrimaryOutsideWeekdayStaff(t *testing.T) {
+	t.Parallel()
+
 	primaryID := int64(22)
 	_, err := resolveTemplateRoster(
 		[]int{activitiesModel.WeekdayMonday},
@@ -73,6 +81,8 @@ func TestResolveTemplateRosterRejectsPrimaryOutsideWeekdayStaff(t *testing.T) {
 }
 
 func TestValidateSplitWeekdayAssignmentsRequiresBothExplicitRosters(t *testing.T) {
+	t.Parallel()
+
 	assignment := WeekdayRosterAssignment{Weekday: activitiesModel.WeekdayMonday}
 
 	for _, input := range []TemplateSplitInput{

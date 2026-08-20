@@ -23,6 +23,8 @@ func decodeUpdateSourceFields(t *testing.T, raw string) *updateTemplateRequest {
 }
 
 func TestUpdateTemplateRequestSourceFieldPresence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted fields are unset", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, `{"name":"Tpl"}`)
 		assert.False(t, req.SourceCareOfferingIDs.Set)
@@ -69,6 +71,8 @@ func validUpdateBodyJSON(fragment string) string {
 // the not-yet-merged nil source (#2147 review round 14). Submitted source
 // fields keep failing fast at bind.
 func TestUpdateTemplateBind_DefersSourceValidationUntilMerge(t *testing.T) {
+	t.Parallel()
+
 	t.Run("filter-only body binds and keeps the filter for the merge", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, validUpdateBodyJSON(
 			`"target_group_type":"angebot","source_grade_levels":[2]`))
@@ -99,6 +103,8 @@ func sourcedExistingTemplate(offeringIDs []int64, gradeLevels []int) templateRes
 }
 
 func TestApplyOfferingSourcePresence(t *testing.T) {
+	t.Parallel()
+
 	storedOfferingIDs := []int64{41, 43}
 
 	t.Run("omitted fields carry the stored sources and filter", func(t *testing.T) {

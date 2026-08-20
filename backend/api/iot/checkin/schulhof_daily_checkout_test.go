@@ -29,9 +29,10 @@ import (
 //     builds its destination modal only for "checked_out", so an upgraded
 //     action would show no buttons at all and silently send home every child
 //     who scanned out at the yard, including those heading back inside.
+//
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// No configured checkout time → the time gate is open, so this test
 	// exercises the ROOM gate in isolation. Restored afterwards so a value in
@@ -45,32 +46,25 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 	}()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-home")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "SchulhofHome", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "SchulhofHome", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("SCHULHOFHOME%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// The whole point of the bug: the child's group HAS its own room, which is
 	// what made the old room gate reject every Schulhof checkout.
 	groupRoom := testpkg.CreateTestRoom(t, ctx.db, "Hausaufgaben 1/2")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, groupRoom.ID)
 
 	educationGroup := testpkg.CreateTestEducationGroup(t, ctx.db, "Hausaufgaben")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, educationGroup.ID)
 
 	defer assignGroupRoom(t, ctx, educationGroup.ID, groupRoom.ID)()
 	defer assignStudentToGroup(t, ctx, student.ID, educationGroup.ID)()
 
 	schulhof := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, schulhof.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -116,9 +110,9 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 // Schulhof branch must not have opened "nach Hause" everywhere. A child leaving
 // an ordinary room that is neither their group room nor the yard is still only
 // moving between rooms.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
 	require.NoError(t, os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME"))
@@ -129,24 +123,18 @@ func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 	}()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "ordinary-room")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Ordinary", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Ordinary", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("ORDINARY%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	groupRoom := testpkg.CreateTestRoom(t, ctx.db, "Hausaufgaben 3/4")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, groupRoom.ID)
 
 	educationGroup := testpkg.CreateTestEducationGroup(t, ctx.db, "Hausaufgaben34")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, educationGroup.ID)
 
 	defer assignGroupRoom(t, ctx, educationGroup.ID, groupRoom.ID)()
 	defer assignStudentToGroup(t, ctx, student.ID, educationGroup.ID)()
@@ -154,13 +142,10 @@ func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 	// An ordinary room with its own running activity — not the group room, not
 	// the Schulhof.
 	otherRoom := testpkg.CreateTestRoom(t, ctx.db, "Musikraum")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, otherRoom.ID)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Musik")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
 
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, otherRoom.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+	_ = testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, otherRoom.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -237,6 +222,6 @@ func setColumn(t *testing.T, ctx *testContext, table, column string, value any, 
 		TableExpr(table).
 		Set(column+" = ?", value).
 		Where("id = ?", id).
-		Exec(testutil.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err, "failed to set %s.%s", table, column)
 }

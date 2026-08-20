@@ -14,6 +14,8 @@ import (
 )
 
 func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
 		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -32,6 +34,8 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 }
 
 func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
 		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -50,6 +54,8 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 }
 
 func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
 		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -70,6 +76,8 @@ func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testin
 }
 
 func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
 		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -91,6 +99,8 @@ func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing
 }
 
 func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	db, mock := newSessionSQLMockDB(t)
 	mock.ExpectBegin()

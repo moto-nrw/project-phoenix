@@ -12,6 +12,8 @@ import (
 )
 
 func TestStaffRecipientResolverReachesGroupTeamAndAdmins(t *testing.T) {
+	t.Parallel()
+
 	groupID := absenceGroupA
 	resolver := notifications.NewStaffRecipientResolver(
 		&stubConsent{allowed: map[int64]struct{}{

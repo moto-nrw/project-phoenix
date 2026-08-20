@@ -46,6 +46,8 @@ func withStaffMoveContext(req *http.Request) *http.Request {
 }
 
 func TestMoveStudentsToActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		var capturedActiveGroupID int64
@@ -241,6 +243,8 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 }
 
 func TestMoveStudentsToTransit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		rs := &Resource{

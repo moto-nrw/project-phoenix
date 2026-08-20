@@ -65,6 +65,8 @@ func staffEvent(tenantID int64, accountIDs ...int64) notifications.Event {
 // recipients. An event that addresses nobody must be rejected rather than
 // delivered to a fallback audience.
 func TestStaffScopeValidation(t *testing.T) {
+	t.Parallel()
+
 	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(testpkg.NewRecordingBroadcaster()))
 
@@ -84,6 +86,8 @@ func TestStaffScopeValidation(t *testing.T) {
 // TestStaffScopeRoutesToNamedAccounts pins that the SSE channel addresses
 // exactly the named accounts and no other audience.
 func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
+	t.Parallel()
+
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(bc))
@@ -111,6 +115,8 @@ func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
 // after-commit boundary unchanged. Delivery runs after Notify returns, so a
 // caller reusing its slice would otherwise redirect a notification.
 func TestStaffAccountIDsAreSnapshotted(t *testing.T) {
+	t.Parallel()
+
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
 		notifications.NewSSEChannel(bc))
@@ -137,6 +143,8 @@ func TestStaffAccountIDsAreSnapshotted(t *testing.T) {
 // TestDeliveryWindow pins the quiet-hours gate that lives in the router, so it
 // holds for every producer rather than each carrying its own.
 func TestDeliveryWindow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("outside the window nothing is dispatched", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
 		// A window that has already closed for every possible current time.
@@ -191,6 +199,8 @@ func TestDeliveryWindow(t *testing.T) {
 
 // TestNotifyBatch pins the batched entry point.
 func TestNotifyBatch(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delivers one event per recipient", func(t *testing.T) {
 		bc := testpkg.NewRecordingBroadcaster()
 		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,

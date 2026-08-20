@@ -25,7 +25,6 @@ const testJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(testJWTSecret)
@@ -42,6 +41,8 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 }
 
 func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -66,6 +67,8 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 }
 
 func TestMFAService_TrustedDeviceFlow(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -98,6 +101,8 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 }
 
 func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, repos, db := newTestMFAService(t)
 
@@ -122,6 +127,8 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 }
 
 func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 

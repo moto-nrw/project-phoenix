@@ -136,6 +136,8 @@ func parentRequestWithURLParam(req *http.Request, key, value string) *http.Reque
 }
 
 func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentCalendarService{
 		icsFilename: "elternabend.ics",
 		icsContent:  "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
@@ -158,6 +160,8 @@ func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
 }
 
 func TestCalendarFeedURLReturnsURLs(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentCalendarService{
 		feedURL:    "https://parents.test/api/calendar-feed/abc",
 		feedWebcal: "webcal://parents.test/api/calendar-feed/abc",
@@ -174,6 +178,8 @@ func TestCalendarFeedURLReturnsURLs(t *testing.T) {
 }
 
 func TestRotateCalendarFeedPassesAccount(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentCalendarService{
 		feedURL:    "https://parents.test/api/calendar-feed/new",
 		feedWebcal: "webcal://parents.test/api/calendar-feed/new",
@@ -190,6 +196,8 @@ func TestRotateCalendarFeedPassesAccount(t *testing.T) {
 }
 
 func TestListMyCalendarRejectsMissingClaims(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{CalendarService: &fakeParentCalendarService{}}
 	req := httptest.NewRequest(http.MethodGet, "/me/calendar?from=2026-01-05&to=2026-01-11", nil)
 	w := httptest.NewRecorder()
@@ -200,6 +208,8 @@ func TestListMyCalendarRejectsMissingClaims(t *testing.T) {
 }
 
 func TestListMyCalendarRejectsMissingCalendarService(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar?from=2026-01-05&to=2026-01-11", nil), 77)
 	w := httptest.NewRecorder()
@@ -210,6 +220,8 @@ func TestListMyCalendarRejectsMissingCalendarService(t *testing.T) {
 }
 
 func TestListMyCalendarParsesRangeAndAccount(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentCalendarService{
 		parentEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calModels.EventSourceAppointment, Title: "Parent meeting"}},
 	}
@@ -227,6 +239,8 @@ func TestListMyCalendarParsesRangeAndAccount(t *testing.T) {
 }
 
 func TestListMyCalendarRejectsBadRange(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{CalendarService: &fakeParentCalendarService{}}
 	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar?from=bad&to=2026-01-11", nil), 77)
 	w := httptest.NewRecorder()
@@ -237,6 +251,8 @@ func TestListMyCalendarRejectsBadRange(t *testing.T) {
 }
 
 func TestRespondToCalendarInvitationPassesAccountRecipientAndStatus(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentCalendarService{}
 	rs := &Resource{CalendarService: service}
 	req := withClaims(
@@ -258,6 +274,8 @@ func TestRespondToCalendarInvitationPassesAccountRecipientAndStatus(t *testing.T
 }
 
 func TestRespondToCalendarInvitationRejectsInvalidRecipient(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{CalendarService: &fakeParentCalendarService{}}
 	req := withClaims(
 		parentRequestWithURLParam(

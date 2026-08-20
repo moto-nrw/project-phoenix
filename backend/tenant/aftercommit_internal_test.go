@@ -12,6 +12,8 @@ import (
 // WithTenantTx: callbacks accumulate in registration order and drain
 // returns them all at once, leaving the queue empty for re-use.
 func TestAfterCommitHooks_AddAndDrain(t *testing.T) {
+	t.Parallel()
+
 	h := &afterCommitHooks{}
 
 	var calls []int
@@ -36,6 +38,8 @@ func TestAfterCommitHooks_AddAndDrain(t *testing.T) {
 // inside a tx (unlikely but legal). Without the lock, slice growth would
 // race.
 func TestAfterCommitHooks_AddIsConcurrencySafe(t *testing.T) {
+	t.Parallel()
+
 	h := &afterCommitHooks{}
 
 	var wg sync.WaitGroup
@@ -55,6 +59,8 @@ func TestAfterCommitHooks_AddIsConcurrencySafe(t *testing.T) {
 // for the OUTERMOST WithTenantTx call: no holder in ctx → fresh one is
 // installed and threaded through context.
 func TestWithAfterCommitHooks_AttachesFreshHolder(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	newCtx, h := withAfterCommitHooks(ctx)
 
@@ -70,6 +76,8 @@ func TestWithAfterCommitHooks_AttachesFreshHolder(t *testing.T) {
 // path: a WithTenantTx already-in-progress reuses the holder so nested
 // RegisterAfterCommit calls all queue onto the SAME drain.
 func TestWithAfterCommitHooks_ReusesExistingHolder(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	outerCtx, outerH := withAfterCommitHooks(ctx)
 
@@ -80,6 +88,8 @@ func TestWithAfterCommitHooks_ReusesExistingHolder(t *testing.T) {
 }
 
 func TestContextWithoutAfterCommitHooksIsolatesIndependentTransactions(t *testing.T) {
+	t.Parallel()
+
 	outerCtx, outerHooks := withAfterCommitHooks(context.Background())
 	isolateCtx := ContextWithoutAfterCommitHooks(outerCtx)
 	innerCtx, innerHooks := withAfterCommitHooks(isolateCtx)
@@ -92,6 +102,8 @@ func TestContextWithoutAfterCommitHooksIsolatesIndependentTransactions(t *testin
 // WithTenantTx never reached the outer-attach path (e.g. a defensive
 // caller path), runAfterCommitHooks must not panic on nil.
 func TestRunAfterCommitHooks_NilHolderIsNoop(t *testing.T) {
+	t.Parallel()
+
 	assert.NotPanics(t, func() {
 		runAfterCommitHooks(nil)
 	})
@@ -100,6 +112,8 @@ func TestRunAfterCommitHooks_NilHolderIsNoop(t *testing.T) {
 // TestRunAfterCommitHooks_DrainsAndExecutes pins the drain-and-run order
 // that the OUTERMOST WithTenantTx relies on after a successful COMMIT.
 func TestRunAfterCommitHooks_DrainsAndExecutes(t *testing.T) {
+	t.Parallel()
+
 	h := &afterCommitHooks{}
 	var ran []int
 	h.add(func() { ran = append(ran, 1) })
@@ -115,6 +129,8 @@ func TestRunAfterCommitHooks_DrainsAndExecutes(t *testing.T) {
 // path (caller is inside a WithTenantTx) — fn must NOT execute inline,
 // it must wait for the outer commit drain.
 func TestRegisterAfterCommit_QueuesOntoHolderInContext(t *testing.T) {
+	t.Parallel()
+
 	ctx, h := withAfterCommitHooks(context.Background())
 
 	called := false

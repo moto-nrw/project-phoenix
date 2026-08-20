@@ -34,6 +34,8 @@ func (f fakeLegalDocumentReferenceRepository) HasLegalDocumentReference(ctx cont
 }
 
 func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
+	t.Parallel()
+
 	req := multipartPDFRequest(t, "document", "terms.pdf", []byte("%PDF-1.4\n%test\n"))
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
@@ -58,6 +60,8 @@ func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
 }
 
 func TestUploadLegalDocument_RejectsNonPDF(t *testing.T) {
+	t.Parallel()
+
 	req := multipartPDFRequest(t, "document", "terms.pdf", []byte("not a pdf"))
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
@@ -68,6 +72,8 @@ func TestUploadLegalDocument_RejectsNonPDF(t *testing.T) {
 }
 
 func TestDeleteLegalDocument_RemovesUnreferencedTenantPDF(t *testing.T) {
+	t.Parallel()
+
 	path, url := writeEnrollmentLegalDocument(t, "42_delete-me.pdf")
 	req := httptest.NewRequest(http.MethodDelete, "/enrollment/legal-documents/42_delete-me.pdf", nil)
 	req = withFilenameParam(req, "42_delete-me.pdf")
@@ -83,6 +89,8 @@ func TestDeleteLegalDocument_RemovesUnreferencedTenantPDF(t *testing.T) {
 }
 
 func TestDeleteLegalDocument_KeepsReferencedTenantPDF(t *testing.T) {
+	t.Parallel()
+
 	path, _ := writeEnrollmentLegalDocument(t, "42_keep-me.pdf")
 	req := httptest.NewRequest(http.MethodDelete, "/enrollment/legal-documents/42_keep-me.pdf", nil)
 	req = withFilenameParam(req, "42_keep-me.pdf")
@@ -98,6 +106,8 @@ func TestDeleteLegalDocument_KeepsReferencedTenantPDF(t *testing.T) {
 }
 
 func TestDeleteLegalDocument_ChecksReferencesInTenantTx(t *testing.T) {
+	t.Parallel()
+
 	_, _ = writeEnrollmentLegalDocument(t, "42_tx-check.pdf")
 	req := httptest.NewRequest(http.MethodDelete, "/enrollment/legal-documents/42_tx-check.pdf", nil)
 	req = withFilenameParam(req, "42_tx-check.pdf")
@@ -125,6 +135,8 @@ func TestDeleteLegalDocument_ChecksReferencesInTenantTx(t *testing.T) {
 }
 
 func TestDeleteLegalDocument_RejectsOtherTenantPDF(t *testing.T) {
+	t.Parallel()
+
 	_, _ = writeEnrollmentLegalDocument(t, "7_other-tenant.pdf")
 	req := httptest.NewRequest(http.MethodDelete, "/enrollment/legal-documents/7_other-tenant.pdf", nil)
 	req = withFilenameParam(req, "7_other-tenant.pdf")

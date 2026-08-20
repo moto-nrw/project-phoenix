@@ -67,7 +67,6 @@ func loadSchemaFields(t *testing.T, db *bun.DB, id int64) []enrollmentModels.For
 
 func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsPhases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -131,7 +130,6 @@ func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsP
 
 func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -162,7 +160,6 @@ func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *t
 
 func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequirednessAndBroadensVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -194,7 +191,6 @@ func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequiredne
 
 func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFieldExists(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -229,7 +225,6 @@ func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFi
 
 func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBeforeValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -267,7 +262,6 @@ func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBefo
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnReplacement(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -301,7 +295,6 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnRepl
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -337,7 +330,6 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(
 
 func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()
@@ -375,7 +367,6 @@ func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *t
 
 func TestFormSchemasMigrateLegacyDeparture_SkipsCleanLineages(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantID := time.Now().UnixNano()

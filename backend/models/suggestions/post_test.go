@@ -10,6 +10,8 @@ import (
 )
 
 func TestPost_Validate_Success(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: "Valid description",
@@ -22,6 +24,8 @@ func TestPost_Validate_Success(t *testing.T) {
 }
 
 func TestPost_Validate_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "  Trimmed Title  ",
 		Description: "  Trimmed Description  ",
@@ -36,6 +40,8 @@ func TestPost_Validate_TrimsWhitespace(t *testing.T) {
 }
 
 func TestPost_Validate_EmptyTitle(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "",
 		Description: "Some description",
@@ -49,6 +55,8 @@ func TestPost_Validate_EmptyTitle(t *testing.T) {
 }
 
 func TestPost_Validate_WhitespaceOnlyTitle(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "   ",
 		Description: "Some description",
@@ -62,6 +70,8 @@ func TestPost_Validate_WhitespaceOnlyTitle(t *testing.T) {
 }
 
 func TestPost_Validate_TitleTooLong(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       strings.Repeat("a", 201),
 		Description: "Some description",
@@ -75,6 +85,8 @@ func TestPost_Validate_TitleTooLong(t *testing.T) {
 }
 
 func TestPost_Validate_TitleExactly200(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       strings.Repeat("a", 200),
 		Description: "Some description",
@@ -87,6 +99,8 @@ func TestPost_Validate_TitleExactly200(t *testing.T) {
 }
 
 func TestPost_Validate_EmptyDescription(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: "",
@@ -100,6 +114,8 @@ func TestPost_Validate_EmptyDescription(t *testing.T) {
 }
 
 func TestPost_Validate_DescriptionTooLong(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: strings.Repeat("a", 5001),
@@ -113,6 +129,8 @@ func TestPost_Validate_DescriptionTooLong(t *testing.T) {
 }
 
 func TestPost_Validate_DescriptionExactly5000(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: strings.Repeat("a", 5000),
@@ -125,6 +143,8 @@ func TestPost_Validate_DescriptionExactly5000(t *testing.T) {
 }
 
 func TestPost_Validate_ZeroAuthorID(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: "Some description",
@@ -138,6 +158,8 @@ func TestPost_Validate_ZeroAuthorID(t *testing.T) {
 }
 
 func TestPost_Validate_NegativeAuthorID(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: "Some description",
@@ -151,6 +173,8 @@ func TestPost_Validate_NegativeAuthorID(t *testing.T) {
 }
 
 func TestPost_Validate_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Valid Title",
 		Description: "Some description",
@@ -164,6 +188,8 @@ func TestPost_Validate_InvalidStatus(t *testing.T) {
 }
 
 func TestPost_Validate_AllStatuses(t *testing.T) {
+	t.Parallel()
+
 	statuses := []string{StatusOpen, StatusPlanned, StatusDone, StatusRejected}
 	for _, status := range statuses {
 		t.Run(status, func(t *testing.T) {
@@ -180,6 +206,8 @@ func TestPost_Validate_AllStatuses(t *testing.T) {
 }
 
 func TestIsValidStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		status string
 		valid  bool
@@ -202,12 +230,16 @@ func TestIsValidStatus(t *testing.T) {
 }
 
 func TestPost_GetID(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{}
 	post.ID = 42
 	assert.Equal(t, int64(42), post.GetID())
 }
 
 func TestPost_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	post := &Post{}
 	post.CreatedAt = now
@@ -215,6 +247,8 @@ func TestPost_GetCreatedAt(t *testing.T) {
 }
 
 func TestPost_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	post := &Post{}
 	post.UpdatedAt = now
@@ -225,6 +259,8 @@ func TestPost_GetUpdatedAt(t *testing.T) {
 // has to keep meaning "staff", because every post written before the parent
 // board existed carries the column default.
 func TestPost_Validate_DefaultsAuthorTypeToStaff(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Ohne Autorentyp",
 		Description: "Legacy-Beitrag ohne gesetzten Autorentyp",
@@ -238,6 +274,8 @@ func TestPost_Validate_DefaultsAuthorTypeToStaff(t *testing.T) {
 }
 
 func TestPost_Validate_AcceptsParentAuthorType(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Eltern-Feedback",
 		Description: "Aus dem Elternportal",
@@ -255,6 +293,8 @@ func TestPost_Validate_AcceptsParentAuthorType(t *testing.T) {
 // matches this column against the transaction's actor, so a third value would
 // produce a row no board can read.
 func TestPost_Validate_RejectsUnknownAuthorType(t *testing.T) {
+	t.Parallel()
+
 	post := &Post{
 		Title:       "Falscher Autorentyp",
 		Description: "operator ist kein Board",
@@ -269,6 +309,8 @@ func TestPost_Validate_RejectsUnknownAuthorType(t *testing.T) {
 }
 
 func TestIsValidPostAuthorType(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidPostAuthorType(PostAuthorStaff))
 	assert.True(t, IsValidPostAuthorType(PostAuthorParent))
 	assert.False(t, IsValidPostAuthorType(""))
@@ -276,6 +318,8 @@ func TestIsValidPostAuthorType(t *testing.T) {
 }
 
 func TestPost_IsFromParent(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, (&Post{AuthorType: PostAuthorParent}).IsFromParent())
 	assert.False(t, (&Post{AuthorType: PostAuthorStaff}).IsFromParent())
 	assert.False(t, (&Post{}).IsFromParent())

@@ -17,6 +17,8 @@ import (
 // create and update. It is pure input validation, so it is pinned here
 // without a database.
 func TestValidateOfferingSourceInput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		sourceOfferingIDs  []int64
@@ -133,6 +135,8 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 // a rule accepted on one path and rejected on the other would let the editor
 // save a template it cannot re-save.
 func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
+	t.Parallel()
+
 	t.Run("create", func(t *testing.T) {
 		err := validateTemplateCreateInput(CreateTemplateInput{
 			Name:                  "Frühbetreuung",
@@ -173,6 +177,8 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 // silently kept the old template's source and filter no matter what the
 // request asked for.
 func TestResolveSuccessorOfferingSource(t *testing.T) {
+	t.Parallel()
+
 	sourcedOld := func() *activitiesModel.Group {
 		return &activitiesModel.Group{
 			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
@@ -257,6 +263,8 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 // offeringRosterFeedChanged gates the split's roster resync: an unchanged
 // feed keeps the plain carry-over, every difference triggers reconciliation.
 func TestOfferingRosterFeedChanged(t *testing.T) {
+	t.Parallel()
+
 	group := func(offeringIDs []int64, levels []int) *activitiesModel.Group {
 		return &activitiesModel.Group{SourceCareOfferingIDs: offeringIDs, SourceGradeLevels: levels}
 	}
@@ -292,6 +300,8 @@ func TestOfferingRosterFeedChanged(t *testing.T) {
 // boundary is clamped to today, so fixed calendar dates would flip these
 // assertions once real time passes them.
 func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
+	t.Parallel()
+
 	periodID := int64(55)
 	rosterFrom := timezone.TodayDate().AddDays(6)
 	scheduleFrom := timezone.TodayDate().AddDays(28)
@@ -406,6 +416,8 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 // or period-incompatible source from reaching the group insert/update, where
 // the FK would turn a client mistake into a 500 (#2147 review round 18).
 func TestValidateOfferingSourceReference(t *testing.T) {
+	t.Parallel()
+
 	periodID := int64(55)
 
 	t.Run("no source skips the hook", func(t *testing.T) {

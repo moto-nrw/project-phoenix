@@ -11,6 +11,8 @@ import (
 func datePtr(d timezone.Date) *timezone.Date { return &d }
 
 func TestGuest_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		guest   *Guest
@@ -127,6 +129,8 @@ func TestGuest_Validate(t *testing.T) {
 }
 
 func TestGuest_SetStaff(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set with staff", func(t *testing.T) {
 		guest := &Guest{
 			ActivityExpertise: "Soccer",
@@ -165,6 +169,8 @@ func TestGuest_SetStaff(t *testing.T) {
 }
 
 func TestGuest_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with staff and person", func(t *testing.T) {
 		guest := &Guest{
 			Staff: &Staff{
@@ -203,6 +209,8 @@ func TestGuest_GetFullName(t *testing.T) {
 }
 
 func TestGuest_AddNotes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("add first note", func(t *testing.T) {
 		guest := &Guest{}
 		guest.AddNotes("First note")
@@ -224,6 +232,8 @@ func TestGuest_AddNotes(t *testing.T) {
 }
 
 func TestGuest_GetID(t *testing.T) {
+	t.Parallel()
+
 	guest := &Guest{
 		Model:             base.Model{ID: 42},
 		StaffID:           1,
@@ -236,6 +246,8 @@ func TestGuest_GetID(t *testing.T) {
 }
 
 func TestGuest_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	guest := &Guest{
 		Model:             base.Model{CreatedAt: now},
@@ -249,6 +261,8 @@ func TestGuest_GetCreatedAt(t *testing.T) {
 }
 
 func TestGuest_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	guest := &Guest{
 		Model:             base.Model{UpdatedAt: now},

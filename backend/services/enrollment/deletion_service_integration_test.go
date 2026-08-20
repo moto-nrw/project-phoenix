@@ -48,39 +48,7 @@ func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTes
 	phase.SetTenantID(f.scope.TenantID)
 	require.NoError(t, f.repos.Phase.Create(f.scope.Context(), phase))
 	f.phase = phase.ID
-	t.Cleanup(f.cleanup)
 	return f
-}
-
-func (f *deletionTestFixture) cleanup() {
-	f.t.Helper()
-	ctx := context.Background()
-	for _, table := range []string{
-		"audit.enrollment_deletions",
-		"platform.email_outbox",
-		"enrollment.late_invites",
-		"enrollment.change_request_messages",
-		"enrollment.change_requests",
-		"audit.enrollment_offering_adjustments",
-		"enrollment.request_child_offerings",
-		"enrollment.request_guardians",
-		"enrollment.request_children",
-		"enrollment.requests",
-		"enrollment.care_offerings",
-		"enrollment.phases",
-		"users.students_guardians",
-		"users.guardian_profiles",
-		"users.students",
-		"users.persons",
-	} {
-		_, err := f.db.NewDelete().TableExpr(table).Where("tenant_id = ?", f.scope.TenantID).Exec(ctx)
-		if err != nil {
-			f.t.Logf("cleanup %s for tenant %d: %v", table, f.scope.TenantID, err)
-		}
-	}
-	testpkg.CleanupAuthFixtures(f.t, f.db, f.actor)
-	testpkg.CleanupTableRecords(f.t, f.db, "platform.schools", f.scope.TenantID)
-	testpkg.CleanupTableRecords(f.t, f.db, "platform.organizations", f.scope.TenantID)
 }
 
 func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *enrollmentModels.Request {
@@ -158,8 +126,9 @@ func tableCount(t *testing.T, db *bun.DB, table, where string, args ...any) int 
 }
 
 func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "mixed")
 	request := f.request("mixed", nil)
 	target := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
@@ -203,8 +172,9 @@ func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *te
 }
 
 func TestEnrollmentDeletion_DeleteApprovedChildAfterStudentWasRemoved(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "approved-orphan")
 	request := f.request("approved-orphan", nil)
 	target := f.child(request.ID, "ApprovedOrphan", enrollmentModels.ChildStatusApproved, nil)
@@ -221,11 +191,11 @@ func TestEnrollmentDeletion_DeleteApprovedChildAfterStudentWasRemoved(t *testing
 }
 
 func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "request")
 	guardianAccount := testpkg.CreateTestAccount(t, db, "preserved-parent")
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, guardianAccount.ID) })
 	email := fmt.Sprintf("guardian-%d@example.invalid", f.scope.TenantID)
 	profile := &userModels.GuardianProfile{FirstName: "Preserved", LastName: "Guardian", Email: &email, AccountID: &guardianAccount.ID, HasAccount: true, PreferredContactMethod: "email", LanguagePreference: "de"}
 	profile.SetTenantID(f.scope.TenantID)
@@ -294,8 +264,9 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 }
 
 func TestEnrollmentDeletion_DeleteLastChildAlsoDeletesRequest(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "last-child")
 	request := f.request("last-child", nil)
 	child := f.child(request.ID, "Withdrawn", enrollmentModels.ChildStatusWithdrawn, nil)
@@ -311,8 +282,9 @@ func TestEnrollmentDeletion_DeleteLastChildAlsoDeletesRequest(t *testing.T) {
 }
 
 func TestEnrollmentDeletion_BlocksExistingStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "student-block")
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Existing", "Student", "2a")
 	request := f.request("student-block", nil)
@@ -339,8 +311,9 @@ func (a failingDeletionAudit) Create(context.Context, *auditModels.EnrollmentDel
 }
 
 func TestEnrollmentDeletion_AuditFailureRollsBackAllDeletes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "rollback")
 	request := f.request("rollback", nil)
 	f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
@@ -358,8 +331,9 @@ func TestEnrollmentDeletion_AuditFailureRollsBackAllDeletes(t *testing.T) {
 }
 
 func TestEnrollmentDeletion_RLSDeniesOtherTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	tenantA := newDeletionTestFixture(t, db, "rls-a")
 	tenantB := newDeletionTestFixture(t, db, "rls-b")
 	requestB := tenantB.request("rls-target", nil)
@@ -387,8 +361,9 @@ func (r *deletionLockSignalRepository) FindByIDForUpdate(ctx context.Context, id
 }
 
 func TestEnrollmentDeletion_ConcurrentDecisionIsRecheckedUnderLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "concurrent")
 	request := f.request("concurrent", nil)
 	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
@@ -426,8 +401,9 @@ func TestEnrollmentDeletion_ConcurrentDecisionIsRecheckedUnderLock(t *testing.T)
 }
 
 func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	f := newDeletionTestFixture(t, db, "retention-audit")
 	request := f.request("retention-audit", nil)
 	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)

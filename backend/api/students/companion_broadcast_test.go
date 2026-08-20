@@ -56,11 +56,12 @@ func putStudent(t *testing.T, tc *testContext, studentID int64, body map[string]
 // that resubmits the unchanged plan must stay silent — otherwise routine
 // Stammdaten edits cost other people their unsaved work.
 func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Subject", "CE1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Partner", "CE1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	// Both children need an accompanied Monday before a link is legal.
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
@@ -117,11 +118,12 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 // child's list, so the other clients' companion cards and Kindersuche grouping
 // are stale the moment the row is gone (#1694).
 func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Subject", "CD1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Partner", "CD1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{

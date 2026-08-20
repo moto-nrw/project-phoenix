@@ -26,10 +26,14 @@ func validVacationOpening() *StaffVacationOpening {
 }
 
 func TestStaffVacationOpeningValidate_Valid(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validVacationOpening().Validate())
 }
 
 func TestStaffVacationOpeningValidate_NegativeTakenBeforeIsAllowed(t *testing.T) {
+	t.Parallel()
+
 	// Resturlaub above entitled + carryover: extra credit carried over from
 	// the old system. Legitimate, so it must not be rejected.
 	opening := validVacationOpening()
@@ -40,6 +44,8 @@ func TestStaffVacationOpeningValidate_NegativeTakenBeforeIsAllowed(t *testing.T)
 }
 
 func TestStaffVacationOpeningValidate_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*StaffVacationOpening)
@@ -118,6 +124,8 @@ func TestStaffVacationOpeningValidate_Rejects(t *testing.T) {
 }
 
 func TestHasOneDecimalPlace(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, hasOneDecimalPlace(0))
 	assert.True(t, hasOneDecimalPlace(12))
 	assert.True(t, hasOneDecimalPlace(12.5))
@@ -129,6 +137,8 @@ func TestHasOneDecimalPlace(t *testing.T) {
 // The quota is the takeover's reference value (entitled + carryover −
 // remaining = taken before), so its own precision guard matters just as much.
 func TestStaffVacationQuotaValidate(t *testing.T) {
+	t.Parallel()
+
 	valid := &StaffVacationQuota{StaffID: 42, Year: 2026, EntitledDays: 30, CarryoverDays: 2.5}
 	require.NoError(t, valid.Validate())
 

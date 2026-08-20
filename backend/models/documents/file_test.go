@@ -20,6 +20,8 @@ func validFile() *documents.File {
 }
 
 func TestValidateFileAcceptsACompleteRow(t *testing.T) {
+	t.Parallel()
+
 	if err := documents.ValidateFile(validFile()); err != nil {
 		t.Fatalf("ValidateFile = %v, want nil", err)
 	}
@@ -33,6 +35,8 @@ func TestValidateFileAcceptsACompleteRow(t *testing.T) {
 }
 
 func TestValidateFileRejectsIncompleteRows(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]func(*documents.File){
 		"missing category":         func(f *documents.File) { f.Category = "  " },
 		"missing display filename": func(f *documents.File) { f.FilenameDisplay = "" },
@@ -55,6 +59,8 @@ func TestValidateFileRejectsIncompleteRows(t *testing.T) {
 }
 
 func TestFileAccessors(t *testing.T) {
+	t.Parallel()
+
 	f := validFile()
 	if f.GetCategory() != "attest" {
 		t.Errorf("GetCategory = %q", f.GetCategory())
@@ -72,6 +78,8 @@ func TestFileAccessors(t *testing.T) {
 // keep reporting that its file needs removal, otherwise the sweep skips it and
 // the object stays forever.
 func TestFileSoftDeleteIsNotFileDeletion(t *testing.T) {
+	t.Parallel()
+
 	f := validFile()
 	if f.IsFileDeleted() {
 		t.Fatal("a fresh row must not claim its bytes are gone")
@@ -96,6 +104,8 @@ func TestFileSoftDeleteIsNotFileDeletion(t *testing.T) {
 }
 
 func TestFileCleanupAccessors(t *testing.T) {
+	t.Parallel()
+
 	cleanup := &documents.FileCleanup{OwnerID: 9, FilenameStored: "orphan.pdf"}
 	if cleanup.GetOwnerID() != 9 {
 		t.Errorf("GetOwnerID = %d", cleanup.GetOwnerID())

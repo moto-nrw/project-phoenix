@@ -23,6 +23,8 @@ func setupEditedInWindowRouter(rs *Resource) chi.Router {
 }
 
 func TestEditedInWindow_Success(t *testing.T) {
+	t.Parallel()
+
 	var gotGroup int64
 	var gotFrom, gotTo timezone.Date
 	var gotInclude bool
@@ -80,6 +82,8 @@ func TestEditedInWindow_Success(t *testing.T) {
 }
 
 func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
+	t.Parallel()
+
 	var gotInclude bool
 	mat := &mockMaterializationService{
 		detectFn: func(_ int64, _, _ timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
@@ -96,6 +100,8 @@ func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
 }
 
 func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, nil
@@ -117,6 +123,8 @@ func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 }
 
 func TestEditedInWindow_MissingParams(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
@@ -132,6 +140,8 @@ func TestEditedInWindow_MissingParams(t *testing.T) {
 }
 
 func TestEditedInWindow_InvalidActivityGroupID(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
@@ -142,6 +152,8 @@ func TestEditedInWindow_InvalidActivityGroupID(t *testing.T) {
 }
 
 func TestEditedInWindow_InvalidDates(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
@@ -161,6 +173,8 @@ func TestEditedInWindow_InvalidDates(t *testing.T) {
 // the advisory frontend probe fail-opens on error. A wide window must therefore
 // be accepted (200), never rejected, so it always covers the full re-plan range.
 func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, nil
@@ -175,6 +189,8 @@ func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 }
 
 func TestEditedInWindow_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, errors.New("boom")

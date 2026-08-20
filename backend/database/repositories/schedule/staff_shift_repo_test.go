@@ -29,29 +29,21 @@ func newShift(staffID int64, date timezone.Date, startHour, endHour int, created
 	}
 }
 
-func cleanupShifts(t *testing.T, repo scheduleModels.StaffShiftRepository, ctx context.Context, ids ...int64) {
-	t.Helper()
-	for _, id := range ids {
-		_ = repo.Delete(ctx, id)
-	}
-}
-
 func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Owner")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	monday := timezone.NewDate(2026, time.July, 6)
 	shift := newShift(staff.ID, monday, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, shift))
-	defer cleanupShifts(t, repo, ctx, shift.ID)
 	require.NotZero(t, shift.ID)
-	assert.Equal(t, int64(1), shift.TenantID, "tenant_id must be stamped from context")
+	assert.Equal(t, testpkg.Tenant(t), shift.TenantID, "tenant_id must be stamped from context")
 
 	rows, err := repo.FindByStaffAndDateRange(ctx, staff.ID, monday, monday)
 	require.NoError(t, err)
@@ -66,19 +58,18 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 }
 
 func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "WriteAlias")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	day := timezone.NewDate(2026, time.July, 6)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, shift))
-	defer cleanupShifts(t, repo, ctx, shift.ID)
 
 	shift.EndTime = wallClock(17, 0)
 	shift.Notes = "Updated through generic repo"
@@ -97,15 +88,15 @@ func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 }
 
 func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staffA := testpkg.CreateTestStaff(t, db, "ShiftA", "Batch")
 	staffB := testpkg.CreateTestStaff(t, db, "ShiftB", "Batch")
-	defer testpkg.CleanupActivityFixtures(t, db, staffA.PersonID, staffB.PersonID)
 
 	day := timezone.NewDate(2026, time.July, 7)
 	other := day.AddDays(1)
@@ -117,7 +108,6 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 	for _, s := range []*scheduleModels.StaffShift{s1, s2, s3, s4} {
 		require.NoError(t, repo.Create(ctx, s))
 	}
-	defer cleanupShifts(t, repo, ctx, s1.ID, s2.ID, s3.ID, s4.ID)
 
 	rows, err := repo.FindByStaffIDsAndDate(ctx, []int64{staffA.ID, staffB.ID}, day)
 	require.NoError(t, err)
@@ -130,14 +120,14 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 }
 
 func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	staffA := testpkg.CreateTestStaff(t, db, "CoverageA", "Batch")
 	staffB := testpkg.CreateTestStaff(t, db, "CoverageB", "Batch")
-	defer testpkg.CleanupActivityFixtures(t, db, staffA.PersonID, staffB.PersonID)
 
 	monday := timezone.NewDate(2026, time.July, 6)
 	saturday := monday.AddDays(5)
@@ -158,7 +148,6 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 	for _, shift := range rows {
 		require.NoError(t, repo.Create(ctx, shift))
 	}
-	defer cleanupShifts(t, repo, ctx, rows[0].ID, rows[1].ID, rows[2].ID, rows[3].ID, rows[4].ID)
 
 	shifts, err := repo.FindByStaffIDsAndDates(ctx, []int64{staffA.ID}, []timezone.Date{monday, nextMonday})
 	require.NoError(t, err)
@@ -173,14 +162,14 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 }
 
 func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	today := timezone.TodayDate()
 	past := newShift(staff.ID, today.AddDays(-1), 8, 12, staff.ID)
@@ -189,9 +178,8 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	for _, s := range []*scheduleModels.StaffShift{past, sameDay, future} {
 		require.NoError(t, repo.Create(ctx, s))
 	}
-	defer cleanupShifts(t, repo, ctx, past.ID, sameDay.ID, future.ID)
 
-	const otherTenantID = int64(910004)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	otherTenantCtx := tenant.WithTenantID(context.Background(), otherTenantID)
 	deleted, err := repo.DeleteUpcomingByStaffID(otherTenantCtx, staff.ID, today)
@@ -213,19 +201,18 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 }
 
 func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Dup")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	day := timezone.NewDate(2026, time.July, 8)
 	first := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, first))
-	defer cleanupShifts(t, repo, ctx, first.ID)
 
 	dup := newShift(staff.ID, day, 8, 14, staff.ID) // same start_time
 	err := repo.Create(ctx, dup)
@@ -233,23 +220,22 @@ func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 }
 
 func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	tenant1 := testpkg.TenantContext(1)
+	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Isolated")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
-	const otherTenantID = int64(910002)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 
 	day := timezone.NewDate(2026, time.July, 9)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(tenant1, shift))
-	defer cleanupShifts(t, repo, tenant1, shift.ID)
 
 	rows, err := repo.FindByDateRange(tenant2, day, day)
 	require.NoError(t, err)
@@ -262,16 +248,16 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 }
 
 func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffShift
-	tenant1 := testpkg.TenantContext(1)
+	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "CrossTenant")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
-	const otherTenantID = int64(910003)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 

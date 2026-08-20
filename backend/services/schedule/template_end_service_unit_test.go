@@ -15,6 +15,8 @@ import (
 )
 
 func TestTemplateEndInputValidation(t *testing.T) {
+	t.Parallel()
+
 	future := timezone.TodayDate().AddDays(1)
 
 	tests := []struct {
@@ -47,6 +49,8 @@ func TestTemplateEndInputValidation(t *testing.T) {
 }
 
 func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testing.T) {
+	t.Parallel()
+
 	periodA, periodB, targetPeriod := int64(11), int64(12), int64(13)
 	activeA := &activitiesModel.StudentEnrollment{
 		StudentID:                42,
@@ -82,6 +86,8 @@ func testInt64Ptr(value int64) *int64 {
 }
 
 func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
+	t.Parallel()
+
 	future := timezone.TodayDate().AddDays(1)
 	groupRepo := &templateEndUnitGroupRepo{group: templateEndUnitGroup(201)}
 	svc := templateEndUnitService(
@@ -102,6 +108,8 @@ func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 }
 
 func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7401)
 	future := timezone.TodayDate().AddDays(1)
 	group := templateEndUnitGroup(202)
@@ -142,6 +150,8 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 }
 
 func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 7402)
 	future := timezone.TodayDate().AddDays(1)
 	group := templateEndUnitGroup(203)

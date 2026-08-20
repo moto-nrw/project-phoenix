@@ -19,6 +19,8 @@ func (s availabilitySettingsStub) ResolveInt(context.Context, string) (int, erro
 }
 
 func TestValidateAvailabilityRuleUsesTenantGradeRange(t *testing.T) {
+	t.Parallel()
+
 	service := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
 		Settings: availabilitySettingsStub{gradeMax: 4},
 	}}
@@ -32,6 +34,8 @@ func TestValidateAvailabilityRuleUsesTenantGradeRange(t *testing.T) {
 }
 
 func TestEffectiveFormCapabilitiesRequiresGradeForConditionalCatalog(t *testing.T) {
+	t.Parallel()
+
 	offering := &enrollmentModels.CareOffering{
 		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
 	}

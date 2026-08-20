@@ -31,7 +31,6 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
@@ -50,7 +49,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 		DB:                     db,
 	})
 
-	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.TenantContext(1)}
+	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
 func (s *stammdatenScenario) auditRows(t *testing.T, staffID int64) []*auditModels.StaffMasterDataChange {
@@ -82,6 +81,8 @@ func (s *stammdatenScenario) accessLogRows(t *testing.T, accountID int64) []*aud
 func strPtr(v string) *string { return &v }
 
 func TestStaffStammdaten_PersonSection(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Person")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
@@ -144,6 +145,8 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 }
 
 func TestStaffStammdaten_KontaktSection(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Kontakt")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
@@ -186,6 +189,8 @@ func TestStaffStammdaten_KontaktSection(t *testing.T) {
 }
 
 func TestStaffStammdaten_ArbeitsvertragSection(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Vertrag")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
@@ -223,6 +228,8 @@ func TestStaffStammdaten_ArbeitsvertragSection(t *testing.T) {
 }
 
 func TestStaffStammdaten_Qualifikationen(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Quali")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
@@ -279,6 +286,8 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 }
 
 func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Finanz")
 	actor, account := testpkg.CreateTestStaffWithAccount(t, s.db, "Stamm", "Lohn")
@@ -338,6 +347,8 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 }
 
 func TestStaffStammdaten_FinancialValidation(t *testing.T) {
+	t.Parallel()
+
 	s := newStammdatenScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "FinanzValid")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")

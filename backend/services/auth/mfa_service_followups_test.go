@@ -26,6 +26,8 @@ import (
 // --- Self-service trusted devices ---
 
 func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -66,6 +68,8 @@ func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 }
 
 func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -99,6 +103,8 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 // --- Per-account admin override ---
 
 func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -136,6 +142,8 @@ func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*authModel.Acco
 }
 
 func TestMFAService_SetMFAOverride_RejectsInvalidValue(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-invalid")
@@ -145,6 +153,8 @@ func TestMFAService_SetMFAOverride_RejectsInvalidValue(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_PermissionGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-perms")
@@ -161,6 +171,8 @@ func TestMFAService_SetMFAOverride_PermissionGate(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-revoke")
@@ -182,6 +194,8 @@ func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) 
 }
 
 func TestMFAService_IsRequired_HonorsOverride(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-isreq")
@@ -214,6 +228,8 @@ func TestMFAService_IsRequired_HonorsOverride(t *testing.T) {
 // lived on auth.accounts (global), and force_off in school A silently
 // bypassed MFA in school B for shared accounts.
 func TestMFAService_IsRequired_TenantOverride_StaysInTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -254,6 +270,8 @@ func TestMFAService_IsRequired_TenantOverride_StaysInTenant(t *testing.T) {
 // the operator-only platform-wide row works as the explicit
 // account-wide emergency switch: set once, applies to every tenant.
 func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -286,6 +304,8 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 // can't easily inject a mid-transaction failure here, but we can verify
 // the validation rejection path keeps DB state untouched.)
 func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-noPartial")
@@ -317,6 +337,8 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 // defense-in-depth that closes that hole.
 
 func TestMFAService_AdminDisable_RejectsCrossTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -342,6 +364,8 @@ func TestMFAService_AdminDisable_RejectsCrossTenant(t *testing.T) {
 }
 
 func TestMFAService_AdminDisable_RejectsZeroActorTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	target, _ := tenantMappedAccount(t, db, "mfa-svc-admin-disable-zero")
@@ -355,6 +379,8 @@ func TestMFAService_AdminDisable_RejectsZeroActorTenant(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_RejectsCrossTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -382,6 +408,8 @@ func TestMFAService_SetMFAOverride_RejectsCrossTenant(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_RejectsZeroActorTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	target, _ := tenantMappedAccount(t, db, "mfa-svc-override-zero")
@@ -393,6 +421,8 @@ func TestMFAService_SetMFAOverride_RejectsZeroActorTenant(t *testing.T) {
 // --- Operator-side admin: defense-in-depth membership check ---
 
 func TestMFAService_OperatorSetMFAOverride_RejectsZeroSchoolID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -407,6 +437,8 @@ func TestMFAService_OperatorSetMFAOverride_RejectsZeroSchoolID(t *testing.T) {
 }
 
 func TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -427,6 +459,8 @@ func TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool(t *testing.T) {
 }
 
 func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -447,6 +481,8 @@ func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
 // --- Edge cases (Design-Doc §11) ---
 
 func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -468,6 +504,8 @@ func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 }
 
 func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -490,6 +528,8 @@ func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
 }
 
 func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, repos, db := newTestMFAService(t)
 
@@ -525,6 +565,8 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 // testpkg.SetupTestDB(t). We also call testpkg.CreateTestAccount so the
 // hermetic-check static scanner sees a fixture, not a hardcoded ID.
 func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 

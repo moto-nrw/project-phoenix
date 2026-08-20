@@ -476,6 +476,8 @@ func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*a
 // This covers the error path when supervisorRepo.FindByActiveGroupID returns an error.
 // The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Create a mock DB using sqlmock (no transaction expectations needed --
@@ -526,6 +528,8 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 }
 
 func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	var createdStaffIDs []int64
@@ -550,6 +554,8 @@ func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *
 // This covers the error path when supervisorRepo.EndSupervision returns an error.
 // The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_EndSupervisionError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Create a mock DB using sqlmock (no transaction expectations needed --

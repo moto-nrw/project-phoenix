@@ -29,6 +29,8 @@ func decodeJSONBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any 
 }
 
 func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
+	t.Parallel()
+
 	first := "Ada"
 	last := "Lovelace"
 	position := "Principal"
@@ -99,6 +101,8 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 }
 
 func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *testing.T) {
+	t.Parallel()
+
 	service := &authtest.InvitationServiceMock{
 		CreateInvitationFn: func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error) {
 			return nil, &authService.AuthError{Op: "create invitation", Err: authService.ErrAccountAlreadyHasTenantAccess}
@@ -120,6 +124,8 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 }
 
 func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
+	t.Parallel()
+
 	service := &authtest.InvitationServiceMock{
 		ValidateInvitationFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {
 			assert.Equal(t, "abc123", token)
@@ -173,6 +179,8 @@ func extractDataJSON(t *testing.T, body []byte) string {
 }
 
 func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, string(email.DeliveryStatusPending), deriveDeliveryStatus(nil, nil))
 	errText := "failed"
 	assert.Equal(t, string(email.DeliveryStatusFailed), deriveDeliveryStatus(nil, &errText))

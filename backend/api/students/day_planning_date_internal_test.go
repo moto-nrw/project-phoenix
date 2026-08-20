@@ -13,6 +13,8 @@ import (
 )
 
 func TestResolvePlanningDate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 
 	t.Run("empty_defaults_to_school_local_today", func(t *testing.T) {
@@ -97,6 +99,8 @@ func TestResolvePlanningDate(t *testing.T) {
 }
 
 func TestMaxPlanningDate(t *testing.T) {
+	t.Parallel()
+
 	// The horizon always closes with the Sunday of the CURRENT week — the only
 	// week the scheduler guarantees is materialized at every moment.
 	// Monday: this week's Sunday is 6 days out.
@@ -108,6 +112,8 @@ func TestMaxPlanningDate(t *testing.T) {
 }
 
 func TestResetLiveLocationFields(t *testing.T) {
+	t.Parallel()
+
 	since := time.Date(2026, time.June, 1, 8, 0, 0, 0, time.UTC)
 	color := "#83CD2D"
 	responses := []StudentResponse{
@@ -125,6 +131,8 @@ func TestResetLiveLocationFields(t *testing.T) {
 }
 
 func TestResolveDayPlanningForDateNonToday(t *testing.T) {
+	t.Parallel()
+
 	checkInTime := time.Date(2026, time.June, 1, 8, 0, 0, 0, time.UTC)
 	attendance := &activeService.AttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime}
 	arrivalTime := time.Date(2026, time.June, 2, 8, 0, 0, 0, time.UTC)
@@ -171,6 +179,8 @@ func TestResolveDayPlanningForDateNonToday(t *testing.T) {
 }
 
 func TestResetScheduledStatusFlags(t *testing.T) {
+	t.Parallel()
+
 	since := time.Date(2026, time.June, 1, 7, 0, 0, 0, time.UTC)
 	responses := []StudentResponse{
 		{ID: 90, Sick: true, SickSince: &since, Excused: true, ExcusedSince: &since, ClassTrip: true, ClassTripSince: &since},
@@ -190,6 +200,8 @@ func TestResetScheduledStatusFlags(t *testing.T) {
 }
 
 func TestDailyStatusExportCellForDate(t *testing.T) {
+	t.Parallel()
+
 	comes := StudentResponse{DayPlanningStatus: DayPlanningStatusComesToday}
 	noPlan := StudentResponse{DayPlanningStatus: DayPlanningStatusNotComingToday}
 
@@ -203,6 +215,8 @@ func TestDailyStatusExportCellForDate(t *testing.T) {
 }
 
 func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
+	t.Parallel()
+
 	planningDate := timezone.NewDate(2026, time.June, 2)
 
 	labels := exportFilterLabelsForDate(studentExportFilters{DayStatus: DayPlanningStatusComesToday}, planningDate, false)
@@ -215,6 +229,8 @@ func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
 }
 
 func TestExportFilterLabelsForDateWordsAbsenceStatusAsPlanned(t *testing.T) {
+	t.Parallel()
+
 	planningDate := timezone.NewDate(2026, time.June, 2)
 
 	labels := exportFilterLabelsForDate(studentExportFilters{Status: "krank"}, planningDate, false)
@@ -225,6 +241,8 @@ func TestExportFilterLabelsForDateWordsAbsenceStatusAsPlanned(t *testing.T) {
 }
 
 func TestActiveLiveListFilters(t *testing.T) {
+	t.Parallel()
+
 	t.Run("none_when_no_live_filter_is_set", func(t *testing.T) {
 		assert.Empty(t, activeLiveListFilters(&studentListParams{}))
 		// "Unknown" is the location filter's all-values sentinel.
@@ -238,6 +256,8 @@ func TestActiveLiveListFilters(t *testing.T) {
 }
 
 func TestActiveLiveExportFilters(t *testing.T) {
+	t.Parallel()
+
 	t.Run("none_when_no_live_filter_is_set", func(t *testing.T) {
 		assert.Empty(t, activeLiveExportFilters(studentExportFilters{}))
 		assert.Empty(t, activeLiveExportFilters(studentExportFilters{Status: "all"}))
@@ -265,6 +285,8 @@ func TestActiveLiveExportFilters(t *testing.T) {
 }
 
 func TestLiveFilterError(t *testing.T) {
+	t.Parallel()
+
 	tomorrow := timezone.NewDate(2026, time.June, 2)
 
 	t.Run("today_accepts_live_filters", func(t *testing.T) {
@@ -284,6 +306,8 @@ func TestLiveFilterError(t *testing.T) {
 }
 
 func TestResolveExportPlanningDate(t *testing.T) {
+	t.Parallel()
+
 	// Monday 2026-06-01.
 	now := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 

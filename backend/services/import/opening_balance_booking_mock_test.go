@@ -137,6 +137,8 @@ func newBookingConfig(events *[]string) (*OpeningBalanceImportConfig, *recording
 // --- construction & preload ------------------------------------------------
 
 func TestNewOpeningBalanceImportConfig_CarriesRequestScopedValues(t *testing.T) {
+	t.Parallel()
+
 	effectiveDate := timezone.NewDate(2026, time.March, 1)
 
 	c := NewOpeningBalanceImportConfig(OpeningBalanceImportDeps{}, effectiveDate, "Übernahme", openingDecidedByID)
@@ -153,6 +155,8 @@ func TestNewOpeningBalanceImportConfig_CarriesRequestScopedValues(t *testing.T) 
 }
 
 func TestPreloadReferenceData_BuildsMatchAndDuplicateCaches(t *testing.T) {
+	t.Parallel()
+
 	blankPersonnelNumber := "   "
 	staffWithBlankNumber := openingStaff(openingStaffBerndID, "", "Bernd", "Schulz")
 	staffWithBlankNumber.PersonnelNumber = &blankPersonnelNumber
@@ -188,6 +192,8 @@ func TestPreloadReferenceData_BuildsMatchAndDuplicateCaches(t *testing.T) {
 }
 
 func TestPreloadReferenceData_PropagatesRepositoryErrors(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.New("db down")
 	okStaff := &testpkg.StaffRepoMock{
 		ListAllWithPersonFn: func(_ context.Context) ([]*userModels.Staff, error) { return nil, nil },
@@ -249,6 +255,8 @@ func TestPreloadReferenceData_PropagatesRepositoryErrors(t *testing.T) {
 // --- booking ---------------------------------------------------------------
 
 func TestOpeningBalanceCreate_BooksOnlyTheSidesTheRowCarries(t *testing.T) {
+	t.Parallel()
+
 	t.Run("hours only", func(t *testing.T) {
 		events := []string{}
 		c, hours, _ := newBookingConfig(&events)
@@ -313,6 +321,8 @@ func TestOpeningBalanceCreate_BooksOnlyTheSidesTheRowCarries(t *testing.T) {
 }
 
 func TestOpeningBalanceCreate_QuotaKeepsUnsuppliedComponent(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	vacation.summary = &activeSvc.VacationQuotaSummary{EntitledDays: 30, CarryoverDays: 4}
@@ -330,6 +340,8 @@ func TestOpeningBalanceCreate_QuotaKeepsUnsuppliedComponent(t *testing.T) {
 }
 
 func TestOpeningBalanceCreate_RejectsRowWithoutResolvedStaff(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, _ := newBookingConfig(&events)
 
@@ -341,6 +353,8 @@ func TestOpeningBalanceCreate_RejectsRowWithoutResolvedStaff(t *testing.T) {
 }
 
 func TestOpeningBalanceCreate_RequiresATransactionForItsSavepoint(t *testing.T) {
+	t.Parallel()
+
 	// A failed row must roll back its own writes without losing the rest of
 	// the file, which is what the savepoint is for — no transaction, no row.
 	events := []string{}
@@ -356,6 +370,8 @@ func TestOpeningBalanceCreate_RequiresATransactionForItsSavepoint(t *testing.T) 
 }
 
 func TestOpeningBalanceCreate_TranslatesLedgerRejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		err     error
@@ -401,6 +417,8 @@ func TestOpeningBalanceCreate_TranslatesLedgerRejections(t *testing.T) {
 }
 
 func TestOpeningBalanceCreate_TranslatesVacationRejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		err     error
@@ -436,6 +454,8 @@ func TestOpeningBalanceCreate_TranslatesVacationRejections(t *testing.T) {
 }
 
 func TestOpeningBalanceCreate_ReportsQuotaFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("read", func(t *testing.T) {
 		events := []string{}
 		c, _, vacation := newBookingConfig(&events)
@@ -468,6 +488,8 @@ func TestOpeningBalanceCreate_ReportsQuotaFailures(t *testing.T) {
 // --- preview guards --------------------------------------------------------
 
 func TestOpeningBalanceValidate_ReportsLedgerPreflightRejection(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, hours, _ := newBookingConfig(&events)
 	hours.validateErr = activeSvc.ErrAdjustmentInClosedMonth
@@ -482,6 +504,8 @@ func TestOpeningBalanceValidate_ReportsLedgerPreflightRejection(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_ReportsVacationPreflightRejection(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	vacation.preflightErr = activeSvc.ErrVacationOpeningAbsencesBeforeCutoff
@@ -495,6 +519,8 @@ func TestOpeningBalanceValidate_ReportsVacationPreflightRejection(t *testing.T) 
 }
 
 func TestOpeningBalanceValidate_ReportsQuotaLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	vacation.summaryErr = errors.New("db down")
@@ -508,6 +534,8 @@ func TestOpeningBalanceValidate_ReportsQuotaLookupFailure(t *testing.T) {
 }
 
 func TestOpeningBalanceValidate_RejectsDerivedTakeoverOutsideTheModelRange(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	// Entitled + carryover − Resturlaub must stay inside NUMERIC(5,1).
@@ -522,6 +550,8 @@ func TestOpeningBalanceValidate_RejectsDerivedTakeoverOutsideTheModelRange(t *te
 }
 
 func TestOpeningBalanceValidate_DerivesTakeoverFromTheRowsOwnQuotaColumns(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	c, _, vacation := newBookingConfig(&events)
 	// Persisted quota is 30 + 0, but the same row raises it to 28 + 4. The

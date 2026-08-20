@@ -103,28 +103,25 @@ func resolveFullChain(t *testing.T, ctx context.Context, service usercontextSvc.
 // TestIdentityRequestCacheDedupesChain is the #2099 acceptance test at service
 // level: with the request cache attached, every stage of the identity chain is
 // loaded from the database at most once, no matter how many chain methods run.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 	today := timezone.TodayDate()
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityMemo", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, db, "IdentityMemoGroup")
-	link := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+	_ = testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 	subGroup := testpkg.CreateTestEducationGroup(t, db, "IdentityMemoSubGroup")
-	sub := testpkg.CreateTestGroupSubstitution(t, db, subGroup.ID, nil, teacher.StaffID,
+	_ = testpkg.CreateTestGroupSubstitution(t, db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
-
-	defer testpkg.CleanupActivityFixtures(t, db, sub.ID, subGroup.ID, link.ID, group.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, teacher.StaffID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 	resolveFullChain(t, ctx, service)
 
 	assert.Equal(t, 1, counter.count("persons"), "users.persons must be loaded exactly once per request")
@@ -147,21 +144,19 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 // TestIdentityWithoutCacheStillQueries proves there is no hidden global state:
 // on a plain context (scheduler, CLI, tests) every call keeps hitting the
 // database exactly as before #2099.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityNoCache", "Teacher")
-
-	defer testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, teacher.StaffID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityNoCache", "Teacher")
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := contextWithClaims(int(account.ID))
+	ctx := contextWithClaims(t, int(account.ID))
 	resolveFullChain(t, ctx, service)
 
 	assert.Greater(t, counter.count("persons"), 1,
@@ -171,20 +166,19 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 // TestNonTeacherStaffNotFoundIsMemoized pins the negative-caching behavior:
 // "staff without a teacher role" is a clean outcome and must not re-query
 // users.teachers on every GetMyGroups/GetCurrentTeacher call.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "IdentityNonTeacher", "Staff")
-
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "IdentityNonTeacher", "Staff")
 
 	counter := newIdentityQueryCounter(db)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	_, err := service.GetMyGroups(ctx)
 	require.NoError(t, err)
@@ -202,16 +196,16 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 // the profile update creates a person. Without eviction the trailing re-read
 // would serve the memoized nil and return an empty name.
 func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
 	email := fmt.Sprintf("identity-evict-%d@test.moto-nrw.de", time.Now().UnixNano())
 	account := testpkg.CreateTestAccount(t, db, email)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	// Prime the memoized "not linked" person stage.
 	_, err := service.GetCurrentPerson(ctx)
@@ -226,25 +220,23 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 		"the post-write re-read must see the freshly created person, not the memoized 'not linked' outcome")
 
 	// The created person must be cleaned up too; resolve it for the deferred cleanup.
-	person, err := service.GetCurrentPerson(ctx)
+	_, err = service.GetCurrentPerson(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupPerson(t, db, person.ID)
 }
 
 // TestUpdateAvatarEvictsIdentity covers the account stage: UpdateAvatar writes
 // via the repository without mutating the in-memory struct, so a memoized
 // account would ship the old avatar URL in the response.
 func TestUpdateAvatarEvictsIdentity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupUserContextService(t, db)
 
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
-	defer testpkg.CleanupPerson(t, db, person.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
 
-	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
+	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 
 	// Prime the memoized account stage.
 	_, err := service.GetCurrentUser(ctx)

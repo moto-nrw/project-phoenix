@@ -13,11 +13,9 @@ import (
 
 func TestWeekdayRosterPrimarySupervisorIsScopedByCalendarPeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer cleanupWeekdayRosterPrimaryTest(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, rosterWeekdayScopeUp(ctx, db))
@@ -81,12 +79,4 @@ func supervisorIsPrimary(
 	`, tenantID, groupID, staffID, periodID, weekday).Scan(context.Background(), &primary)
 	require.NoError(t, err)
 	return primary
-}
-
-func cleanupWeekdayRosterPrimaryTest(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	testpkg.CleanupTenantTestData(t, db, tenantID)
-	_, err := db.NewRaw(`DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, tenantID).Exec(context.Background())
-	require.NoError(t, err)
-	require.NoError(t, rosterWeekdayScopeUp(context.Background(), db))
 }

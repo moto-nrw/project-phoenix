@@ -25,10 +25,11 @@ import (
 // pointing at them; written beforehand and outside, a deletion that then fails
 // leaves the scheduler about to delete a living child's documents.
 func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	usersService.WireStudentDocumentCleanup(service, repos.StudentDocument)
@@ -55,9 +56,6 @@ func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *tes
 		_, err = db.ExecContext(context.Background(),
 			`DELETE FROM audit.student_deletions WHERE student_id = ?`, student.ID)
 		require.NoError(t, err)
-		cleanupStudentDeletionTest(t, db,
-			[]int64{student.ID}, []int64{student.PersonID},
-			nil, nil, nil, []int64{actor.ID}, nil)
 	})
 
 	preview, err := service.Preview(ctx, student.ID)

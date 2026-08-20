@@ -11,13 +11,8 @@ import (
 
 func TestWithdrawParentArrivalRequestsLeavesPickupRequestsPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	arrivalChain := testpkg.CreateTestParentGuardianChain(t, db)
 	pickupChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, arrivalChain)
-		testpkg.CleanupParentGuardianChain(t, db, pickupChain)
-	})
 	ctx := context.Background()
 
 	_, err := db.NewRaw(`

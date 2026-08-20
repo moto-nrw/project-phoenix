@@ -13,6 +13,8 @@ import (
 // If this test fails, someone added a role in one place but not all three.
 // See also: role.go comment on ValidBaseRoles.
 func TestBaseRoleSyncAcrossLayers(t *testing.T) {
+	t.Parallel()
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Skipf("Cannot locate project root: %v", err)

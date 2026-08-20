@@ -21,9 +21,9 @@ func CreateTestPost(tb testing.TB, db *bun.DB, accountID int64, title, descripti
 		Status:      suggestions.StatusOpen,
 		Score:       0,
 	}
-	post.SetTenantID(1)
+	post.SetTenantID(fixtureTenantID(tb))
 
-	ctx, cancel := context.WithTimeout(TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(TenantContext(fixtureTenantID(tb)), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -46,9 +46,9 @@ func CreateTestComment(tb testing.TB, db *bun.DB, postID, authorID int64, conten
 		AuthorType: authorType,
 		Content:    content,
 	}
-	comment.SetTenantID(1)
+	comment.SetTenantID(fixtureTenantID(tb))
 
-	ctx, cancel := context.WithTimeout(TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(TenantContext(fixtureTenantID(tb)), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().

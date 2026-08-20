@@ -363,6 +363,8 @@ func feedbackCommentDeleteRequest(postID, commentID string) *http.Request {
 }
 
 func TestDeleteFeedbackComment_RequiresValidPostID(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentService{}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -375,6 +377,8 @@ func TestDeleteFeedbackComment_RequiresValidPostID(t *testing.T) {
 }
 
 func TestDeleteFeedbackComment_PassesPostIDToService(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentService{}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -408,6 +412,8 @@ func careExceptionRequest(body string) *http.Request {
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
+	t.Parallel()
+
 	reason := "Abholung durch die Großeltern"
 	pickup := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
 	date, err := timezone.ParseDate("2026-08-18")
@@ -436,6 +442,8 @@ func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
 }
 
 func TestSubmitCareException_RejectsArrivalChange(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentService{}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -448,6 +456,8 @@ func TestSubmitCareException_RejectsArrivalChange(t *testing.T) {
 }
 
 func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeParentService{careExceptionErr: parentService.ErrCareExceptionReasonRequired}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -459,6 +469,8 @@ func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{}}
 	req := httptest.NewRequest(http.MethodGet, "/me/profile", nil)
 	w := httptest.NewRecorder()
@@ -470,6 +482,8 @@ func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
 }
 
 func TestGetMyProfile_ReturnsNullWhenNeverChosen(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{
 		getProfile: &parentService.Profile{Locale: "de", Explicit: false},
 	}}
@@ -484,6 +498,8 @@ func TestGetMyProfile_ReturnsNullWhenNeverChosen(t *testing.T) {
 }
 
 func TestGetMyProfile_ReturnsExplicitLocale(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{
 		getProfile: &parentService.Profile{
 			FirstName: "Karin",
@@ -504,6 +520,8 @@ func TestGetMyProfile_ReturnsExplicitLocale(t *testing.T) {
 }
 
 func TestGetMyProfile_PropagatesServiceError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{
 		getProfileErr: errors.New("boom"),
 	}}
@@ -516,6 +534,8 @@ func TestGetMyProfile_PropagatesServiceError(t *testing.T) {
 }
 
 func TestUpdateMyProfile_RejectsUnsupportedLocale(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{}
 	rs := &Resource{ParentService: fake}
 	req := withClaims(
@@ -532,6 +552,8 @@ func TestUpdateMyProfile_RejectsUnsupportedLocale(t *testing.T) {
 }
 
 func TestUpdateMyProfile_RejectsMissingLocale(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{}
 	rs := &Resource{ParentService: fake}
 	req := withClaims(
@@ -547,6 +569,8 @@ func TestUpdateMyProfile_RejectsMissingLocale(t *testing.T) {
 }
 
 func TestUpdateMyProfile_RejectsMalformedBody(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{}
 	rs := &Resource{ParentService: fake}
 	req := withClaims(
@@ -562,6 +586,8 @@ func TestUpdateMyProfile_RejectsMalformedBody(t *testing.T) {
 }
 
 func TestUpdateMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{}}
 	req := httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{"portal_locale":"en"}`))
 	w := httptest.NewRecorder()
@@ -572,6 +598,8 @@ func TestUpdateMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
 }
 
 func TestUpdateMyProfile_PersistsSupportedLocale(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{
 		updateProfile: &parentService.Profile{Locale: "en", Explicit: true},
 	}
@@ -601,6 +629,8 @@ func TestUpdateMyProfile_PersistsSupportedLocale(t *testing.T) {
 // transient server error — the handler must surface it as 409, not 500, so it
 // reads as a permanent state conflict rather than something worth retrying.
 func TestUpdateMyProfile_MapsMissingProfileToConflict(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{
 		updateProfileErr: fmt.Errorf("parent: update portal locale: %w", userModels.ErrGuardianProfileNotFound),
 	}
@@ -620,6 +650,8 @@ func TestUpdateMyProfile_MapsMissingProfileToConflict(t *testing.T) {
 // Any other service error stays a 500 — only the missing-profile sentinel is
 // remapped, so genuine faults aren't downgraded to a client-conflict status.
 func TestUpdateMyProfile_PropagatesOtherErrorsAs500(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{
 		updateProfileErr: errors.New("db exploded"),
 	}

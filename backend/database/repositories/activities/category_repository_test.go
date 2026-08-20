@@ -21,11 +21,12 @@ import (
 // ============================================================================
 
 func TestCategoryRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates category with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestCategory-%d", time.Now().UnixNano())
@@ -38,20 +39,19 @@ func TestCategoryRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, category.ID)
 
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
 	})
 }
 
 func TestCategoryRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "FindByID")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		found, err := repo.FindByID(ctx, category.ID)
 		require.NoError(t, err)
@@ -66,15 +66,15 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 }
 
 func TestCategoryRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds category by exact name", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "FindByName")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		found, err := repo.FindByName(ctx, category.Name)
 		require.NoError(t, err)
@@ -88,7 +88,6 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 
 	t.Run("ignores archived categories", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "FindByNameArchived")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		now := time.Now()
 		category.ArchivedAt = &now
@@ -106,7 +105,6 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 
 		active := &activities.Category{Name: category.Name, Description: "active replacement"}
 		require.NoError(t, repo.Create(ctx, active))
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, active.ID, 0)
 
 		preferred, err := repo.FindByNameIncludingArchivedForShare(ctx, category.Name)
 		require.NoError(t, err)
@@ -115,12 +113,12 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 }
 
 func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	category := testpkg.CreateTestActivityCategory(t, db, "AssignmentLock")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 	ctx := context.Background()
 	err := tenant.WithTenantTx(ctx, db, category.TenantID, func(lockCtx context.Context, _ bun.Tx) error {
@@ -148,15 +146,15 @@ func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
 }
 
 func TestCategoryRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates category description", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Update")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		category.Description = "Updated description"
 		err := repo.Update(ctx, category)
@@ -169,7 +167,6 @@ func TestCategoryRepository_Update(t *testing.T) {
 
 	t.Run("active edit preserves a concurrently changed shift mapping", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "UpdateMapping")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		stRepo := repositories.NewFactory(db).ShiftType
 		shiftType := &scheduleModels.ShiftType{
@@ -199,11 +196,12 @@ func TestCategoryRepository_Update(t *testing.T) {
 }
 
 func TestCategoryRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Delete")
@@ -221,15 +219,15 @@ func TestCategoryRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all categories", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "List")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+		testpkg.CreateTestActivityCategory(t, db, "List")
 
 		categories, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -238,15 +236,15 @@ func TestCategoryRepository_List(t *testing.T) {
 }
 
 func TestCategoryRepository_ListAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all categories without filters", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ListAll")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		categories, err := repo.ListAll(ctx)
 		require.NoError(t, err)
@@ -268,11 +266,12 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -282,11 +281,12 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestCategoryRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -296,11 +296,12 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent category", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
@@ -313,12 +314,13 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("Betreuung-%d", suffix), Color: "#83CD2D", IsActive: true}
@@ -328,9 +330,6 @@ func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
 	c1 := testpkg.CreateTestActivityCategory(t, db, "Link1")
 	c2 := testpkg.CreateTestActivityCategory(t, db, "Link2")
 	c3 := testpkg.CreateTestActivityCategory(t, db, "Link3")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c2.ID, 0)
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c3.ID, 0)
 
 	shiftTypeIDOf := func(id int64) *int64 {
 		found, err := repo.FindByID(ctx, id)
@@ -379,16 +378,16 @@ func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
 
-	ctx1 := testpkg.TenantContext(1)
+	ctx1 := testpkg.Ctx(t)
 	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenant)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, otherTenant) })
 	ctx2 := tenant.WithTenantID(context.Background(), otherTenant)
 
 	st1 := &scheduleModels.ShiftType{Name: fmt.Sprintf("T1-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
@@ -401,7 +400,6 @@ func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T)
 	// is rejected outright (rather than silently ignored), so it can never
 	// trigger a destructive clear of the tenant's real mappings.
 	c1 := testpkg.CreateTestActivityCategory(t, db, "TenantScopedLink")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
 
 	err := repo.SetShiftTypeForCategories(ctx1, st1.ID, []int64{c1.ID, cat2.ID})
 	require.ErrorIs(t, err, activities.ErrUnknownCategoryIDs)
@@ -415,19 +413,19 @@ func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T)
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("Unk-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(ctx, st.ID) })
 
 	c1 := testpkg.CreateTestActivityCategory(t, db, "UnknownIDGuard")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
 
 	// Establish a real mapping first.
 	require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c1.ID}))
@@ -444,8 +442,9 @@ func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testin
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_RequiresTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	// A context without a tenant id must be rejected rather than running an

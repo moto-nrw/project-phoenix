@@ -20,6 +20,8 @@ func msg(id int64, kind string, createdAt time.Time) *users.ParentMessage {
 }
 
 func TestStampGuardianReadReceipts(t *testing.T) {
+	t.Parallel()
+
 	base := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
 	staff1 := msg(10, users.ParentMessageSenderStaff, base)
 	guardian := msg(11, users.ParentMessageSenderGuardian, base.Add(time.Minute))
@@ -84,6 +86,8 @@ func TestStampGuardianReadReceipts(t *testing.T) {
 // TestStampStaffReadReceipts pins the mirror direction so the two receipts cannot
 // drift: guardian messages are stamped ReadByStaff, staff/system messages are not.
 func TestStampStaffReadReceipts(t *testing.T) {
+	t.Parallel()
+
 	base := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
 	guardian1 := msg(30, users.ParentMessageSenderGuardian, base)
 	staff := msg(31, users.ParentMessageSenderStaff, base.Add(time.Minute))

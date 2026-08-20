@@ -47,10 +47,11 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // is locked by another edit, so the update is refused as retriable — and, just
 // as important, refuses BEFORE writing anything.
 func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	// The companion is created FIRST so its id is the lower one — the direction
@@ -58,8 +59,6 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	companion := testpkg.CreateTestStudent(t, db, "FarEndLocked", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndSubject", "Companion", "1a")
 	require.Less(t, companion.ID, subject.ID, "fixture order no longer yields ascending ids")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -101,16 +100,15 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 // reach for the far end's row at all, or every widening plan change would start
 // failing while a linked child happens to be open somewhere else.
 func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")

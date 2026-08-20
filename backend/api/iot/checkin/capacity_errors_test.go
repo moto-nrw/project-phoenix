@@ -13,6 +13,8 @@ import (
 )
 
 func TestErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -31,6 +33,8 @@ func TestErrorVariables(t *testing.T) {
 
 // Test Error Message Constants
 func TestRoomCapacityExceededError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &checkin.RoomCapacityExceededError{
 		RoomID:           1,
 		RoomName:         "Test Room",
@@ -46,6 +50,8 @@ func TestRoomCapacityExceededError_Error(t *testing.T) {
 
 // Test ActivityCapacityExceededError
 func TestActivityCapacityExceededError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &checkin.ActivityCapacityExceededError{
 		ActivityID:       1,
 		ActivityName:     "Test Activity",
@@ -61,6 +67,8 @@ func TestActivityCapacityExceededError_Error(t *testing.T) {
 
 // Test ErrorRoomCapacityExceeded Builder
 func TestErrorRoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	renderer := checkin.ErrorRoomCapacityExceeded(42, "Test Room", 15, 10)
 	resp, ok := renderer.(*checkin.CapacityErrorResponse)
 	assert.True(t, ok)
@@ -76,6 +84,8 @@ func TestErrorRoomCapacityExceeded(t *testing.T) {
 
 // Test ErrorActivityCapacityExceeded Builder
 func TestErrorActivityCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	renderer := checkin.ErrorActivityCapacityExceeded(77, "Test Activity", 25, 20)
 	resp, ok := renderer.(*checkin.ActivityCapacityErrorResponse)
 	assert.True(t, ok)
@@ -91,6 +101,8 @@ func TestErrorActivityCapacityExceeded(t *testing.T) {
 
 // Test ErrorRenderer for IoT Service Errors
 func TestCapacityErrorResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	resp := &checkin.CapacityErrorResponse{
 		Status:  "error",
 		Message: "Room capacity exceeded",
@@ -112,6 +124,8 @@ func TestCapacityErrorResponse_Render(t *testing.T) {
 
 // Test Activity Capacity Error Response Render
 func TestActivityCapacityErrorResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	resp := &checkin.ActivityCapacityErrorResponse{
 		Status:  "error",
 		Message: "Activity capacity exceeded",
@@ -145,6 +159,8 @@ func TestActivityCapacityErrorResponse_Render(t *testing.T) {
 // 0 numbers, and false booleans — NOT struct zero values). Switching
 // to *time.Time fixes the contract.
 func TestErrorStudentAlreadyActive_DegradedPathOmitsOptionalFields(t *testing.T) {
+	t.Parallel()
+
 	renderer := checkin.ErrorStudentAlreadyActive(int64(42), 0, nil, nil, "")
 	resp, ok := renderer.(*checkin.StudentAlreadyActiveErrorResponse)
 	require.True(t, ok)
@@ -175,6 +191,8 @@ func TestErrorStudentAlreadyActive_DegradedPathOmitsOptionalFields(t *testing.T)
 // that when the existing-visit lookup succeeds, every detail field is
 // serialized so the kiosk can render "Bereits angemeldet in <Raum>".
 func TestErrorStudentAlreadyActive_FullPathPreservesAllFields(t *testing.T) {
+	t.Parallel()
+
 	entryTime := time.Date(2026, 4, 29, 14, 16, 30, 0, time.UTC)
 	roomID := int64(7)
 	renderer := checkin.ErrorStudentAlreadyActive(int64(42), int64(101), &entryTime, &roomID, "Klassenzimmer 2")

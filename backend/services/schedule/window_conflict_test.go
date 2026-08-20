@@ -64,6 +64,8 @@ func studentRow(studentID int64, status string) *scheduleModels.InstanceStudent 
 }
 
 func TestDetectWindowConflicts_ParallelWithoutSharedPersonIsClean(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -80,6 +82,8 @@ func TestDetectWindowConflicts_ParallelWithoutSharedPersonIsClean(t *testing.T) 
 }
 
 func TestDetectWindowConflicts_SharedRoomAloneIsClean(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)},
 		{Instance: windowInstance(2, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)},
@@ -88,6 +92,8 @@ func TestDetectWindowConflicts_SharedRoomAloneIsClean(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_SharedStudentWarnsRegardlessOfRoom(t *testing.T) {
+	t.Parallel()
+
 	// Same room on purpose: the room never excuses a child double-booking.
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
@@ -115,6 +121,8 @@ func TestDetectWindowConflicts_SharedStudentWarnsRegardlessOfRoom(t *testing.T) 
 }
 
 func TestDetectWindowConflicts_AbsentStudentDoesNotWarn(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -129,6 +137,8 @@ func TestDetectWindowConflicts_AbsentStudentDoesNotWarn(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_SharedStaffDifferentRoomsWarns(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -148,6 +158,8 @@ func TestDetectWindowConflicts_SharedStaffDifferentRoomsWarns(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_SharedStaffSameRoomIsClean(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -162,6 +174,8 @@ func TestDetectWindowConflicts_SharedStaffSameRoomIsClean(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_StaffRoomOverrideDefinesEffectiveRoom(t *testing.T) {
+	t.Parallel()
+
 	overrideRoom := int64(12)
 
 	// Both instances share primary room 10, but instance 2 sends THIS staff
@@ -201,6 +215,8 @@ func TestDetectWindowConflicts_StaffRoomOverrideDefinesEffectiveRoom(t *testing.
 }
 
 func TestDetectWindowConflicts_AbsentStaffDoesNotWarn(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -217,6 +233,8 @@ func TestDetectWindowConflicts_AbsentStaffDoesNotWarn(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_TouchingEdgesAreClean(t *testing.T) {
+	t.Parallel()
+
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
@@ -231,6 +249,8 @@ func TestDetectWindowConflicts_TouchingEdgesAreClean(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_CancelledAndCompletedAreIgnored(t *testing.T) {
+	t.Parallel()
+
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusCancelled), Students: shared},
@@ -241,6 +261,8 @@ func TestDetectWindowConflicts_CancelledAndCompletedAreIgnored(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_DifferentDaysNeverConflict(t *testing.T) {
+	t.Parallel()
+
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
 	a := windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 	b := windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
@@ -254,6 +276,8 @@ func TestDetectWindowConflicts_DifferentDaysNeverConflict(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_ActiveInstancesParticipate(t *testing.T) {
+	t.Parallel()
+
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusActive), Students: shared},
@@ -281,11 +305,15 @@ func windowStudentFingerprint(t *testing.T, mutate func(a, b *scheduleModels.Act
 }
 
 func TestDetectWindowConflicts_FingerprintIsStable(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, windowStudentFingerprint(t, nil), windowStudentFingerprint(t, nil),
 		"identical conflicts must produce identical fingerprints across runs")
 }
 
 func TestDetectWindowConflicts_FingerprintChangesWithTimeDateAndInstances(t *testing.T) {
+	t.Parallel()
+
 	base := windowStudentFingerprint(t, nil)
 
 	shifted := windowStudentFingerprint(t, func(_, b *scheduleModels.ActivityInstance) {
@@ -306,6 +334,8 @@ func TestDetectWindowConflicts_FingerprintChangesWithTimeDateAndInstances(t *tes
 }
 
 func TestDetectWindowConflicts_StudentFingerprintIgnoresRooms(t *testing.T) {
+	t.Parallel()
+
 	base := windowStudentFingerprint(t, nil)
 	movedRoom := windowStudentFingerprint(t, func(_, b *scheduleModels.ActivityInstance) {
 		b.RoomID = 42
@@ -315,6 +345,8 @@ func TestDetectWindowConflicts_StudentFingerprintIgnoresRooms(t *testing.T) {
 }
 
 func TestDetectWindowConflicts_StaffFingerprintTracksRooms(t *testing.T) {
+	t.Parallel()
+
 	run := func(roomB int64) string {
 		a := windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 		b := windowInstance(2, roomB, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)

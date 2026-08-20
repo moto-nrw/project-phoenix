@@ -12,11 +12,15 @@ import (
 // =============================================================================
 
 func TestPostNotFoundError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &PostNotFoundError{PostID: 123}
 	assert.Equal(t, "suggestion post not found", err.Error())
 }
 
 func TestPostNotFoundError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &PostNotFoundError{PostID: 123}
 	unwrapped := err.Unwrap()
 	assert.Equal(t, ErrPostNotFound, unwrapped)
@@ -28,11 +32,15 @@ func TestPostNotFoundError_Unwrap(t *testing.T) {
 // =============================================================================
 
 func TestCommentNotFoundError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &CommentNotFoundError{CommentID: 456}
 	assert.Equal(t, "comment not found", err.Error())
 }
 
 func TestCommentNotFoundError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &CommentNotFoundError{CommentID: 456}
 	unwrapped := err.Unwrap()
 	assert.Equal(t, ErrCommentNotFound, unwrapped)
@@ -44,21 +52,29 @@ func TestCommentNotFoundError_Unwrap(t *testing.T) {
 // =============================================================================
 
 func TestForbiddenError_Error_WithReason(t *testing.T) {
+	t.Parallel()
+
 	err := &ForbiddenError{Reason: "you cannot edit this post"}
 	assert.Equal(t, "you cannot edit this post", err.Error())
 }
 
 func TestForbiddenError_Error_WithoutReason(t *testing.T) {
+	t.Parallel()
+
 	err := &ForbiddenError{}
 	assert.Equal(t, "forbidden: you can only modify your own suggestions", err.Error())
 }
 
 func TestForbiddenError_Error_EmptyReason(t *testing.T) {
+	t.Parallel()
+
 	err := &ForbiddenError{Reason: ""}
 	assert.Equal(t, "forbidden: you can only modify your own suggestions", err.Error())
 }
 
 func TestForbiddenError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &ForbiddenError{Reason: "custom reason"}
 	unwrapped := err.Unwrap()
 	assert.Equal(t, ErrForbidden, unwrapped)
@@ -70,22 +86,30 @@ func TestForbiddenError_Unwrap(t *testing.T) {
 // =============================================================================
 
 func TestInvalidDataError_Error_WithErr(t *testing.T) {
+	t.Parallel()
+
 	innerErr := errors.New("field X is required")
 	err := &InvalidDataError{Err: innerErr}
 	assert.Equal(t, "field X is required", err.Error())
 }
 
 func TestInvalidDataError_Error_WithoutErr(t *testing.T) {
+	t.Parallel()
+
 	err := &InvalidDataError{}
 	assert.Equal(t, "invalid suggestion data", err.Error())
 }
 
 func TestInvalidDataError_Error_NilErr(t *testing.T) {
+	t.Parallel()
+
 	err := &InvalidDataError{Err: nil}
 	assert.Equal(t, "invalid suggestion data", err.Error())
 }
 
 func TestInvalidDataError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &InvalidDataError{Err: errors.New("validation failed")}
 	unwrapped := err.Unwrap()
 	assert.Equal(t, ErrInvalidData, unwrapped)
@@ -97,6 +121,8 @@ func TestInvalidDataError_Unwrap(t *testing.T) {
 // =============================================================================
 
 func TestSentinelErrors(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "suggestion post not found", ErrPostNotFound.Error())
 	assert.Equal(t, "comment not found", ErrCommentNotFound.Error())
 	assert.Equal(t, "forbidden: you can only modify your own suggestions", ErrForbidden.Error())
@@ -108,6 +134,8 @@ func TestSentinelErrors(t *testing.T) {
 // =============================================================================
 
 func TestErrorsIs_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &PostNotFoundError{PostID: 1}
 	assert.True(t, errors.Is(err, ErrPostNotFound))
 	assert.False(t, errors.Is(err, ErrCommentNotFound))
@@ -115,6 +143,8 @@ func TestErrorsIs_PostNotFound(t *testing.T) {
 }
 
 func TestErrorsIs_CommentNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &CommentNotFoundError{CommentID: 1}
 	assert.True(t, errors.Is(err, ErrCommentNotFound))
 	assert.False(t, errors.Is(err, ErrPostNotFound))
@@ -122,6 +152,8 @@ func TestErrorsIs_CommentNotFound(t *testing.T) {
 }
 
 func TestErrorsIs_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	err := &ForbiddenError{Reason: "test"}
 	assert.True(t, errors.Is(err, ErrForbidden))
 	assert.False(t, errors.Is(err, ErrPostNotFound))
@@ -129,6 +161,8 @@ func TestErrorsIs_Forbidden(t *testing.T) {
 }
 
 func TestErrorsIs_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	err := &InvalidDataError{Err: errors.New("test")}
 	assert.True(t, errors.Is(err, ErrInvalidData))
 	assert.False(t, errors.Is(err, ErrPostNotFound))

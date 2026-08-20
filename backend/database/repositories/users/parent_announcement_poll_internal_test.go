@@ -3,6 +3,8 @@ package users
 import "testing"
 
 func TestParentAnnouncementResponseLockKey(t *testing.T) {
+	t.Parallel()
+
 	key := parentAnnouncementResponseLockKey(123, 456)
 	if key != "parent-announcement-response:123:456" {
 		t.Fatalf("unexpected lock key %q", key)

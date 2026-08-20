@@ -18,6 +18,8 @@ import (
 // gained rather than a second write path.
 
 func TestStaffShiftSeries_SplitAppliesNewWeekdaysFromEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -61,6 +63,8 @@ func TestStaffShiftSeries_SplitAppliesNewWeekdaysFromEffectiveDate(t *testing.T)
 }
 
 func TestStaffShiftSeries_SplitShortensValidityAndDropsLaterShifts(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -94,6 +98,8 @@ func TestStaffShiftSeries_SplitShortensValidityAndDropsLaterShifts(t *testing.T)
 }
 
 func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-1), today.AddDays(28), 1, nil)
@@ -126,6 +132,8 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 }
 
 func TestStaffShiftSeries_SplitRejectsValidityBeyondCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(14)
@@ -154,6 +162,8 @@ func TestStaffShiftSeries_SplitRejectsValidityBeyondCalendarPeriod(t *testing.T)
 }
 
 func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -199,6 +209,8 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 }
 
 func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -244,6 +256,8 @@ func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testi
 }
 
 func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -287,6 +301,8 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 // against the STORED end. Extending "Gültig bis" is the one edit that has to
 // work there, otherwise "Serie bearbeiten" cannot edit the series at all.
 func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(28)
@@ -331,6 +347,8 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 // The same series without an extended end has no day left to change. That is
 // still a 400, but it must say so instead of passing for a generic input error.
 func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
@@ -357,6 +375,8 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 }
 
 func TestStaffShiftSeries_SplitRejectsExtensionWithoutRecurrenceOccurrence(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)

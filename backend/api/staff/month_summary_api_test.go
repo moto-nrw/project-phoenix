@@ -16,18 +16,14 @@ import (
 )
 
 func TestStaffMonthSummaryAPI(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Summary", fmt.Sprintf("Editor-%d", suffix))
-	editorStaff := testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
+	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Summary", fmt.Sprintf("Subject-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, tc.db, subject.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, editorStaff.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", editorPerson.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "auth.accounts", editorAccount.ID)
-	})
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(editorAccount.ID)

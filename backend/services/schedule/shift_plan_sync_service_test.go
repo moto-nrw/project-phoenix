@@ -46,6 +46,9 @@ type sickCascadeEnv struct {
 	factory *services.Factory
 	syncer  activeSvc.ShiftPlanSyncer
 	ctx     context.Context
+	// tenantID is this test's own tenant (#2419); the env's raw-SQL and
+	// WithTenantTx paths need the ID, not just the context.
+	tenantID int64
 
 	subject *scheduleStaffRef
 	admin   *scheduleStaffRef
@@ -59,7 +62,6 @@ type scheduleStaffRef struct{ ID int64 }
 func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
@@ -74,11 +76,6 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 
 	// Row-level cleanups are registered by each create helper; only the
 	// parent fixtures are dropped here (LIFO: children first, then these).
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, subject.ID, 0, tmpl.ID, room.ID)
-		testpkg.CleanupStaffFixtures(t, db, admin.ID)
-		testpkg.CleanupStaffFixtures(t, db, sub.ID)
-	})
 
 	syncer := scheduleSvc.NewShiftPlanSyncService(
 		serviceFactory.StaffShifts,
@@ -92,22 +89,23 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	)
 
 	return &sickCascadeEnv{
-		db:      db,
-		repos:   repoFactory,
-		factory: serviceFactory,
-		syncer:  syncer,
-		ctx:     testpkg.TenantContext(1),
-		subject: &scheduleStaffRef{ID: subject.ID},
-		admin:   &scheduleStaffRef{ID: admin.ID},
-		sub:     &scheduleStaffRef{ID: sub.ID},
-		roomID:  room.ID,
-		tmplID:  tmpl.ID,
+		db:       db,
+		repos:    repoFactory,
+		factory:  serviceFactory,
+		syncer:   syncer,
+		ctx:      testpkg.Ctx(t),
+		tenantID: testpkg.Tenant(t),
+		subject:  &scheduleStaffRef{ID: subject.ID},
+		admin:    &scheduleStaffRef{ID: admin.ID},
+		sub:      &scheduleStaffRef{ID: sub.ID},
+		roomID:   room.ID,
+		tmplID:   tmpl.ID,
 	}
 }
 
 func (e *sickCascadeEnv) inTx(t *testing.T, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, tenant.WithTenantTx(context.Background(), e.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	}))
 }
@@ -134,11 +132,8 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 	if mutate != nil {
 		mutate(shift)
 	}
-	shift.SetTenantID(1)
+	shift.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, e.repos.StaffShift.Create(e.ctx, shift))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", shift.ID)
-	})
 	return shift
 }
 
@@ -153,10 +148,6 @@ func (e *sickCascadeEnv) createBlock(t *testing.T, date timezone.Date, status, s
 		StartHHMM:       startHHMM,
 	})
 	row := testpkg.CreateTestInstanceStaff(t, e.db, instance.ID, staffID, staffOpts)
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, e.db, row.ID)
-		testpkg.CleanupTableRecords(t, e.db, "schedule.activity_instances", instance.ID)
-	})
 	return instance, row
 }
 
@@ -186,14 +177,13 @@ func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, even
 	}
 	// Deviation events have no per-row cleanup helper; drop them by id.
 	t.Cleanup(func() {
-		for _, ev := range filtered {
-			testpkg.CleanupTableRecords(t, e.db, "audit.deviation_events", ev.ID)
-		}
 	})
 	return filtered
 }
 
 func TestSickCascade_MarkSickForRange(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -235,9 +225,6 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 		return nil
 	})
 	require.NotZero(t, absenceID)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID)
-	})
 
 	// Subject/creator separation.
 	absence, err := e.repos.StaffAbsence.FindByID(e.ctx, absenceID)
@@ -310,6 +297,8 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 }
 
 func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	yesterday := timezone.TodayDate().AddDays(-1)
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -358,6 +347,8 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 }
 
 func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	syncer := scheduleSvc.NewShiftPlanSyncService(
@@ -402,6 +393,8 @@ func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
 }
 
 func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 
@@ -409,7 +402,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	releaseLock := make(chan struct{})
 	lockerDone := make(chan error, 1)
 	go func() {
-		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := e.repos.StaffAbsence.LockStaffAbsenceWrites(ctx, e.subject.ID); err != nil {
 				return err
 			}
@@ -427,7 +420,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 
 	creatorDone := make(chan error, 1)
 	go func() {
-		creatorDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		creatorDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
@@ -449,10 +442,11 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	rows, err := e.repos.StaffAbsence.GetByStaffAndDateRange(e.ctx, e.subject.ID, day, day)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "serialized overlapping reports must merge into one absence")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", rows[0].ID) })
 }
 
 func TestSickCascade_HalfDayRules(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -463,7 +457,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 
 	// HalfDay absences never cascade (guarded in the absence service).
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, activeSvc.CreateAbsenceRequest{
+		_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, activeSvc.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -472,9 +466,6 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", resp.ID)
-		})
 		return nil
 	})
 	assert.False(t, e.reloadShift(t, shiftTomorrow.ID).Cancelled, "half-day sick report must not cancel shifts")
@@ -495,6 +486,8 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 }
 
 func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	dayOne := timezone.TodayDate().AddDays(1)
 	dayTwo := dayOne.AddDays(1)
@@ -519,7 +512,6 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 		}
 		return err
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID) })
 
 	before := activeSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
@@ -556,6 +548,8 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 }
 
 func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	oldDay := timezone.TodayDate().AddDays(1)
 	newDay := oldDay.AddDays(1)
@@ -567,7 +561,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	e.createShift(t, e.subject.ID, oldDay, "09:00", "11:00", nil)
 	newStart := newDay.String()
 	newEnd := newDay.String()
-	err := tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, activeSvc.UpdateAbsenceRequest{
 			DateStart: &newStart,
 			DateEnd:   &newEnd,
@@ -588,6 +582,8 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 }
 
 func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	absenceID := e.createSickAbsence(t, day, day)
@@ -602,13 +598,13 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		StaffID: e.subject.ID, Date: day, StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "09:00"), CreatedBy: e.admin.ID,
 	}
-	shift.SetTenantID(1)
+	shift.SetTenantID(testpkg.Tenant(t))
 
 	created := make(chan struct{})
 	release := make(chan struct{})
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		writerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, e.subject.ID); err != nil {
 				return err
 			}
@@ -621,11 +617,10 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		})
 	}()
 	<-created
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", shift.ID) })
 
 	markDone := make(chan error, 1)
 	go func() {
-		markDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		markDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.MarkSickForRange(ctx, input)
 		})
 	}()
@@ -645,6 +640,8 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 }
 
 func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
@@ -660,13 +657,13 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		StaffID: e.sub.ID, Date: day, StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 	}
-	cover.SetTenantID(1)
+	cover.SetTenantID(testpkg.Tenant(t))
 
 	created := make(chan struct{})
 	release := make(chan struct{})
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		writerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, e.subject.ID); err != nil {
 				return err
 			}
@@ -679,11 +676,10 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		})
 	}()
 	<-created
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "schedule.staff_shifts", cover.ID) })
 
 	clearDone := make(chan error, 1)
 	go func() {
-		clearDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		clearDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.ClearSickForRange(ctx, input)
 		})
 	}()
@@ -704,6 +700,8 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 }
 
 func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
@@ -723,7 +721,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	release := make(chan struct{})
 	lockerDone := make(chan error, 1)
 	go func() {
-		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, cover.StaffID); err != nil {
 				return err
 			}
@@ -736,7 +734,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 
 	clearDone := make(chan error, 1)
 	go func() {
-		clearDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+		clearDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.ClearSickForRange(ctx, input)
 		})
 	}()
@@ -770,11 +768,12 @@ func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Dat
 		}
 		return err
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID) })
 	return absenceID
 }
 
 func TestSickCascade_ClearSickForRange(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -809,9 +808,6 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		s.OriginShiftID = &replaced.ID
 	})
 	subRow := testpkg.CreateTestInstanceStaff(t, e.db, substitutedInstance.ID, e.sub.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, e.db, subRow.ID)
-	})
 
 	e.inTx(t, func(ctx context.Context) error {
 		return e.factory.StaffAbsence.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
@@ -854,7 +850,6 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		}
 	}
 	require.Len(t, unackEvents, 1)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "audit.deviation_events", unackEvents[0].ID) })
 
 	// Substituted block: stays absent (never silently overstaff), stamp
 	// released, substitute row untouched.
@@ -870,6 +865,8 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 }
 
 func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	shift := e.createShift(t, e.subject.ID, day, "08:00", "12:00", nil)
@@ -906,6 +903,8 @@ func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *test
 }
 
 func TestSickCascade_ReassignSickStamps(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -924,9 +923,6 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 		}
 		absenceID = resp.ID
 		return nil
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", absenceID)
 	})
 	e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickReported) // registers event cleanup
 

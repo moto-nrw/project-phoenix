@@ -24,6 +24,7 @@ import (
 // concerned, which is the state #2222 is about. The handler marks the
 // transaction for rollback so the refusal is real.
 func TestRegisterRollsBackRefusedProvisioning(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 	adminToken, validRoleID := loginAsAdmin(t, db, router)
 
@@ -60,13 +61,13 @@ func TestRegisterRollsBackRefusedProvisioning(t *testing.T) {
 // for it refused the request the endpoint exists for; the name is needed only
 // where a person has to be created.
 func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	email := fmt.Sprintf("link-reuse-%d@example.com", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, email, "SecurePass123!")
-	defer testpkg.CleanupAccountWithIdentity(t, tc.db, account.ID)
 
 	// The identity the account already has here, exactly as an earlier grant or
 	// a staff record would have left it.
@@ -81,7 +82,7 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 	adminRole := testpkg.GetOrCreateTestRole(t, tc.db, "admin")
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "link-reuse-test",
 		Roles:    []string{"user"},

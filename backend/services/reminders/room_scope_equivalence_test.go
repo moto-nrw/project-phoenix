@@ -32,11 +32,11 @@ import (
 // both paths from one field, so SQL predicate drift is invisible there. That is
 // exactly why this test talks to a real database.
 func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "RoomScope", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, db, "RoomScopeActivity")
@@ -49,16 +49,9 @@ func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	closedGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, closedRoom.ID)
 	expiredGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, expiredRoom.ID)
 
-	openSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	closedSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
 	expiredSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, expiredGroup.ID, "primary")
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openSup.ID, closedSup.ID, expiredSup.ID,
-		openGroup.ID, closedGroup.ID, expiredGroup.ID,
-		activity.ID, openRoom.ID, closedRoom.ID, expiredRoom.ID,
-	)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 	// The session in closedRoom is over, but the supervision row is still open —
 	// the state the nightly stale-supervisor cleanup exists to resolve.

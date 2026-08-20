@@ -149,18 +149,19 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	}
 }
 
+// Deliberately NOT parallel: Stats counts the platform-wide entities of the
+// whole clone, so the before/after snapshots this test compares drift with
+// every fixture a test running beside it creates.
 func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	before, err := repo.Stats(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, before)
 
-	fix := setupSummariesFixture(t, db)
-	_ = fix
+	setupSummariesFixture(t, db)
 
 	after, err := repo.Stats(ctx)
 	require.NoError(t, err)
@@ -178,10 +179,11 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -224,10 +226,11 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -263,10 +266,11 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -294,10 +298,11 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 }
 
 func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
@@ -364,10 +369,11 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 

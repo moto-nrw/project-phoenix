@@ -83,6 +83,8 @@ func instanceStaffRow(instanceID, staffID int64) *scheduleModels.InstanceStaff {
 }
 
 func TestAssignmentService_RejectsInvalidStaffID(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
 	date := timezone.NewDate(2026, time.March, 10)
 
@@ -92,6 +94,8 @@ func TestAssignmentService_RejectsInvalidStaffID(t *testing.T) {
 }
 
 func TestAssignmentService_RejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, timezone.Date{}, timezone.NewDate(2026, time.March, 10))
@@ -100,6 +104,8 @@ func TestAssignmentService_RejectsInvalidRange(t *testing.T) {
 }
 
 func TestAssignmentService_PropagatesInstanceStaffError(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{err: errors.New("staff read failed")},
 		&asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{},
@@ -112,6 +118,8 @@ func TestAssignmentService_PropagatesInstanceStaffError(t *testing.T) {
 }
 
 func TestAssignmentService_EmptyWhenNoRows(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{rows: nil}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
 	date := timezone.NewDate(2026, time.March, 10)
 
@@ -121,6 +129,8 @@ func TestAssignmentService_EmptyWhenNoRows(t *testing.T) {
 }
 
 func TestAssignmentService_PropagatesInstanceLoadError(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{err: errors.New("instance load failed")},
@@ -134,6 +144,8 @@ func TestAssignmentService_PropagatesInstanceLoadError(t *testing.T) {
 }
 
 func TestAssignmentService_PropagatesRoomError(t *testing.T) {
+	t.Parallel()
+
 	inst := &scheduleModels.ActivityInstance{Title: "Lernzeit", RoomID: 100, StartTime: wall(10, 0), EndTime: wall(11, 0)}
 	inst.ID = 1
 	svc := assignmentServiceFixture(
@@ -150,6 +162,8 @@ func TestAssignmentService_PropagatesRoomError(t *testing.T) {
 }
 
 func TestAssignmentService_PropagatesGroupError(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(50)
 	inst := &scheduleModels.ActivityInstance{Title: "Lernzeit", RoomID: 100, ActivityGroupID: &groupID, StartTime: wall(10, 0), EndTime: wall(11, 0)}
 	inst.ID = 1
@@ -172,6 +186,8 @@ func TestAssignmentService_PropagatesGroupError(t *testing.T) {
 // not returned (skipped). It also drives the nil-logger getLogger() path via
 // the vanished-group warning.
 func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
+	t.Parallel()
+
 	grp1 := int64(50)
 	grp2 := int64(51) // referenced but not returned → vanished
 	override := int64(200)
@@ -253,6 +269,8 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 // the room and group id sets are empty, so both resolver batch reads are
 // skipped and every row is dropped.
 func TestAssignmentService_ToleratesMissingInstancesAndRooms(t *testing.T) {
+	t.Parallel()
+
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{instances: nil}, // instance not found

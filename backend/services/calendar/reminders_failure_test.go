@@ -82,22 +82,18 @@ func (failingRecipientLookup) FindByAppointmentID(context.Context, int64) ([]*ca
 // silently queueing zero reminders is indistinguishable from a healthy tick and
 // the occurrence would simply never be reminded about.
 func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Failure")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Failure")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -110,7 +106,6 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
@@ -157,8 +152,9 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 // The scheduler drives this per tenant. Without a tenant the scan would run
 // unscoped across every school, so it refuses instead.
 func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})
 	now := timezone.Now()

@@ -70,8 +70,9 @@ func wipePhasesForTenant(db *bun.DB, tenantID int64, namePrefix string) {
 // --- ListEnrollable ---------------------------------------------------
 
 func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 
 	_, err := repo.ListEnrollable(context.Background(), 0)
@@ -83,13 +84,18 @@ func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *t
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-happy")
+	// The assertion below is "no account_tenants mapping → AlreadyLinked is
+	// false", so the mapping CreateTestAccount adds for the test's own tenant
+	// has to go (#2419).
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.account_tenants").
 			Where("account_id = ?", account.ID).Exec(context.Background())
@@ -122,11 +128,12 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T) {
+	t.Parallel()
+
 	// Parent has an active account_tenants mapping → already_linked
 	// must be TRUE for that tenant's phases.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -162,6 +169,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSetting(t *testing.T) {
+	t.Parallel()
+
 	// A tenant that hasn't enabled enrollment.enabled (or has it set
 	// to false) must drop out of the result entirely — the INNER JOIN
 	// on config.setting_values enforces this.
@@ -169,8 +178,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSett
 	// Uses a dedicated tenant ID so the tenant-1 setting other tests
 	// flip on/off doesn't bleed into this assertion.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 91520
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	// Deliberately NOT calling enableEnrollmentForTenant.
 
@@ -198,9 +206,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSett
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -228,11 +237,12 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *testing.T) {
+	t.Parallel()
+
 	// A phase whose window has closed must NOT appear; one whose
 	// window opens in the future must NOT appear.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -275,13 +285,14 @@ func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *te
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T) {
+	t.Parallel()
+
 	// Linked schools come before unlinked in the result order so the
 	// parent dashboard puts familiar schools at the top.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	var tenantLinked int64 = 91510
-	var tenantUnlinked int64 = 91511
+	tenantLinked := testpkg.UniqueTestTenantID(t)
+	tenantUnlinked := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantLinked)
 	testpkg.EnsureTestTenant(t, db, tenantUnlinked)
 	enableEnrollmentForTenant(t, db, tenantLinked)

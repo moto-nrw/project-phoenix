@@ -21,11 +21,10 @@ import (
 // a stale standalone-usage row falls to the retention sweep while a fresh
 // one survives (#2189).
 func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-cleanup-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 	defer func() {
 		_, _ = db.NewRaw(`DELETE FROM iot.pwa_standalone_usage WHERE account_id = ?`, account.ID).Exec(context.Background())
 	}()
@@ -33,8 +32,8 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	insertUsage := func(portal string, lastSeen time.Time) {
 		_, err := db.ExecContext(context.Background(),
 			`INSERT INTO iot.pwa_standalone_usage (tenant_id, account_id, portal, first_seen_at, last_seen_at)
-			 VALUES (1, ?, ?, ?, ?)`,
-			account.ID, portal, lastSeen, lastSeen)
+			 VALUES (?, ?, ?, ?, ?)`,
+			testpkg.Tenant(t), account.ID, portal, lastSeen, lastSeen)
 		require.NoError(t, err)
 	}
 	insertUsage("staff", time.Now().AddDate(0, 0, -200))

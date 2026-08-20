@@ -13,6 +13,8 @@ import (
 )
 
 func TestErrorRenderer_NotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -33,6 +35,8 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_BadRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -53,6 +57,8 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	unknownErr := errors.New("unknown error")
 	renderer := feedback.ErrorRenderer(unknownErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -62,6 +68,8 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 }
 
 func TestErrorInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("invalid input")
 	renderer := feedback.ErrorInvalidRequest(testErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -72,6 +80,8 @@ func TestErrorInvalidRequest(t *testing.T) {
 }
 
 func TestErrorInternalServer(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("database error")
 	renderer := feedback.ErrorInternalServer(testErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -82,6 +92,8 @@ func TestErrorInternalServer(t *testing.T) {
 }
 
 func TestErrorForbidden(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("feature_disabled")
 	renderer := feedback.ErrorForbidden(testErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -92,6 +104,8 @@ func TestErrorForbidden(t *testing.T) {
 }
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	errResp := &common.ErrResponse{
 		Err:            errors.New("test error"),
 		HTTPStatusCode: http.StatusNotFound,

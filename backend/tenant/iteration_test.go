@@ -33,6 +33,7 @@ func (f *fakeLister) ListActive(_ context.Context) ([]platform.School, error) {
 // --- Guard paths (unit, no DB) ---
 
 func TestForEachActive_NilDB_ReturnsError(t *testing.T) {
+	t.Parallel()
 	err := tenant.ForEachActive(context.Background(), nil, &fakeLister{}, slog.Default(), "op",
 		func(_ context.Context, _ int64) error { return nil })
 	require.Error(t, err)
@@ -40,6 +41,7 @@ func TestForEachActive_NilDB_ReturnsError(t *testing.T) {
 }
 
 func TestForEachActive_NilLister_ReturnsError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	err := tenant.ForEachActive(context.Background(), db, nil, slog.Default(), "op",
@@ -51,9 +53,10 @@ func TestForEachActive_NilLister_ReturnsError(t *testing.T) {
 // --- Integration paths (real DB + fake lister) ---
 
 func TestForEachActive_HappyPath_InvokesFnPerTenant(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	// testpkg.SetupTestDB guarantees tenant_id=1 exists via EnsureTestTenant.
+	// The tenant row this test needs is created by testpkg.Tenant.
 	lister := &fakeLister{
 		schools: []platform.School{{}, {}},
 	}
@@ -75,6 +78,7 @@ func TestForEachActive_HappyPath_InvokesFnPerTenant(t *testing.T) {
 }
 
 func TestForEachActive_ListerError_BubblesError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	listErr := errors.New("admin list blew up")
@@ -91,6 +95,7 @@ func TestForEachActive_ListerError_BubblesError(t *testing.T) {
 }
 
 func TestForEachActive_PerTenantError_Swallowed(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	lister := &fakeLister{
@@ -116,6 +121,7 @@ func TestForEachActive_PerTenantError_Swallowed(t *testing.T) {
 }
 
 func TestForEachActive_NilLogger_FallsBackToDefault(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	lister := &fakeLister{
@@ -133,6 +139,7 @@ func TestForEachActive_NilLogger_FallsBackToDefault(t *testing.T) {
 }
 
 func TestForEachActive_EmptyTenantList_Succeeds(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	lister := &fakeLister{schools: nil}

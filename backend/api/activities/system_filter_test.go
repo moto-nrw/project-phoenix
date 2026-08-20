@@ -61,15 +61,11 @@ func responseIDs(t *testing.T, body []byte) map[int64]bool {
 }
 
 func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	normal := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NormalAct-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SystemAct-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, normal.CategoryID)
-	defer cleanupActivity(t, ctx.db, system.ID)
-	defer cleanupCategory(t, ctx.db, system.CategoryID)
 
 	markGroupAsSystem(t, ctx.db, system.ID)
 
@@ -95,13 +91,11 @@ func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 }
 
 func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	normal := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NormalCat-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("SystemCat-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, system.ID)
 
 	markCategoryAsSystem(t, ctx.db, system.ID)
 
@@ -127,18 +121,13 @@ func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 }
 
 func TestGetAvailableActivities_ExcludesSystemActivities(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Avail", fmt.Sprintf("Student-%d", time.Now().UnixNano()), "1a")
 
 	normal := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AvailNormal-%d", time.Now().UnixNano()))
 	system := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AvailSystem-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, normal.ID)
-	defer cleanupCategory(t, ctx.db, normal.CategoryID)
-	defer cleanupActivity(t, ctx.db, system.ID)
-	defer cleanupCategory(t, ctx.db, system.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Both groups open for enrollment; one flagged as system infrastructure
 	// (mirrors Schulhof Freispiel/WC, which are created with is_open = true).

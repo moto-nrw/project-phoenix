@@ -93,6 +93,8 @@ func newTestServiceWithDispatcher(
 // =====================================================================
 
 func TestInviteOperator_DispatchesEmail(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -145,6 +147,8 @@ func TestInviteOperator_DispatchesEmail(t *testing.T) {
 }
 
 func TestInviteOperator_DispatchesEmail_InviterLookupFails_FallbackName(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -188,6 +192,8 @@ func TestInviteOperator_DispatchesEmail_InviterLookupFails_FallbackName(t *testi
 }
 
 func TestResendOperator_DispatchesEmail(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	mailer := &capturingMailer{}
@@ -234,6 +240,8 @@ func TestResendOperator_DispatchesEmail(t *testing.T) {
 // =====================================================================
 
 func TestInviteOperator_PersistsDeliveryResult_OnSuccess(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -288,6 +296,8 @@ func TestInviteOperator_PersistsDeliveryResult_OnSuccess(t *testing.T) {
 }
 
 func TestInviteOperator_PersistsDeliveryResult_OnFailure(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()

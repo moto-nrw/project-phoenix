@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func emailPtr(s string) *string { return &s }
@@ -41,7 +42,6 @@ func assertNoStudentCommittedUnderTenantTx(
 		"400 body should name the offending field, not a generic server error")
 
 	ctx := context.Background()
-	defer cleanupOrphanByName(t, tc, firstName, lastName)
 
 	personCount, err := tc.db.NewSelect().
 		Table("users.persons").
@@ -52,34 +52,13 @@ func assertNoStudentCommittedUnderTenantTx(
 		"student/person must NOT be committed when guardian validation fails under TenantTxMiddleware")
 }
 
-// cleanupOrphanByName removes any person/student left behind by a regressed
-// rollback or a prior failed run, keyed by the unique test name.
-func cleanupOrphanByName(t *testing.T, tc *testContext, firstName, lastName string) {
-	t.Helper()
-	ctx := context.Background()
-	var personIDs []int64
-	if err := tc.db.NewSelect().
-		Table("users.persons").
-		Column("id").
-		Where("first_name = ? AND last_name = ?", firstName, lastName).
-		Scan(ctx, &personIDs); err != nil {
-		return
-	}
-	for _, pid := range personIDs {
-		if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
-			t.Logf("cleanup students: %v", err)
-		}
-		if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
-			t.Logf("cleanup persons: %v", err)
-		}
-	}
-}
-
 // TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx is the regression test
 // for the review blocker: through the REAL TenantTxMiddleware, an invalid
 // guardian email must return 400 AND leave no orphaned student. Before the fix
 // the middleware committed the student because the 400 is not a 5xx.
 func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "MiddlewareRollback"
@@ -108,6 +87,8 @@ func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
 // 400, not a 500, and must roll back under the real middleware. Mirrors the
 // allowed set enforced by the detail-page link endpoint.
 func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, relType := range []string{"sibling", "alien", "grandparent"} {
@@ -138,6 +119,8 @@ func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
 // relationship type still creates the student+guardian, so tightening the
 // validation didn't reject valid input. Runs through the real middleware.
 func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, relType := range []string{"parent", "guardian", "relative", "other"} {
@@ -163,7 +146,6 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 
 			var resp createStudentResponse
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-			defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 		})
 	}
 }
@@ -172,6 +154,8 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 // finding: emergency_priority < 1 must be rejected with a 400 (parity with the
 // detail-page link endpoint, which rejects < 1), not silently stored as 0.
 func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, prio := range []int{0, -1, -5} {
@@ -203,6 +187,8 @@ func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
 // (not a 500) and must not commit an orphaned student. Profile reuse is deferred
 // to issue #1513; this test pins the interim contract.
 func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -214,7 +200,7 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 		LastName:  "Guardian",
 		Email:     emailPtr(dupEmail),
 	}
-	existing.SetTenantID(1)
+	existing.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(existing).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -251,6 +237,8 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 // sharing one email in a single request: the in-request duplicate must be
 // rejected up front rather than colliding on insert.
 func TestCreateStudent_DuplicateGuardianEmailWithinRequest(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "DupEmailInline"

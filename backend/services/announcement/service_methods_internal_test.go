@@ -205,6 +205,8 @@ func validInputM() Input {
 // --- List -------------------------------------------------------------------
 
 func TestService_List(t *testing.T) {
+	t.Parallel()
+
 	want := []*usersModels.ParentAnnouncement{draft()}
 	repo := &mockRepo{listForTenantFn: func(_ context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
 		if !includeInactive {
@@ -223,6 +225,8 @@ func TestService_List(t *testing.T) {
 }
 
 func TestService_List_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{listForTenantFn: func(_ context.Context, _ bool) ([]*usersModels.ParentAnnouncement, error) {
 		return nil, errors.New("db down")
 	}}
@@ -235,6 +239,8 @@ func TestService_List_RepoError(t *testing.T) {
 // --- Get --------------------------------------------------------------------
 
 func TestService_Get(t *testing.T) {
+	t.Parallel()
+
 	targets := []*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}
 	repo := &mockRepo{
 		findByIDFn:    func(_ context.Context, id int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
@@ -251,6 +257,8 @@ func TestService_Get(t *testing.T) {
 }
 
 func TestService_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Get(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -259,6 +267,8 @@ func TestService_Get_NotFound(t *testing.T) {
 }
 
 func TestService_Get_TargetsError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) {
@@ -274,6 +284,8 @@ func TestService_Get_TargetsError(t *testing.T) {
 // --- Create -----------------------------------------------------------------
 
 func TestService_Create(t *testing.T) {
+	t.Parallel()
+
 	var replaced bool
 	repo := &mockRepo{
 		createFn: func(_ context.Context, a *usersModels.ParentAnnouncement) error {
@@ -300,6 +312,8 @@ func TestService_Create(t *testing.T) {
 }
 
 func TestService_Create_NewsDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService(ServiceConfig{Repo: &mockRepo{}, Settings: stubSettings{newsEnabled: false}})
 	if _, err := svc.Create(context.Background(), 1, validInputM()); !errors.Is(err, ErrNewsDisabled) {
 		t.Fatalf("expected ErrNewsDisabled, got %v", err)
@@ -307,6 +321,8 @@ func TestService_Create_NewsDisabled(t *testing.T) {
 }
 
 func TestService_Create_FlagError(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService(ServiceConfig{Repo: &mockRepo{}, Settings: stubSettings{newsErr: errors.New("settings down")}})
 	if _, err := svc.Create(context.Background(), 1, validInputM()); err == nil {
 		t.Fatal("expected error")
@@ -314,6 +330,8 @@ func TestService_Create_FlagError(t *testing.T) {
 }
 
 func TestService_Create_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService(ServiceConfig{Repo: &mockRepo{}, Settings: stubSettings{newsEnabled: true}})
 	in := validInputM()
 	in.Title = "   " // empty after trim
@@ -323,6 +341,8 @@ func TestService_Create_InvalidInput(t *testing.T) {
 }
 
 func TestService_Create_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{createFn: func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return errors.New("insert failed") }}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}})
 	if _, err := svc.Create(context.Background(), 1, validInputM()); err == nil {
@@ -331,6 +351,8 @@ func TestService_Create_RepoError(t *testing.T) {
 }
 
 func TestService_Create_TargetsError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		createFn: func(_ context.Context, a *usersModels.ParentAnnouncement) error { a.ID = testAnnID; return nil },
 		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
@@ -346,6 +368,8 @@ func TestService_Create_TargetsError(t *testing.T) {
 // --- Update -----------------------------------------------------------------
 
 func TestService_Update(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		updateFn:       func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return nil },
@@ -362,6 +386,8 @@ func TestService_Update(t *testing.T) {
 }
 
 func TestService_Update_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Update(context.Background(), testAnnID, validInputM()); !errors.Is(err, ErrNotFound) {
@@ -370,6 +396,8 @@ func TestService_Update_NotFound(t *testing.T) {
 }
 
 func TestService_Update_PublishedImmutable(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Update(context.Background(), testAnnID, validInputM()); !errors.Is(err, ErrPublishedImmutable) {
@@ -378,6 +406,8 @@ func TestService_Update_PublishedImmutable(t *testing.T) {
 }
 
 func TestService_Update_PublishedRace(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		updateFn: func(_ context.Context, _ *usersModels.ParentAnnouncement) error {
@@ -391,6 +421,8 @@ func TestService_Update_PublishedRace(t *testing.T) {
 }
 
 func TestService_Update_TargetsPublishedRace(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		updateFn:   func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return nil },
@@ -407,6 +439,8 @@ func TestService_Update_TargetsPublishedRace(t *testing.T) {
 // --- Delete -----------------------------------------------------------------
 
 func TestService_Delete(t *testing.T) {
+	t.Parallel()
+
 	var cancelled, deleted bool
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
@@ -423,6 +457,8 @@ func TestService_Delete(t *testing.T) {
 }
 
 func TestService_Delete_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if err := svc.Delete(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -431,6 +467,8 @@ func TestService_Delete_NotFound(t *testing.T) {
 }
 
 func TestService_Delete_CancelError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil }}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) {
 		return 0, errors.New("cancel failed")
@@ -444,6 +482,8 @@ func TestService_Delete_CancelError(t *testing.T) {
 // --- Publish ----------------------------------------------------------------
 
 func TestService_Publish_WithEmail(t *testing.T) {
+	t.Parallel()
+
 	var enqueued int
 	fresh := draft()
 	repo := &mockRepo{
@@ -488,6 +528,8 @@ func TestService_Publish_WithEmail(t *testing.T) {
 }
 
 func TestService_Publish_AlreadyPublished_NoEmail(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn:    func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil },
 		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
@@ -500,6 +542,8 @@ func TestService_Publish_AlreadyPublished_NoEmail(t *testing.T) {
 }
 
 func TestService_Publish_LostRace_NoEmail(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return false, nil },
@@ -512,6 +556,8 @@ func TestService_Publish_LostRace_NoEmail(t *testing.T) {
 }
 
 func TestService_Publish_NewsDisabled(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil }}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: false}})
 	if _, err := svc.Publish(context.Background(), testAnnID); !errors.Is(err, ErrNewsDisabled) {
@@ -520,6 +566,8 @@ func TestService_Publish_NewsDisabled(t *testing.T) {
 }
 
 func TestService_Publish_ExpiredDraft(t *testing.T) {
+	t.Parallel()
+
 	past := time.Now().Add(-time.Hour)
 	a := draft()
 	a.ExpiresAt = &past
@@ -531,6 +579,8 @@ func TestService_Publish_ExpiredDraft(t *testing.T) {
 }
 
 func TestService_Publish_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Publish(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -541,6 +591,8 @@ func TestService_Publish_NotFound(t *testing.T) {
 // --- Unpublish --------------------------------------------------------------
 
 func TestService_Unpublish(t *testing.T) {
+	t.Parallel()
+
 	var setNil, cancelled bool
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil },
@@ -561,6 +613,8 @@ func TestService_Unpublish(t *testing.T) {
 }
 
 func TestService_Unpublish_Draft_NoOp(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn:    func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
@@ -572,6 +626,8 @@ func TestService_Unpublish_Draft_NoOp(t *testing.T) {
 }
 
 func TestService_Unpublish_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Unpublish(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -582,6 +638,8 @@ func TestService_Unpublish_NotFound(t *testing.T) {
 // --- Stats & Recipients -----------------------------------------------------
 
 func TestService_Stats(t *testing.T) {
+	t.Parallel()
+
 	want := &usersModels.AnnouncementStats{TargetCount: 10, ReadCount: 4, AcknowledgedCount: 1}
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
@@ -598,6 +656,8 @@ func TestService_Stats(t *testing.T) {
 }
 
 func TestService_Stats_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Stats(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -606,6 +666,8 @@ func TestService_Stats_NotFound(t *testing.T) {
 }
 
 func TestService_Recipients(t *testing.T) {
+	t.Parallel()
+
 	want := []*usersModels.AnnouncementRecipientStatus{{AccountID: 1, FirstName: "Ada", LastName: "L"}}
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
@@ -624,6 +686,8 @@ func TestService_Recipients(t *testing.T) {
 }
 
 func TestService_Recipients_NotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo})
 	if _, err := svc.Recipients(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
@@ -634,6 +698,8 @@ func TestService_Recipients_NotFound(t *testing.T) {
 // --- e-mail edge cases ------------------------------------------------------
 
 func TestService_Publish_EmailNoOutbox(t *testing.T) {
+	t.Parallel()
+
 	// send_email is on but no outbox is wired: publish still succeeds (in-app
 	// feed works), the missing binding is logged, not fatal.
 	repo := &mockRepo{
@@ -659,6 +725,8 @@ func TestService_Publish_EmailNoOutbox(t *testing.T) {
 }
 
 func TestService_Get_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
 		return nil, errors.New("db")
 	}}
@@ -669,6 +737,8 @@ func TestService_Get_RepoError(t *testing.T) {
 }
 
 func TestService_Delete_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		deleteFn:   func(_ context.Context, _ int64) error { return errors.New("delete failed") },
@@ -681,6 +751,8 @@ func TestService_Delete_RepoError(t *testing.T) {
 }
 
 func TestService_Stats_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		statsFn: func(_ context.Context, _, _ int64) (*usersModels.AnnouncementStats, error) {
@@ -694,6 +766,8 @@ func TestService_Stats_RepoError(t *testing.T) {
 }
 
 func TestService_Recipients_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
 		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
@@ -707,6 +781,8 @@ func TestService_Recipients_RepoError(t *testing.T) {
 }
 
 func TestService_Create_NilSettings(t *testing.T) {
+	t.Parallel()
+
 	// A nil settings service means the feature cannot be confirmed on, so
 	// newsEnabled returns false and Create refuses.
 	svc := NewService(ServiceConfig{Repo: &mockRepo{}})
@@ -716,6 +792,8 @@ func TestService_Create_NilSettings(t *testing.T) {
 }
 
 func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
+	t.Parallel()
+
 	// A failed school-logo lookup is cosmetic: the publish e-mail still goes out,
 	// just without the school logo.
 	var enqueued int
@@ -757,6 +835,8 @@ func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
 }
 
 func TestService_Publish_EmptyAudience(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
 			a := draft()

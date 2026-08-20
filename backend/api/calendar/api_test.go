@@ -163,6 +163,8 @@ func requestWithURLParams(req *http.Request, kv map[string]string) *http.Request
 }
 
 func TestListMyParsesDateRange(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{
 		listStaffEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calModels.EventSourceAppointment, Title: "Planning"}},
 	}
@@ -179,6 +181,8 @@ func TestListMyParsesDateRange(t *testing.T) {
 }
 
 func TestListMyRejectsMissingRange(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{}}
 	req := httptest.NewRequest(http.MethodGet, "/my?from=2026-01-05", nil)
 	w := httptest.NewRecorder()
@@ -189,6 +193,8 @@ func TestListMyRejectsMissingRange(t *testing.T) {
 }
 
 func TestCreateAppointmentParsesPayload(t *testing.T) {
+	t.Parallel()
+
 	targetID := int64(42)
 	service := &fakeCalendarService{
 		createDetail: &calendarSvc.AppointmentDetail{
@@ -226,6 +232,8 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 }
 
 func TestCreateAppointmentRejectsBadClock(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{}}
 	body := `{"title":"Bad","start_date":"2026-01-05","end_date":"2026-01-05","start_time":"9am","end_time":"10:00"}`
 	req := httptest.NewRequest(http.MethodPost, "/appointments", strings.NewReader(body))
@@ -237,6 +245,8 @@ func TestCreateAppointmentRejectsBadClock(t *testing.T) {
 }
 
 func TestCreateAppointmentMapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{createErr: calendarSvc.ErrForbidden}}
 	body := `{"title":"Forbidden","start_date":"2026-01-05","end_date":"2026-01-05","start_time":"09:00","end_time":"10:00"}`
 	req := httptest.NewRequest(http.MethodPost, "/appointments", strings.NewReader(body))
@@ -248,6 +258,8 @@ func TestCreateAppointmentMapsServiceErrors(t *testing.T) {
 }
 
 func TestUpdateAppointmentParsesPayload(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{
 		updateDetail: &calendarSvc.AppointmentDetail{Appointment: &calModels.Appointment{Title: "Planning v2"}},
 	}
@@ -278,6 +290,8 @@ func TestUpdateAppointmentParsesPayload(t *testing.T) {
 }
 
 func TestUpdateAppointmentRejectsBadClock(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{}}
 	body := `{"title":"x","start_date":"2026-01-06","end_date":"2026-01-06","start_time":"nope","end_time":"11:00"}`
 	req := requestWithURLParam(
@@ -292,6 +306,8 @@ func TestUpdateAppointmentRejectsBadClock(t *testing.T) {
 }
 
 func TestUpdateAppointmentMapsNotFound(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{updateErr: calendarSvc.ErrNotFound}}
 	body := `{"title":"x","start_date":"2026-01-06","end_date":"2026-01-06","start_time":"10:00","end_time":"11:00"}`
 	req := requestWithURLParam(
@@ -306,6 +322,8 @@ func TestUpdateAppointmentMapsNotFound(t *testing.T) {
 }
 
 func TestCancelAppointmentPassesID(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{cancelDetail: &calendarSvc.AppointmentDetail{Appointment: &calModels.Appointment{}}}
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
@@ -321,6 +339,8 @@ func TestCancelAppointmentPassesID(t *testing.T) {
 }
 
 func TestCancelAppointmentMapsForbidden(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{cancelErr: calendarSvc.ErrForbidden}}
 	req := requestWithURLParam(
 		httptest.NewRequest(http.MethodPost, "/appointments/42/cancel", nil),
@@ -334,6 +354,8 @@ func TestCancelAppointmentMapsForbidden(t *testing.T) {
 }
 
 func TestDeleteAppointmentPassesID(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{}
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
@@ -349,6 +371,8 @@ func TestDeleteAppointmentPassesID(t *testing.T) {
 }
 
 func TestCancelOccurrenceParsesIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{}
 	rs := &Resource{service: service}
 	req := requestWithURLParams(
@@ -365,6 +389,8 @@ func TestCancelOccurrenceParsesIDAndDate(t *testing.T) {
 }
 
 func TestCancelOccurrenceRejectsBadDate(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{}}
 	req := requestWithURLParams(
 		httptest.NewRequest(http.MethodPost, "/appointments/11/occurrences/nope/cancel", nil),
@@ -378,6 +404,8 @@ func TestCancelOccurrenceRejectsBadDate(t *testing.T) {
 }
 
 func TestAppointmentICSStreamsDownload(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{
 		icsFilename: "planning.ics",
 		icsContent:  "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
@@ -399,6 +427,8 @@ func TestAppointmentICSStreamsDownload(t *testing.T) {
 }
 
 func TestRespondPassesRecipientAndStatus(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{}
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
@@ -416,6 +446,8 @@ func TestRespondPassesRecipientAndStatus(t *testing.T) {
 }
 
 func TestRespondRejectsInvalidRecipientID(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{}}
 	req := requestWithURLParam(
 		httptest.NewRequest(http.MethodPost, "/recipients/nope/response", strings.NewReader(`{"status":"accepted"}`)),
@@ -430,6 +462,8 @@ func TestRespondRejectsInvalidRecipientID(t *testing.T) {
 }
 
 func TestRecipientOptionsParsesQueryAndLimit(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeCalendarService{
 		options: &calendarSvc.RecipientOptions{
 			Classes: []string{"1a"},
@@ -448,6 +482,8 @@ func TestRecipientOptionsParsesQueryAndLimit(t *testing.T) {
 }
 
 func TestRecipientOptionsMapsUnknownError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{service: &fakeCalendarService{optionsErr: errors.New("boom")}}
 	req := httptest.NewRequest(http.MethodGet, "/recipient-options", nil)
 	w := httptest.NewRecorder()
