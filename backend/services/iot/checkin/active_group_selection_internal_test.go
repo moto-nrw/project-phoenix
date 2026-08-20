@@ -157,11 +157,9 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 		active:     activeStub,
 		activities: &rolloverActivityService{group: activity},
 		logger:     slog.New(slog.DiscardHandler),
+		now:        func() time.Time { return now },
 	}
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -186,10 +184,8 @@ func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
 	service := &CheckinService{
 		active: activeStub,
 		logger: slog.New(slog.DiscardHandler),
+		now:    func() time.Time { return now },
 	}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -218,10 +214,8 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 	service := &CheckinService{
 		active: activeStub,
 		logger: slog.New(slog.DiscardHandler),
+		now:    func() time.Time { return now },
 	}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 

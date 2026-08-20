@@ -279,7 +279,29 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  navigationMockState.roomParam = null;
+  localStorage.clear();
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("Active Supervisions helper functions", () => {
   it("filters students by search term", () => {

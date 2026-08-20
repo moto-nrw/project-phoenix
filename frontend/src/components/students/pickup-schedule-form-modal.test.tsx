@@ -712,11 +712,10 @@ describe("PickupScheduleFormModal", () => {
         expect(
           screen.getByText("Bitte geben Sie mindestens eine Abholzeit an."),
         ).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
   });

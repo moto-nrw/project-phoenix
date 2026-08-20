@@ -279,7 +279,27 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("Year filter (Klassenstufe) on active supervisions", () => {
   const mockMutate = vi.fn();

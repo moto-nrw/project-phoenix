@@ -1,10 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
+import { planningTrackService } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
+import { timetableService } from "~/lib/timetable-api";
 import * as formModel from "./form-model";
 import { reconcileCategoryId, useEventForm } from "./use-event-form";
 import type { UseEventFormParams } from "./use-event-form";
@@ -17,7 +19,17 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
+beforeEach(() => {
+  vi.spyOn(planningTrackService, "list").mockResolvedValue([]);
+  vi.spyOn(timetableService, "getOfferingSources").mockResolvedValue([]);
+  vi.spyOn(timetableService, "getCombinedOfferingCounts").mockResolvedValue({
+    totalCount: 0,
+    gradeCounts: {},
+  });
+});
+
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
 });
 

@@ -141,8 +141,6 @@ describe("POST /api/active/groups/[id]/end", () => {
   });
 
   it("returns 500 when id parameter is invalid", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Invalid id parameter"));
-
     const request = createMockRequest("/api/active/groups/invalid/end", {
       method: "POST",
     });
