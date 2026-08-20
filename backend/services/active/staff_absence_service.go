@@ -136,20 +136,9 @@ const maxSickAbsenceRangeDays = 366
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
 	DurationDays int `json:"duration_days"`
-}
-
-// MarshalJSON keeps custom absence IDs lossless for JavaScript consumers.
-func (r StaffAbsenceResponse) MarshalJSON() ([]byte, error) {
-	type responseAlias StaffAbsenceResponse
-	var absenceTypeID *string
-	if r.StaffAbsence != nil && r.StaffAbsence.AbsenceTypeID != nil {
-		value := strconv.FormatInt(*r.StaffAbsence.AbsenceTypeID, 10)
-		absenceTypeID = &value
-	}
-	return json.Marshal(struct {
-		*responseAlias
-		AbsenceTypeID *string `json:"absence_type_id,omitempty"`
-	}{responseAlias: (*responseAlias)(&r), AbsenceTypeID: absenceTypeID})
+	// AbsenceTypeID shadows the embedded model field on the wire, so browser
+	// clients receive this BIGINT as a lossless decimal string.
+	AbsenceTypeID *string `json:"absence_type_id,omitempty"`
 }
 
 // StaffAbsenceRequestItem is one absence request in the Anfragen module's
@@ -1242,9 +1231,15 @@ func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int6
 }
 
 func toAbsenceResponse(a *activeModels.StaffAbsence) *StaffAbsenceResponse {
+	var absenceTypeID *string
+	if a.AbsenceTypeID != nil {
+		value := strconv.FormatInt(*a.AbsenceTypeID, 10)
+		absenceTypeID = &value
+	}
 	return &StaffAbsenceResponse{
-		StaffAbsence: a,
-		DurationDays: a.DurationDays(),
+		StaffAbsence:  a,
+		DurationDays:  a.DurationDays(),
+		AbsenceTypeID: absenceTypeID,
 	}
 }
 

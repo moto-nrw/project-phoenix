@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"testing"
 	"time"
 
@@ -37,7 +38,11 @@ func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
 
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 	id := int64(9007199254740993)
-	payload, err := json.Marshal(StaffAbsenceResponse{StaffAbsence: &activeModels.StaffAbsence{AbsenceTypeID: &id}})
+	value := strconv.FormatInt(id, 10)
+	payload, err := json.Marshal(StaffAbsenceResponse{
+		StaffAbsence:  &activeModels.StaffAbsence{AbsenceTypeID: &id},
+		AbsenceTypeID: &value,
+	})
 	require.NoError(t, err)
 	assert.Contains(t, string(payload), `"absence_type_id":"9007199254740993"`)
 }

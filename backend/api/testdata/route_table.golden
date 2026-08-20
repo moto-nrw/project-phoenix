@@ -107,6 +107,7 @@ DELETE /parent/me/feedback/{postId}/vote
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 GET /
+GET /api/absence-types/
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
 GET /api/active/combined/active
@@ -546,6 +547,7 @@ PATCH /api/timetable/instances/{instance_id}/students/{student_id}
 PATCH /api/timetable/operations/instances/{id}/students/{student_id}/attendance
 PATCH /internal/metrics
 PATCH /parent/me/children/{studentId}/master-data/{target}/{field}
+POST /api/absence-types/
 POST /api/active/combined/
 POST /api/active/combined/{id}/end
 POST /api/active/groups/
@@ -857,6 +859,7 @@ POST /school/auth/mfa/enroll/start
 POST /school/auth/mfa/resend
 POST /school/auth/mfa/verify
 POST /school/auth/switch-school
+PUT /api/absence-types/{id}
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
