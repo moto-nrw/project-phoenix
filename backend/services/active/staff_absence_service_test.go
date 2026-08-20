@@ -284,6 +284,10 @@ func (m *absWorkSessionRepoMock) GetHistoryByStaffIDs(context.Context, []int64, 
 	return nil, nil
 }
 
+func (m *absWorkSessionRepoMock) ListOverlappingByStaffIDs(context.Context, []int64, time.Time, *time.Time) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
+}
+
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)

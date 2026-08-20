@@ -494,10 +494,9 @@ func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
 	assert.Equal(t, 120, july.ActualMinutes)
 }
 
-func TestWTMRangeAggregate_ContinuesOpenBlockFromYesterday(t *testing.T) {
+func TestWTMRangeAggregate_DoesNotExtendOpenBlockFromYesterday(t *testing.T) {
 	f := newWTMFixture()
-	now := time.Now()
-	today := timezone.DateFromTime(now)
+	today := timezone.TodayDate()
 	yesterday := today.AddDays(-1)
 	f.settings.accountStart = yesterday.String()
 	f.svc.todayFunc = func() timezone.Date { return today }
@@ -510,7 +509,8 @@ func TestWTMRangeAggregate_ContinuesOpenBlockFromYesterday(t *testing.T) {
 
 	aggregate, err := f.svc.GetRangeAggregate(context.Background(), wtmStaffID, today, today)
 	require.NoError(t, err)
-	assert.InDelta(t, int(now.Sub(today.BerlinMidnight()).Minutes()), aggregate.ActualMinutes, 1)
+	assert.Zero(t, aggregate.ActualMinutes,
+		"an unchecked-out block from yesterday must not accrue a second day of live balance")
 }
 
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical

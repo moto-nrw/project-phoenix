@@ -269,7 +269,8 @@ func (s *staffOverviewService) buildPrefetch(
 		settings: memo,
 	}
 
-	if prefetch.sessions, err = s.sessionRepo.GetHistoryByStaffIDs(ctx, staffIDs, from, to); err != nil {
+	end := to.AddDays(1).BerlinMidnight()
+	if prefetch.sessions, err = s.sessionRepo.ListOverlappingByStaffIDs(ctx, staffIDs, from.BerlinMidnight(), &end); err != nil {
 		return nil, fmt.Errorf("failed to prefetch work sessions: %w", err)
 	}
 	// Breaks are keyed by session ID, so they can only be loaded once the

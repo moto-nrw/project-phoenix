@@ -170,6 +170,35 @@ func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, st
 	return sessions, nil
 }
 
+// ListOverlappingByStaffIDs batches interval reads for the cross-staff
+// Stundenkonto overview. Unlike date-based history, this deliberately includes
+// a block that started before the requested calendar range.
+func (r *WorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*active.WorkSession, error) {
+	result := make(map[int64][]*active.WorkSession, len(staffIDs))
+	if len(staffIDs) == 0 {
+		return result, nil
+	}
+
+	var sessions []*active.WorkSession
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&sessions).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from).
+		OrderExpr(`"work_session".staff_id ASC, "work_session".check_in_time ASC`)
+	if to != nil {
+		query = query.Where(`"work_session".check_in_time < ?`, *to)
+	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: err}
+	}
+	for _, session := range sessions {
+		result[session.StaffID] = append(result[session.StaffID], session)
+	}
+	return result, nil
+}
+
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
 func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
@@ -335,8 +364,8 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
-		Where(`"work_session".check_in_time < ?`, to.AddDays(1).BerlinMidnight()).
-		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from.BerlinMidnight()).
+		Where(`"work_session".date >= ?`, from).
+		Where(`"work_session".date <= ?`, to).
 		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")

@@ -337,12 +337,17 @@ type WorkSessionRepository interface {
 	// the interval is open-ended. Timestamp-based on purpose: a block can
 	// reach past the day it is filed on (#2402).
 	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
+	// ListOverlappingByStaffIDs is the batched counterpart used by the
+	// cross-staff Stundenkonto overview. It keeps interval readers separate
+	// from history and export readers, whose contract is the stored date.
+	ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*WorkSession, error)
 
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
 
 	// GetHistoryByStaffIDs is GetHistoryByStaffID batched over many staff
-	// members, keyed by staff ID, for the cross-staff Stundenkonto overview.
+	// members, keyed by staff ID. Its contract follows the stored session date,
+	// matching history and export date ranges.
 	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*WorkSession, error)
 
 	// GetOpenSessions returns all sessions without check-out before a given date

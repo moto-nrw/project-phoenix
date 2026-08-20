@@ -47,6 +47,7 @@ type wsMockWorkSessionRepository struct {
 	lockOpenByIDFunc                   func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc            func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	listOverlappingByStaffIDFunc       func(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
+	listOverlappingByStaffIDsFunc      func(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*activeModels.WorkSession, error)
 	getHistoryByStaffIDsFunc           func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
 	getOpenSessionsFunc                func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc            func(ctx context.Context) (map[int64]string, error)
@@ -157,6 +158,13 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, s
 func (m *wsMockWorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	if m.listOverlappingByStaffIDFunc != nil {
 		return m.listOverlappingByStaffIDFunc(ctx, staffID, from, to)
+	}
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*activeModels.WorkSession, error) {
+	if m.listOverlappingByStaffIDsFunc != nil {
+		return m.listOverlappingByStaffIDsFunc(ctx, staffIDs, from, to)
 	}
 	return nil, nil
 }

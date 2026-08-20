@@ -370,6 +370,36 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	})
 }
 
+func TestWorkSessionRepository_GetHistoryByStaffIDsUsesSessionDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).WorkSession
+	ctx := testpkg.TenantContext(1)
+	staff := testpkg.CreateTestStaff(t, db, "History", "Export")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+
+	today := timezone.TodayDate()
+	yesterday := today.AddDays(-1)
+	checkIn := yesterday.BerlinMidnight().Add(22 * time.Hour)
+	checkOut := today.BerlinMidnight().Add(2 * time.Hour)
+	session := &active.WorkSession{
+		StaffID:      staff.ID,
+		Date:         yesterday,
+		Status:       active.WorkSessionStatusPresent,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		CreatedBy:    staff.ID,
+	}
+	require.NoError(t, repo.Create(ctx, session))
+	defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+	history, err := repo.GetHistoryByStaffIDs(ctx, []int64{staff.ID}, today, today)
+	require.NoError(t, err)
+	assert.Empty(t, history[staff.ID],
+		"history and export ranges must not include a block filed before the requested day")
+}
+
 func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	require.NoError(t, db.Close())
