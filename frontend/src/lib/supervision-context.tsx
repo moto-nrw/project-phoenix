@@ -44,6 +44,7 @@ interface SchulhofStatus {
 
 const SCHULHOF_ROOM_NAME = "Schulhof";
 const SCHULHOF_TAB_ID = "schulhof";
+const RESYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 interface SupervisionState {
   // Group supervision
@@ -589,6 +590,20 @@ export function SupervisionProvider({
       });
     }
   }, [session?.user?.token]); // Only depend on token
+
+  // SSE is a trigger channel, not durable state. A low-frequency resync
+  // repairs missed events or an unavailable connection without restoring the
+  // former per-minute request load.
+  useEffect(() => {
+    if (!session?.user?.token) return;
+
+    const interval = setInterval(() => {
+      refreshRef.current?.({ silent: true, force: true }).catch(() => {
+        // Intentionally ignored - silent background refresh
+      });
+    }, RESYNC_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [session?.user?.token]);
 
   // SSE announces access changes and activity lifecycle changes. The provider
   // owns these raw fetches, so it also owns the precise refresh scope.

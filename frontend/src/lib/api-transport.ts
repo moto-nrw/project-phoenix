@@ -3,6 +3,10 @@ import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { env } from "~/env";
 import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
+import {
+  rateLimitBlockedError,
+  recordRateLimit,
+} from "~/lib/rate-limit-backoff";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
 /**
@@ -32,6 +36,9 @@ const api = createAxios({
 // Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
+    const rateLimitError = rateLimitBlockedError();
+    if (rateLimitError) return Promise.reject(rateLimitError);
+
     // Only try to get session if we're in the browser. getCachedSession
     // deduplicates concurrent session lookups — every raw getSession() call is
     // its own network round trip to /api/auth/session (#2123).
@@ -150,6 +157,12 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers?.["retry-after"];
+      recordRateLimit(typeof retryAfter === "string" ? retryAfter : null);
+      throw error;
+    }
 
     // Log non-401 errors
     if (error.response?.status !== 401) {

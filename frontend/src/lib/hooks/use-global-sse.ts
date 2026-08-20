@@ -944,6 +944,9 @@ export function useGlobalSSE(): SSEHookState {
           if (event.data.student_ids) {
             for (const id of event.data.student_ids) {
               pendingStudentIds.current.add(id);
+              if (!isOwnAttendanceEvent(event.type, id)) {
+                hasPendingRemoteRosterEvent.current = true;
+              }
             }
           }
           collectEduGroupScope(event.data.group_ids);

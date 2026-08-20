@@ -15,6 +15,18 @@ function retryAfterSeconds(value: string | null, now: number): number {
   return FALLBACK_RETRY_SECONDS;
 }
 
+function rateLimitSeconds(retryAfter: string | null): number {
+  const now = Date.now();
+  const seconds = retryAfterSeconds(retryAfter, now);
+  blockedUntil = Math.max(blockedUntil, now + seconds * 1000);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("phoenix:rate-limited", { detail: { seconds } }),
+    );
+  }
+  return seconds;
+}
+
 function guardedApiRequest(input: RequestInfo | URL): boolean {
   if (typeof window === "undefined") return false;
   const raw = input instanceof Request ? input.url : input.toString();
@@ -29,6 +41,24 @@ function guardedApiRequest(input: RequestInfo | URL): boolean {
 
 export function remainingRateLimitMs(now = Date.now()): number {
   return Math.max(0, blockedUntil - now);
+}
+
+export function rateLimitBlockedError(): Error | null {
+  if (typeof window === "undefined" || remainingRateLimitMs() === 0) {
+    return null;
+  }
+  const seconds = Math.max(1, Math.ceil(remainingRateLimitMs() / 1000));
+  const error = new Error("API request blocked (429)") as Error & {
+    status: number;
+    response: { status: number; headers: { "retry-after": string } };
+  };
+  error.status = 429;
+  error.response = { status: 429, headers: { "retry-after": String(seconds) } };
+  return error;
+}
+
+export function recordRateLimit(retryAfter: string | null): void {
+  rateLimitSeconds(retryAfter);
 }
 
 function startsWithRateLimitCode(suffix: string): boolean {
@@ -81,15 +111,7 @@ export function installRateLimitFetchGuard(): () => void {
 
     const response = await originalFetch(input, init);
     if (guardedApiRequest(input) && response.status === 429) {
-      const now = Date.now();
-      const seconds = retryAfterSeconds(
-        response.headers.get("Retry-After"),
-        now,
-      );
-      blockedUntil = Math.max(blockedUntil, now + seconds * 1000);
-      window.dispatchEvent(
-        new CustomEvent("phoenix:rate-limited", { detail: { seconds } }),
-      );
+      rateLimitSeconds(response.headers.get("Retry-After"));
     }
     return response;
   };

@@ -1943,7 +1943,7 @@ describe("SupervisionProvider refresh scheduling", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not install the former one-minute polling interval", async () => {
+  it("installs a low-frequency supervision resync interval", async () => {
     const setIntervalSpy = vi.spyOn(global, "setInterval");
     setupFetchMock();
 
@@ -1955,9 +1955,9 @@ describe("SupervisionProvider refresh scheduling", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    expect(setIntervalSpy).not.toHaveBeenCalledWith(
+    expect(setIntervalSpy).toHaveBeenCalledWith(
       expect.any(Function),
-      60000,
+      5 * 60 * 1000,
     );
   });
 });
