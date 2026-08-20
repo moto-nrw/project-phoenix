@@ -465,4 +465,69 @@ describe("OfferingRequestReviewItem", () => {
       screen.getByText(/Die Tage Di kommen automatisch dazu/),
     ).toBeInTheDocument();
   });
+  // Folgen-Anzeige (#2434): eine Komplett-Abmeldung darf nicht wie ein
+  // gewöhnlicher Antrag aussehen.
+  describe("Folgen der Entscheidung", () => {
+    const withdrawal = () =>
+      request({
+        full_withdrawal: true,
+        diff: [
+          {
+            offering_id: "1",
+            label: "Regelbetreuung",
+            old: "Mo, Di, Mi",
+            new: "abgemeldet",
+          },
+        ],
+      });
+
+    it("warns before a full withdrawal, naming the child", () => {
+      renderItem(withdrawal());
+
+      expect(
+        screen.getByText(
+          "Damit wird Lara Beispiel von allen Angeboten abgemeldet. Danach ist kein Angebot mehr gebucht.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("flags the full withdrawal before the card is expanded", () => {
+      render(
+        <OfferingRequestReviewItem row={withdrawal()} onDecided={vi.fn()} />,
+      );
+
+      expect(screen.getByText("Komplett-Abmeldung")).toBeInTheDocument();
+    });
+
+    it("shows no warning for an ordinary request", () => {
+      renderItem();
+
+      expect(screen.queryByText(/von allen Angeboten abgemeldet/)).toBeNull();
+      expect(screen.queryByText("Komplett-Abmeldung")).toBeNull();
+    });
+
+    it("lists the bookings the request leaves untouched", () => {
+      renderItem(
+        request({
+          unchanged: [
+            { offering_id: "9", label: "Mittagessen", days: "Mo, Di" },
+          ],
+        }),
+      );
+
+      expect(screen.getByText("Bleibt gebucht")).toBeInTheDocument();
+      expect(screen.getByText("Mittagessen:")).toBeInTheDocument();
+    });
+
+    it("names what to check after the approval", () => {
+      renderItem();
+
+      expect(
+        screen.getByText("Nach dem Freigeben bitte prüfen"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Gehzeiten des Kindes")).toBeInTheDocument();
+      expect(screen.getByText("Zuordnung im Stundenplan")).toBeInTheDocument();
+      expect(screen.getByText("Listen und Ausdrucke")).toBeInTheDocument();
+    });
+  });
 });

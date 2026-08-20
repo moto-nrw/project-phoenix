@@ -166,6 +166,7 @@ export function OfferingRequestReviewItem({
     }
   };
 
+  const unchanged = row.unchanged ?? [];
   const previewByOffering = new Map(
     preview?.map((selection) => [selection.offering_id, selection]),
   );
@@ -178,10 +179,17 @@ export function OfferingRequestReviewItem({
       .map((entry) => entry.offering_id),
   );
 
+  const fullWithdrawal = row.full_withdrawal === true;
+
   return (
     <RequestReviewCard
       childName={row.student_name}
       summary={`Betreuungsangebote und AGs · ab ${formatDate(row.effective_from)}`}
+      badge={
+        fullWithdrawal ? (
+          <StatusBadge tone="red" label="Komplett-Abmeldung" />
+        ) : undefined
+      }
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={(value) => {
@@ -201,6 +209,14 @@ export function OfferingRequestReviewItem({
       {error && (
         <div className="mb-2">
           <Alert type="error" message={error} />
+        </div>
+      )}
+      {fullWithdrawal && (
+        <div className="mt-3">
+          <Alert
+            type="error"
+            message={`Damit wird ${row.student_name} von allen Angeboten abgemeldet. Danach ist kein Angebot mehr gebucht.`}
+          />
         </div>
       )}
       <ReviewDiffPanel>
@@ -280,12 +296,35 @@ export function OfferingRequestReviewItem({
             </div>
           );
         })}
+        {unchanged.length > 0 && (
+          <div className="mt-3 border-t border-gray-200 pt-2">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Bleibt gebucht
+            </p>
+            {unchanged.map((line) => (
+              <p key={line.offering_id} className="text-sm text-gray-700">
+                <span className="text-xs text-gray-500">{line.label}: </span>
+                {line.days}
+              </p>
+            ))}
+          </div>
+        )}
         {row.note && (
           <p className="mt-2 text-xs text-gray-500">
             Nachricht der Eltern: {row.note}
           </p>
         )}
       </ReviewDiffPanel>
+      <div className="mt-3 rounded-lg bg-gray-50 p-3">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Nach dem Freigeben bitte prüfen
+        </p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
+          <li>Gehzeiten des Kindes</li>
+          <li>Zuordnung im Stundenplan</li>
+          <li>Listen und Ausdrucke</li>
+        </ul>
+      </div>
     </RequestReviewCard>
   );
 }
