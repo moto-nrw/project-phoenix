@@ -515,6 +515,45 @@ func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name, comme
 	require.NoError(t, err)
 }
 
+// TestCreateCloneSharesTheLifecycleLock pins the two halves of the shared
+// lock (#2419 goal 3): cloning must not wait for another cloner, and must
+// still wait for an exclusive holder — the template rebuild that drops the
+// database being copied, and the GC that drops clones.
+func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	builds := 0
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("sharedlock"))
+	require.NoError(t, err)
+
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+
+	// A second cloner (shared holder) must not hold this one up.
+	_, unlockShared, err := acquireLifecycleLockShared(ctx, maint)
+	require.NoError(t, err)
+
+	runID := SanitizeRunID("")
+	handle, err := CreateClone(ctx, templateCfg, runID)
+	unlockShared()
+	require.NoError(t, err, "a concurrent cloner must not block CreateClone")
+	require.NoError(t, handle.Close())
+	dropBareClone(t, cfg, handle.Name)
+
+	// An exclusive holder must: it is either rebuilding the template or
+	// collecting clones, and neither tolerates a clone being taken meanwhile.
+	_, unlockExclusive, err := acquireLifecycleLock(ctx, maint)
+	require.NoError(t, err)
+
+	blocked, cancelBlocked := context.WithTimeout(ctx, 2*time.Second)
+	_, err = CreateClone(blocked, templateCfg, runID)
+	cancelBlocked()
+	unlockExclusive()
+	require.Error(t, err, "CreateClone must wait behind an exclusive lifecycle lock holder")
+}
+
 func dropBareClone(t *testing.T, cfg *Config, name string) {
 	t.Helper()
 	maint := openSQL(cfg.MaintenanceDSN())

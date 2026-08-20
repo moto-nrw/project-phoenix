@@ -127,18 +127,67 @@ func openSQL(dsn string) *sql.DB {
 // maintenance connection. PostgreSQL advisory locks are session-scoped, so
 // every protected DDL/query must use this returned connection until unlock.
 func acquireLifecycleLock(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), err error) {
-	conn, err = db.Conn(ctx)
+	return acquireLock(ctx, db, `SELECT pg_advisory_lock($1)`, `SELECT pg_advisory_unlock($1)`)
+}
+
+// acquireLock is the shared body of the lifecycle lock helpers: take the
+// advisory lock on one dedicated connection, hand back that connection, and
+// release both on unlock.
+func acquireLock(ctx context.Context, db *sql.DB, lockSQL, unlockSQL string) (*sql.Conn, func(), error) {
+	conn, err := db.Conn(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lifecycleAdvisoryLockKey); err != nil {
+	if _, err := conn.ExecContext(ctx, lockSQL, lifecycleAdvisoryLockKey); err != nil {
 		_ = conn.Close()
 		return nil, nil, err
 	}
 	return conn, func() {
-		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lifecycleAdvisoryLockKey)
+		_, _ = conn.ExecContext(context.Background(), unlockSQL, lifecycleAdvisoryLockKey)
 		_ = conn.Close()
 	}, nil
+}
+
+// acquireLifecycleLockShared pins the lifecycle lock in SHARED mode. Cloning
+// is the one lifecycle step that several processes may do at the same time:
+// CREATE DATABASE ... TEMPLATE only takes a ShareLock on the source database
+// (it needs the template to stay put and unconnected, which every cloner
+// wants too), and each clone's name is unique to its run and package, so two
+// cloners never touch the same target. What the shared mode still keeps out
+// is the exclusive holder — a template rebuild, which drops the very database
+// being copied, and the generation GC, which drops clones.
+//
+// Measured motive: CREATE DATABASE cost 6,0s summed over 93 package binaries
+// (median 61ms), all of it serialized behind one exclusive lock (#2419).
+func acquireLifecycleLockShared(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), err error) {
+	return acquireLock(ctx, db, `SELECT pg_advisory_lock_shared($1)`, `SELECT pg_advisory_unlock_shared($1)`)
+}
+
+// tryAcquireLifecycleLock takes the exclusive lifecycle lock if it is free
+// right now, and reports ok=false instead of waiting. The generation GC uses
+// it: collecting dead runs' clones is housekeeping, and making every package
+// binary queue for it — behind, and ahead of, the shared cloners — would
+// rebuild exactly the convoy the shared mode removes. A skipped GC is picked
+// up by the next binary, the run's sweep, or the next run.
+func tryAcquireLifecycleLock(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), ok bool, err error) {
+	conn, err = db.Conn(ctx)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	var got bool
+	if err := conn.QueryRowContext(ctx,
+		`SELECT pg_try_advisory_lock($1)`, lifecycleAdvisoryLockKey).Scan(&got); err != nil {
+		_ = conn.Close()
+		return nil, nil, false, err
+	}
+	if !got {
+		_ = conn.Close()
+		return nil, nil, false, nil
+	}
+	return conn, func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lifecycleAdvisoryLockKey)
+		_ = conn.Close()
+	}, true, nil
 }
 
 // ProjectRoot returns the repository root (the parent of the backend module

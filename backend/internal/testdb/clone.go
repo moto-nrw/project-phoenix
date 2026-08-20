@@ -234,9 +234,10 @@ func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
 }
 
 // CreateClone creates this run's clone of the template for the package in
-// the current working directory. Under the lifecycle lock it first collects
-// clones of dead runs (generation GC), then creates the clone and pins it
-// with a keeper connection before releasing the lock.
+// the current working directory. It first tries the generation GC (exclusive
+// lock, skipped when someone else holds it), then creates the clone under the
+// SHARED lock — so the ~93 package binaries of a run clone concurrently
+// instead of queueing — and pins it with a keeper connection.
 func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -247,27 +248,19 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	conn, unlock, err := acquireLifecycleLock(ctx, maint)
+	if err := collectDeadRuns(ctx, maint, cfg, runID); err != nil {
+		return nil, err
+	}
+
+	// Shared, not exclusive: two cloners never write the same database (the
+	// name carries run ID and package), and CREATE DATABASE ... TEMPLATE only
+	// needs the template to sit still, which is exactly what the exclusive
+	// holders — template rebuild and GC — are kept out for.
+	conn, unlock, err := acquireLifecycleLockShared(ctx, maint)
 	if err != nil {
 		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
 	}
 	defer unlock()
-
-	// Generation GC: clones of this run are spared even when their binary
-	// already finished (the wrapper's sweep still wants to inspect and drop
-	// them); everything else without a live connection belongs to a dead run.
-	//
-	// Two prefixes, not one: runID is the run this clone belongs to, and
-	// RunID() is the run of the PROCESS asking. They differ exactly once — in
-	// internal/testdb's own tests, which create clones under their own
-	// throwaway run while the suite around them is still going. Sparing only
-	// the first would let those tests collect every already-finished package
-	// clone of the suite, and the leftover gate would then inspect a third of
-	// the packages and call the rest clean.
-	if _, err := gcLocked(ctx, conn, cfg.TemplateName(),
-		ClonePrefix+SanitizeRunID(runID)+"_", ClonePrefix+RunID()+"_"); err != nil {
-		return nil, err
-	}
 
 	if err := dropDatabase(ctx, conn, name); err != nil {
 		return nil, fmt.Errorf("drop stale package test database %q: %w", name, err)
@@ -365,6 +358,41 @@ func gcLocked(ctx context.Context, maint sqlExecutor, templateName string, spare
 		dropped = append(dropped, c.name)
 	}
 	return dropped, nil
+}
+
+// collectDeadRuns runs the generation GC if the exclusive lifecycle lock is
+// free right now, and does nothing if it is not.
+//
+// Clones of this run are spared even when their binary already finished (the
+// wrapper's sweep still wants to inspect and drop them); everything else
+// without a live connection belongs to a dead run.
+//
+// Two spare prefixes, not one: runID is the run the clone being created
+// belongs to, and RunID() is the run of the PROCESS asking. They differ
+// exactly once — in internal/testdb's own tests, which create clones under
+// their own throwaway run while the suite around them is still going. Sparing
+// only the first would let those tests collect every already-finished package
+// clone of the suite, and the leftover gate would then inspect a third of the
+// packages and call the rest clean.
+//
+// Skipping is safe by design: the GC only removes clones of runs that are
+// already dead, so a skipped pass costs disk until the next binary, the run's
+// sweep, or the next run picks it up. Waiting for the lock instead would
+// serialize every binary's start again, which is what moving the clone itself
+// to the shared lock removed.
+func collectDeadRuns(ctx context.Context, maint *sql.DB, cfg *Config, runID string) error {
+	conn, unlock, ok, err := tryAcquireLifecycleLock(ctx, maint)
+	if err != nil {
+		return fmt.Errorf("acquire test DB lifecycle lock: %w", err)
+	}
+	if !ok {
+		return nil
+	}
+	defer unlock()
+
+	_, err = gcLocked(ctx, conn, cfg.TemplateName(),
+		ClonePrefix+SanitizeRunID(runID)+"_", ClonePrefix+RunID()+"_")
+	return err
 }
 
 func hasAnyPrefix(name string, prefixes []string) bool {
