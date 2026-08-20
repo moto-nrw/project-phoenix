@@ -455,4 +455,45 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, active.AbsenceTypeTraining, absenceMap[staff1.ID])
 	})
+
+	t.Run("uses the same ID tie-breaker for type and label maps", func(t *testing.T) {
+		today := timezone.TodayDate()
+		absenceType := &active.StaffAbsenceType{
+			Name:     "Regenerationstag",
+			BaseType: active.AbsenceTypeOther,
+			IsActive: true,
+		}
+		require.NoError(t, repositories.NewFactory(db).StaffAbsenceType.Create(ctx, absenceType))
+		defer testpkg.CleanupTableRecords(t, db, "active.staff_absence_types", absenceType.ID)
+
+		customAbsence := &active.StaffAbsence{
+			StaffID:       staff1.ID,
+			AbsenceType:   active.AbsenceTypeOther,
+			AbsenceTypeID: &absenceType.ID,
+			DateStart:     today,
+			DateEnd:       today,
+			Status:        active.AbsenceStatusApproved,
+			CreatedBy:     staff1.ID,
+		}
+		standardAbsence := &active.StaffAbsence{
+			StaffID:     staff1.ID,
+			AbsenceType: active.AbsenceTypeOther,
+			DateStart:   today,
+			DateEnd:     today,
+			Status:      active.AbsenceStatusApproved,
+			CreatedBy:   staff1.ID,
+		}
+		require.NoError(t, repo.Create(ctx, customAbsence))
+		require.NoError(t, repo.Create(ctx, standardAbsence))
+		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", customAbsence.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", standardAbsence.ID)
+
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
+		require.NoError(t, err)
+		typeIDMap, err := repo.GetAbsenceTypeIDMapForDate(ctx, today)
+		require.NoError(t, err)
+
+		assert.Equal(t, active.AbsenceTypeOther, absenceMap[staff1.ID])
+		assert.Equal(t, absenceType.ID, typeIDMap[staff1.ID])
+	})
 }
