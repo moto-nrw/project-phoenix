@@ -827,6 +827,32 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	assert.Nil(t, unlinked.GuardianAccountID, "failed backfill write must be rolled back")
 }
 
+func TestGuardianInvitationService_Accept_OrdinaryBackfillErrorDoesNotBreakAccept(t *testing.T) {
+	t.Parallel()
+
+	bf := &stubEnrollmentBackfiller{returnError: errors.New("backfill failed")}
+	env := setupGuardianInviteWithBackfiller(t, bf)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-ordinary-error")
+	creatorID := env.inviterAccountID(t)
+
+	invitation, err := env.service.Create(testpkg.Ctx(t), authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err, "ordinary backfill errors must not fail acceptance")
+	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
+	assert.Equal(t, 1, bf.calls, "backfiller must be invoked")
+}
+
 func TestGuardianInvitationService_Accept_SavepointControlFailureRollsBackAccept(t *testing.T) {
 	t.Parallel()
 
