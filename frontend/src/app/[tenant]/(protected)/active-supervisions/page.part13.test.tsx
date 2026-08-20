@@ -313,6 +313,8 @@ vi.mock("~/lib/student-api", () => ({
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: {
     checkIn: vi.fn(),
+    checkOut: vi.fn(),
+    patchAttendance: vi.fn(),
     plannedNow: vi.fn(() => Promise.resolve([])),
   },
   isReopenUnavailableError: vi.fn(() => false),
@@ -326,8 +328,9 @@ import {
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import MeinRaumPage from "./page";
 
-describe("MeinRaumPage auto-move notice (#2386)", () => {
+describe("MeinRaumPage roster actions", () => {
   const mockMutate = vi.fn();
+  const mockRosterMutate = vi.fn();
 
   const dashboardData = {
     supervisedGroups: [
@@ -349,7 +352,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
     planned: true,
     isUnplanned: false,
     currentlyPresent: false,
-    visitId: null,
+    visitId: null as string | null,
     status: "expected",
     substatus: null,
     note: null,
@@ -381,6 +384,8 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMutate.mockResolvedValue(undefined);
+    mockRosterMutate.mockResolvedValue(undefined);
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
@@ -405,7 +410,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
             : { instance: rosterInstance, rows: primaryRosterRows },
           isLoading: false,
           error: null,
-          mutate: mockMutate,
+          mutate: mockRosterMutate,
           isValidating: false,
         };
       }
@@ -421,6 +426,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it("shows the origin of an auto-moved child after check-in", async () => {
@@ -473,6 +479,117 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
       expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
     });
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["check-in", "Einchecken", expectedRow, "checkIn", null],
+    [
+      "check-out",
+      "Raum verlassen",
+      {
+        ...expectedRow,
+        currentlyPresent: true,
+        visitId: "visit-100",
+        status: "present",
+      },
+      "checkOut",
+      null,
+    ],
+    [
+      "excused",
+      "Entschuldigt",
+      expectedRow,
+      "patchAttendance",
+      { status: "absent", substatus: "excused" },
+    ],
+    [
+      "absent",
+      "Abwesend",
+      expectedRow,
+      "patchAttendance",
+      { status: "absent" },
+    ],
+    [
+      "expected",
+      "Zurück auf erwartet",
+      { ...expectedRow, status: "absent" },
+      "patchAttendance",
+      { status: "expected", substatus: null, note: null },
+    ],
+  ] as const)(
+    "reloads after a successful %s when the local roster update fails",
+    async (_action, buttonName, row, apiMethod, expectedPayload) => {
+      primaryRosterRows = [row];
+      const updatedRoster = {
+        instance: rosterInstance,
+        rows: [row],
+        movedFrom: null,
+      };
+      if (apiMethod === "checkIn") {
+        vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue(
+          updatedRoster as never,
+        );
+      } else if (apiMethod === "checkOut") {
+        vi.mocked(timetableOperationsApi.checkOut).mockResolvedValue(
+          updatedRoster as never,
+        );
+      } else {
+        vi.mocked(timetableOperationsApi.patchAttendance).mockResolvedValue(
+          undefined,
+        );
+      }
+      mockRosterMutate.mockRejectedValueOnce(
+        new TypeError("undefined is not a function (near '...[t,r,n,a]...')"),
+      );
+      const reload = vi
+        .spyOn(window.location, "reload")
+        .mockImplementation(() => undefined);
+
+      render(<MeinRaumPage />);
+      fireEvent.click(await screen.findByRole("button", { name: buttonName }));
+
+      await waitFor(() => {
+        if (apiMethod === "checkIn") {
+          expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith(
+            "99",
+            "100",
+          );
+        } else if (apiMethod === "checkOut") {
+          expect(timetableOperationsApi.checkOut).toHaveBeenCalledWith(
+            "99",
+            "100",
+          );
+        } else {
+          expect(timetableOperationsApi.patchAttendance).toHaveBeenCalledWith(
+            "99",
+            "100",
+            expectedPayload,
+          );
+        }
+        expect(reload).toHaveBeenCalledOnce();
+      });
+      expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+    },
+  );
+
+  it("reports a failed server action without reloading", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+      new Error("request failed"),
+    );
+    const reload = vi
+      .spyOn(window.location, "reload")
+      .mockImplementation(() => undefined);
+
+    render(<MeinRaumPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Einchecken" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
+      );
+    });
+    expect(reload).not.toHaveBeenCalled();
+    expect(mockRosterMutate).not.toHaveBeenCalled();
   });
 
   it("shows the origin notice when an unplanned child is added", async () => {
