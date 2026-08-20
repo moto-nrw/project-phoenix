@@ -63,6 +63,7 @@ export const swrConfig: SWRConfiguration = {
   errorRetryCount: 3,
   errorRetryInterval: 1000,
   onErrorRetry: (error, _key, _config, revalidate, options) => {
+    if (options.retryCount >= 3) return;
     if (isRateLimitError(error)) {
       setTimeout(
         () => revalidate({ retryCount: options.retryCount }),
@@ -70,7 +71,6 @@ export const swrConfig: SWRConfiguration = {
       );
       return;
     }
-    if (options.retryCount >= 3) return;
     setTimeout(
       () => revalidate({ retryCount: options.retryCount }),
       1000 * 2 ** Math.max(0, options.retryCount - 1),

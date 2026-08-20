@@ -134,6 +134,18 @@ describe("swrConfig.onErrorRetry", () => {
     expect(revalidate).toHaveBeenCalledWith({ retryCount: 1 });
   });
 
+  it("stops rate-limit retries at the configured limit", () => {
+    vi.useFakeTimers();
+    const revalidate = vi.fn();
+
+    swrConfig.onErrorRetry?.({ status: 429 }, "key", stubConfig, revalidate, {
+      retryCount: 3,
+    } as RetryOptions);
+    vi.runAllTimers();
+
+    expect(revalidate).not.toHaveBeenCalled();
+  });
+
   it("backs off ordinary retries and stops after the configured limit", () => {
     vi.useFakeTimers();
     const revalidate = vi.fn();
