@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -138,7 +139,7 @@ func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
 
 	denyCtx := f.nonAdminCtx(f.chain.AccountID)
 
-	items, err := f.svc.ListPending(denyCtx)
+	items, _, err := f.svc.ListPending(denyCtx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.Empty(t, items, "a caller without a staff record must not see the queue")
 
@@ -148,7 +149,7 @@ func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 
 	staffCtx := f.nonAdminCtx(f.staffAccount)
-	items, err = f.svc.ListPending(staffCtx)
+	items, _, err = f.svc.ListPending(staffCtx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, items, 1, "a verified staffer with users:update sees the request")
 
@@ -830,7 +831,7 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	items, err := f.svc.ListPending(f.staffCtx(f.staffAccount))
+	items, _, err := f.svc.ListPending(f.staffCtx(f.staffAccount), modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, items, 1, "the admin queue must surface the open request")
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
@@ -47,7 +48,7 @@ func (r *fakeReqRepo) LockStudentRequests(ctx context.Context, id int64) error {
 	}
 	return r.lockStudent(ctx, id)
 }
-func (r *fakeReqRepo) ListPendingForTenant(ctx context.Context) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (r *fakeReqRepo) ListPendingForTenant(ctx context.Context, _ modelBase.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	return r.listPendingTenant(ctx)
 }
 
@@ -207,7 +208,7 @@ func TestErrorPath_ListPending_RepoErrors(t *testing.T) {
 	svc := newFakeService(&fakeReqRepo{
 		listPendingTenant: func(context.Context) ([]*activeModels.ExcusedAbsenceRequest, error) { return nil, errBoom },
 	}, okStatusRepo(), &fakeStudentRepo{}, &fakePersonRepo{})
-	_, err := svc.ListPending(adminCtx())
+	_, _, err := svc.ListPending(adminCtx(), modelBase.RequestQueueFilters{})
 	require.Error(t, err)
 
 	// studentRepo.FindByIDs fails.
@@ -218,7 +219,7 @@ func TestErrorPath_ListPending_RepoErrors(t *testing.T) {
 	}, okStatusRepo(), &fakeStudentRepo{
 		findByIDs: func(context.Context, []int64) (map[int64]*usersModels.Student, error) { return nil, errBoom },
 	}, &fakePersonRepo{})
-	_, err = svc.ListPending(adminCtx())
+	_, _, err = svc.ListPending(adminCtx(), modelBase.RequestQueueFilters{})
 	require.Error(t, err)
 
 	// personRepo.FindByIDs fails.
@@ -235,7 +236,7 @@ func TestErrorPath_ListPending_RepoErrors(t *testing.T) {
 	}, &fakePersonRepo{
 		findByIDs: func(context.Context, []int64) (map[int64]*usersModels.Person, error) { return nil, errBoom },
 	})
-	_, err = svc.ListPending(adminCtx())
+	_, _, err = svc.ListPending(adminCtx(), modelBase.RequestQueueFilters{})
 	require.Error(t, err)
 }
 

@@ -56,8 +56,8 @@ type EnrollmentOfferingAdjustmentRepository interface {
 	Create(ctx context.Context, entry *EnrollmentOfferingAdjustment) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*EnrollmentOfferingAdjustment, error)
 	// ListDirectForTenant returns the tenant's direct corrections, newest
-	// change first, keyset paginated on (changed_at, id). A zero beforeChangedAt
-	// starts at the top; limit is taken literally, so callers probing for a next
+	// change first, keyset paginated on (changed_at, id). A zero BeforeInstant
+	// starts at the top; Limit is taken literally, so callers probing for a next
 	// page ask for limit+1.
-	ListDirectForTenant(ctx context.Context, beforeChangedAt time.Time, beforeID int64, limit int) ([]*EnrollmentOfferingAdjustment, error)
+	ListDirectForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*EnrollmentOfferingAdjustment, error)
 }

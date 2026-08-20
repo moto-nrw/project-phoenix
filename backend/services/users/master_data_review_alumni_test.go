@@ -18,6 +18,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,7 +39,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
-			items, e := svc.ListPending(txCtx)
+			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)
 			require.Len(t, items, 1, "the pending request must start out visible")
 			return nil
@@ -55,7 +56,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
-			items, e := svc.ListPending(txCtx)
+			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)
 			assert.Empty(t, items, "a graduated child's request must leave the queue and the badge")
 

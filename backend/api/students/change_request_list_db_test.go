@@ -154,6 +154,54 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 }
 
+// The child-name search runs as a SQL predicate, so the two things a
+// hand-written LIKE gets wrong have to hold in the real query: it matches
+// across the first/last name boundary, and typed wildcards match literally
+// instead of returning the whole queue.
+func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "SearchReviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggSearchGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Zsuchkind", "Nachname", "AS1")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	base := time.Now().UTC().Add(-time.Hour)
+	decided := insertDecidedMasterDataRequest(t, tc, student.ID, student.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	perms := []string{"users:read", "users:update"}
+	fetch := func(t *testing.T, query string) aggListEnvelope {
+		t.Helper()
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?"+query, nil), claims, perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env aggListEnvelope
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		return env
+	}
+
+	// "kind Nach" spans the space the query builds between first and last name.
+	spanning := fetch(t, "view=history&types=master_data&search="+url.QueryEscape("kind Nach"))
+	require.Len(t, spanning.Data.Items, 1)
+	var payload struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(spanning.Data.Items[0].Data, &payload))
+	assert.Equal(t, strconv.FormatInt(decided.ID, 10), payload.ID)
+
+	// Case folds.
+	assert.Len(t, fetch(t, "view=history&types=master_data&search=zSUCHkind").Data.Items, 1)
+
+	// A typed "%" is a literal percent, not "match everything".
+	assert.Empty(t, fetch(t, "view=history&types=master_data&search="+url.QueryEscape("%")).Data.Items,
+		"a wildcard must not defeat the search")
+	assert.Empty(t, fetch(t, "view=history&types=master_data&search="+url.QueryEscape("Zsuchkind_Nachname")).Data.Items,
+		"a typed underscore must not act as a single-character wildcard")
+}
+
 // Kinderkartei-Reiter „Änderungsprotokoll“ (#2437): the same aggregation,
 // filtered to one child. Two children of the same group each carry a decided
 // request, so the test proves the filter selects and — more importantly —

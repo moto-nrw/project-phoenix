@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -166,7 +165,7 @@ func (r *ChangeRequestRepository) ListForReview(ctx context.Context, filters enr
 			  AND rc.tenant_id = "change_request".tenant_id
 			  AND ("change_request".request_child_id IS NULL OR rc.id = "change_request".request_child_id)
 			  AND (rc.first_name || ' ' || rc.last_name) ILIKE ? ESCAPE '\'
-		)`, "%"+escapeILike(filters.Search)+"%")
+		)`, "%"+base.EscapeILike(filters.Search)+"%")
 	}
 	if filters.History {
 		if !filters.From.IsZero() {
@@ -188,10 +187,6 @@ func (r *ChangeRequestRepository) ListForReview(ctx context.Context, filters enr
 		return nil, fmt.Errorf("failed to list enrollment change requests for review: %w", err)
 	}
 	return rows, nil
-}
-
-func escapeILike(value string) string {
-	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
 // CountForReview counts the rows ListForReview would return, ignoring the

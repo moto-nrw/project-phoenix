@@ -36,15 +36,15 @@ type fakeMasterDataReviewService struct {
 	gotLimit    int
 }
 
-func (f *fakeMasterDataReviewService) ListHistory(_ context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*userService.MasterDataHistoryItem, *userService.HistoryCursor, error) {
-	f.gotBefore = beforeUpdatedAt
-	f.gotBeforeID = beforeID
-	f.gotLimit = limit
+func (f *fakeMasterDataReviewService) ListHistory(_ context.Context, filters modelBase.RequestQueueFilters) ([]*userService.MasterDataHistoryItem, *userService.HistoryCursor, error) {
+	f.gotBefore = filters.BeforeInstant
+	f.gotBeforeID = filters.BeforeID
+	f.gotLimit = filters.Limit
 	return f.history, f.historyNext, f.historyErr
 }
 
-func (f *fakeMasterDataReviewService) ListPending(context.Context) ([]*userService.MasterDataReviewItem, error) {
-	return f.items, f.listErr
+func (f *fakeMasterDataReviewService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*userService.MasterDataReviewItem, *userService.HistoryCursor, error) {
+	return f.items, nil, f.listErr
 }
 
 func (f *fakeMasterDataReviewService) Decide(_ context.Context, input userService.MasterDataReviewDecideInput) (*userService.MasterDataReviewItem, error) {

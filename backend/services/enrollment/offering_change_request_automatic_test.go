@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -122,7 +123,7 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 	auto := createAutoAddTarget(t, env, "QueueAuto", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 
-	views, err := svc.ListPending(ctx)
+	views, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	var view *enrollmentService.OfferingChangeView
 	for _, candidate := range views {
@@ -178,7 +179,7 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 	})
 	require.NoError(t, err)
 
-	views, err := svc.ListPending(ctx)
+	views, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	for _, view := range views {
 		if view.Request == nil || view.Request.ID != row.ID {

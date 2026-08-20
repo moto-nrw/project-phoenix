@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -109,12 +110,12 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Lena"`)
 	require.NoError(t, repo.Create(ctxB, rowB))
 
-	pendingA, err := repo.ListPendingForTenant(ctxA)
+	pendingA, err := repo.ListPendingForTenant(ctxA, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.True(t, coverageContainsChangeRequest(pendingA, rowA.ID))
 	assert.False(t, coverageContainsChangeRequest(pendingA, rowB.ID))
 
-	pendingB, err := repo.ListPendingForTenant(ctxB)
+	pendingB, err := repo.ListPendingForTenant(ctxB, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, pendingB, 1)
 	assert.Equal(t, rowB.ID, pendingB[0].ID)

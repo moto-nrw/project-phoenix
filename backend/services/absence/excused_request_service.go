@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -124,13 +125,15 @@ type ExcusedAbsenceRequestService interface {
 	// ListForStudent returns the child's pending requests plus any decided since
 	// `recentSince`, newest-first — the parent read view.
 	ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*activeModels.ExcusedAbsenceRequest, error)
-	// ListPending returns every pending request for the current tenant,
-	// newest-first, enriched with child names — the staff review queue.
-	ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error)
+	// ListPending returns pending requests for the current tenant, newest
+	// submission first, enriched with child names — the working list of the
+	// Anfragen module. The filters narrow and page the query in SQL; their
+	// zero value returns the whole queue.
+	ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*ExcusedRequestReviewItem, next *usersService.HistoryCursor, err error)
 	// ListHistory returns decided requests newest-decision-first, keyset
-	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// paginated on (updated_at, id). A zero BeforeInstant returns the first
 	// page; next is nil when no older rows exist beyond this page.
-	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*ExcusedRequestHistoryItem, next *usersService.HistoryCursor, err error)
+	ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*ExcusedRequestHistoryItem, next *usersService.HistoryCursor, err error)
 	// PendingByStudentForDate returns, per student, the newest pending request
 	// whose dates cover the given calendar day — for the inline planning badge.
 	// A student with no pending request for the day is absent from the map.
@@ -387,23 +390,20 @@ func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, stude
 	return out, nil
 }
 
-func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*ExcusedRequestHistoryItem, *usersService.HistoryCursor, error) {
+func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*ExcusedRequestHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, probeLimit(filters))
 	if err != nil {
 		return nil, nil, fmt.Errorf("active: list decided excused requests: %w", err)
 	}
 	// The cursor points at the last DB row (not the last visible item): the
 	// per-child scope filters after the DB limit, so a cursor built from the
 	// filtered page would skip rows.
-	var next *usersService.HistoryCursor
-	if len(rows) > limit {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
-	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *activeModels.ExcusedAbsenceRequest) (time.Time, int64) {
+		return r.UpdatedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*ExcusedRequestHistoryItem{}, nil, nil
+		return []*ExcusedRequestHistoryItem{}, next, nil
 	}
 
 	studentIDs := make([]int64, 0, len(rows))
@@ -461,13 +461,27 @@ func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, beforeUp
 	return items, next, nil
 }
 
-func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error) {
-	rows, err := s.requestRepo.ListPendingForTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("active: list pending excused requests: %w", err)
+// probeLimit asks the repository for one row more than the caller wants, so a
+// present extra row proves an older page exists. An unbounded page stays
+// unbounded.
+func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFilters {
+	if filters.Limit > 0 {
+		filters.Limit++
 	}
+	return filters
+}
+
+func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*ExcusedRequestReviewItem, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.requestRepo.ListPendingForTenant(ctx, probeLimit(filters))
+	if err != nil {
+		return nil, nil, fmt.Errorf("active: list pending excused requests: %w", err)
+	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *activeModels.ExcusedAbsenceRequest) (time.Time, int64) {
+		return r.CreatedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*ExcusedRequestReviewItem{}, nil
+		return []*ExcusedRequestReviewItem{}, next, nil
 	}
 
 	studentIDs := make([]int64, 0, len(rows))
@@ -480,7 +494,7 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 	}
 	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("active: load students for excused requests: %w", err)
+		return nil, nil, fmt.Errorf("active: load students for excused requests: %w", err)
 	}
 	personIDs := make([]int64, 0, len(students))
 	for _, st := range students {
@@ -488,7 +502,7 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 	}
 	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
 	if err != nil {
-		return nil, fmt.Errorf("active: load persons for excused requests: %w", err)
+		return nil, nil, fmt.Errorf("active: load persons for excused requests: %w", err)
 	}
 
 	// Scope the queue to children whose absences the caller may WRITE — the
@@ -517,11 +531,11 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 		}
 		items = append(items, item)
 	}
-	return items, nil
+	return items, next, nil
 }
 
 func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
-	rows, err := s.requestRepo.ListPendingForTenant(ctx)
+	rows, err := s.requestRepo.ListPendingForTenant(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return nil, err
 	}

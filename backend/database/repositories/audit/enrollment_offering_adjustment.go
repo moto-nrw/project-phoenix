@@ -3,7 +3,6 @@ package audit
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -46,11 +45,9 @@ func (r *enrollmentOfferingAdjustmentRepository) ListByRequestChildID(ctx contex
 // the decided request they belong to (#2436).
 func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 	ctx context.Context,
-	beforeChangedAt time.Time,
-	beforeID int64,
-	limit int,
+	filters modelBase.RequestQueueFilters,
 ) ([]*audit.EnrollmentOfferingAdjustment, error) {
-	if limit <= 0 {
+	if filters.Limit <= 0 {
 		return []*audit.EnrollmentOfferingAdjustment{}, nil
 	}
 	var rows []*audit.EnrollmentOfferingAdjustment
@@ -59,17 +56,9 @@ func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 		ModelTableExpr(enrollmentOfferingAdjustmentTableExpr).
 		Where(`"enrollment_offering_adjustment".source = ?`, audit.OfferingAdjustmentSourceDirect)
 	query = base.WithTenantFilter(ctx, query, "enrollment_offering_adjustment")
-	if !beforeChangedAt.IsZero() {
-		query = query.Where(
-			`("enrollment_offering_adjustment".changed_at, "enrollment_offering_adjustment".id) < (?, ?)`,
-			beforeChangedAt, beforeID,
-		)
-	}
-	err := query.
-		OrderExpr(`"enrollment_offering_adjustment".changed_at DESC, "enrollment_offering_adjustment".id DESC`).
-		Limit(limit).
-		Scan(ctx)
-	if err != nil {
+	query = base.ApplyRequestQueueFilters(query, "enrollment_offering_adjustment", "changed_at", filters)
+
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list direct enrollment offering adjustments", Err: err}
 	}
 	return rows, nil

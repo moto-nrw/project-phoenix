@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -110,7 +111,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError(t
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
-	rows, err := repo.ListDirectForTenant(ctx, time.Now(), 1, 10)
+	rows, err := repo.ListDirectForTenant(ctx, modelBase.RequestQueueFilters{BeforeInstant: time.Now(), BeforeID: 1, Limit: 10})
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "list direct enrollment offering adjustments")
@@ -211,13 +212,13 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 
 	// First page: newest first; request-applied and unknown legacy rows stay
 	// out because neither is a verified direct correction.
-	first, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 2)
+	first, err := repo.ListDirectForTenant(ctx, modelBase.RequestQueueFilters{Limit: 2})
 	require.NoError(t, err)
 	require.Len(t, first, 2)
 	assert.Equal(t, []int64{newest.ID, middle.ID}, []int64{first[0].ID, first[1].ID})
 
 	// Follow-up page continues strictly before the last consumed row.
-	second, err := repo.ListDirectForTenant(ctx, first[1].ChangedAt, first[1].ID, 2)
+	second, err := repo.ListDirectForTenant(ctx, modelBase.RequestQueueFilters{BeforeInstant: first[1].ChangedAt, BeforeID: first[1].ID, Limit: 2})
 	require.NoError(t, err)
 	require.NotEmpty(t, second)
 	assert.Equal(t, oldest.ID, second[0].ID)
@@ -229,12 +230,12 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	// The explicit repository predicate protects non-HTTP callers whose
 	// database connection bypasses RLS.
 	otherTenant := testpkg.NewTenantScope(t, db)
-	otherTenantRows, err := repo.ListDirectForTenant(otherTenant.Context(), time.Time{}, 0, 2)
+	otherTenantRows, err := repo.ListDirectForTenant(otherTenant.Context(), modelBase.RequestQueueFilters{Limit: 2})
 	require.NoError(t, err)
 	assert.Empty(t, otherTenantRows)
 
 	// A non-positive limit asks for nothing and hits no database at all.
-	none, err := repo.ListDirectForTenant(ctx, time.Time{}, 0, 0)
+	none, err := repo.ListDirectForTenant(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.Empty(t, none)
 }

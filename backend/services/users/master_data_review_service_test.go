@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -74,7 +75,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 
 	denyBase := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:update"})
 	err := tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items, "a caller who cannot write the child must not see its request in the queue")
 		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
@@ -83,7 +84,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	assert.ErrorIs(t, err, userService.ErrReviewForbidden)
 
 	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 1)
 		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "closing", ReviewedBy: chain.AccountID})
@@ -278,7 +279,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	var items []*userService.MasterDataReviewItem
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
-		items, e = svc.ListPending(txCtx)
+		items, _, e = svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		return e
 	})
 	require.NoError(t, err)
@@ -300,7 +301,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
 

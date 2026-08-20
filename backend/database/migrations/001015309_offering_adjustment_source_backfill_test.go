@@ -83,9 +83,6 @@ func (f *backfillFixture) insertAdjustment(t *testing.T, db *bun.DB, reason, sou
 		reason, source, json.RawMessage(`[]`), json.RawMessage(`[]`), changedAt,
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM audit.enrollment_offering_adjustments WHERE id = ?`, id).Exec(context.Background())
-	})
 	return id
 }
 
@@ -106,9 +103,6 @@ func (f *backfillFixture) insertApprovedChangeRequest(t *testing.T, db *bun.DB, 
 	row.TenantID = f.tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`enrollment.change_requests AS "change_request"`).Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM enrollment.change_requests WHERE id = ?`, row.ID).Exec(context.Background())
-	})
 }
 
 func sourceOf(t *testing.T, db *bun.DB, id int64) string {
