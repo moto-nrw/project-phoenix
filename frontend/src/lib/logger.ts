@@ -227,6 +227,8 @@ class ClientLogger implements Logger {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly BATCH_SIZE = 10;
   private readonly BATCH_INTERVAL_MS = 5000; // 5 seconds
+  // Browsers limit all in-flight keepalive request bodies to about 64 KiB.
+  private readonly MAX_KEEPALIVE_PAYLOAD_BYTES = 60 * 1024;
 
   constructor(config: Required<LoggerConfig>) {
     this.config = config;
@@ -328,6 +330,7 @@ class ClientLogger implements Logger {
       entries: this.batch,
       timestamp: new Date().toISOString(),
     };
+    const body = JSON.stringify(payload);
 
     // Clear batch immediately (avoid duplicates)
     this.batch = [];
@@ -337,8 +340,10 @@ class ClientLogger implements Logger {
       const response = await fetch("/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
+        body,
+        keepalive:
+          new TextEncoder().encode(body).byteLength <=
+          this.MAX_KEEPALIVE_PAYLOAD_BYTES,
       });
 
       if (!response.ok) {
