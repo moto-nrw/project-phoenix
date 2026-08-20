@@ -97,6 +97,8 @@ describe("GET /api/user-context", () => {
         educational_groups: groups,
         supervised_groups: supervised,
         current_staff: staff,
+        incomplete: true,
+        unavailable_sections: ["supervised_groups"],
       },
     });
 
@@ -125,6 +127,8 @@ describe("GET /api/user-context", () => {
         educationalGroupIds: string[];
         educationalGroupRoomNames: string[];
         supervisedRoomNames: string[];
+        incomplete: boolean;
+        unavailableSections: string[];
       }>
     >(response);
 
@@ -150,6 +154,8 @@ describe("GET /api/user-context", () => {
     expect(json.data.educationalGroupIds).toEqual(["1"]);
     expect(json.data.educationalGroupRoomNames).toEqual(["Room 10"]);
     expect(json.data.supervisedRoomNames).toEqual(["Room 11"]);
+    expect(json.data.incomplete).toBe(true);
+    expect(json.data.unavailableSections).toEqual(["supervised_groups"]);
   });
 
   it("surfaces an aggregate failure instead of returning partial empty data", async () => {

@@ -43,6 +43,8 @@ interface BackendNavigationContext {
   educational_groups: BackendEducationalGroup[];
   supervised_groups: BackendActiveGroup[];
   current_staff: BackendStaff | null;
+  incomplete: boolean;
+  unavailable_sections: string[];
 }
 
 /**
@@ -125,6 +127,8 @@ export const GET = createGetHandler<UserContextResponse>(
       educationalGroupIds,
       educationalGroupRoomNames,
       supervisedRoomNames,
+      incomplete: result.data.incomplete,
+      unavailableSections: result.data.unavailable_sections,
     };
   },
 );

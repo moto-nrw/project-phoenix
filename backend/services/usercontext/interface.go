@@ -92,7 +92,9 @@ type NavigationContextGroup struct {
 }
 
 type NavigationContext struct {
-	EducationalGroups []*NavigationContextGroup `json:"educational_groups"`
-	SupervisedGroups  []*active.Group           `json:"supervised_groups"`
-	CurrentStaff      *users.Staff              `json:"current_staff"`
+	EducationalGroups   []*NavigationContextGroup `json:"educational_groups"`
+	SupervisedGroups    []*active.Group           `json:"supervised_groups"`
+	CurrentStaff        *users.Staff              `json:"current_staff"`
+	Incomplete          bool                      `json:"incomplete"`
+	UnavailableSections []string                  `json:"unavailable_sections"`
 }

@@ -31,4 +31,6 @@ export interface UserContextResponse {
   educationalGroupIds: string[];
   educationalGroupRoomNames: string[];
   supervisedRoomNames: string[];
+  incomplete: boolean;
+  unavailableSections: string[];
 }

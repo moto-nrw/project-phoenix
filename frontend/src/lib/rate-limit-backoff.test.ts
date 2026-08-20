@@ -104,6 +104,9 @@ describe("rate-limit fetch guard", () => {
 
     expect(rateLimit.isRateLimitError({ status: 429 })).toBe(true);
     expect(rateLimit.isRateLimitError({ httpStatus: 429 })).toBe(true);
+    expect(rateLimit.isRateLimitError({ response: { status: 429 } })).toBe(
+      true,
+    );
     expect(rateLimit.isRateLimitError(new Error("HTTP failed (429)"))).toBe(
       true,
     );

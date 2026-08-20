@@ -87,6 +87,15 @@ export function isRateLimitError(error: unknown): boolean {
       status = error.httpStatus;
     }
     if (status === 429) return true;
+    if (
+      "response" in error &&
+      typeof error.response === "object" &&
+      error.response !== null &&
+      "status" in error.response &&
+      error.response.status === 429
+    ) {
+      return true;
+    }
   }
   if (!(error instanceof Error)) return false;
   return hasAdjacentRateLimitCode(error.message);
