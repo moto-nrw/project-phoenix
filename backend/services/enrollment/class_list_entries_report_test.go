@@ -44,6 +44,8 @@ func classListEntry(id int64, firstName, lastName, schoolClass string) *userMode
 }
 
 func TestClassRosterMergesClassListEntries(t *testing.T) {
+	t.Parallel()
+
 	svc := allClassesTestService()
 	svc.ClassListEntryRepo = &fakeClassListEntryRepo{entries: []*userModels.ClassListEntry{
 		classListEntry(101, "Zoe", "Aalders", "1a"),
@@ -83,6 +85,8 @@ func TestClassRosterMergesClassListEntries(t *testing.T) {
 }
 
 func TestClassRosterSingleClassMergesOnlyThatClass(t *testing.T) {
+	t.Parallel()
+
 	svc := allClassesTestService()
 	svc.ClassListEntryRepo = &fakeClassListEntryRepo{entries: []*userModels.ClassListEntry{
 		classListEntry(101, "Zoe", "Aalders", "1a"),
@@ -99,6 +103,8 @@ func TestClassRosterSingleClassMergesOnlyThatClass(t *testing.T) {
 }
 
 func TestBuildClassDayReportListEntryProjection(t *testing.T) {
+	t.Parallel()
+
 	rows := []ClassRosterRow{
 		{
 			StudentID:  21,

@@ -25,13 +25,13 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday timezo
 }
 
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Milan", "Eligibilitytest", "2a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 	birthday := timezone.NewDate(2018, 5, 20)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
@@ -75,13 +75,13 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 // already enrolled and must be matched, or it could be re-submitted through
 // a new_students phase and duplicated.
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Pending", "Enrolltest", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 	birthday := timezone.NewDate(2019, 3, 10)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 

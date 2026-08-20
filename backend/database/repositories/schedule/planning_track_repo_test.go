@@ -16,10 +16,10 @@ import (
 )
 
 func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).PlanningTrack
 	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	ctx := scope.Context()
@@ -63,16 +63,15 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	assert.False(t, restored.IsArchived())
 
 	otherScope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)
 	_, err = repo.FindByID(otherScope.Context(), second.ID)
 	require.Error(t, err)
 }
 
 func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).PlanningTrack
 	service := scheduleSvc.NewPlanningTrackService(repo, db)
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
@@ -101,10 +100,10 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 }
 
 func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	service := scheduleSvc.NewPlanningTrackService(repositories.NewFactory(db).PlanningTrack, db)
 	input := scheduleSvc.PlanningTrackInput{Name: "Nord", Color: "#5080D8", SortOrder: 0}
 

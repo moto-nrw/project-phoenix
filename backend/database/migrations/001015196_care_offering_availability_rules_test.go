@@ -26,7 +26,6 @@ func careOfferingAvailabilityRuleColumnExists(t *testing.T, db *bun.DB) bool {
 
 func TestCareOfferingAvailabilityRulesMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	if !careOfferingAvailabilityRuleColumnExists(t, db) {

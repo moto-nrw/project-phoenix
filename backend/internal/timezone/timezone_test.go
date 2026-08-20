@@ -9,11 +9,15 @@ import (
 )
 
 func TestBerlinTimezoneLoaded(t *testing.T) {
+	t.Parallel()
+
 	require.NotNil(t, Berlin, "Berlin timezone should be loaded")
 	assert.Equal(t, "Europe/Berlin", Berlin.String())
 }
 
 func TestToday(t *testing.T) {
+	t.Parallel()
+
 	// Get today's date
 	today := Today()
 
@@ -34,6 +38,8 @@ func TestToday(t *testing.T) {
 }
 
 func TestDateOf(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     time.Time
@@ -100,6 +106,8 @@ func TestDateOf(t *testing.T) {
 }
 
 func TestNow(t *testing.T) {
+	t.Parallel()
+
 	// Get current time
 	now := Now()
 
@@ -113,6 +121,8 @@ func TestNow(t *testing.T) {
 }
 
 func TestEndOfDay(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		input   time.Time
@@ -185,6 +195,8 @@ func TestEndOfDay(t *testing.T) {
 }
 
 func TestFormatBerlinClock(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil input returns nil pointer", func(t *testing.T) {
 		assert.Nil(t, FormatBerlinClock(nil))
 	})

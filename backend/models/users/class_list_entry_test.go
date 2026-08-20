@@ -16,6 +16,8 @@ func validClassListEntry() *ClassListEntry {
 }
 
 func TestClassListEntryValidate(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validClassListEntry().Validate())
 
 	noFirstName := validClassListEntry()
@@ -32,6 +34,8 @@ func TestClassListEntryValidate(t *testing.T) {
 }
 
 func TestClassListEntryDisplayValue(t *testing.T) {
+	t.Parallel()
+
 	entry := &ClassListEntry{FirstName: " Zoe ", LastName: " Aalders ", SchoolClass: " 1a "}
 	assert.Equal(t, "Zoe Aalders (1a)", entry.DisplayValue())
 }

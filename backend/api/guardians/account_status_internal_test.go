@@ -8,6 +8,8 @@ import "testing"
 // invitation (e.g. a pending-approval role-upgrade request) outranks the
 // actionable "active_no_access" state (#2172).
 func TestGuardianAccountStatus(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name                                       string
 		hasAccount, hasPortalAccess, invitePending bool

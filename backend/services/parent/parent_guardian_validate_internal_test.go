@@ -12,6 +12,8 @@ import (
 // display-name forms ("Oma <oma@x.de>"), and the wrapper must never be
 // persisted as the email. Pure function, no DB.
 func TestValidateContactInputEmailNormalization(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		email     *string

@@ -40,6 +40,8 @@ func (s *stubMatchLockRequestRepo) HasActiveRequestForMatchedStudent(_ context.C
 // A nil pin is a fresh create — nothing to collide on, so the guard must not
 // even acquire the lock or probe the repo.
 func TestGuardMatchedStudentUnique_NilPinNoOps(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchLockRequestRepo{has: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
@@ -52,6 +54,8 @@ func TestGuardMatchedStudentUnique_NilPinNoOps(t *testing.T) {
 // A pin whose student is already targeted by another active request is
 // rejected with the dedicated 409 sentinel, after taking the phase lock.
 func TestGuardMatchedStudentUnique_CollisionRejected(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchLockRequestRepo{has: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
@@ -65,6 +69,8 @@ func TestGuardMatchedStudentUnique_CollisionRejected(t *testing.T) {
 // The common case: the matched student has no other active request, so the
 // guard passes (and still serializes via the lock).
 func TestGuardMatchedStudentUnique_NoCollisionPasses(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchLockRequestRepo{has: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
@@ -76,6 +82,8 @@ func TestGuardMatchedStudentUnique_NoCollisionPasses(t *testing.T) {
 
 // A lock failure aborts before the probe (fail closed rather than racing).
 func TestGuardMatchedStudentUnique_LockErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchLockRequestRepo{lockErr: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
@@ -89,6 +97,8 @@ func TestGuardMatchedStudentUnique_LockErrorPropagates(t *testing.T) {
 // A probe failure surfaces as a non-conflict error (do not mask an infra error
 // as a business-level duplicate).
 func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchLockRequestRepo{hasErr: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
@@ -102,6 +112,8 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 // pair by persisted ID, so an edited name/birthday must be detected as a
 // different child even though it keeps the same row.
 func TestSameSubmittedIdentity(t *testing.T) {
+	t.Parallel()
+
 	existing := &enrollmentModels.RequestChild{
 		FirstName:   "Anna",
 		LastName:    "Müller",

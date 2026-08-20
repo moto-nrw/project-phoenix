@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +107,8 @@ func executeJSON(t *testing.T, router chi.Router, method, path string, body any)
 // --- createRollover ---
 
 func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{
 		createResult: &enrollmentService.RolloverResult{
 			Phase: &enrollmentModels.Phase{
@@ -123,7 +127,7 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 			EnqueuedEmails:   3,
 		},
 	}
-	mock.createResult.Phase.SetTenantID(1)
+	mock.createResult.Phase.SetTenantID(testpkg.Tenant(t))
 	router := buildRolloverRouter(mock)
 
 	body := map[string]any{
@@ -146,6 +150,8 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 }
 
 func TestCreateRolloverHandler_PassesBumpsGradeFalseThrough(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{
 		createResult: &enrollmentService.RolloverResult{
 			Phase:          &enrollmentModels.Phase{Name: "h"},
@@ -170,12 +176,16 @@ func TestCreateRolloverHandler_PassesBumpsGradeFalseThrough(t *testing.T) {
 }
 
 func TestCreateRolloverHandler_RejectsInvalidSourceID(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 	w := executeJSON(t, router, http.MethodPost, "/enrollment/phases/notanumber/rollover", map[string]any{})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCreateRolloverHandler_RejectsBadServiceDate(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 	body := map[string]any{
 		"name":               "x",
@@ -189,6 +199,8 @@ func TestCreateRolloverHandler_RejectsBadServiceDate(t *testing.T) {
 }
 
 func TestCreateRolloverHandler_MapsSourceNotFound(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{
 		createErr: enrollmentService.ErrRolloverSourceNotFound,
 	}
@@ -205,6 +217,8 @@ func TestCreateRolloverHandler_MapsSourceNotFound(t *testing.T) {
 }
 
 func TestCreateRolloverHandler_MapsInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{
 		createErr: enrollmentService.ErrRolloverInvalidRequest,
 	}
@@ -221,6 +235,8 @@ func TestCreateRolloverHandler_MapsInvalidRequest(t *testing.T) {
 }
 
 func TestCreateRolloverHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(nil)
 	w := executeJSON(t, router, http.MethodPost, "/enrollment/phases/1/rollover", map[string]any{})
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -229,6 +245,8 @@ func TestCreateRolloverHandler_NilServiceReturns500(t *testing.T) {
 // --- listRolloverReview ---
 
 func TestListRolloverReviewHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	source := &enrollmentModels.RequestChild{FirstName: "Lina", LastName: "Beispiel"}
 	source.ID = 100
 	four := int16(4)
@@ -279,12 +297,16 @@ func TestListRolloverReviewHandler_HappyPath(t *testing.T) {
 }
 
 func TestListRolloverReviewHandler_RejectsInvalidPhaseID(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/abc/review", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestListRolloverReviewHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{listErr: errors.New("boom")}
 	router := buildRolloverRouter(mock)
 	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/1/review", nil)
@@ -294,6 +316,8 @@ func TestListRolloverReviewHandler_ServiceErrorReturns500(t *testing.T) {
 // --- decideRolloverReview ---
 
 func TestDecideRolloverReviewHandler_KeepHappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{}
 	router := buildRolloverRouter(mock)
 
@@ -311,6 +335,8 @@ func TestDecideRolloverReviewHandler_KeepHappyPath(t *testing.T) {
 }
 
 func TestDecideRolloverReviewHandler_DropClearsGrade(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{}
 	router := buildRolloverRouter(mock)
 	body := map[string]any{"decision": "drop"}
@@ -321,6 +347,8 @@ func TestDecideRolloverReviewHandler_DropClearsGrade(t *testing.T) {
 }
 
 func TestDecideRolloverReviewHandler_DeferHappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{}
 	router := buildRolloverRouter(mock)
 	body := map[string]any{"decision": "defer"}
@@ -330,6 +358,8 @@ func TestDecideRolloverReviewHandler_DeferHappyPath(t *testing.T) {
 }
 
 func TestDecideRolloverReviewHandler_RejectsInvalidID(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 	body := map[string]any{"decision": "keep"}
 	w := executeJSON(t, router, http.MethodPost, "/enrollment/admin/request-children/zero/rollover-review", body)
@@ -337,6 +367,8 @@ func TestDecideRolloverReviewHandler_RejectsInvalidID(t *testing.T) {
 }
 
 func TestDecideRolloverReviewHandler_MapsServiceInvalid(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{decideErr: enrollmentService.ErrRolloverReviewInvalid}
 	router := buildRolloverRouter(mock)
 	body := map[string]any{"decision": "bogus"}
@@ -345,6 +377,8 @@ func TestDecideRolloverReviewHandler_MapsServiceInvalid(t *testing.T) {
 }
 
 func TestDecideRolloverReviewHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{decideErr: errors.New("boom")}
 	router := buildRolloverRouter(mock)
 	body := map[string]any{"decision": "keep"}
@@ -355,6 +389,8 @@ func TestDecideRolloverReviewHandler_ServiceErrorReturns500(t *testing.T) {
 // --- previewRollover ---
 
 func TestPreviewRolloverHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{
 		previewResult: &enrollmentService.RolloverPreview{
 			CarryCandidateCount: 3,
@@ -384,6 +420,8 @@ func TestPreviewRolloverHandler_HappyPath(t *testing.T) {
 }
 
 func TestPreviewRolloverHandler_DefaultsBumpsGradeTrue(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{previewResult: &enrollmentService.RolloverPreview{}}
 	router := buildRolloverRouter(mock)
 
@@ -394,6 +432,8 @@ func TestPreviewRolloverHandler_DefaultsBumpsGradeTrue(t *testing.T) {
 }
 
 func TestPreviewRolloverHandler_RejectsNilResult(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 
 	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/7/rollover-preview", nil)
@@ -402,6 +442,8 @@ func TestPreviewRolloverHandler_RejectsNilResult(t *testing.T) {
 }
 
 func TestPreviewRolloverHandler_MapsAlreadyRolledToConflict(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockRolloverService{previewErr: enrollmentService.ErrRolloverSourceAlreadyRolled}
 	router := buildRolloverRouter(mock)
 
@@ -411,6 +453,8 @@ func TestPreviewRolloverHandler_MapsAlreadyRolledToConflict(t *testing.T) {
 }
 
 func TestPreviewRolloverHandler_RejectsInvalidSourceID(t *testing.T) {
+	t.Parallel()
+
 	router := buildRolloverRouter(&mockRolloverService{})
 	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/abc/rollover-preview", nil)
 	require.Equal(t, http.StatusBadRequest, w.Code)

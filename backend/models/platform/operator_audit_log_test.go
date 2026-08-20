@@ -8,6 +8,8 @@ import (
 )
 
 func TestOperatorAuditLog_SetChanges_Valid(t *testing.T) {
+	t.Parallel()
+
 	log := &OperatorAuditLog{}
 	changes := map[string]any{
 		"field1": "value1",
@@ -28,6 +30,8 @@ func TestOperatorAuditLog_SetChanges_Valid(t *testing.T) {
 }
 
 func TestOperatorAuditLog_SetChanges_EmptyMap(t *testing.T) {
+	t.Parallel()
+
 	log := &OperatorAuditLog{}
 	changes := map[string]any{}
 
@@ -41,6 +45,8 @@ func TestOperatorAuditLog_SetChanges_EmptyMap(t *testing.T) {
 }
 
 func TestOperatorAuditLog_GetChanges_Nil(t *testing.T) {
+	t.Parallel()
+
 	log := &OperatorAuditLog{
 		Changes: nil,
 	}
@@ -51,6 +57,8 @@ func TestOperatorAuditLog_GetChanges_Nil(t *testing.T) {
 }
 
 func TestOperatorAuditLog_GetChanges_Valid(t *testing.T) {
+	t.Parallel()
+
 	log := &OperatorAuditLog{}
 	original := map[string]any{
 		"status": "updated",
@@ -67,6 +75,8 @@ func TestOperatorAuditLog_GetChanges_Valid(t *testing.T) {
 }
 
 func TestOperatorAuditLog_GetChanges_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	log := &OperatorAuditLog{
 		Changes: []byte(`{invalid json`),
 	}

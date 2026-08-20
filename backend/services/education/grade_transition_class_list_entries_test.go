@@ -39,7 +39,6 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	})
 
 	cleanup := func() {
-		_ = db.Close()
 	}
 
 	return service, db, cleanup
@@ -60,16 +59,6 @@ func classListEntryClassesOf(t *testing.T, db *bun.DB, ctx context.Context, firs
 	return classes
 }
 
-func cleanupClassListEntriesByName(t *testing.T, db *bun.DB, names [][2]string) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	for _, name := range names {
-		_, _ = db.NewDelete().TableExpr("users.class_list_entries").
-			Where("first_name = ? AND last_name = ?", name[0], name[1]).
-			Exec(ctx)
-	}
-}
-
 // The class-list entries must follow the school-year rollover like the
 // students and the Klassenlehrer assignments (#2382): promoted classes carry
 // their entries along, graduating classes lose them — and the revert replays
@@ -77,14 +66,15 @@ func cleanupClassListEntriesByName(t *testing.T, db *bun.DB, names [][2]string) 
 // while leaving pre-existing and newly created entries untouched (#2399
 // review blocker).
 func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1a-%s", suffix)
@@ -93,22 +83,16 @@ func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
 	classOther := fmt.Sprintf("1b-%s", suffix)
 
 	// One child per mapped class so the transition has a locked cohort.
-	student1 := testpkg.CreateTestStudent(t, db, "CleMove", "Cohort1", class1)
-	student4 := testpkg.CreateTestStudent(t, db, "CleMove", "Cohort4", class4)
-	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student4.ID)
+	testpkg.CreateTestStudent(t, db, "CleMove", "Cohort1", class1)
+	testpkg.CreateTestStudent(t, db, "CleMove", "Cohort4", class4)
 
-	promoted := testpkg.CreateTestClassListEntry(t, db, "CleZoe", "Promoted", class1)
-	graduated := testpkg.CreateTestClassListEntry(t, db, "CleBen", "Graduated", class4)
-	unrelated := testpkg.CreateTestClassListEntry(t, db, "CleUli", "Unrelated", classOther)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, promoted.ID, graduated.ID, unrelated.ID)
-	defer cleanupClassListEntriesByName(t, db, [][2]string{
-		{"CleZoe", "Promoted"}, {"CleBen", "Graduated"}, {"CleUli", "Unrelated"}, {"CleNeu", "Dazwischen"},
-	})
+	testpkg.CreateTestClassListEntry(t, db, "CleZoe", "Promoted", class1)
+	testpkg.CreateTestClassListEntry(t, db, "CleBen", "Graduated", class4)
+	testpkg.CreateTestClassListEntry(t, db, "CleUli", "Unrelated", classOther)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class4, nil) // graduates
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -123,8 +107,7 @@ func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
 	// Created BETWEEN apply and revert, in the rename-target class: the
 	// mapping-derived reverse rename would drag it to class1 — the ledger
 	// replay must leave it alone.
-	created := testpkg.CreateTestClassListEntry(t, db, "CleNeu", "Dazwischen", class2)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, created.ID)
+	testpkg.CreateTestClassListEntry(t, db, "CleNeu", "Dazwischen", class2)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -143,29 +126,26 @@ func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
 // removed: the ledger replay must not resurrect the child under the
 // pre-transition class name.
 func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-del@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1c-%s", suffix)
 	class2 := fmt.Sprintf("2c-%s", suffix)
 
-	student := testpkg.CreateTestStudent(t, db, "CleDel", "Cohort", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	testpkg.CreateTestStudent(t, db, "CleDel", "Cohort", class1)
 
-	entry := testpkg.CreateTestClassListEntry(t, db, "CleMia", "Entfernt", class1)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
-	defer cleanupClassListEntriesByName(t, db, [][2]string{{"CleMia", "Entfernt"}})
+	testpkg.CreateTestClassListEntry(t, db, "CleMia", "Entfernt", class1)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -174,7 +154,7 @@ func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testin
 	// The admin takes the child off the list after the apply.
 	_, err = db.NewDelete().TableExpr("users.class_list_entries").
 		Where("first_name = ? AND last_name = ?", "CleMia", "Entfernt").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
@@ -189,42 +169,35 @@ func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testin
 // under that name and class in the meantime — either way the child already
 // has exactly one row on the class list.
 func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-coll@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1d-%s", suffix)
 	class2 := fmt.Sprintf("2d-%s", suffix)
 
-	cohort := testpkg.CreateTestStudent(t, db, "CleColl", "Cohort", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+	testpkg.CreateTestStudent(t, db, "CleColl", "Cohort", class1)
 
-	entryAnna := testpkg.CreateTestClassListEntry(t, db, "CleAnna", "Kollision", class1)
-	entryBen := testpkg.CreateTestClassListEntry(t, db, "CleBen2", "Kollision", class1)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, entryAnna.ID, entryBen.ID)
-	defer cleanupClassListEntriesByName(t, db, [][2]string{
-		{"CleAnna", "Kollision"}, {"CleBen2", "Kollision"},
-	})
+	testpkg.CreateTestClassListEntry(t, db, "CleAnna", "Kollision", class1)
+	testpkg.CreateTestClassListEntry(t, db, "CleBen2", "Kollision", class1)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
 
 	// Between apply and revert: Anna gets re-created as an entry under the
 	// OLD class name, Ben gets a real student record under the old class.
-	annaAgain := testpkg.CreateTestClassListEntry(t, db, "CleAnna", "Kollision", class1)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, annaAgain.ID)
-	benStudent := testpkg.CreateTestStudent(t, db, "CleBen2", "Kollision", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, benStudent.ID)
+	testpkg.CreateTestClassListEntry(t, db, "CleAnna", "Kollision", class1)
+	testpkg.CreateTestStudent(t, db, "CleBen2", "Kollision", class1)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -242,30 +215,27 @@ func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
 // attached to the old class name, and the revert must restore its original
 // display form (#2399 review round 9).
 func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-case@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1f-%s", suffix)
 	class1Upper := strings.ToUpper(class1)
 	class2 := fmt.Sprintf("2f-%s", suffix)
 
-	cohort := testpkg.CreateTestStudent(t, db, "CleCase", "Cohort", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+	testpkg.CreateTestStudent(t, db, "CleCase", "Cohort", class1)
 
-	entry := testpkg.CreateTestClassListEntry(t, db, "CleIda", "Grossklein", class1Upper)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
-	defer cleanupClassListEntriesByName(t, db, [][2]string{{"CleIda", "Grossklein"}})
+	testpkg.CreateTestClassListEntry(t, db, "CleIda", "Grossklein", class1Upper)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -286,30 +256,27 @@ func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T
 // change is not mistaken for the untouched transition row and replayed over
 // (#2399 review round 11).
 func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-edit@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1g-%s", suffix)
 	class2 := fmt.Sprintf("2g-%s", suffix)
 	class2Upper := strings.ToUpper(class2)
 
-	cohort := testpkg.CreateTestStudent(t, db, "CleEdit", "Cohort", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+	testpkg.CreateTestStudent(t, db, "CleEdit", "Cohort", class1)
 
-	entry := testpkg.CreateTestClassListEntry(t, db, "CleNina", "Bearbeitet", class1)
-	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
-	defer cleanupClassListEntriesByName(t, db, [][2]string{{"CleNina", "Bearbeitet"}})
+	testpkg.CreateTestClassListEntry(t, db, "CleNina", "Bearbeitet", class1)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -320,7 +287,7 @@ func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T
 	_, err = db.NewUpdate().TableExpr("users.class_list_entries").
 		Set("school_class = ?", class2Upper).
 		Where("first_name = ? AND last_name = ?", "CleNina", "Bearbeitet").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
@@ -333,25 +300,24 @@ func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T
 // A transition over classes without any entries writes no ledger — apply and
 // revert both no-op cleanly.
 func TestGradeTransitionService_ClassListEntries_NoEntriesNoLedger(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cle-empty@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1e-%s", suffix)
 	class2 := fmt.Sprintf("2e-%s", suffix)
 
-	cohort := testpkg.CreateTestStudent(t, db, "CleEmpty", "Cohort", class1)
-	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+	testpkg.CreateTestStudent(t, db, "CleEmpty", "Cohort", class1)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

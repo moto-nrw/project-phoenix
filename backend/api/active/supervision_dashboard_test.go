@@ -108,6 +108,7 @@ func dashboardExecRaw(t *testing.T, router chi.Router, path string, accountID in
 }
 
 func TestSupervisionDashboard_Aggregates(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashAgg", "Leader")
@@ -128,11 +129,9 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	today := timezone.TodayDate()
-	pickupException := testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
-	defer testpkg.CleanupScheduleFixturesB11(t, tc.db, nil, nil, nil, []int64{pickupException.ID}, nil, nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, eduGroup.ID, activeGroup.ID, activityGroup.ID, device.ID, room.ID, teacher.ID)
+	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
 
-	settingsCtx := testpkg.TenantContext(1)
+	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
@@ -196,6 +195,7 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 // the aggregate must never carry the wide personal fields the supervision
 // page does not render.
 func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashSlim", "Leader")
@@ -206,7 +206,6 @@ func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DashSlim", "Kind", "DS1")
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -256,6 +255,9 @@ func (h *dashboardQueryCounter) count() int {
 // per-student N+1 regressions: the query count must not grow with the number
 // of checked-in students, and the total per request stays under a fixed
 // budget.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 	tc, router := setupDashboardContext(t)
 
@@ -273,9 +275,6 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)...)
-	}()
 
 	counter := &dashboardQueryCounter{}
 	tc.db.AddQueryHook(counter)
@@ -313,6 +312,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 // production-sized session so the aggregate stays a fraction of the ~11
 // responses it replaces.
 func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashPayload", "Leader")
@@ -321,16 +321,11 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, tc.db, teacher.Staff.ID, activeGroup.ID, "supervisor")
 
-	var studentIDs []int64
 	const groupSize = 30
 	for i := range groupSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "DashPayload", fmt.Sprintf("Produktionskind%02d", i), "DP1")
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
-		studentIDs = append(studentIDs, student.ID)
 	}
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)...)
-	}()
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -345,6 +340,7 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 }
 
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Leader")
@@ -363,11 +359,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 
 	today := timezone.TodayDate()
-	pickupException := testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:45", "Test")
-	defer testpkg.CleanupScheduleFixturesB11(t, tc.db, nil, nil, nil, []int64{pickupException.ID}, nil, nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db,
-		student.ID, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID,
-		foreignActiveGroup.ID, foreignActivityGroup.ID, foreignRoom.ID, otherTeacher.ID)
+	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:45", "Test")
 
 	t.Run("invalid group_id is a 400", func(t *testing.T) {
 		rr := dashboardExecRaw(t, router, "/active/supervision-dashboard?group_id=abc", account.ID, dashboardPerms)
@@ -402,8 +394,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	})
 
 	t.Run("no supervised groups is an explicit empty 200", func(t *testing.T) {
-		lonely, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Gruppenlos")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, lonely.ID)
+		_, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Gruppenlos")
 
 		envelope := dashboardExec(t, router, "/active/supervision-dashboard", lonelyAccount.ID, dashboardPerms)
 		assert.Empty(t, envelope.Data.Groups)
@@ -414,6 +405,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 }
 
 func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashIso", "Leader")
@@ -422,14 +414,12 @@ func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, tc.db, teacher.Staff.ID, activeGroup.ID, "supervisor")
 
-	testpkg.EnsureTestTenant(t, tc.db, 2)
-	foreignRoom := testpkg.CreateTestRoomForTenant(t, tc.db, 2, "DashIsoForeignRoom")
-	foreignActivityGroup := testpkg.CreateTestActivityGroupForTenant(t, tc.db, 2, "DashIsoForeignActivity")
-	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, 2, foreignActivityGroup.ID, foreignRoom.ID)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 
-	defer testpkg.CleanupActivityFixtures(t, tc.db,
-		activeGroup.ID, activityGroup.ID, room.ID, teacher.ID,
-		foreignActiveGroup.ID, foreignActivityGroup.ID, foreignRoom.ID)
+	testpkg.EnsureTestTenant(t, tc.db, otherTenantID)
+	foreignRoom := testpkg.CreateTestRoomForTenant(t, tc.db, otherTenantID, "DashIsoForeignRoom")
+	foreignActivityGroup := testpkg.CreateTestActivityGroupForTenant(t, tc.db, otherTenantID, "DashIsoForeignActivity")
+	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, otherTenantID, foreignActivityGroup.ID, foreignRoom.ID)
 
 	rr := dashboardExecRaw(t, router, fmt.Sprintf("/active/supervision-dashboard?group_id=%d", foreignActiveGroup.ID), account.ID, dashboardPerms)
 	assert.Equal(t, http.StatusForbidden, rr.Code,

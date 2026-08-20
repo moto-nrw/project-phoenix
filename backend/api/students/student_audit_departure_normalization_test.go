@@ -8,6 +8,8 @@ import (
 )
 
 func TestNormalizeDeparturePlanForAudit_UsesLegacyMaps(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{
 		DepartureDays: userModels.DepartureDays{
 			userModels.PickupDayMonday: userModels.DepartureBus,
@@ -28,6 +30,8 @@ func TestNormalizeDeparturePlanForAudit_UsesLegacyMaps(t *testing.T) {
 }
 
 func TestStudentAuditBeforeImage_NormalizesLegacyDeparturePlan(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{
 		// The database column is NOT NULL DEFAULT '{}', so a legacy row can
 		// carry an allocated but empty modern map alongside its old fields.

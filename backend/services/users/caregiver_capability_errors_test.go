@@ -7,6 +7,8 @@ import (
 )
 
 func TestCaregiverCapabilityBlockedError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &CaregiverCapabilityBlockedError{
 		Reasons: []userModels.CaregiverCapabilityBlockerCode{
 			userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
@@ -19,6 +21,8 @@ func TestCaregiverCapabilityBlockedError_Error(t *testing.T) {
 }
 
 func TestAccountNotAssignedToTenantError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &AccountNotAssignedToTenantError{
 		AccountID: 42,
 		TenantID:  7,

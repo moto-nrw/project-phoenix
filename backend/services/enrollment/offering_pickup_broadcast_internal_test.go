@@ -22,6 +22,8 @@ func (n *recordingPickupGuardianNotifier) BroadcastChildUpdateToGuardians(tenant
 }
 
 func TestDeferOfferingPickupBroadcasts_FiresStaffAndGuardianInvalidationsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	guardians := &recordingPickupGuardianNotifier{}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{

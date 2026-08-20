@@ -26,13 +26,11 @@ func TestRepairSchoolIdentities(t *testing.T) {
 	userRole := createIdentityRepairRole(t, db, tenantID, "reparatur-kraft", strPtrValue("user"))
 	legacyRole := createIdentityRepairRole(t, db, tenantID, "reparatur-alt", nil)
 	guardianRole := createIdentityRepairRole(t, db, tenantID, "reparatur-sorge", strPtrValue("guardian"))
-	defer cleanupIdentityRepairRoles(t, db, adminRole, userRole, legacyRole, guardianRole)
 
 	admin := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Admin", adminRole)
 	caregiver := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Kraft", userRole)
 	legacy := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Alt", legacyRole)
 	guardian := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Sorge", guardianRole)
-	defer cleanupBrokenSchoolIdentities(t, db, admin, caregiver, legacy, guardian)
 
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
@@ -63,7 +61,6 @@ func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
 	legacyTeacher := ensureLegacySystemTeacherRole(t, db)
 
 	holder := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Lehrer", legacyTeacher)
-	defer cleanupBrokenSchoolIdentities(t, db, holder)
 
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
@@ -92,7 +89,9 @@ func ensureLegacySystemTeacherRole(t *testing.T, db *bun.DB) int64 {
 		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
 		VALUES ('teacher', 'Retired platform caregiver role', TRUE, NULL, NULL, NOW(), NOW())
 		RETURNING id`).Scan(ctx, &id))
-	t.Cleanup(func() { cleanupIdentityRepairRoles(t, db, id) })
+	// A system role has no tenant: the row this test had to create is shared
+	// state, so it goes away with the test (#2419).
+	t.Cleanup(func() { deleteSystemRoleRow(t, db, id) })
 	return id
 }
 
@@ -107,10 +106,8 @@ func TestRepairSchoolIdentitiesSkipsInactiveAccess(t *testing.T) {
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "reparatur-inaktiv", strPtrValue("admin"))
-	defer cleanupIdentityRepairRoles(t, db, role)
 
 	revoked := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Inaktiv", role)
-	defer cleanupBrokenSchoolIdentities(t, db, revoked)
 
 	_, err := db.ExecContext(ctx, `
 		UPDATE auth.account_tenants SET status = 'inactive'
@@ -139,15 +136,6 @@ func createIdentityRepairRole(t *testing.T, db *bun.DB, tenantID int64, name str
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
 	return id
-}
-
-func cleanupIdentityRepairRoles(t *testing.T, db *bun.DB, roleIDs ...int64) {
-	t.Helper()
-	for _, id := range roleIDs {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.account_roles WHERE role_id = ?`, id)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.role_permissions WHERE role_id = ?`, id)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.roles WHERE id = ?`, id)
-	}
 }
 
 // createBrokenSchoolIdentity reproduces the state the invitation flow produced:
@@ -187,22 +175,6 @@ func createBrokenSchoolIdentity(t *testing.T, db *bun.DB, tenantID int64, firstN
 	return brokenSchoolIdentity{accountID: accountID, personID: personID}
 }
 
-func cleanupBrokenSchoolIdentities(t *testing.T, db *bun.DB, identities ...brokenSchoolIdentity) {
-	t.Helper()
-	ctx := context.Background()
-	for _, identity := range identities {
-		_, _ = db.ExecContext(ctx, `
-			DELETE FROM users.teachers WHERE staff_id IN (
-				SELECT id FROM users.staff WHERE person_id = ?
-			)`, identity.personID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.staff WHERE person_id = ?`, identity.personID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id = ?`, identity.personID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id = ?`, identity.accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, identity.accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, identity.accountID)
-	}
-}
-
 func liveStaffCount(t *testing.T, db *bun.DB, personID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
@@ -237,10 +209,8 @@ func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
 	defer testpkg.CleanupTenantTestData(t, db, otherTenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "reparatur-fremdschule", strPtrValue("user"))
-	defer cleanupIdentityRepairRoles(t, db, role)
 
 	holder := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Fremd", role)
-	defer cleanupBrokenSchoolIdentities(t, db, holder)
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO users.staff (tenant_id, person_id, staff_notes, created_at, updated_at)
@@ -316,12 +286,10 @@ func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
 	adminRole := createIdentityRepairRole(t, db, targetTenantID, "quer-leitung", strPtrValue("admin"))
 	userRole := createIdentityRepairRole(t, db, targetTenantID, "quer-kraft", strPtrValue("user"))
 	guardianRole := createIdentityRepairRole(t, db, targetTenantID, "quer-sorge", strPtrValue("guardian"))
-	defer cleanupIdentityRepairRoles(t, db, adminRole, userRole, guardianRole)
 
 	admin := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Leitung", adminRole)
 	caregiver := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Kraft", userRole)
 	guardian := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Sorge", guardianRole)
-	defer cleanupAccountIdentities(t, db, admin, caregiver, guardian)
 
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
@@ -357,10 +325,8 @@ func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
 	defer testpkg.CleanupTenantTestData(t, db, firstTenantID, secondTenantID, targetTenantID)
 
 	role := createIdentityRepairRole(t, db, targetTenantID, "quer-uneindeutig", strPtrValue("admin"))
-	defer cleanupIdentityRepairRoles(t, db, role)
 
 	account := createSchoolAccessWithoutPerson(t, db, firstTenantID, targetTenantID, "Alex", "Wechsel", role)
-	defer cleanupAccountIdentities(t, db, account)
 
 	addActiveSchoolAccess(t, db, account, secondTenantID)
 	addPersonAt(t, db, secondTenantID, account, "Alexandra", "Wechsel")
@@ -464,27 +430,6 @@ func personLastName(t *testing.T, db *bun.DB, personID int64) string {
 	return name
 }
 
-func cleanupAccountIdentities(t *testing.T, db *bun.DB, accountIDs ...int64) {
-	t.Helper()
-	ctx := context.Background()
-	for _, accountID := range accountIDs {
-		_, _ = db.ExecContext(ctx, `
-			DELETE FROM users.teachers WHERE staff_id IN (
-				SELECT s.id FROM users.staff s
-				JOIN users.persons p ON p.id = s.person_id
-				WHERE p.account_id = ?
-			)`, accountID)
-		_, _ = db.ExecContext(ctx, `
-			DELETE FROM users.staff WHERE person_id IN (
-				SELECT id FROM users.persons WHERE account_id = ?
-			)`, accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE account_id = ?`, accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id = ?`, accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, accountID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, accountID)
-	}
-}
-
 // Lehrkraft never earns a caregiver profile on its own (#1772) — but that is a
 // property of the ROLE, not of the account. An account that also holds a real
 // caregiver-tier role has always needed the profile that role reads through,
@@ -501,12 +446,10 @@ func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
 
 	lehrkraftRole := ensureLehrkraftSystemRole(t, db)
 	caregiverRole := createIdentityRepairRole(t, db, tenantID, "doppel-kraft", strPtrValue("user"))
-	defer cleanupIdentityRepairRoles(t, db, caregiverRole)
 
 	lehrkraftOnly := createBrokenSchoolIdentity(t, db, tenantID, "Doppel", "Nur", lehrkraftRole)
 	dualRole := createBrokenSchoolIdentity(t, db, tenantID, "Doppel", "Beides", lehrkraftRole)
 	addRoleAt(t, db, dualRole.accountID, caregiverRole, tenantID)
-	defer cleanupBrokenSchoolIdentities(t, db, lehrkraftOnly, dualRole)
 
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
@@ -532,10 +475,8 @@ func TestRepairSchoolIdentitiesReportsStudentLinkedIdentity(t *testing.T) {
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "kind-verknuepft", strPtrValue("admin"))
-	defer cleanupIdentityRepairRoles(t, db, role)
 
 	linked := createBrokenSchoolIdentity(t, db, tenantID, "Kind", "Verknuepft", role)
-	defer cleanupBrokenSchoolIdentities(t, db, linked)
 	markPersonAsStudent(t, db, tenantID, linked.personID)
 
 	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
@@ -579,8 +520,18 @@ func ensureLehrkraftSystemRole(t *testing.T, db *bun.DB) int64 {
 		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
 		VALUES ('lehrkraft', 'Lehrkraft', TRUE, NULL, 'user', NOW(), NOW())
 		RETURNING id`).Scan(ctx, &id))
-	t.Cleanup(func() { cleanupIdentityRepairRoles(t, db, id) })
+	t.Cleanup(func() { deleteSystemRoleRow(t, db, id) })
 	return id
+}
+
+// deleteSystemRoleRow removes a tenant-less role this package had to create,
+// plus the catalog rows hanging off it (#2419).
+func deleteSystemRoleRow(t *testing.T, db *bun.DB, roleID int64) {
+	t.Helper()
+	bg := context.Background()
+	_, _ = db.ExecContext(bg, `DELETE FROM auth.account_roles WHERE role_id = ?`, roleID)
+	_, _ = db.ExecContext(bg, `DELETE FROM auth.role_permissions WHERE role_id = ?`, roleID)
+	_, _ = db.ExecContext(bg, `DELETE FROM auth.roles WHERE id = ?`, roleID)
 }
 
 func addRoleAt(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
@@ -616,10 +567,8 @@ func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	userRole := createIdentityRepairRole(t, db, tenantID, "reparatur-kind-kraft", strPtrValue("user"))
-	defer cleanupIdentityRepairRoles(t, db, userRole)
 
 	child := createBrokenSchoolIdentity(t, db, tenantID, "Kind", "Kraft", userRole)
-	defer cleanupBrokenSchoolIdentities(t, db, child)
 
 	markPersonAsStudent(t, db, tenantID, child.personID)
 	// Legacy data the staff step would never create: a staff row on the child.

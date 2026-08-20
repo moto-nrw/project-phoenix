@@ -116,6 +116,8 @@ func (m *mockAnnouncementService) GetViewDetails(ctx context.Context, id int64) 
 }
 
 func TestCreateAnnouncement_EmptyTitle(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockAnnouncementService{}
 	resource := operator.NewAnnouncementsResource(mockService)
 
@@ -138,6 +140,8 @@ func TestCreateAnnouncement_EmptyTitle(t *testing.T) {
 }
 
 func TestCreateAnnouncement_EmptyContent(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockAnnouncementService{}
 	resource := operator.NewAnnouncementsResource(mockService)
 
@@ -160,6 +164,8 @@ func TestCreateAnnouncement_EmptyContent(t *testing.T) {
 }
 
 func TestCreateAnnouncement_InvalidExpiresAt(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockAnnouncementService{}
 	resource := operator.NewAnnouncementsResource(mockService)
 
@@ -184,6 +190,8 @@ func TestCreateAnnouncement_InvalidExpiresAt(t *testing.T) {
 }
 
 func TestUpdateAnnouncement_InvalidExpiresAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mockService := &mockAnnouncementService{
 		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -264,6 +272,8 @@ func existingAnnouncement() func(ctx context.Context, id int64) (*platform.Annou
 // --- Table-driven: Create with org/tenant targeting ---
 
 func TestCreateAnnouncement_Targeting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		orgIDs          []int64
@@ -315,6 +325,8 @@ func TestCreateAnnouncement_Targeting(t *testing.T) {
 // --- Update with org/tenant targeting ---
 
 func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: existingAnnouncement(),
 		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
@@ -344,6 +356,8 @@ func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
 // --- Create response includes targeting fields ---
 
 func TestCreateAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
@@ -378,6 +392,8 @@ func TestCreateAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
 // --- Get response includes targeting fields ---
 
 func TestGetAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
@@ -410,6 +426,8 @@ func TestGetAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
 // --- List includes org/tenant IDs ---
 
 func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
@@ -445,6 +463,8 @@ func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
 // --- Nil org/tenant IDs default to empty arrays ---
 
 func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
@@ -482,6 +502,8 @@ func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.
 // --- Table-driven: Response status (published, expired, draft) ---
 
 func TestAnnouncementResponse_Status(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	publishedAt := now.Add(-1 * time.Hour)
 	publishedAtOld := now.Add(-48 * time.Hour)
@@ -527,6 +549,8 @@ func TestAnnouncementResponse_Status(t *testing.T) {
 // --- Create: default type/severity, version, invalid JSON, InvalidDataError ---
 
 func TestCreateAnnouncement_DefaultTypeAndSeverity(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
 			assert.Equal(t, platform.TypeAnnouncement, a.Type)
@@ -546,6 +570,8 @@ func TestCreateAnnouncement_DefaultTypeAndSeverity(t *testing.T) {
 }
 
 func TestCreateAnnouncement_WithVersion(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
 			require.NotNil(t, a.Version)
@@ -568,6 +594,8 @@ func TestCreateAnnouncement_WithVersion(t *testing.T) {
 }
 
 func TestCreateAnnouncement_InvalidJSONBody(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -578,6 +606,8 @@ func TestCreateAnnouncement_InvalidJSONBody(t *testing.T) {
 }
 
 func TestUpdateAnnouncement_InvalidJSONBody(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -593,6 +623,8 @@ func TestUpdateAnnouncement_InvalidJSONBody(t *testing.T) {
 // --- InvalidDataError for Create and Update ---
 
 func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		createFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
 			return &platformSvc.InvalidDataError{Err: errors.New("severity must be one of: info, warning, critical")}
@@ -613,6 +645,8 @@ func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
 }
 
 func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: existingAnnouncement(),
 		updateFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
@@ -642,6 +676,8 @@ func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
 // --- Update: clear/set expires_at, set active flag ---
 
 func TestUpdateAnnouncement_ClearExpiresAt(t *testing.T) {
+	t.Parallel()
+
 	expiresAt := time.Now().Add(24 * time.Hour)
 	now := time.Now()
 	mock := &mockAnnouncementService{
@@ -678,6 +714,8 @@ func TestUpdateAnnouncement_ClearExpiresAt(t *testing.T) {
 }
 
 func TestUpdateAnnouncement_SetValidExpiresAt(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: existingAnnouncement(),
 		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
@@ -703,6 +741,8 @@ func TestUpdateAnnouncement_SetValidExpiresAt(t *testing.T) {
 }
 
 func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
 			now := time.Now()
@@ -742,6 +782,8 @@ func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
 // not just status codes, to catch serialization and formatting bugs.
 
 func TestDeleteAnnouncement_SuccessAndErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		id         string
@@ -784,6 +826,8 @@ func TestDeleteAnnouncement_SuccessAndErrors(t *testing.T) {
 }
 
 func TestPublishAnnouncement_SuccessAndErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		id         string
@@ -825,6 +869,8 @@ func TestPublishAnnouncement_SuccessAndErrors(t *testing.T) {
 }
 
 func TestGetStats_ResponseStructure(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getStatsFn: func(_ context.Context, id int64) (*platform.AnnouncementStats, error) {
 			return &platform.AnnouncementStats{
@@ -848,12 +894,16 @@ func TestGetStats_ResponseStructure(t *testing.T) {
 }
 
 func TestGetStats_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/abc/stats", "abc")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestGetViewDetails_ResponseStructure(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
@@ -883,6 +933,8 @@ func TestGetViewDetails_ResponseStructure(t *testing.T) {
 }
 
 func TestGetViewDetails_Empty(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
 			return []*platform.AnnouncementViewDetail{}, nil
@@ -899,6 +951,8 @@ func TestGetViewDetails_Empty(t *testing.T) {
 }
 
 func TestGetViewDetails_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/abc/view-details", "abc")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
@@ -907,6 +961,8 @@ func TestGetViewDetails_InvalidID(t *testing.T) {
 // --- Error paths for List and Get handlers ---
 
 func TestListAnnouncements_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
 			return nil, errors.New("database error")
@@ -921,12 +977,16 @@ func TestListAnnouncements_ServiceError(t *testing.T) {
 }
 
 func TestGetAnnouncement_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/abc", "abc")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestGetAnnouncement_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
 			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}

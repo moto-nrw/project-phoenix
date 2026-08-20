@@ -42,6 +42,8 @@ func (s *stubPersonService) GetStaffWithPersonByIDs(ctx context.Context, ids []i
 // =============================================================================
 
 func TestFilterActiveSupervisors_AllActive(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	supervisors := []*active.GroupSupervisor{
 		{StaffID: 1, EndDate: nil},
@@ -55,6 +57,8 @@ func TestFilterActiveSupervisors_AllActive(t *testing.T) {
 }
 
 func TestFilterActiveSupervisors_SomeEnded(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	endDate := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
@@ -71,6 +75,8 @@ func TestFilterActiveSupervisors_SomeEnded(t *testing.T) {
 }
 
 func TestFilterActiveSupervisors_AllEnded(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	endDate := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
@@ -84,6 +90,8 @@ func TestFilterActiveSupervisors_AllEnded(t *testing.T) {
 }
 
 func TestFilterActiveSupervisors_Empty(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	result := rs.filterActiveSupervisors([]*active.GroupSupervisor{})
@@ -92,6 +100,8 @@ func TestFilterActiveSupervisors_Empty(t *testing.T) {
 }
 
 func TestFilterActiveSupervisors_ZeroStaffID(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	supervisors := []*active.GroupSupervisor{
 		{StaffID: 1, EndDate: nil},
@@ -105,6 +115,8 @@ func TestFilterActiveSupervisors_ZeroStaffID(t *testing.T) {
 }
 
 func TestBuildSupervisorInfos_ReturnsEmptySliceWhenStaffLookupFails(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		UsersService: &stubPersonService{
 			staffRepo: &stubStaffRepository{
@@ -124,6 +136,8 @@ func TestBuildSupervisorInfos_ReturnsEmptySliceWhenStaffLookupFails(t *testing.T
 }
 
 func TestUpdateSupervisorsResponse_EmptySupervisorSliceSerializesAsJSONArray(t *testing.T) {
+	t.Parallel()
+
 	payload, err := json.Marshal(UpdateSupervisorsResponse{
 		ActiveGroupID: 77,
 		Supervisors:   []SupervisorInfo{},
@@ -140,6 +154,8 @@ func TestUpdateSupervisorsResponse_EmptySupervisorSliceSerializesAsJSONArray(t *
 // =============================================================================
 
 func TestCountActiveStudents_AllActive(t *testing.T) {
+	t.Parallel()
+
 	visits := []*active.Visit{
 		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
 		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: nil},
@@ -152,6 +168,8 @@ func TestCountActiveStudents_AllActive(t *testing.T) {
 }
 
 func TestCountActiveStudents_SomeExited(t *testing.T) {
+	t.Parallel()
+
 	exitTime := time.Now()
 	visits := []*active.Visit{
 		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
@@ -165,6 +183,8 @@ func TestCountActiveStudents_SomeExited(t *testing.T) {
 }
 
 func TestCountActiveStudents_AllExited(t *testing.T) {
+	t.Parallel()
+
 	exitTime := time.Now()
 	visits := []*active.Visit{
 		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: &exitTime},
@@ -177,12 +197,16 @@ func TestCountActiveStudents_AllExited(t *testing.T) {
 }
 
 func TestCountActiveStudents_Empty(t *testing.T) {
+	t.Parallel()
+
 	count := countActiveStudents([]*active.Visit{})
 
 	assert.Equal(t, 0, count)
 }
 
 func TestCountActiveStudents_Nil(t *testing.T) {
+	t.Parallel()
+
 	count := countActiveStudents(nil)
 
 	assert.Equal(t, 0, count)
@@ -193,6 +217,8 @@ func TestCountActiveStudents_Nil(t *testing.T) {
 // =============================================================================
 
 func TestSessionStartRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(5)
 	req := SessionStartRequest{
 		ActivityID:    123,
@@ -208,6 +234,8 @@ func TestSessionStartRequest_Fields(t *testing.T) {
 }
 
 func TestSessionActivityRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	req := SessionActivityRequest{
 		ActivityType: "rfid_scan",
@@ -219,6 +247,8 @@ func TestSessionActivityRequest_Fields(t *testing.T) {
 }
 
 func TestUpdateSupervisorsRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := UpdateSupervisorsRequest{
 		SupervisorIDs: []int64{1, 2, 3},
 	}
@@ -227,6 +257,8 @@ func TestUpdateSupervisorsRequest_Fields(t *testing.T) {
 }
 
 func TestSupervisorInfo_Fields(t *testing.T) {
+	t.Parallel()
+
 	info := SupervisorInfo{
 		StaffID:     789,
 		FirstName:   "Test",
@@ -243,6 +275,8 @@ func TestSupervisorInfo_Fields(t *testing.T) {
 }
 
 func TestConflictInfoResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	deviceID := int64(100)
 	info := ConflictInfoResponse{
 		HasConflict:       true,
@@ -258,6 +292,8 @@ func TestConflictInfoResponse_Fields(t *testing.T) {
 }
 
 func TestSessionStartResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	supervisors := []SupervisorInfo{
 		{StaffID: 1, DisplayName: "Test User"},

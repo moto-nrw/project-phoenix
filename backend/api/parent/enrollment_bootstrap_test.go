@@ -58,8 +58,8 @@ func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.Respons
 // the permission-granting relationship to point at a still-enrolled child,
 // which this account does not have (#1663).
 func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -88,8 +88,8 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 // The existing_students audience unlocks only on the enrolled-child fact —
 // the same one the picker (ListEnrollable) filters those phases by.
 func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -119,8 +119,8 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 // the anonymous public gate: open / new_students only, 404 for every
 // restricted phase instead of leaking a hidden phase's form (#1663).
 func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -144,8 +144,8 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 // A guardian who is linked but had the submit permission revoked is treated
 // like any non-eligible caller: no restricted audience at all.
 func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
@@ -175,8 +175,8 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 // rule, or the hidden flag only hides the school from the list while a guessed
 // subdomain plus a phase id still serves its form (#1663).
 func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -203,8 +203,8 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 // active mapping AND a guardian relationship. An existing family keeps
 // reaching its own hidden school's re-enrollment forms.
 func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
 	school.ID = 1
@@ -230,8 +230,8 @@ func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 // A deactivated school is unreachable for everyone, family link or not — the
 // same account-independent gate /auth/tenant/resolve applies.
 func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
 	school.ID = 1

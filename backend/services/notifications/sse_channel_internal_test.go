@@ -73,7 +73,6 @@ func mockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -118,6 +117,8 @@ func guardianEvent(studentIDs []int64) Event {
 // title, body and deep link a push does, so a guardian whose access to the child
 // was revoked after the producer resolved its audience must not be woken either.
 func TestSSEGuardianFanOutRechecksChildAccess(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{permitted: []int64{88}}
 	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, true), access, nil))
@@ -137,6 +138,8 @@ func TestSSEGuardianFanOutRechecksChildAccess(t *testing.T) {
 // child at all (broadcast announcements, gated by their own producer) on the
 // unchanged path — no lookup, every resolved recipient woken.
 func TestSSEGuardianFanOutSkipsRecheckWithoutChildren(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{}
 	db, _ := mockDB(t) // no statement expected: the unchanged path opens no transaction
@@ -152,6 +155,8 @@ func TestSSEGuardianFanOutSkipsRecheckWithoutChildren(t *testing.T) {
 // without the lookup: a student-scoped event is dropped rather than delivered
 // unchecked.
 func TestSSEGuardianFanOutFailsClosedWithoutAccessLookup(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := &recordingGuardianBroadcaster{}
 	channel := NewSSEChannel(broadcaster)
 
@@ -164,6 +169,8 @@ func TestSSEGuardianFanOutFailsClosedWithoutAccessLookup(t *testing.T) {
 // silently delivering to everyone: the router logs the returned error and no
 // guardian is woken.
 func TestSSEGuardianFanOutReportsLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{err: errors.New("access lookup failed")}
 	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, false), access, nil))

@@ -9,6 +9,8 @@ import (
 )
 
 func TestStaff_JSONOmitsPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	personnelNumber := "90001"
 	staff := &Staff{
 		PersonID:        1,
@@ -25,6 +27,8 @@ func TestStaff_JSONOmitsPersonnelNumber(t *testing.T) {
 }
 
 func TestStaff_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		staff   *Staff
@@ -72,6 +76,8 @@ func TestStaff_Validate(t *testing.T) {
 }
 
 func TestStaff_SetPerson(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set person", func(t *testing.T) {
 		staff := &Staff{}
 
@@ -108,6 +114,8 @@ func TestStaff_SetPerson(t *testing.T) {
 }
 
 func TestStaff_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		staff    *Staff
@@ -145,6 +153,8 @@ func TestStaff_GetFullName(t *testing.T) {
 }
 
 func TestStaff_AddNotes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("add notes to empty", func(t *testing.T) {
 		staff := &Staff{
 			PersonID:   1,

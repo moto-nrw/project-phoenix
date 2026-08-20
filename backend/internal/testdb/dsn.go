@@ -1,5 +1,5 @@
 // Package testdb owns the lifecycle of the backend test databases (ADR 0004):
-// it keeps the template `phoenix_test` current via a migrations hash, hands
+// it keeps one template per migrations hash (`phoenix_test_<hash>`), hands
 // every test binary a run-stamped package clone, and sweeps clones after the
 // run — including a generation GC that collects clones of dead runs across
 // worktrees. The long-lived postgres-test container is never owned here; the

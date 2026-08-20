@@ -8,7 +8,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The staff queue has to say what a decision does to the child's whole booking
@@ -22,7 +21,7 @@ func pendingViewForRequest(
 	requestID int64,
 ) *enrollmentService.OfferingChangeView {
 	t.Helper()
-	views, err := svc.ListPending(offeringChangeAdminContext())
+	views, err := svc.ListPending(offeringChangeAdminContext(t))
 	require.NoError(t, err)
 	for _, view := range views {
 		if view.Request != nil && view.Request.ID == requestID {
@@ -34,19 +33,20 @@ func pendingViewForRequest(
 }
 
 func TestOfferingChangeRequestService_ListPending_MarksFullWithdrawal(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "FullWithdrawal")
 
-	row, err := svc.Create(offeringChangeAdminContext(), enrollmentService.CreateOfferingChangeInput{
+	row, err := svc.Create(offeringChangeAdminContext(t), enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
 		Selections:    nil,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	view := pendingViewForRequest(t, svc, row.ID)
 	assert.True(t, view.FullWithdrawal, "an empty offering list is a Komplett-Abmeldung")
@@ -54,6 +54,8 @@ func TestOfferingChangeRequestService_ListPending_MarksFullWithdrawal(t *testing
 }
 
 func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfTheWarning(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -64,7 +66,7 @@ func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfThe
 		[]*enrollmentModels.CareOffering{fx.oldOffering, fx.newOffering},
 	)
 
-	row, err := svc.Create(offeringChangeAdminContext(), enrollmentService.CreateOfferingChangeInput{
+	row, err := svc.Create(offeringChangeAdminContext(t), enrollmentService.CreateOfferingChangeInput{
 		StudentID:     studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -73,7 +75,6 @@ func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfThe
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	view := pendingViewForRequest(t, svc, row.ID)
 	assert.False(t, view.FullWithdrawal, "one offering stays booked, so this is no Komplett-Abmeldung")

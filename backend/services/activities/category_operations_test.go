@@ -21,7 +21,7 @@ import (
 // never created by staff.
 func markCategorySystem(t *testing.T, db *bun.DB, categoryID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
 		Table("activities.categories").
 		Set("is_system = TRUE").
@@ -31,14 +31,14 @@ func markCategorySystem(t *testing.T, db *bun.DB, categoryID int64) {
 }
 
 func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestActivityCategory(t, db, "DuplicateGuard")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, existing.ID, 0)
 
 	_, err := service.CreateCategory(ctx, &activitiesModels.Category{Name: existing.Name})
 	require.Error(t, err)
@@ -46,11 +46,12 @@ func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 }
 
 func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, name := range []string{" wc ", "sChUlHoF"} {
 		t.Run(name, func(t *testing.T) {
@@ -61,15 +62,15 @@ func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
 }
 
 func TestServiceUpdateCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("renames a school-owned category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Renameable")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		newName := fmt.Sprintf("Essen-%d", time.Now().UnixNano())
 		updated, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{
@@ -90,8 +91,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 	t.Run("rejects a name another active category already holds", func(t *testing.T) {
 		first := testpkg.CreateTestActivityCategory(t, db, "ConflictA")
 		second := testpkg.CreateTestActivityCategory(t, db, "ConflictB")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, first.ID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, second.ID, 0)
 
 		_, err := service.UpdateCategory(ctx, second.ID, activities.CategoryInput{Name: first.Name})
 		require.Error(t, err)
@@ -100,7 +99,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 
 	t.Run("rejects an empty name", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "EmptyName")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		_, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{Name: "   "})
 		require.Error(t, err)
@@ -108,7 +106,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 
 	t.Run("rejects a reserved system name", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ReservedRename")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		_, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{Name: " schulHOF "})
 		require.ErrorIs(t, err, activities.ErrSystemCategoryNameReserved)
@@ -117,7 +114,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 	t.Run("refuses to touch a system category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "SystemGuard")
 		markCategorySystem(t, db, category.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		_, err := service.UpdateCategory(ctx, category.ID, activities.CategoryInput{Name: "Umbenannt"})
 		require.Error(t, err)
@@ -132,7 +128,6 @@ func TestServiceUpdateCategory(t *testing.T) {
 
 	t.Run("a stale full-row update cannot reactivate an archived category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ConcurrentArchive")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		repo := repositories.NewFactory(db).ActivityCategory
 		stale, err := repo.FindByID(ctx, category.ID)
@@ -153,16 +148,16 @@ func TestServiceUpdateCategory(t *testing.T) {
 }
 
 func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// An activity group referencing the category is exactly the "verwendete
 	// Kategorie" case: archiving must not break it.
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchiveUsage")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, group.ID, group.CategoryID, 0)
 
 	archived, err := service.ArchiveCategory(ctx, group.CategoryID)
 	require.NoError(t, err)
@@ -211,23 +206,22 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 }
 
 func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	original := testpkg.CreateTestActivityCategory(t, db, "NameReuse")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, original.ID, 0)
 
 	_, err := service.ArchiveCategory(ctx, original.ID)
 	require.NoError(t, err)
 
 	// The partial unique index only covers active rows, so the freed name can
 	// be taken again.
-	replacement, err := service.CreateCategory(ctx, &activitiesModels.Category{Name: strings.ToLower(original.Name)})
+	_, err = service.CreateCategory(ctx, &activitiesModels.Category{Name: strings.ToLower(original.Name)})
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, replacement.ID, 0)
 
 	// Restoring the archived one would now produce two active rows with the
 	// same case-insensitive name — the index rejects it and the service reports
@@ -238,15 +232,15 @@ func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testin
 }
 
 func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, db, "SystemArchiveGuard")
 	markCategorySystem(t, db, category.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 	_, err := service.ArchiveCategory(ctx, category.ID)
 	require.Error(t, err)
@@ -254,17 +248,16 @@ func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 }
 
 func TestServiceCategoryUsageCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "UsageCounted")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, group.ID, group.CategoryID, 0)
 
 	unused := testpkg.CreateTestActivityCategory(t, db, "UsageZero")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, unused.ID, 0)
 
 	counts, err := service.CategoryUsageCounts(ctx)
 	require.NoError(t, err)
@@ -274,22 +267,22 @@ func TestServiceCategoryUsageCounts(t *testing.T) {
 }
 
 func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
 	// A tenant id well above the seeded range; the hermetic scanner flags
 	// int64(1)..int64(9) literals, and the isolation suite uses the same
 	// convention.
-	const otherTenantID = int64(2131)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	foreign := testpkg.CreateTestActivityCategoryForTenant(t, db, otherTenantID, "ForeignCategory")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, otherTenantID, 0, 0, 0, foreign.ID, 0)
 
 	// Acting as tenant 1, the other school's category must be invisible for
 	// every write path — not merely unauthorized, but not found.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := service.UpdateCategory(ctx, foreign.ID, activities.CategoryInput{Name: "Gekapert"})
 	require.Error(t, err)

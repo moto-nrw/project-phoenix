@@ -23,7 +23,6 @@ const extraJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
@@ -46,6 +45,8 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 // three exit paths (no-active-challenge, wrong-code, success).
 
 func TestMFAService_VerifyCodeForAccount_NoActiveChallenge_ReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, accID := newExtraMFAService(t)
 
 	err := svc.VerifyCodeForAccount(context.Background(), accID, 0, "123456", authjwt.MFAChallengeScopeTenant)
@@ -56,6 +57,8 @@ func TestMFAService_VerifyCodeForAccount_NoActiveChallenge_ReturnsInvalid(t *tes
 }
 
 func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newExtraMFAService(t)
 
 	// Account id 99999999 doesn't exist — FindByID returns sql.ErrNoRows
@@ -67,6 +70,8 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 }
 
 func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, accID := newExtraMFAService(t)
 	require.NoError(t, svc.Enroll(context.Background(), accID))
 
@@ -85,6 +90,8 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 // paths are: bad token (invalid JWT) and downstream StartChallenge error.
 
 func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newExtraMFAService(t)
 
 	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
@@ -95,6 +102,8 @@ func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.
 }
 
 func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	svc, _, accID := newExtraMFAService(t)
 	require.NoError(t, svc.Enroll(context.Background(), accID))
 
@@ -121,38 +130,52 @@ func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 // label used by the trusted-device email + UI. Exported helper — 0% in the
 // coverage profile before this test.
 func TestShortenUserAgent_EmptyOrWhitespaceReturnsGermanFallback(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Unbekanntes Gerät", auth.ShortenUserAgent(""))
 	assert.Equal(t, "Unbekanntes Gerät", auth.ShortenUserAgent("   "))
 }
 
 func TestShortenUserAgent_ChromeOnMac(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
 	assert.Equal(t, "Chrome auf macOS", auth.ShortenUserAgent(ua))
 }
 
 func TestShortenUserAgent_FirefoxOnLinux(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/123.0"
 	assert.Equal(t, "Firefox auf Linux", auth.ShortenUserAgent(ua))
 }
 
 func TestShortenUserAgent_EdgeOnWindows(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0 Safari/537.36 Edg/120.0"
 	assert.Equal(t, "Edge auf Windows", auth.ShortenUserAgent(ua),
 		"Edge must win over Chrome — the Edg/ token short-circuits the chain")
 }
 
 func TestShortenUserAgent_SafariOniPhone(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1"
 	assert.Equal(t, "Safari auf iPhone", auth.ShortenUserAgent(ua))
 }
 
 func TestShortenUserAgent_UnknownBrowserOnAndroid(t *testing.T) {
+	t.Parallel()
+
 	ua := "Mozilla/5.0 (Linux; Android 13)"
 	// Not Chrome/Firefox/Safari/Edge → "Browser"; Android hits the OS branch.
 	assert.Equal(t, "Browser auf Android", auth.ShortenUserAgent(ua))
 }
 
 func TestShortenUserAgent_UnknownAllReturnsBareBrowser(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Browser", auth.ShortenUserAgent("curl/8.4.0"))
 }
 
@@ -160,6 +183,8 @@ func TestShortenUserAgent_UnknownAllReturnsBareBrowser(t *testing.T) {
 // wrapper delegates to it. Exercising both paths via the public API
 // brings the helper's per-tenant lookup into the covered set.
 func TestMFAService_TrustedDeviceDays_DefaultsWhenSettingsMissing(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newExtraMFAService(t)
 
 	// No tenant settings wired; helper must fall back to the registry
@@ -173,6 +198,8 @@ func TestMFAService_TrustedDeviceDays_DefaultsWhenSettingsMissing(t *testing.T) 
 // branch is reachable (defaults to enabled in the test build so this
 // asserts only that it doesn't error).
 func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.T) {
+	t.Parallel()
+
 	svc, _, accID := newExtraMFAService(t)
 	require.NoError(t, svc.Enroll(context.Background(), accID))
 
@@ -207,8 +234,9 @@ func (r countFailingChallengeRepo) CountRecentByAccountID(context.Context, int64
 // request kept minting codes and sending mail, which is exactly the abuse the
 // cap is there to bound.
 func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	realChallengeRepo := repos.MFAEmailChallenge

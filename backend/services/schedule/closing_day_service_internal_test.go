@@ -53,6 +53,8 @@ func closingRange(start, end timezone.Date, reason string) *schedule.ClosingDay 
 }
 
 func TestClosingDayDatesExpandsRanges(t *testing.T) {
+	t.Parallel()
+
 	svc := NewClosingDayService(&mockClosingDayRepo{days: []*schedule.ClosingDay{
 		closingRange(timezone.NewDate(2026, 12, 24), timezone.NewDate(2026, 12, 27), "Weihnachten"),
 		closingRange(timezone.NewDate(2026, 12, 31), timezone.NewDate(2026, 12, 31), "Silvester"),
@@ -69,6 +71,8 @@ func TestClosingDayDatesExpandsRanges(t *testing.T) {
 }
 
 func TestClosingDayDatesClampsToWindow(t *testing.T) {
+	t.Parallel()
+
 	// Range extends past both window edges; only in-window days may appear.
 	svc := NewClosingDayService(&mockClosingDayRepo{days: []*schedule.ClosingDay{
 		closingRange(timezone.NewDate(2026, 7, 20), timezone.NewDate(2026, 8, 7), "Sommerschließung"),
@@ -85,6 +89,8 @@ func TestClosingDayDatesClampsToWindow(t *testing.T) {
 }
 
 func TestClosingDayDatesEmptyOnInvertedWindow(t *testing.T) {
+	t.Parallel()
+
 	svc := NewClosingDayService(&mockClosingDayRepo{})
 
 	set, err := svc.ClosingDayDates(context.Background(), timezone.NewDate(2026, 8, 3), timezone.NewDate(2026, 8, 1))
@@ -93,6 +99,8 @@ func TestClosingDayDatesEmptyOnInvertedWindow(t *testing.T) {
 }
 
 func TestClosingDayDatesPropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := NewClosingDayService(&mockClosingDayRepo{err: errors.New("boom")})
 
 	_, err := svc.ClosingDayDates(context.Background(), timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 3))
@@ -100,6 +108,8 @@ func TestClosingDayDatesPropagatesRepoError(t *testing.T) {
 }
 
 func TestClosingDayCreateRejectsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc := NewClosingDayService(&mockClosingDayRepo{})
 
 	err := svc.Create(context.Background(), closingRange(timezone.NewDate(2026, 8, 7), timezone.NewDate(2026, 8, 1), "Verkehrt"))
@@ -135,6 +145,8 @@ func TestClosingDayCreateRejectsInvalid(t *testing.T) {
 }
 
 func TestClosingDayCreateWrapsRepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := NewClosingDayService(&mockClosingDayRepo{err: errors.New("boom")})
 	valid := closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), "Sommerschließung")
 
@@ -146,6 +158,8 @@ func TestClosingDayCreateWrapsRepoError(t *testing.T) {
 }
 
 func TestClosingDayUpdate(t *testing.T) {
+	t.Parallel()
+
 	valid := closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), "Sommerschließung")
 
 	require.NoError(t, NewClosingDayService(&mockClosingDayRepo{}).Update(context.Background(), valid))
@@ -160,6 +174,8 @@ func TestClosingDayUpdate(t *testing.T) {
 }
 
 func TestClosingDayDelete(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, NewClosingDayService(&mockClosingDayRepo{}).Delete(context.Background(), 1))
 
 	err := NewClosingDayService(&mockClosingDayRepo{err: errors.New("boom")}).Delete(context.Background(), 1)
@@ -168,6 +184,8 @@ func TestClosingDayDelete(t *testing.T) {
 }
 
 func TestClosingDayGetAll(t *testing.T) {
+	t.Parallel()
+
 	day := closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), "Sommerschließung")
 
 	days, err := NewClosingDayService(&mockClosingDayRepo{days: []*schedule.ClosingDay{day}}).GetAll(context.Background())
@@ -180,6 +198,8 @@ func TestClosingDayGetAll(t *testing.T) {
 }
 
 func TestClosingDayGetByID(t *testing.T) {
+	t.Parallel()
+
 	day := closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), "Sommerschließung")
 
 	got, err := NewClosingDayService(&mockClosingDayRepo{days: []*schedule.ClosingDay{day}}).GetByID(context.Background(), 1)
@@ -192,6 +212,8 @@ func TestClosingDayGetByID(t *testing.T) {
 }
 
 func TestClosingDaysInRange(t *testing.T) {
+	t.Parallel()
+
 	day := closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), "Sommerschließung")
 
 	days, err := NewClosingDayService(&mockClosingDayRepo{days: []*schedule.ClosingDay{day}}).ClosingDaysInRange(context.Background(), timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 31))

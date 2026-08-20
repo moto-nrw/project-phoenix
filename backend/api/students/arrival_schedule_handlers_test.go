@@ -21,9 +21,6 @@ func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
-	})
 
 	return staff.ID
 }
@@ -33,10 +30,11 @@ func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {
 // =============================================================================
 
 func TestGetStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "ArrivalGet", "Test", "AG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_empty_schedules", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
@@ -50,7 +48,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 
 	t.Run("success_returns_schedules_with_data", func(t *testing.T) {
 		studentWithData := testpkg.CreateTestStudent(t, tc.db, "ArrivalData", "Test", "AD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithData.ID)
 
 		arrivalTime := time.Date(2000, 1, 1, 7, 45, 0, 0, time.UTC)
 		notes := "Kommt mit Schwester"
@@ -61,7 +58,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Notes:           &notes,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_arrival_schedules").
 			Returning("id").
@@ -85,7 +82,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -122,7 +119,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		// remaining denial is an account without a staff record (guest,
 		// guardian) that merely holds users:read.
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrival-schedule-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, guest.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(guest.ID))
@@ -132,8 +128,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 	})
 
 	t.Run("staff_outside_the_group_may_read", func(t *testing.T) {
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrStaff")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
@@ -148,14 +143,14 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalSuccess", "Test", "AST1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrTeacher")
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -179,10 +174,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalEmpty", "Test", "AE1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "ArrTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "ArrTeacher")
 
 		arrivalTime := time.Date(2000, 1, 1, 7, 45, 0, 0, time.UTC)
 		schedule := &scheduleModel.StudentArrivalSchedule{
@@ -191,7 +184,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 			ExpectedArrival: arrivalTime,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_arrival_schedules").
 			Returning("id").
@@ -216,7 +209,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 	t.Run("bad_request_invalid_weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalWeekday", "Test", "AW1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -231,7 +223,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 	t.Run("bad_request_invalid_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalTime", "Test", "AT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -246,7 +237,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 	t.Run("bad_request_missing_time", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalNoTime", "Test", "ANT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -264,7 +254,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalForbidden", "Test", "AF1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrupdatestaff-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -284,14 +273,14 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcCreate", "Test", "AEC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ArrExcTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ArrExcTeacher")
 
 		body := map[string]any{
 			"exception_date":   "2026-03-15",
@@ -319,10 +308,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		// handler stamps the source explicitly (and bun also backfills the
 		// column default via RETURNING) — this guards both against regressing.
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcSrc", "Test", "AESRC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ArrExcTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ArrExcTeacher")
 
 		body := map[string]any{
 			"exception_date":   "2026-03-17",
@@ -345,10 +332,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 	t.Run("success_creates_absent_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcAbsent", "Test", "AEA1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absent", "ArrExcTeacher2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absent", "ArrExcTeacher2")
 
 		body := map[string]any{
 			"exception_date": "2026-03-16",
@@ -373,10 +358,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		// then staff create over a stale view. The create must fold into a staff
 		// override (reclaim) instead of colliding with the unique index.
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianArrivalExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianArrivalExc")
 
 		exceptionDate := timezone.NewDate(2026, 4, 17)
 		originalReason := "Parent arrival reason"
@@ -433,10 +416,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		// (empty) view. A STAFF-authored row must NOT be silently overwritten —
 		// refuse with a 409 so the client reloads and edits through the update path.
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffArrivalExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
 		exceptionDate := timezone.NewDate(2026, 4, 18)
 		originalReason := "Other staff arrival reason"
@@ -485,7 +466,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcNoDate", "Test", "AEND1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"expected_arrival": "09:00",
@@ -499,7 +479,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcBadDate", "Test", "AEBD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date":   "15-02-2026",
@@ -514,7 +493,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_invalid_arrival_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcBadTime", "Test", "AEBT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -529,7 +507,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_reason_too_long", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcLongReason", "Test", "AELR1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		longReason := make([]byte, 256)
 		for i := range longReason {
@@ -551,7 +528,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcForbidden", "Test", "AEF1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrexcstaff-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -571,14 +547,14 @@ func TestCreateStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdate", "Test", "AEU1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrExcTeacher3")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrExcTeacher3")
 
 		exceptionDate := timezone.NewDate(2026, 4, 15)
 		exceptionTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
@@ -590,7 +566,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -618,10 +594,8 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 
 	t.Run("success_reclaims_guardian_exception_for_staff", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianArrivalExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianArrivalExc")
 
 		exceptionDate := timezone.NewDate(2026, 4, 16)
 		originalReason := "Parent arrival reason"
@@ -671,7 +645,6 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateInvalid", "Test", "AEUI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -686,7 +659,6 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 
 	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateNF", "Test", "AEUNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -704,7 +676,6 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateForbid", "Test", "AEUF1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrupdateexcstaff-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -724,11 +695,12 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDelete", "Test", "AED1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		exceptionDate := timezone.NewDate(2026, 6, 15)
 		deleteReason := "To be deleted"
@@ -738,7 +710,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_arrival_exceptions").
 			Returning("id").
@@ -754,10 +726,8 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 
 	t.Run("success_deletes_guardian_exception", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianArrivalExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianArrivalExc")
 
 		exceptionDate := timezone.NewDate(2026, 6, 16)
 		arrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 08:15")
@@ -794,7 +764,6 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteInvalid", "Test", "AEDI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/invalid", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -804,7 +773,6 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 
 	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteNF", "Test", "AEDNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/999999", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -817,7 +785,6 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteForbid", "Test", "AEDF1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrdeleteexcstaff-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/1", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(guest.ID))
@@ -832,14 +799,14 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteCreate", "Test", "ANC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ArrNoteTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ArrNoteTeacher")
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
@@ -861,7 +828,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteNoDate", "Test", "ANND1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"content": "Test content",
@@ -875,7 +841,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteBadDate", "Test", "ANBD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "15-03-2026",
@@ -890,7 +855,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_missing_content", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteNoContent", "Test", "ANNC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
@@ -905,7 +869,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_content_too_long", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteLongContent", "Test", "ANLC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		longContent := make([]byte, 501)
 		for i := range longContent {
@@ -927,7 +890,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteForbidden", "Test", "ANF1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "arrnotestaff-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
@@ -946,14 +908,14 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdate", "Test", "ANU1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrNoteTeacher2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrNoteTeacher2")
 
 		noteDate := timezone.NewDate(2026, 4, 15)
 		note := &scheduleModel.StudentArrivalNote{
@@ -962,7 +924,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_arrival_notes").
 			Returning("id").
@@ -988,7 +950,6 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdateInvalid", "Test", "ANUI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-02-15",
@@ -1002,7 +963,6 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 
 	t.Run("not_found_nonexistent_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteUpdateNF", "Test", "ANUNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-02-15",
@@ -1020,11 +980,12 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDelete", "Test", "AND1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		noteDate := timezone.NewDate(2026, 6, 15)
 		note := &scheduleModel.StudentArrivalNote{
@@ -1033,7 +994,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 			Content:   "To be deleted",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_arrival_notes").
 			Returning("id").
@@ -1049,7 +1010,6 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDeleteInvalid", "Test", "ANDI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-notes/invalid", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -1059,7 +1019,6 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 
 	t.Run("not_found_nonexistent_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDeleteNF", "Test", "ANDNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-notes/999999", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -1073,6 +1032,8 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestBulkUpsertArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("bad_request_missing_filter", func(t *testing.T) {
@@ -1089,7 +1050,6 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 
 	t.Run("bad_request_with_class_and_group_filters", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "BulkArrivalBothFilters")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		body := map[string]any{
 			"school_class": "1a",
@@ -1144,10 +1104,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 
 	t.Run("success_with_valid_request", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkArrival", "Test", "BAR1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkArr", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkArr", "Teacher")
 
 		body := map[string]any{
 			"school_class": "BAR1",
@@ -1172,10 +1130,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "BulkArrivalHandlerGroup")
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkGroupArrival", "Test", "BGAR1")
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkGroupArr", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkGroupArr", "Teacher")
 
 		body := map[string]any{
 			"group_id": group.ID,
@@ -1193,10 +1149,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 	t.Run("success_with_explicit_student_ids", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, tc.db, "BulkExplicit1", "Test", "BE1")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "BulkExplicit2", "Test", "BE2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkExplicit", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkExplicit", "Teacher")
 
 		body := map[string]any{
 			"student_ids": []int64{student1.ID, student2.ID},
@@ -1217,6 +1171,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestGetBulkArrivalTimes(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
@@ -1257,7 +1213,6 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 	t.Run("success_with_valid_request", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, tc.db, "BulkArrTime1", "Student", "BAT1")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "BulkArrTime2", "Student", "BAT2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		body := map[string]any{
 			"student_ids": []int64{student1.ID, student2.ID},
@@ -1270,7 +1225,6 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 
 	t.Run("success_with_specific_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkArrDateTest", "Student", "BADT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
@@ -1296,10 +1250,11 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 // The note paths are covered explicitly: they carried no after-commit hook at
 // all before, so they are the easiest place for the wiring to be dropped again.
 func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")
 	claims := testutil.AdminTestClaims(int(account.ID))
 
 	sawArrivalBroadcast := func() bool {
@@ -1313,7 +1268,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("weekly_schedule_update", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Weekly", "AC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 		defer func() {
 			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalSchedule)(nil)).
 				ModelTableExpr("schedule.student_arrival_schedules").
@@ -1335,7 +1289,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("day_note_create", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Note", "AC2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 		defer func() {
 			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalNote)(nil)).
 				ModelTableExpr("schedule.student_arrival_notes").

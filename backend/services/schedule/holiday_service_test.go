@@ -25,6 +25,8 @@ func (m *holidayMockSettings) ResolveString(_ context.Context, key string) (stri
 }
 
 func TestHolidayServiceResolvesRegionFromSetting(t *testing.T) {
+	t.Parallel()
+
 	settings := &holidayMockSettings{region: "DE-SN"}
 	svc := NewHolidayService(settings, nil)
 
@@ -44,6 +46,8 @@ func TestHolidayServiceResolvesRegionFromSetting(t *testing.T) {
 }
 
 func TestHolidayServiceDates(t *testing.T) {
+	t.Parallel()
+
 	svc := NewHolidayService(&holidayMockSettings{region: "DE-NW"}, nil)
 
 	set, err := svc.HolidayDates(context.Background(),
@@ -55,6 +59,8 @@ func TestHolidayServiceDates(t *testing.T) {
 }
 
 func TestHolidayServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	_, err := NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, nil).
 		HolidayDates(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
 	assert.Error(t, err)

@@ -12,6 +12,8 @@ import (
 )
 
 func TestErrorRenderer_NotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -39,6 +41,8 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ConflictErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -65,6 +69,8 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ForbiddenErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -86,6 +92,8 @@ func TestErrorRenderer_ForbiddenErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_BadRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	actErr := &activities.ActivityError{Err: activities.ErrInvalidAttendanceStatus}
 	renderer := activitiesAPI.ErrorRenderer(actErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -95,6 +103,8 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownActivityError(t *testing.T) {
+	t.Parallel()
+
 	actErr := &activities.ActivityError{Err: errors.New("unknown error")}
 	renderer := activitiesAPI.ErrorRenderer(actErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -104,6 +114,8 @@ func TestErrorRenderer_UnknownActivityError(t *testing.T) {
 }
 
 func TestErrorRenderer_NonActivityError(t *testing.T) {
+	t.Parallel()
+
 	plainErr := errors.New("generic error")
 	renderer := activitiesAPI.ErrorRenderer(plainErr)
 	resp, ok := renderer.(*common.ErrResponse)

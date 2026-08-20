@@ -16,11 +16,15 @@ import (
 // subject so it still works for tenants that left the name blank.
 
 func TestDecisionSubject_EmptySchoolReturnsBareSubject(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Anmeldung bestätigt",
 		decisionSubject("Anmeldung bestätigt", ""))
 }
 
 func TestDecisionSubject_WithSchoolAppendsName(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Anmeldung bestätigt - OGS Sonnenschule",
 		decisionSubject("Anmeldung bestätigt", "OGS Sonnenschule"))
 }
@@ -49,6 +53,8 @@ func validDecisionRow(kind string) *platformModels.EmailOutbox {
 }
 
 func TestRenderDecisionMessage_RejectsMissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validDecisionRow("enrollment_approved")
 	delete(row.Payload, EnrollmentPayloadRecipientEmail)
 
@@ -58,6 +64,8 @@ func TestRenderDecisionMessage_RejectsMissingRecipient(t *testing.T) {
 }
 
 func TestRenderDecisionMessage_RejectsBlankRecipient(t *testing.T) {
+	t.Parallel()
+
 	row := validDecisionRow("enrollment_approved")
 	row.Payload[EnrollmentPayloadRecipientEmail] = ""
 
@@ -66,6 +74,8 @@ func TestRenderDecisionMessage_RejectsBlankRecipient(t *testing.T) {
 }
 
 func TestRenderDecisionMessage_RejectsMissingStatusURL(t *testing.T) {
+	t.Parallel()
+
 	row := validDecisionRow("enrollment_approved")
 	delete(row.Payload, EnrollmentPayloadStatusURL)
 
@@ -75,6 +85,8 @@ func TestRenderDecisionMessage_RejectsMissingStatusURL(t *testing.T) {
 }
 
 func TestRenderDecisionMessage_PopulatesAllContent(t *testing.T) {
+	t.Parallel()
+
 	row := validDecisionRow("enrollment_approved")
 	cfg := EmailRendererConfig{
 		DefaultFrom: email.NewEmail("moto noreply", "noreply@moto-app.de"),
@@ -97,6 +109,8 @@ func TestRenderDecisionMessage_PopulatesAllContent(t *testing.T) {
 }
 
 func TestRenderDecisionMessage_TolerantOfMissingOptionalFields(t *testing.T) {
+	t.Parallel()
+
 	// Only recipient + status_url are mandatory; everything else
 	// defaults to "" in the template. School-less tenants and
 	// status_reason-suppressed phases still need to render.
@@ -124,6 +138,8 @@ func TestRenderDecisionMessage_TolerantOfMissingOptionalFields(t *testing.T) {
 // subject + template to guard against future copy-paste swaps.
 
 func TestNewEnrollmentApprovedRenderer_UsesApprovedSubjectAndTemplate(t *testing.T) {
+	t.Parallel()
+
 	r := NewEnrollmentApprovedRenderer(EmailRendererConfig{})
 	msg, err := r(context.Background(), validDecisionRow("enrollment_approved"))
 	require.NoError(t, err)
@@ -132,6 +148,8 @@ func TestNewEnrollmentApprovedRenderer_UsesApprovedSubjectAndTemplate(t *testing
 }
 
 func TestNewEnrollmentWaitlistedRenderer_UsesWaitlistedSubjectAndTemplate(t *testing.T) {
+	t.Parallel()
+
 	r := NewEnrollmentWaitlistedRenderer(EmailRendererConfig{})
 	msg, err := r(context.Background(), validDecisionRow("enrollment_waitlisted"))
 	require.NoError(t, err)
@@ -140,6 +158,8 @@ func TestNewEnrollmentWaitlistedRenderer_UsesWaitlistedSubjectAndTemplate(t *tes
 }
 
 func TestNewEnrollmentRejectedRenderer_UsesRejectedSubjectAndTemplate(t *testing.T) {
+	t.Parallel()
+
 	r := NewEnrollmentRejectedRenderer(EmailRendererConfig{})
 	msg, err := r(context.Background(), validDecisionRow("enrollment_rejected"))
 	require.NoError(t, err)
@@ -148,6 +168,8 @@ func TestNewEnrollmentRejectedRenderer_UsesRejectedSubjectAndTemplate(t *testing
 }
 
 func TestNewEnrollmentDecisionDigestRenderer_PopulatesStatusBuckets(t *testing.T) {
+	t.Parallel()
+
 	row := validDecisionRow(platformModels.EmailKindEnrollmentDecisionDigest)
 	row.Payload["approved_names"] = []any{"Lara"}
 	row.Payload["waitlisted_names"] = []string{"Tim"}

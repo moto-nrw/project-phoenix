@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -24,6 +26,7 @@ import (
 )
 
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestParseAllowedOrigins(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -103,6 +106,7 @@ func TestParseAllowedOrigins(t *testing.T) {
 }
 
 // TestParsePositiveInt tests the parsePositiveInt function
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestParsePositiveInt(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -194,6 +198,8 @@ func TestParsePositiveInt(t *testing.T) {
 
 // TestParsePositiveInt_DifferentDefaults tests parsePositiveInt with various default values
 func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		defaultValue int
@@ -215,8 +221,9 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 }
 
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	api := &API{
@@ -234,6 +241,8 @@ func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
+	t.Parallel()
+
 	router := chi.NewRouter()
 	router.Use(chimiddleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
@@ -252,9 +261,9 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	api := &API{
@@ -319,6 +328,7 @@ func rateLimitRequest(token string) *http.Request {
 	return req
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -338,6 +348,7 @@ func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 	assert.Equal(t, keyFunc(rateLimitRequest(sessionA)), keyFunc(rateLimitRequest(sessionB)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -354,6 +365,7 @@ func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 		"a refresh token presented as bearer must land in the same account bucket")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -364,6 +376,7 @@ func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -375,6 +388,7 @@ func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 		"a tenant switch mints a new tenant_id and gets its own budget")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -393,6 +407,7 @@ func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 	assert.Len(t, keys, 3, "tenant, platform, and parent scopes must have distinct keys")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -409,12 +424,14 @@ func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	assert.NotContains(t, key, "Doe")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("not-a-real-token")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
 	// IoT devices send an opaque API key as bearer token. It is not a JWT and
 	// cannot be verified here, so device requests must stay on IP limiting —
@@ -424,12 +441,14 @@ func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("phx_3f9c2d1a8b7e6f5a4d3c2b1a")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_MissingHeaderFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("")))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -443,6 +462,7 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 	otherAuth, err := jwt.NewTokenAuthWithSecret("a-completely-different-32char-key!!")
@@ -454,6 +474,7 @@ func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 		"a token signed with the wrong secret must not produce an identity key")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
 	// MFA challenge/enrollment tokens carry account_id + a pending flag but
 	// no "id" claim — they must fall back to IP limiting.
@@ -474,6 +495,7 @@ func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
 // into the real limiter middleware and asserts the #2064 acceptance
 // criteria end to end: two valid sessions of one identity drain ONE budget,
 // while a different account and unauthenticated IP traffic stay unaffected.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -523,6 +545,7 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 // TestRateLimiting_ConcurrentSessionsShareBudget hammers one identity from
 // two sessions in parallel (run with -race in CI) and asserts the combined
 // allowance equals exactly one burst — no per-session multiplication.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 	tokenAuth := rateLimitTestAuth(t)
 
@@ -569,8 +592,9 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 // registered in initializeAPIResources triggers WC infrastructure creation
 // when checkout.wc_enabled is set to true.
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -598,8 +622,9 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 // TestOnValueSetCallback_SchulhofEnabled tests that the callback triggers
 // Schulhof infrastructure creation when checkout.schulhof_enabled is set to true.
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -625,8 +650,9 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 // TestOnValueSetCallback_FalseValueSkipsInfrastructure tests that setting
 // a checkout setting to false does not trigger infrastructure creation.
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -674,8 +700,9 @@ func adminClaimsForCallback() jwt.AppClaims {
 // Empty subscribed-groups slice still receives BroadcastToAll events, which
 // is the path the post-commit closure uses.
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -694,7 +721,7 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, 1, nil)
+	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
 	router := a.Settings.SettingsRouter()
@@ -783,8 +810,9 @@ func drainEvents(ch chan realtime.Event) {
 // Asserts the photo toggle emits a tenant_settings_changed event whose
 // Source labels which key changed, on both enable and disable PUT paths.
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	a := &API{
@@ -800,7 +828,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, 1, nil)
+	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
 	router := a.Settings.SettingsRouter()

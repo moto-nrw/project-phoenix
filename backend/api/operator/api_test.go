@@ -50,6 +50,8 @@ func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, sc
 
 // TestNewResource verifies that the operator resource can be constructed successfully.
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates resource with nil services", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
 			AuthService:          nil,
@@ -86,6 +88,8 @@ func TestNewResource(t *testing.T) {
 
 // TestRouter verifies that the operator router can be constructed.
 func TestRouter(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates router successfully", func(t *testing.T) {
 		cfg := operator.ResourceConfig{}
 		resource := operator.NewResource(cfg)
@@ -147,6 +151,8 @@ func TestRouter(t *testing.T) {
 }
 
 func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
+	t.Parallel()
+
 	tokenAuth := newOperatorRouteTokenAuth(t)
 	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
 	authService := &mockOperatorAuthService{
@@ -178,6 +184,8 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 }
 
 func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
+	t.Parallel()
+
 	tokenAuth := newOperatorRouteTokenAuth(t)
 	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
 	organizationID := 7

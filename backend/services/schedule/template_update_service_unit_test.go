@@ -32,6 +32,8 @@ func (r *legacyWeekendCleanerTestRepo) DeletePlannedMaterializedWeekendInstances
 }
 
 func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
+	t.Parallel()
+
 	templateID := int64(921)
 	previous := []*activitiesModel.Schedule{
 		{Weekday: activitiesModel.WeekdayFriday},
@@ -91,6 +93,8 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 }
 
 func TestValidateLegacyTemplateWeekdays(t *testing.T) {
+	t.Parallel()
+
 	existing := []*activitiesModel.Schedule{
 		{Weekday: activitiesModel.WeekdayFriday},
 		{Weekday: activitiesModel.WeekdaySaturday},

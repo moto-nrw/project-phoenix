@@ -32,6 +32,8 @@ func savepointTestContext(t *testing.T) (context.Context, sqlmock.Sqlmock) {
 }
 
 func TestWithSavepoint_SuccessReleases(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := savepointTestContext(t)
 	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -48,6 +50,8 @@ func TestWithSavepoint_SuccessReleases(t *testing.T) {
 }
 
 func TestWithSavepoint_OperationErrorRollsBackAndRemainsOrdinary(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := savepointTestContext(t)
 	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -62,6 +66,8 @@ func TestWithSavepoint_OperationErrorRollsBackAndRemainsOrdinary(t *testing.T) {
 }
 
 func TestWithSavepoint_OperationErrorDiscardsOnlyNewAfterCommitHooks(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := savepointTestContext(t)
 	ctx, drain := tenant.WithAfterCommitHooksForTest(ctx)
 	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -84,6 +90,8 @@ func TestWithSavepoint_OperationErrorDiscardsOnlyNewAfterCommitHooks(t *testing.
 }
 
 func TestWithSavepoint_ControlFailuresAreFatal(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing transaction", func(t *testing.T) {
 		called := false
 		err := tenant.WithSavepoint(context.Background(), func(context.Context) error {

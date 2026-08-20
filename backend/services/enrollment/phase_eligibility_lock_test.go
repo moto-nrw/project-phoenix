@@ -37,6 +37,8 @@ func lockRecordingSettings(lockErr error) (*configtest.Mock, *int) {
 }
 
 func TestEnsureEligibleClassesCollectable_TakesSharedLock(t *testing.T) {
+	t.Parallel()
+
 	t.Run("acquires the lock before reading the toggles", func(t *testing.T) {
 		settings, calls := lockRecordingSettings(nil)
 
@@ -65,6 +67,8 @@ func TestEnsureEligibleClassesCollectable_TakesSharedLock(t *testing.T) {
 }
 
 func TestEnsureEligibleGradeLevelsCollectable_TakesSharedLock(t *testing.T) {
+	t.Parallel()
+
 	t.Run("acquires the lock before reading the grade toggle", func(t *testing.T) {
 		settings, calls := lockRecordingSettings(nil)
 
@@ -101,6 +105,8 @@ func (locklessSettings) ResolveBool(context.Context, string) (bool, error) { ret
 func (locklessSettings) ResolveInt(context.Context, string) (int, error)   { return 4, nil }
 
 func TestEligibilityGuards_LockIsOptional(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, ensureEligibleClassesCollectable(context.Background(), locklessSettings{}, []string{"3a"}))
 	require.NoError(t, ensureEligibleGradeLevelsCollectable(context.Background(), locklessSettings{}, []int{3}))
 }
@@ -108,6 +114,8 @@ func TestEligibilityGuards_LockIsOptional(t *testing.T) {
 // The guards must still reject the pair they exist to catch — a lock that is
 // taken but a toggle that is off is a real invalid phase (400), not a 500.
 func TestEligibilityGuards_RejectUncollectableRestriction(t *testing.T) {
+	t.Parallel()
+
 	offSettings := &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			return key != configModel.KeyEnrollmentCollectSchoolClass, nil

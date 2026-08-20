@@ -53,16 +53,15 @@ func clearStoredCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // Tuesday edge loses its basis and must be dropped, symmetrically, while the
 // Monday edge survives.
 func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -98,16 +97,15 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 // link, so all edges go — legal here because the far child still carries the
 // free-text note that answers "mit wem".
 func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
@@ -134,16 +132,15 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 // the Tuesday edge is being dropped, so the update is refused even though the
 // pair stays linked.
 func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
@@ -178,16 +175,15 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 // inside an open batch the verdict is deferred and decided against the final
 // plans, where nobody claims "Anderes Kind" anymore.
 func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
-	defer cleanupStudentCompanions(t, db, first.ID, second.ID)
 
 	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
@@ -223,16 +219,15 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 // no note and no remaining link still refuses the whole coordinated edit — just
 // at the batch verdict instead of at the individual write.
 func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
@@ -261,16 +256,15 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 // like the service-level removal check — instead of silently leaving that
 // child with a self-contradicting plan.
 func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
-	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")

@@ -25,7 +25,7 @@ func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
 		return
 	}
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Remove account-role mappings first
 	_, _ = db.NewDelete().
@@ -60,11 +60,12 @@ func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
 // ============================================================================
 
 func TestRoleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates role with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestRole-%d", time.Now().UnixNano())
@@ -98,11 +99,12 @@ func TestRoleRepository_Create(t *testing.T) {
 }
 
 func TestRoleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByID")
@@ -121,11 +123,12 @@ func TestRoleRepository_FindByID(t *testing.T) {
 }
 
 func TestRoleRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds role by exact name", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByName")
@@ -143,11 +146,12 @@ func TestRoleRepository_FindByName(t *testing.T) {
 }
 
 func TestRoleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates role description", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "Update")
@@ -164,11 +168,12 @@ func TestRoleRepository_Update(t *testing.T) {
 }
 
 func TestRoleRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "Delete")
@@ -186,11 +191,12 @@ func TestRoleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRoleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all roles", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "List")
@@ -203,11 +209,12 @@ func TestRoleRepository_List(t *testing.T) {
 }
 
 func TestRoleRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds roles assigned to account", func(t *testing.T) {
 		// Create account and role
@@ -218,8 +225,8 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 
 		// Assign role to account using direct DB insert (repo method deprecated)
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// Find roles
@@ -253,20 +260,22 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		defer testpkg.CleanupRoleRecords(t, db, roleTenant1.ID, roleTenant2.ID)
 		defer cleanupAccountRecords(t, db, account.ID)
 
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 2)
+		otherTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, db, otherTenantID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+		testpkg.EnsureAccountTenant(t, db, account.ID, otherTenantID)
 
 		_, err := db.ExecContext(context.Background(),
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1), (?, ?, 2)",
-			account.ID, roleTenant1.ID, account.ID, roleTenant2.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)",
+			account.ID, roleTenant1.ID, testpkg.Tenant(t), account.ID, roleTenant2.ID, otherTenantID)
 		require.NoError(t, err)
 
-		rolesTenant1, err := repo.FindByAccountID(testpkg.TenantContext(1), account.ID)
+		rolesTenant1, err := repo.FindByAccountID(testpkg.Ctx(t), account.ID)
 		require.NoError(t, err)
 		require.Len(t, rolesTenant1, 1)
 		assert.Equal(t, roleTenant1.ID, rolesTenant1[0].ID)
 
-		rolesTenant2, err := repo.FindByAccountID(testpkg.TenantContext(2), account.ID)
+		rolesTenant2, err := repo.FindByAccountID(testpkg.TenantContext(otherTenantID), account.ID)
 		require.NoError(t, err)
 		require.Len(t, rolesTenant2, 1)
 		assert.Equal(t, roleTenant2.ID, rolesTenant2[0].ID)
@@ -282,11 +291,12 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 // These tests verify the deprecated methods return appropriate errors.
 
 func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "assign")
@@ -301,11 +311,12 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 }
 
 func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove")
@@ -324,11 +335,12 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 // ============================================================================
 
 func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns role names for multiple accounts", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "batch_role_1")
@@ -340,8 +352,8 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 
 		// Assign roles
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1), (?, ?, 1)",
-			account1.ID, role1.ID, account2.ID, role2.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)",
+			account1.ID, role1.ID, testpkg.Tenant(t), account2.ID, role2.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account1.ID, account2.ID})
@@ -375,12 +387,12 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 
 		// Assign two roles — first inserted should be returned (ORDER BY created_at ASC)
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role1.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role1.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 		_, err = db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role2.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role2.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account.ID})
@@ -397,8 +409,8 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 
 		// Assign role to tenant 1
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
-			account.ID, role.ID)
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// Query with tenant 1 context — should find it
@@ -406,8 +418,8 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, role.Name, result[account.ID])
 
-		// Query with tenant 2 context — should not find it
-		ctx2 := testpkg.TenantContext(2)
+		// Query from another tenant — should not find it
+		ctx2 := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))
 		result2, err := repo.FindRoleNamesByAccountIDs(ctx2, []int64{account.ID})
 		require.NoError(t, err)
 		assert.Empty(t, result2)

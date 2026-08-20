@@ -33,7 +33,7 @@ func pickupTimeService(t *testing.T, env *decisionTestEnv) enrollmentService.Off
 
 func createPickupTimeOffering(t *testing.T, env *decisionTestEnv, name string, days []string, times map[string]string) *enrollmentModels.CareOffering {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName(name + "-" + t.Name()),
@@ -42,7 +42,7 @@ func createPickupTimeOffering(t *testing.T, env *decisionTestEnv, name string, d
 		PickupTimes:    times,
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
@@ -55,7 +55,7 @@ func createPickupTimeOffering(t *testing.T, env *decisionTestEnv, name string, d
 
 func pickupRowsByWeekday(t *testing.T, env *decisionTestEnv, studentID int64) map[int]*scheduleModels.StudentPickupSchedule {
 	t.Helper()
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(testpkg.TenantContext(1), studentID)
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(testpkg.Ctx(t), studentID)
 	require.NoError(t, err)
 	out := make(map[int]*scheduleModels.StudentPickupSchedule, len(rows))
 	for _, row := range rows {
@@ -65,10 +65,12 @@ func pickupRowsByWeekday(t *testing.T, env *decisionTestEnv, studentID int64) ma
 }
 
 func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-basic",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30"})
@@ -91,10 +93,12 @@ func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-overwrite",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -123,10 +127,12 @@ func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
 }
 
 func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-preview",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -158,10 +164,12 @@ func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	early := createPickupTimeOffering(t, env, "gehzeit-early",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -182,10 +190,12 @@ func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_UnrelatedOfferingDoesNotOverwriteStaffTime(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	timed := createPickupTimeOffering(t, env, "gehzeit-related",
 		[]string{"mon"}, map[string]string{"mon": "16:00"})
@@ -207,10 +217,12 @@ func TestOfferingPickupRollout_UnrelatedOfferingDoesNotOverwriteStaffTime(t *tes
 }
 
 func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	current := createPickupTimeOffering(t, env, "gehzeit-current-rollout",
 		[]string{"mon"}, map[string]string{"mon": "13:30"})
@@ -248,9 +260,11 @@ func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *tes
 }
 
 func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	current := createPickupTimeOffering(t, env, "gehzeit-current",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -289,10 +303,12 @@ func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.
 }
 
 func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-stale",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30"})
@@ -327,9 +343,11 @@ func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T)
 }
 
 func TestOfferingPickupReset_RestoresOfferingTimeOrDeletes(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-reset",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30"})
@@ -370,8 +388,8 @@ func attachOfferingLink(t *testing.T, env *decisionTestEnv, requestChildID, offe
 		CareOfferingID: offeringID,
 		SelectedDays:   days,
 	}
-	link.SetTenantID(1)
-	require.NoError(t, env.repos.RequestChildOffering.Create(testpkg.TenantContext(1), link))
+	link.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, env.repos.RequestChildOffering.Create(testpkg.Ctx(t), link))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.request_child_offerings").
@@ -381,16 +399,17 @@ func attachOfferingLink(t *testing.T, env *decisionTestEnv, requestChildID, offe
 }
 
 func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 
-	ctx := testpkg.TenantContext(1)
+	testpkg.Ctx(t)
 	offering := createPickupTimeOffering(t, env, "gehzeit-approve",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Materialisiert")
 	studentID := submitAndApproveWithReviewer(t, env, offering.ID, "gehzeit-approve@example.com", "Appa", reviewerAccount.ID, nil)
-	_ = ctx
 
 	rows := pickupRowsByWeekday(t, env, studentID)
 	require.Contains(t, rows, scheduleModels.WeekdayMonday,
@@ -402,6 +421,8 @@ func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
 }
 
 func TestDecisionApproval_FuturePhaseDefersOfferingPickupMaterialization(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
@@ -416,6 +437,8 @@ func TestDecisionApproval_FuturePhaseDefersOfferingPickupMaterialization(t *test
 }
 
 func TestDecisionApproval_CurrentPhaseMaterializesOfferingPickupWithoutReviewer(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -431,20 +454,21 @@ func TestDecisionApproval_CurrentPhaseMaterializesOfferingPickupWithoutReviewer(
 }
 
 func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
 	offering := createPickupTimeOffering(t, env, "gehzeit-form",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
-	reviewerStaff, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Gehzeit")
-	_ = reviewerStaff
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Gehzeit")
 
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Form",
@@ -494,10 +518,10 @@ func submitAndApproveWithReviewer(
 	customData map[string]any,
 ) int64 {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	grade := int16(2)
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Gehzeit",
@@ -533,10 +557,12 @@ func submitAndApproveWithReviewer(
 }
 
 func TestUpdateChildOfferings_ReconcilesOfferingPickupRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	timed := createPickupTimeOffering(t, env, "gehzeit-adjust-timed",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
@@ -575,6 +601,6 @@ func childIDForStudent(t *testing.T, env *decisionTestEnv, studentID int64) int6
 		Where(`"request_child".created_student_id = ?`, studentID).
 		OrderExpr(`"request_child".id DESC`).
 		Limit(1).
-		Scan(testpkg.TenantContext(1), &childID))
+		Scan(testpkg.Ctx(t), &childID))
 	return childID
 }

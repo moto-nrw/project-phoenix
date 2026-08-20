@@ -19,11 +19,12 @@ import (
 // (staff, room) projection that replaces the per-staff FindActiveByStaffID plus
 // GetActiveGroupsByIDs walk.
 func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkSupervisedRoom")
 	otherRoom := testpkg.CreateTestRoom(t, db, "BulkSupervisedRoomOther")
@@ -44,14 +45,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	require.NoError(t, err)
 
 	openSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	closedSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openSupervision.ID, closedSupervision.ID,
-		openGroup.ID, closedGroup.ID,
-		activityGroup.ID, room.ID, otherRoom.ID,
-	)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
 
 	t.Run("returns the room of an open supervised session", func(t *testing.T) {
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
@@ -104,7 +98,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
 		today := timezone.TodayDate()
-		err := tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, tx bun.Tx) error {
+		err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string
@@ -162,7 +156,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("does not leak another tenant's supervisions", func(t *testing.T) {
-		const otherTenant int64 = 99042
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignRoom := testpkg.CreateTestRoomForTenant(t, db, otherTenant, "ForeignSupervisedRoom")
@@ -183,10 +177,6 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		defer testpkg.CleanupActivityFixturesForTenant(t, db, otherTenant,
-			foreignSupervision.ID, foreignGroup.ID, foreignActivity.ID, foreignRoom.ID)
-		defer testpkg.CleanupStaffFixtures(t, db, foreignStaff.ID)
-
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
 		require.NoError(t, err)
 
@@ -200,11 +190,12 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 // TestVisitRepository_ListOpenVisitStudentIDsByRoom pins the whole-tenant
 // room -> present students projection that replaces the per-room query loop.
 func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkVisitRoom")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "BulkVisitActivity")
@@ -215,13 +206,8 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 
 	entry := time.Now().Add(-time.Hour)
 	exit := time.Now().Add(-10 * time.Minute)
-	openVisit := testpkg.CreateTestVisit(t, db, present.ID, openGroup.ID, entry, nil)
-	closedVisit := testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openVisit.ID, closedVisit.ID, openGroup.ID, activityGroup.ID, room.ID,
-		present.ID, departed.ID,
-	)
+	testpkg.CreateTestVisit(t, db, present.ID, openGroup.ID, entry, nil)
+	testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
 
 	t.Run("groups open visits by room and drops checked-out children", func(t *testing.T) {
 		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)

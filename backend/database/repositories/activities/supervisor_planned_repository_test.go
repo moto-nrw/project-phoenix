@@ -19,13 +19,13 @@ import (
 func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimary bool) *activities.SupervisorPlanned {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	supervisor := &activities.SupervisorPlanned{
 		StaffID:   staffID,
 		GroupID:   groupID,
 		IsPrimary: isPrimary,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -41,17 +41,16 @@ func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimar
 // ============================================================================
 
 func TestSupervisorPlannedRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates supervisor with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := &activities.SupervisorPlanned{
 			StaffID:   staff.ID,
@@ -63,14 +62,11 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, supervisor.ID)
 
-		testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 	})
 
 	t.Run("creates primary supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
 		group := testpkg.CreateTestActivityGroup(t, db, "PrimaryGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := &activities.SupervisorPlanned{
 			StaffID:   staff.ID,
@@ -82,16 +78,16 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, supervisor.IsPrimary)
 
-		testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 	})
 }
 
 func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -101,20 +97,18 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)
@@ -129,20 +123,18 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisor primary status", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		supervisor.IsPrimary = true
 		err := repo.Update(ctx, supervisor)
@@ -155,11 +147,12 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -169,17 +162,16 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
 
@@ -192,27 +184,21 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Supervisor")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Supervisor")
 	groupA := testpkg.CreateTestActivityGroup(t, db, "DelByStaffA")
 	groupB := testpkg.CreateTestActivityGroup(t, db, "DelByStaffB")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, groupA.CategoryID, 0)
-	defer testpkg.CleanupActivityFixtures(t, db, 0, otherStaff.ID, 0, groupB.CategoryID, 0)
-	defer testpkg.CleanupTableRecords(t, db, "activities.groups", groupA.ID)
-	defer testpkg.CleanupTableRecords(t, db, "activities.groups", groupB.ID)
 
-	supA := createSupervisor(t, db, staff.ID, groupA.ID, true)
-	supB := createSupervisor(t, db, staff.ID, groupB.ID, false)
-	supOther := createSupervisor(t, db, otherStaff.ID, groupA.ID, false)
-	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supA.ID)
-	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supB.ID)
-	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supOther.ID)
+	createSupervisor(t, db, staff.ID, groupA.ID, true)
+	createSupervisor(t, db, staff.ID, groupB.ID, false)
+	createSupervisor(t, db, otherStaff.ID, groupA.ID, false)
 
 	affected, err := repo.DeleteByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
@@ -232,21 +218,18 @@ func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorPlannedRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all supervisors", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
+		createSupervisor(t, db, staff.ID, group.ID, false)
 
 		supervisors, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -255,25 +238,22 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
+	t.Parallel()
+
 	// Skip: FindByStaffID method tries to load Group relation which doesn't exist or has schema issues
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by staff ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Staff", "MultiGroup")
 		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1")
 		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group1.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group2.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
 
 		supervisor1 := createSupervisor(t, db, staff.ID, group1.ID, true)
 		supervisor2 := createSupervisor(t, db, staff.ID, group2.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
 
 		supervisors, err := repo.FindByStaffID(ctx, staff.ID)
 		require.NoError(t, err)
@@ -291,7 +271,6 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 
 	t.Run("returns empty for staff with no groups", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		supervisors, err := repo.FindByStaffID(ctx, staff.ID)
 		require.NoError(t, err)
@@ -300,23 +279,20 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by group ID with loaded relations", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		group := testpkg.CreateTestActivityGroup(t, db, "MultiSupervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, 0, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor1 := createSupervisor(t, db, staff1.ID, group.ID, true)
 		supervisor2 := createSupervisor(t, db, staff2.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
 
 		supervisors, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -345,8 +321,6 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 
 	t.Run("returns empty for group with no supervisors", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisors, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -355,24 +329,21 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors for multiple groups", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "Multi2", "Staff")
 		group1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup1")
 		group2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup2")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group1.CategoryID, 0)
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, group2.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
 
 		supervisor1 := createSupervisor(t, db, staff1.ID, group1.ID, true)
 		supervisor2 := createSupervisor(t, db, staff2.ID, group2.ID, true)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
 
 		supervisors, err := repo.FindByGroupIDs(ctx, []int64{group1.ID, group2.ID})
 		require.NoError(t, err)
@@ -407,20 +378,18 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "SetPrimary", "Test")
 		group := testpkg.CreateTestActivityGroup(t, db, "SetPrimaryGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		err := repo.SetPrimary(ctx, supervisor.ID)
 		require.NoError(t, err)
@@ -436,11 +405,12 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorPlannedRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent supervisor", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

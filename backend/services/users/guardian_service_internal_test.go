@@ -95,6 +95,8 @@ func (f *fakePersonRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]
 // --- unexported helpers ----------------------------------------------------
 
 func TestSameInt64Set(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		a, b []int64
@@ -115,6 +117,8 @@ func TestSameInt64Set(t *testing.T) {
 }
 
 func TestIsGuardianUniqueViolation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil error is not a violation", func(t *testing.T) {
 		assert.False(t, base.IsUniqueViolation(nil))
 	})
@@ -132,6 +136,8 @@ func TestIsGuardianUniqueViolation(t *testing.T) {
 // --- forced-failure service branches ---------------------------------------
 
 func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
+	t.Parallel()
+
 	email := "new-guardian@example.com"
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
 
@@ -161,6 +167,8 @@ func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 }
 
 func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
+	t.Parallel()
+
 	email := "edited@example.com"
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
 
@@ -194,6 +202,8 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
+	t.Parallel()
+
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
 	}},
@@ -204,6 +214,8 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
+	t.Parallel()
+
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return nil },
 	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
@@ -218,6 +230,8 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
+	t.Parallel()
+
 	link := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	link.ID = 5
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
@@ -239,6 +253,8 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 }
 
 func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
+	t.Parallel()
+
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
 	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
@@ -257,6 +273,8 @@ func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
 }
 
 func TestGetGuardianDeleteImpact_NilPersonIsRejected(t *testing.T) {
+	t.Parallel()
+
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
 	student := &users.Student{PersonID: 9}

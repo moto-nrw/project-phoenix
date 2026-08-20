@@ -18,16 +18,15 @@ import (
 // ============================================================================
 
 func TestWorkSessionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates work session with valid data", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -41,10 +40,10 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, session.ID)
 
-		testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 	})
 
 	t.Run("creates work session with home office status", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -59,7 +58,6 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 		assert.NotZero(t, session.ID)
 		assert.Equal(t, active.WorkSessionStatusHomeOffice, session.Status)
 
-		testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 	})
 
 	t.Run("create with nil session should fail", func(t *testing.T) {
@@ -69,6 +67,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -88,16 +87,15 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing session by staff and date", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -108,7 +106,6 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
 		require.NoError(t, err)
@@ -117,6 +114,7 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent session", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		_, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
 		require.Error(t, err)
@@ -124,16 +122,15 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active session for staff today", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -144,7 +141,6 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		found, err := repo.GetCurrentByStaffID(ctx, staff.ID)
 		require.NoError(t, err)
@@ -153,11 +149,13 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	})
 
 	t.Run("returns error when no active session exists", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		_, err := repo.GetCurrentByStaffID(ctx, staff.ID)
 		require.Error(t, err)
 	})
 
 	t.Run("ignores checked-out sessions", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		checkOutTime := time.Now()
 		session := &active.WorkSession{
@@ -170,7 +168,6 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		_, err = repo.GetCurrentByStaffID(ctx, staff.ID)
 		require.Error(t, err) // Should not find checked-out session
@@ -178,16 +175,15 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns sessions in date range", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		yesterday := today.AddDays(-1)
 		twoDaysAgo := today.AddDays(-2)
@@ -212,10 +208,6 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, session2)
 		require.NoError(t, err)
-		defer func() {
-			testpkg.CleanupTableRecords(t, db, "active.work_sessions", session1.ID)
-			testpkg.CleanupTableRecords(t, db, "active.work_sessions", session2.ID)
-		}()
 
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, twoDaysAgo, today)
 		require.NoError(t, err)
@@ -223,6 +215,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	})
 
 	t.Run("returns empty for date range with no sessions", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		futureDate := timezone.TodayDate().AddDays(365)
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
@@ -231,11 +224,13 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	today := timezone.TodayDate()
 
 	_, err := repo.GetHistoryByStaffID(ctx, 7, today, today)
@@ -244,16 +239,15 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 }
 
 func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds sessions without check-out before date", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		yesterday := timezone.TodayDate().AddDays(-1)
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -264,7 +258,6 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayDate())
 		require.NoError(t, err)
@@ -281,6 +274,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 	})
 
 	t.Run("excludes sessions with check-out time", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		yesterday := timezone.TodayDate().AddDays(-1)
 		checkOutTime := time.Now().AddDate(0, 0, -1).Add(4 * time.Hour)
 		session := &active.WorkSession{
@@ -293,7 +287,6 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayDate())
 		require.NoError(t, err)
@@ -305,31 +298,29 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.GetOpenSessions(testpkg.TenantContext(1), timezone.TodayDate())
+	_, err := repo.GetOpenSessions(testpkg.Ctx(t), timezone.TodayDate())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get open sessions")
 }
 
 func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
-	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID)
-		testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID)
-	}()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns presence map for today", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
+		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		today := timezone.TodayDate()
 
 		// Active session
@@ -356,10 +347,6 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, session2)
 		require.NoError(t, err)
-		defer func() {
-			testpkg.CleanupTableRecords(t, db, "active.work_sessions", session1.ID)
-			testpkg.CleanupTableRecords(t, db, "active.work_sessions", session2.ID)
-		}()
 
 		presenceMap, err := repo.GetTodayPresenceMap(ctx)
 		require.NoError(t, err)
@@ -369,16 +356,15 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 }
 
 func TestWorkSessionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all work sessions", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -389,7 +375,6 @@ func TestWorkSessionRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		sessions, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -397,6 +382,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with query options", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -407,7 +393,6 @@ func TestWorkSessionRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -419,12 +404,14 @@ func TestWorkSessionRepository_List(t *testing.T) {
 }
 
 func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.List(testpkg.TenantContext(1), nil)
+	_, err := repo.List(testpkg.Ctx(t), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list")
 }
@@ -434,16 +421,15 @@ func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates break minutes", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:      staff.ID,
@@ -455,7 +441,6 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		err = repo.UpdateBreakMinutes(ctx, session.ID, 30)
 		require.NoError(t, err)
@@ -466,6 +451,7 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 	})
 
 	t.Run("does not update sessions outside the tenant", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		otherTenant := testpkg.NewTenantScope(t, db)
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
@@ -478,7 +464,6 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		err = repo.UpdateBreakMinutes(otherTenant.Context(), session.ID, 45)
 		require.Error(t, err)
@@ -490,27 +475,28 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 }
 
 func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	err := repo.UpdateBreakMinutes(testpkg.TenantContext(1), 1, 30)
+	err := repo.UpdateBreakMinutes(testpkg.Ctx(t), 1, 30)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "update columns")
 }
 
 func TestWorkSessionRepository_CloseSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("closes session with check-out time", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -521,7 +507,6 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		checkOutTime := time.Now()
 		didClose, err := repo.CloseSession(ctx, session.ID, checkOutTime, false)
@@ -535,6 +520,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	})
 
 	t.Run("closes session with auto-checkout flag", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
@@ -545,7 +531,6 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		checkOutTime := time.Now()
 		didClose, err := repo.CloseSession(ctx, session.ID, checkOutTime, true)
@@ -559,6 +544,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	})
 
 	t.Run("does not close already closed session", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		firstCheckOut := time.Now()
 		session := &active.WorkSession{
@@ -571,7 +557,6 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		// Try to close again - should be no-op due to WHERE clause
 		newCheckOut := time.Now()
@@ -588,12 +573,14 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 }
 
 func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
 	repo := repositories.NewFactory(db).WorkSession
 
-	_, err := repo.CloseSession(testpkg.TenantContext(1), 1, time.Now(), false)
+	_, err := repo.CloseSession(testpkg.Ctx(t), 1, time.Now(), false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close session")
 }

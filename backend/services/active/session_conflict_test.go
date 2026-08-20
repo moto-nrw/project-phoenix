@@ -120,15 +120,12 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 // 2. Perform operations using real IDs
 // 3. Clean up after the test
 func TestActivitySessionConflictDetection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("no conflict when activity not active", func(t *testing.T) {
 		// ARRANGE: Create test fixtures with real database records
@@ -136,8 +133,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "test-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 1")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Check for conflicts - should be none
 		conflict, err := service.CheckActivityConflict(ctx, activityGroup.ID, device.ID)
@@ -162,8 +157,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		device2 := testpkg.CreateTestDevice(t, db, "test-device-003")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 2")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID, staff.ID)
 
 		// ACT: Start session on device 1
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{staff.ID}, &room.ID)
@@ -192,8 +185,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Test Room 3")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, device.ID, room.ID, staff.ID)
-
 		// ACT: Start session for activity 1 on device
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -212,8 +203,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "test-device-005")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 4")
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start initial session on device
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -243,8 +232,6 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Test Room 5")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
-
 		// ACT: Start session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
@@ -273,15 +260,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 // TestSessionLifecycle tests the basic session lifecycle
 // Demonstrates hermetic test pattern with fixture creation and cleanup
 func TestSessionLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("complete session lifecycle", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -289,8 +273,6 @@ func TestSessionLifecycle(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "test-device-008")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 6")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -330,6 +312,8 @@ func TestSessionLifecycle(t *testing.T) {
 
 // TestConflictInfoStructure tests the conflict information structure
 func TestConflictInfoStructure(t *testing.T) {
+	t.Parallel()
+
 	// Test that ActivityConflictInfo struct has expected fields
 	conflictInfo := &activeSvc.ActivityConflictInfo{
 		HasConflict:      true,
@@ -346,6 +330,8 @@ func TestConflictInfoStructure(t *testing.T) {
 
 // TestErrorTypes verifies the custom error types are properly defined
 func TestErrorTypes(t *testing.T) {
+	t.Parallel()
+
 	// Test that error constants are defined
 	errors := []error{
 		activeSvc.ErrDeviceAlreadyActive,
@@ -363,15 +349,12 @@ func TestErrorTypes(t *testing.T) {
 // TestConcurrentSessionAttempts tests race condition handling
 // Uses fixtures to test concurrent access with real database records
 func TestConcurrentSessionAttempts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("concurrent start attempts on same activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -380,8 +363,6 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		device2 := testpkg.CreateTestDevice(t, db, "test-device-010")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 7")
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID, staff.ID)
 
 		// ACT: Start two goroutines trying to start the same activity simultaneously
 		// Use sync.WaitGroup to coordinate start for better race condition testing
@@ -447,15 +428,12 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 
 // TestForceStartActivitySessionWithSupervisors tests the force start with multiple supervisors
 func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -464,8 +442,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Multi Supervisor Room")
 		staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
 
 		// ACT: Force start session with multiple supervisors
 		session, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)
@@ -489,8 +465,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "force-end-device-002")
 		room := testpkg.CreateTestRoom(t, db, "Force End Room")
 		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// Start initial session
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -522,21 +496,9 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		oldSupervisor := testpkg.CreateTestStaff(t, db, "Old", "Supervisor")
 		newSupervisor := testpkg.CreateTestStaff(t, db, "New", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activityGroup.ID,
-			device1.ID,
-			device2.ID,
-			room1.ID,
-			room2.ID,
-			student.ID,
-			oldSupervisor.ID,
-			newSupervisor.ID,
-		)
-
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{oldSupervisor.ID}, &room1.ID)
 		require.NoError(t, err)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 		activeGroupID := session1.ID
 		mirroredInstance := &scheduleModels.ActivityInstance{
 			Date:            timezone.TodayDate(),
@@ -549,9 +511,8 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			ActiveGroupID:   &activeGroupID,
 			IsSpontaneous:   true,
 		}
-		mirroredInstance.SetTenantID(1)
+		mirroredInstance.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repositories.NewFactory(db).ActivityInstance.Create(ctx, mirroredInstance))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", mirroredInstance.ID)
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -612,15 +573,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		room2 := testpkg.CreateTestRoom(t, db, "Force Transfer Same Supervisor Room 2")
 		staff := testpkg.CreateTestStaff(t, db, "Same", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activityGroup.ID,
-			device1.ID,
-			device2.ID,
-			room1.ID,
-			room2.ID,
-			staff.ID,
-		)
-
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{staff.ID}, &room1.ID)
 		require.NoError(t, err)
 
@@ -669,8 +621,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "no-super-device-003")
 		room := testpkg.CreateTestRoom(t, db, "No Supervisor Room")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
-
 		// ACT: Try to force start with empty supervisors
 		_, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{}, &room.ID)
 
@@ -684,8 +634,6 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "invalid-super-device-004")
 		room := testpkg.CreateTestRoom(t, db, "Invalid Supervisor Room")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
-
 		// ACT: Try to force start with invalid supervisor ID
 		_, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{99999999}, &room.ID)
 
@@ -696,15 +644,12 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 
 // TestStartActivitySessionWithSupervisors tests starting sessions with multiple supervisors
 func TestStartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -713,8 +658,6 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Two Supervisor Room")
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
 
 		// ACT
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)

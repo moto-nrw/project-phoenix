@@ -60,6 +60,8 @@ func identityInput(role *authModel.Role) SchoolIdentityInput {
 // The bug of #2222: an account invited with a school's own role received a
 // person and no staff record, which breaks every screen behind GetCurrentStaff.
 func TestEnsureSchoolIdentity_CustomAdminRoleGetsStaffWithoutCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, teachers := identityRepos()
 
 	identity, err := EnsureSchoolIdentity(context.Background(), repos, identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin)))
@@ -83,6 +85,8 @@ func TestEnsureSchoolIdentity_CustomAdminRoleGetsStaffWithoutCaregiverProfile(t 
 // platform user role gets. Without it the account shows up in the staff list
 // and still finds its groups and supervisions empty.
 func TestEnsureSchoolIdentity_CustomUserRoleGetsCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	repos, _, staffAll, teachers := identityRepos()
 
 	in := identityInput(customRole("OGS-Kraft", authModel.BaseRoleUser))
@@ -103,6 +107,8 @@ func TestEnsureSchoolIdentity_CustomUserRoleGetsCaregiverProfile(t *testing.T) {
 // tier counts as personnel: a staff row grants nothing, withholding it is what
 // breaks the account.
 func TestEnsureSchoolIdentity_UnknownTierIsStaff(t *testing.T) {
+	t.Parallel()
+
 	repos, _, staffAll, teachers := identityRepos()
 
 	identity, err := EnsureSchoolIdentity(context.Background(), repos, identityInput(customRole("Alt-Rolle", "")))
@@ -113,6 +119,8 @@ func TestEnsureSchoolIdentity_UnknownTierIsStaff(t *testing.T) {
 }
 
 func TestEnsureSchoolIdentity_GuardianTierProvisionsNothing(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _ := identityRepos()
 
 	identity, err := EnsureSchoolIdentity(context.Background(), repos, identityInput(customRole("Sorgeberechtigt", authModel.BaseRoleGuardian)))
@@ -125,6 +133,8 @@ func TestEnsureSchoolIdentity_GuardianTierProvisionsNothing(t *testing.T) {
 // The Lehrkraft role is class_day-read-only by design (#1772) and keeps the
 // staff record without a caregiver profile, even though its tier is 'user'.
 func TestEnsureSchoolIdentity_LehrkraftGetsStaffWithoutCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	repos, _, staffAll, teachers := identityRepos()
 
 	lehrkraft := &authModel.Role{Model: baseModel.Model{ID: 55}, Name: "lehrkraft", IsSystem: true}
@@ -143,6 +153,8 @@ func TestEnsureSchoolIdentity_LehrkraftGetsStaffWithoutCaregiverProfile(t *testi
 // (tenant_id, account_id) anyway — that is how a re-invitation after
 // offboarding used to fail.
 func TestEnsureSchoolIdentity_IsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, teachers := identityRepos()
 	in := identityInput(customRole("OGS-Kraft", authModel.BaseRoleUser))
 
@@ -164,6 +176,8 @@ func TestEnsureSchoolIdentity_IsIdempotent(t *testing.T) {
 // invitation flow produced. Provisioning must attach the staff record to that
 // person instead of creating a second identity.
 func TestEnsureSchoolIdentity_AdoptsExistingPerson(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _ := identityRepos()
 
 	accountID := int64(9001)
@@ -181,6 +195,8 @@ func TestEnsureSchoolIdentity_AdoptsExistingPerson(t *testing.T) {
 }
 
 func TestEnsureSchoolIdentity_RefusesToInventAnIdentity(t *testing.T) {
+	t.Parallel()
+
 	repos, _, staffAll, _ := identityRepos()
 
 	in := identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin))
@@ -192,6 +208,8 @@ func TestEnsureSchoolIdentity_RefusesToInventAnIdentity(t *testing.T) {
 }
 
 func TestEnsureSchoolIdentity_WithoutCreatePersonLeavesAccountAlone(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _ := identityRepos()
 
 	in := identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin))
@@ -208,6 +226,8 @@ func TestEnsureSchoolIdentity_WithoutCreatePersonLeavesAccountAlone(t *testing.T
 // invitation that carries a school's own role must leave a usable staff member
 // behind, not a person with nothing attached.
 func TestAcceptInvitation_CustomSchoolRoleCreatesStaff(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -282,6 +302,8 @@ func TestAcceptInvitation_CustomSchoolRoleCreatesStaff(t *testing.T) {
 // the better outcome: the resulting rows are indistinguishable from legitimate
 // ones, so nothing could repair it afterwards.
 func TestEnsureSchoolIdentity_RefusesPersonThatIsAStudent(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, teachers, students := identityReposWithStudents()
 
 	accountID := int64(9001)
@@ -302,6 +324,8 @@ func TestEnsureSchoolIdentity_RefusesPersonThatIsAStudent(t *testing.T) {
 // check unharmed — the repository reports the miss as sql.ErrNoRows, which is
 // not an error here.
 func TestEnsureSchoolIdentity_ExistingNonStudentPersonPasses(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _, _ := identityReposWithStudents()
 
 	accountID := int64(9001)
@@ -333,6 +357,8 @@ func identityInputWithTag(role *authModel.Role, tagID string) SchoolIdentityInpu
 // used to reach the database and return a constraint violation — rendered as a
 // 500. An operator typo is a bad request.
 func TestEnsureSchoolIdentity_RefusesUnknownTag(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
 
 	_, err := EnsureSchoolIdentity(context.Background(), repos,
@@ -345,6 +371,8 @@ func TestEnsureSchoolIdentity_RefusesUnknownTag(t *testing.T) {
 }
 
 func TestEnsureSchoolIdentity_AssignsKnownTagToNewPerson(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, _ := identityReposWithTag("KNOWNCARD1")
 
 	identity, err := EnsureSchoolIdentity(context.Background(), repos,
@@ -358,6 +386,8 @@ func TestEnsureSchoolIdentity_AssignsKnownTagToNewPerson(t *testing.T) {
 // The reuse path used to drop the submitted transponder on the floor: the
 // request was accepted and the bracelet the operator typed was nowhere.
 func TestEnsureSchoolIdentity_AssignsTagToExistingPersonWithoutOne(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, _ := identityReposWithTag("KNOWNCARD1")
 
 	accountID := int64(9001)
@@ -376,6 +406,8 @@ func TestEnsureSchoolIdentity_AssignsTagToExistingPersonWithoutOne(t *testing.T)
 // A transponder already in daily use is not silently swapped out by a request
 // that is about school access.
 func TestEnsureSchoolIdentity_RefusesConflictingTagOnExistingPerson(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1", "OTHERCARD1")
 
 	accountID := int64(9001)
@@ -395,6 +427,8 @@ func TestEnsureSchoolIdentity_RefusesConflictingTagOnExistingPerson(t *testing.T
 // Re-sending the transponder the person already wears is not a conflict — the
 // provisioning is idempotent, and a re-grant repeats the same request.
 func TestEnsureSchoolIdentity_SameTagOnExistingPersonIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
 
 	accountID := int64(9001)
@@ -413,6 +447,8 @@ func TestEnsureSchoolIdentity_SameTagOnExistingPersonIsIdempotent(t *testing.T) 
 // An empty tag_id is what the HTTP layer sends for every request that did not
 // ask for a bracelet, so it must not be treated as an unknown card.
 func TestEnsureSchoolIdentity_EmptyTagIsNotALookup(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _, _ := identityReposWithStudents()
 	// Deliberately no RFID repository: an empty tag must not reach it.
 
@@ -430,6 +466,8 @@ func TestEnsureSchoolIdentity_EmptyTagIsNotALookup(t *testing.T) {
 // current wearer is not this request's call either: they would silently lose
 // door access.
 func TestEnsureSchoolIdentity_RefusesTagWornBySomebodyElse(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
 
 	worn := "KNOWNCARD1"
@@ -451,6 +489,8 @@ func TestEnsureSchoolIdentity_RefusesTagWornBySomebodyElse(t *testing.T) {
 // Same refusal on the reuse path: the account already has a person here, and
 // the submitted transponder belongs to a colleague.
 func TestEnsureSchoolIdentity_RefusesTakenTagForExistingPerson(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
 
 	worn := "KNOWNCARD1"
@@ -475,6 +515,8 @@ func TestEnsureSchoolIdentity_RefusesTakenTagForExistingPerson(t *testing.T) {
 // exists to complete an account that already has an identity here, and refusing
 // it for a name it does not need is what the handler used to do.
 func TestEnsureSchoolIdentity_ReusesExistingPersonWithoutNames(t *testing.T) {
+	t.Parallel()
+
 	repos, persons, staffAll, _, _ := identityReposWithStudents()
 
 	accountID := int64(9001)

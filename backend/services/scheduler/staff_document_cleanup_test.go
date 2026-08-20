@@ -20,6 +20,8 @@ func (s *staffDocumentFileCleanerStub) CleanupOrphanedStaffDocumentFiles(context
 }
 
 func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
+	t.Parallel()
+
 	cleaner := &staffDocumentFileCleanerStub{}
 	s := &Scheduler{
 		staffDocumentFileCleaner: cleaner,
@@ -35,6 +37,8 @@ func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
 }
 
 func TestStaffDocumentFileCleanupKeepsPartialProgress(t *testing.T) {
+	t.Parallel()
+
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
 	s := &Scheduler{
 		staffDocumentFileCleaner: cleaner,
@@ -51,6 +55,8 @@ func TestStaffDocumentFileCleanupKeepsPartialProgress(t *testing.T) {
 }
 
 func TestStaffDocumentFileCleanupAllowsRetryAfterFailure(t *testing.T) {
+	t.Parallel()
+
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
 	s := &Scheduler{
 		staffDocumentFileCleaner: cleaner,

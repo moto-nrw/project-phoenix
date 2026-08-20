@@ -45,11 +45,12 @@ func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtim
 }
 
 func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
@@ -90,10 +91,6 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "E2E-Stu", fmt.Sprintf("A-%d", suffix), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "E2E-Staff", fmt.Sprintf("S-%d", suffix))
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db,
-			activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
-	})
 
 	// Create an instance bridged to the active.group and an instance_students
 	// row in 'expected' — exactly what the syncer is designed to flip.
@@ -107,10 +104,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
-	instance.SetTenantID(1)
+	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID) })
 
 	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
@@ -118,9 +114,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, row))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
 	// ACT: drive a check-in through the service.
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -132,7 +127,6 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		EntryTime:     time.Now(),
 	}
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, visit.ID) })
 
 	// ASSERT: student_checkin event carries attendance_status=present.
 	// This is the load-bearing assertion — it's what protects against
@@ -159,9 +153,6 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	targetActivity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Target-Act-%d", suffix))
 	targetRoom := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Target-Room-%d", suffix))
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, targetActivity.ID, targetRoom.ID, targetGroup.ID)
-	})
 
 	targetInstance := &scheduleModels.ActivityInstance{
 		Date:            timezone.NewDate(2026, 4, 21),
@@ -173,21 +164,17 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &targetGroup.ID,
 	}
-	targetInstance.SetTenantID(1)
+	targetInstance.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", targetInstance.ID)
-	})
 
 	targetRow := &scheduleModels.InstanceStudent{
 		InstanceID: targetInstance.ID,
 		StudentID:  student.ID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	targetRow.SetTenantID(1)
+	targetRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, isRepo.Create(ctx, targetRow))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", targetRow.ID) })
 
 	visit.ActiveGroupID = targetGroup.ID
 	require.NoError(t, svc.UpdateVisit(deviceCtx, visit))
@@ -221,8 +208,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 // event MUST omit the three attendance fields. This rules out a regression
 // where we accidentally stamp status="present" for every check-in.
 func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	suffix := time.Now().UnixNano()
@@ -262,12 +250,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "E2E-Walk", fmt.Sprintf("W-%d", suffix), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "E2E-Walk-Staff", fmt.Sprintf("W-%d", suffix))
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db,
-			activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
-	})
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
@@ -277,7 +261,6 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		EntryTime:     time.Now(),
 	}
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, visit.ID) })
 
 	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")

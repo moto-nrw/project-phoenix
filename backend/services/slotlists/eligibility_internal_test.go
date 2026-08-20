@@ -16,6 +16,8 @@ func ptrDate(d timezone.Date) *timezone.Date { return &d }
 // overrides the enrolled_from lower bound. enrolled_until still bounds the top
 // end for every status, and non-active children keep the interval semantics.
 func TestEligibleOn_ImmediateActivation(t *testing.T) {
+	t.Parallel()
+
 	list := timezone.NewDate(2030, 9, 4)
 	future := timezone.NewDate(2030, 12, 1)
 	past := timezone.NewDate(2030, 8, 1)
@@ -89,6 +91,8 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 // past date before their enrollment began, or a stale/manual slot roster (and
 // the /options counts) would show them as planned/missing before enrollment.
 func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	enrolledFrom := today.AddDays(-30) // enrollment started 30 days ago
 	beforeEnrollment := today.AddDays(-60)
@@ -118,6 +122,8 @@ func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 // upstream cancellation filter: even a manually assembled Result containing a
 // cancelled slot must not count it in the exported "Enthalten" summary.
 func TestSummarySlotCount_CancelledSlots(t *testing.T) {
+	t.Parallel()
+
 	result := &Result{
 		Slots: []Slot{
 			{InstanceID: 1, Status: scheduleModel.InstanceStatusActive},    // baseline → counts

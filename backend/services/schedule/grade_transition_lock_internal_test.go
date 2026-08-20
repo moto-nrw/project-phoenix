@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,10 +20,11 @@ import (
 // protected work runs, and a call without a tenant would serialize on a key that
 // belongs to no school. Failing loudly beats an overlap nobody notices (#405).
 func TestLockTenantGradeTransitions(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	tenantCtx := tenant.WithTenantID(context.Background(), 1)
+	db := testpkg.SetupTestDB(t)
+
+	tenantCtx := testpkg.Ctx(t)
 
 	t.Run("refuses without a database", func(t *testing.T) {
 		require.ErrorContains(t, lockTenantGradeTransitions(tenantCtx, nil),
@@ -57,10 +57,11 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 // TestLockTenantRecurrenceWrites covers the same guards on the recurrence gate,
 // which the documented lock order always takes FIRST.
 func TestLockTenantRecurrenceWrites(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	tenantCtx := tenant.WithTenantID(context.Background(), 1)
+	db := testpkg.SetupTestDB(t)
+
+	tenantCtx := testpkg.Ctx(t)
 
 	require.ErrorContains(t, lockTenantRecurrenceWrites(tenantCtx, nil),
 		"database is not configured")

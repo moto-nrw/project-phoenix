@@ -5,9 +5,8 @@
 // actual JWTs with admin permissions. Tenant isolation is verified in-flow
 // by issuing a second tenant's token and asserting 404.
 //
-// Fixtures follow the existing testpkg pattern; `tenant_id=1` is the primary
-// tenant (matching the whitelisted value in the hermetic linter) and
-// `tenant_id=2` is the isolated neighbor.
+// Fixtures follow the existing testpkg pattern; each scenario owns a primary
+// tenant and an isolated neighbour, both created per test (#2419).
 package e2e_timetable
 
 import (
@@ -39,11 +38,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// primaryTenantID matches the whitelisted tenant used by testpkg fixtures.
-const primaryTenantID int64 = 1
-
-// secondaryTenantID is created per test run for cross-tenant isolation checks.
-const secondaryTenantID int64 = 2
+// Each scenario owns two tenants (#2419): the primary one every fixture lands
+// in, and a neighbour used to prove cross-tenant isolation. Both are created
+// per test, so no flow depends on the fixed bootstrap tenant.
 
 // scenario bundles the common infrastructure a single flow needs.
 type scenario struct {
@@ -53,6 +50,9 @@ type scenario struct {
 	repos     *repositories.Factory
 	router    chi.Router
 	tokenAuth *jwt.TokenAuth
+
+	primaryTenant   int64
+	secondaryTenant int64
 
 	cleanupOrder []string
 	cleanupIDs   map[string][]int64
@@ -65,7 +65,8 @@ func newScenario(t *testing.T) *scenario {
 	t.Helper()
 
 	db, factory := testutil.SetupAPITest(t)
-	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+	primaryTenant := testpkg.Tenant(t)
+	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
 	// SetupAPITest sets the viper defaults we need; NewTokenAuth reads them.
 	ta, err := jwt.NewTokenAuth()
@@ -74,11 +75,13 @@ func newScenario(t *testing.T) *scenario {
 	repos := repositories.NewFactory(db)
 
 	s := &scenario{
-		t:         t,
-		db:        db,
-		factory:   factory,
-		repos:     repos,
-		tokenAuth: ta,
+		t:               t,
+		db:              db,
+		factory:         factory,
+		repos:           repos,
+		tokenAuth:       ta,
+		primaryTenant:   primaryTenant,
+		secondaryTenant: secondaryTenant,
 		cleanupOrder: []string{
 			"schedule.instance_students",
 			"schedule.instance_staff",
@@ -126,7 +129,7 @@ func (s *scenario) teardown() {
 
 // tenantCtx returns a context bound to the primary tenant.
 func (s *scenario) tenantCtx() context.Context {
-	return tenant.WithTenantID(context.Background(), primaryTenantID)
+	return tenant.WithTenantID(context.Background(), s.primaryTenant)
 }
 
 // mountRouter builds the full timetable Resource with real services and
@@ -214,13 +217,13 @@ func adminClaimsForTenant(accountID, tenantID int64) jwt.AppClaims {
 }
 
 // primaryAdminClaims returns claims for the primary tenant admin.
-func primaryAdminClaims() jwt.AppClaims {
-	return adminClaimsForTenant(1, primaryTenantID)
+func (s *scenario) primaryAdminClaims() jwt.AppClaims {
+	return adminClaimsForTenant(1, s.primaryTenant)
 }
 
 // secondaryAdminClaims returns claims for an admin on the isolated tenant.
-func secondaryAdminClaims() jwt.AppClaims {
-	return adminClaimsForTenant(2, secondaryTenantID)
+func (s *scenario) secondaryAdminClaims() jwt.AppClaims {
+	return adminClaimsForTenant(2, s.secondaryTenant)
 }
 
 // parseHHMM parses "HH:MM" into a time.Time anchored on 2000-01-01.
@@ -263,7 +266,7 @@ func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM stri
 		IsActive:    true,
 		Description: description,
 	}
-	tf.SetTenantID(primaryTenantID)
+	tf.SetTenantID(s.primaryTenant)
 
 	_, err := s.db.NewInsert().
 		Model(tf).
@@ -328,7 +331,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		PlannedRoomID:   &spec.roomID,
 		IsTemplate:      true,
 	}
-	group.SetTenantID(primaryTenantID)
+	group.SetTenantID(s.primaryTenant)
 	_, err := s.db.NewInsert().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -345,7 +348,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		WeekPattern:      0,
 		CalendarPeriodID: spec.periodID,
 	}
-	sched.SetTenantID(primaryTenantID)
+	sched.SetTenantID(s.primaryTenant)
 	_, err = s.db.NewInsert().
 		Model(sched).
 		ModelTableExpr(`activities.schedules`).
@@ -366,7 +369,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 			ValidFrom:       validFrom,
 			ValidUntil:      spec.validUntil,
 		}
-		enroll.SetTenantID(primaryTenantID)
+		enroll.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().
 			Model(enroll).
 			ModelTableExpr(`activities.student_enrollments`).
@@ -385,7 +388,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 			ValidFrom:  validFrom,
 			ValidUntil: spec.validUntil,
 		}
-		sup.SetTenantID(primaryTenantID)
+		sup.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().
 			Model(sup).
 			ModelTableExpr(`activities.supervisors`).

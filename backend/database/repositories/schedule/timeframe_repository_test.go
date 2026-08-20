@@ -16,11 +16,12 @@ import (
 // ============================================================================
 
 func TestTimeframeRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
 		now := time.Now()
@@ -36,7 +37,6 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, timeframe.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("creates open-ended timeframe", func(t *testing.T) {
@@ -52,7 +52,6 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		assert.NotZero(t, timeframe.ID)
 		assert.Nil(t, timeframe.EndTime)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("create with nil timeframe should fail", func(t *testing.T) {
@@ -63,11 +62,12 @@ func TestTimeframeRepository_Create(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -93,11 +93,12 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 }
 
 func TestTimeframeRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -123,11 +124,12 @@ func TestTimeframeRepository_Update(t *testing.T) {
 }
 
 func TestTimeframeRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -152,11 +154,12 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestTimeframeRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -176,11 +179,12 @@ func TestTimeframeRepository_List(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -222,11 +226,12 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
 		now := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -261,11 +266,12 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByDescription(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds timeframes by description", func(t *testing.T) {
 		now := time.Now()

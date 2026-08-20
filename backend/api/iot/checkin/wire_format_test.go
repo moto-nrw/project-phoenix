@@ -43,6 +43,8 @@ func renderWireIoTCommon(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestWireFormat_IoTCommon_ErrorRoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	renderer := iotCommon.ErrorRoomCapacityExceeded(42, "Room A", 15, 10)
 	gotStatus, gotBody := renderWireIoTCommon(t, renderer)
 	assert.Equal(t, 409, gotStatus)
@@ -53,6 +55,8 @@ func TestWireFormat_IoTCommon_ErrorRoomCapacityExceeded(t *testing.T) {
 }
 
 func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	renderer := iotCommon.ErrorActivityCapacityExceeded(7, "Bastelraum", 5, 4)
 	gotStatus, gotBody := renderWireIoTCommon(t, renderer)
 	assert.Equal(t, 409, gotStatus)
@@ -63,6 +67,8 @@ func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded(t *testing.T) {
 }
 
 func TestWireFormat_IoTCommon_ErrorRoomCapacityExceeded_NoDetails(t *testing.T) {
+	t.Parallel()
+
 	// Emitted when checkin.room_capacity_details_enabled is off (issue #1879):
 	// same status/code/message, no `details` key at all.
 	renderer := iotCommon.ErrorRoomCapacityExceededNoDetails()
@@ -75,6 +81,8 @@ func TestWireFormat_IoTCommon_ErrorRoomCapacityExceeded_NoDetails(t *testing.T) 
 }
 
 func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded_NoDetails(t *testing.T) {
+	t.Parallel()
+
 	// Emitted when checkin.activity_capacity_details_enabled is off — the
 	// default (issue #1879): same status/code/message, no `details` key.
 	renderer := iotCommon.ErrorActivityCapacityExceededNoDetails()
@@ -87,6 +95,8 @@ func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded_NoDetails(t *testing
 }
 
 func TestWireFormat_IoTCommon_ErrorStudentAlreadyActive_Degraded(t *testing.T) {
+	t.Parallel()
+
 	// All optional fields nil/zero — the lookup-couldn't-resolve-prior-visit
 	// path. Only student_id must survive in "details".
 	renderer := iotCommon.ErrorStudentAlreadyActive(99, 0, nil, nil, "")
@@ -99,6 +109,8 @@ func TestWireFormat_IoTCommon_ErrorStudentAlreadyActive_Degraded(t *testing.T) {
 }
 
 func TestWireFormat_IoTCommon_ErrorStudentAlreadyActive_FullyPopulated(t *testing.T) {
+	t.Parallel()
+
 	entryTime := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
 	roomID := int64(5)
 	renderer := iotCommon.ErrorStudentAlreadyActive(99, 123, &entryTime, &roomID, "Room A")

@@ -8,6 +8,8 @@ import (
 )
 
 func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
+	t.Parallel()
+
 	locations := []roomSnapshotLocation{
 		{
 			Name:        "Raum 101",
@@ -61,6 +63,8 @@ func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
 }
 
 func TestRoomSnapshotSubtitleIncludesTransit(t *testing.T) {
+	t.Parallel()
+
 	subtitle := roomSnapshotSubtitle([]roomSnapshotLocation{
 		{Name: "Raum 101", ChildCount: 12},
 		{Name: "Unterwegs", ChildCount: 3, IsTransit: true},
@@ -75,6 +79,8 @@ func TestRoomSnapshotSubtitleIncludesTransit(t *testing.T) {
 }
 
 func TestBuildRoomSnapshotRowsGermanNameOrder(t *testing.T) {
+	t.Parallel()
+
 	locations := []roomSnapshotLocation{
 		{Name: "Raum 101", StudentIDs: []int64{1, 2, 3, 4}},
 	}

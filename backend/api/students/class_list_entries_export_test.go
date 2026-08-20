@@ -11,6 +11,8 @@ import (
 // (isActiveFilterValue): a request carrying them keeps every student, so it
 // must keep the class-list entries too (#2399 review round 9).
 func TestClassListEntryExportEligibleTreatsAllAsInactive(t *testing.T) {
+	t.Parallel()
+
 	eligible := classListEntryExportEligible(listexport.PresetClassRoster, studentExportFilters{
 		Status:       "all",
 		Bus:          "all",
@@ -27,6 +29,8 @@ func TestClassListEntryExportEligibleTreatsAllAsInactive(t *testing.T) {
 // Any genuinely active filter targets a property an entry does not have — the
 // entries drop out, and a non-class-roster preset never carries them.
 func TestClassListEntryExportEligibleActiveFilterExcludesEntries(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		filters studentExportFilters

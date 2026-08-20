@@ -14,12 +14,16 @@ import (
 // --- parseDateField -------------------------------------------------------
 
 func TestParseDateField_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseDateField("service_start_date", "2027-09-01")
 	require.NoError(t, err)
 	assert.Equal(t, timezone.NewDate(2027, 9, 1), got)
 }
 
 func TestParseDateField_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseDateField("service_start_date", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_start_date is required",
@@ -27,6 +31,8 @@ func TestParseDateField_RejectsEmpty(t *testing.T) {
 }
 
 func TestParseDateField_RejectsRFC3339(t *testing.T) {
+	t.Parallel()
+
 	// parseDateField is for DATE-typed columns. RFC3339 input must be
 	// rejected so we don't silently lop off the time portion.
 	_, err := parseDateField("service_start_date", "2027-09-01T00:00:00Z")
@@ -35,6 +41,8 @@ func TestParseDateField_RejectsRFC3339(t *testing.T) {
 }
 
 func TestParseDateField_RejectsBogusString(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseDateField("svc", "not a date")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "svc must be YYYY-MM-DD")
@@ -43,12 +51,16 @@ func TestParseDateField_RejectsBogusString(t *testing.T) {
 // --- parseDateTimeField ---------------------------------------------------
 
 func TestParseDateTimeField_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseDateTimeField("enrollment_open_at", "2027-08-01T08:30:00Z")
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2027, 8, 1, 8, 30, 0, 0, time.UTC), got)
 }
 
 func TestParseDateTimeField_PreservesOffset(t *testing.T) {
+	t.Parallel()
+
 	got, err := parseDateTimeField("enrollment_open_at", "2027-08-01T08:30:00+02:00")
 	require.NoError(t, err)
 	// The parsed Time keeps its zone offset; converting to UTC should
@@ -58,12 +70,16 @@ func TestParseDateTimeField_PreservesOffset(t *testing.T) {
 }
 
 func TestParseDateTimeField_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseDateTimeField("rollover_deadline", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rollover_deadline is required")
 }
 
 func TestParseDateTimeField_RejectsPlainDate(t *testing.T) {
+	t.Parallel()
+
 	// RFC3339 requires the T + time portion. A bare date must fail
 	// loudly so the form sends a deadline-with-time, not just a day.
 	_, err := parseDateTimeField("rollover_deadline", "2027-09-01")
@@ -84,6 +100,8 @@ func validBody() *RolloverCreateRequest {
 }
 
 func TestParseRolloverCreateRequest_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	req, err := parseRolloverCreateRequest(42, validBody(), 99)
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), req.SourcePhaseID)
@@ -98,6 +116,8 @@ func TestParseRolloverCreateRequest_HappyPath(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_BumpsGradeFalseHonored(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	f := false
 	body.RolloverBumpsGrade = &f
@@ -107,6 +127,8 @@ func TestParseRolloverCreateRequest_BumpsGradeFalseHonored(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_KindPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	body.Kind = enrollmentModels.PhaseKindHoliday
 	req, err := parseRolloverCreateRequest(42, body, 99)
@@ -115,6 +137,8 @@ func TestParseRolloverCreateRequest_KindPassesThrough(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_OptionalOpenAtSet(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	openStr := "2027-08-01T00:00:00Z"
 	body.EnrollmentOpenAt = &openStr
@@ -125,6 +149,8 @@ func TestParseRolloverCreateRequest_OptionalOpenAtSet(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_OptionalOpenAtBlankStringStaysNil(t *testing.T) {
+	t.Parallel()
+
 	// Treating the empty string as "not provided" lets the frontend send
 	// an empty input field without forcing the user to clear it
 	// entirely. Matches the "if raw == "" { return nil }" branch.
@@ -137,6 +163,8 @@ func TestParseRolloverCreateRequest_OptionalOpenAtBlankStringStaysNil(t *testing
 }
 
 func TestParseRolloverCreateRequest_OptionalOpenAtBadValueErrors(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	bad := "yesterday"
 	body.EnrollmentOpenAt = &bad
@@ -146,6 +174,8 @@ func TestParseRolloverCreateRequest_OptionalOpenAtBadValueErrors(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_OptionalCloseAtSet(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	closeStr := "2027-08-31T23:59:00Z"
 	body.EnrollmentCloseAt = &closeStr
@@ -156,6 +186,8 @@ func TestParseRolloverCreateRequest_OptionalCloseAtSet(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_OptionalCloseAtBadValueErrors(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	bad := "not-iso"
 	body.EnrollmentCloseAt = &bad
@@ -165,6 +197,8 @@ func TestParseRolloverCreateRequest_OptionalCloseAtBadValueErrors(t *testing.T) 
 }
 
 func TestParseRolloverCreateRequest_FormSchemaIDPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	id := int64(7777)
 	body.FormSchemaID = &id
@@ -175,12 +209,16 @@ func TestParseRolloverCreateRequest_FormSchemaIDPassesThrough(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_NilFormSchemaIDMeansInherit(t *testing.T) {
+	t.Parallel()
+
 	req, err := parseRolloverCreateRequest(42, validBody(), 99)
 	require.NoError(t, err)
 	assert.Nil(t, req.FormSchemaID, "nil = copy source phase's schema id (per docstring)")
 }
 
 func TestParseRolloverCreateRequest_AutoApprovePassesThrough(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	body.RolloverAutoApprove = true
 	req, err := parseRolloverCreateRequest(42, body, 99)
@@ -189,6 +227,8 @@ func TestParseRolloverCreateRequest_AutoApprovePassesThrough(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_RejectsBadStartDate(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	body.ServiceStartDate = "yesterday"
 	_, err := parseRolloverCreateRequest(42, body, 99)
@@ -197,6 +237,8 @@ func TestParseRolloverCreateRequest_RejectsBadStartDate(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_RejectsBadEndDate(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	body.ServiceEndDate = "tomorrow"
 	_, err := parseRolloverCreateRequest(42, body, 99)
@@ -205,6 +247,8 @@ func TestParseRolloverCreateRequest_RejectsBadEndDate(t *testing.T) {
 }
 
 func TestParseRolloverCreateRequest_RejectsBadDeadline(t *testing.T) {
+	t.Parallel()
+
 	body := validBody()
 	body.RolloverDeadline = "soon"
 	_, err := parseRolloverCreateRequest(42, body, 99)

@@ -25,24 +25,14 @@ import (
 )
 
 func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, tc.db, chain) })
 	// The approve path stamps the acting staff resolved from the JWT account,
 	// so the deciding admin needs a real staff record behind their account.
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, tc.db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID) })
-	// Registered after the staff cleanup so it runs first (LIFO): the seeded
-	// pickup rows reference the staff row via created_by.
-	t.Cleanup(func() {
-		_, err := tc.db.NewDelete().
-			TableExpr("schedule.student_pickup_schedules").
-			Where("student_id = ?", chain.StudentID).
-			Exec(context.Background())
-		require.NoError(t, err)
-	})
 
 	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	upsertPickup := func(hour, minute int) {

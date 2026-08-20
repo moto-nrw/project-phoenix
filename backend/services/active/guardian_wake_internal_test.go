@@ -26,6 +26,8 @@ func (r *recordingWaker) BroadcastChildUpdateToGuardians(tenantID, studentID int
 // verdrahteter Weckdienst schweigt statt zu panicken. Tests und CLI-Pfade
 // bauen den Active-Service ohne ihn.
 func TestWakeGuardiansAfterCommitIsNoOpWithoutWaker(t *testing.T) {
+	t.Parallel()
+
 	s := &service{}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 
@@ -36,6 +38,8 @@ func TestWakeGuardiansAfterCommitIsNoOpWithoutWaker(t *testing.T) {
 // Tenant im Kontext liegt: dann waere die Weckung nicht zuzuordnen und
 // unterbleibt, statt eine falsche Schule zu benachrichtigen.
 func TestWakeGuardiansAfterCommitSkipsWithoutTenant(t *testing.T) {
+	t.Parallel()
+
 	waker := &recordingWaker{}
 	s := &service{}
 	s.SetGuardianWaker(waker)
@@ -50,6 +54,8 @@ func TestWakeGuardiansAfterCommitSkipsWithoutTenant(t *testing.T) {
 // TestWakeGuardiansAfterCommitSkipsInvalidStudent haelt fest, dass eine
 // unbrauchbare Kind-ID nicht zu einer Weckung fuehrt.
 func TestWakeGuardiansAfterCommitSkipsInvalidStudent(t *testing.T) {
+	t.Parallel()
+
 	waker := &recordingWaker{}
 	s := &service{}
 	s.SetGuardianWaker(waker)

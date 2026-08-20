@@ -92,6 +92,8 @@ func (s *operatorPasskeyServiceStub) RevokeCredential(_ context.Context, operato
 }
 
 func TestOperatorPasskeyLoginHandlers(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorPasskeyServiceStub{}
 	rs := &Resource{passkeyService: svc}
 
@@ -117,6 +119,8 @@ func TestOperatorPasskeyLoginHandlers(t *testing.T) {
 }
 
 func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
+	t.Parallel()
+
 	tokenAuth, err := jwt.NewTokenAuth()
 	require.NoError(t, err)
 
@@ -144,6 +148,8 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 // without a token. Asserting 401 (not 404) for both forms proves both are
 // registered. Regression guard for the route dropped in PR #1690.
 func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
+	t.Parallel()
+
 	tokenAuth, err := jwt.NewTokenAuth()
 	require.NoError(t, err)
 
@@ -163,6 +169,8 @@ func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
 }
 
 func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorPasskeyServiceStub{}
 	rs := &Resource{passkeyService: svc}
 	claims := jwt.AppClaims{ID: 21, Scope: "platform"}
@@ -206,6 +214,8 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 }
 
 func TestOperatorPasskeyHandlerErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	rs.PasskeyLoginOptions(w, operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`))

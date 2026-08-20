@@ -139,6 +139,8 @@ func (r *planningTrackRepoStub) UpdateColumns(_ context.Context, track *model.Pl
 }
 
 func TestPlanningTrackServiceCreateAndUpdateValidation(t *testing.T) {
+	t.Parallel()
+
 	repo := newPlanningTrackRepoStub()
 	service := NewPlanningTrackService(repo, nil)
 
@@ -161,6 +163,8 @@ func TestPlanningTrackServiceCreateAndUpdateValidation(t *testing.T) {
 }
 
 func TestPlanningTrackServiceListAndGet(t *testing.T) {
+	t.Parallel()
+
 	track := planningTrackWithID(1, "Früh", "#5080D8")
 	repo := newPlanningTrackRepoStub(track)
 	service := NewPlanningTrackService(repo, nil)
@@ -192,6 +196,8 @@ func TestPlanningTrackServiceListAndGet(t *testing.T) {
 }
 
 func TestPlanningTrackServiceCreateAndUpdateFailures(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("database unavailable")
 	repo := newPlanningTrackRepoStub()
 	service := NewPlanningTrackService(repo, nil)
@@ -235,6 +241,8 @@ func TestPlanningTrackServiceCreateAndUpdateFailures(t *testing.T) {
 }
 
 func TestPlanningTrackServiceArchiveRestoreEdges(t *testing.T) {
+	t.Parallel()
+
 	active := planningTrackWithID(1, "Früh", "#5080D8")
 	archivedAt := time.Now()
 	archived := planningTrackWithID(2, "Alt", "#83CD2D")
@@ -263,6 +271,8 @@ func TestPlanningTrackServiceArchiveRestoreEdges(t *testing.T) {
 }
 
 func TestPlanningTrackServiceValidateAssignment(t *testing.T) {
+	t.Parallel()
+
 	active := planningTrackWithID(1, "Früh", "#5080D8")
 	archivedAt := time.Now()
 	archived := planningTrackWithID(2, "Alt", "#83CD2D")
@@ -295,6 +305,8 @@ func TestPlanningTrackServiceValidateAssignment(t *testing.T) {
 }
 
 func TestPlanningTrackHelpers(t *testing.T) {
+	t.Parallel()
+
 	one := time.Now().UnixNano()
 	two := one + 1
 	if err := validateAssignablePlanningTrack(context.Background(), nil, nil, nil); err != nil {
@@ -332,6 +344,8 @@ func TestPlanningTrackHelpers(t *testing.T) {
 }
 
 func TestPlanningTrackAssignmentRejectsArchivedExceptExistingReference(t *testing.T) {
+	t.Parallel()
+
 	archivedAt := time.Now()
 	track := &model.PlanningTrack{
 		Name: "Alt", Color: "#5080D8", ArchivedAt: &archivedAt,
@@ -351,6 +365,8 @@ func TestPlanningTrackAssignmentRejectsArchivedExceptExistingReference(t *testin
 }
 
 func TestPlanningTrackServiceArchiveAndRestore(t *testing.T) {
+	t.Parallel()
+
 	track := &model.PlanningTrack{
 		Name: "Früh", Color: "#83CD2D", SortOrder: 0,
 	}

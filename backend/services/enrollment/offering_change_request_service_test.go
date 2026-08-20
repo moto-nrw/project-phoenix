@@ -23,8 +23,8 @@ import (
 
 // offeringChangeAdminContext makes the staff-side service calls explicit about
 // their authority. TenantContext alone deliberately carries no JWT permissions.
-func offeringChangeAdminContext() context.Context {
-	return context.WithValue(testpkg.TenantContext(1), jwt.CtxPermissions, []string{"admin:*"})
+func offeringChangeAdminContext(t *testing.T) context.Context {
+	return context.WithValue(testpkg.Ctx(t), jwt.CtxPermissions, []string{"admin:*"})
 }
 
 func newOfferingChangeServiceForTest(
@@ -79,12 +79,6 @@ func setupOfferingChangeFixture(
 	t.Helper()
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeOld"+label)
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeNew"+label)
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, env.db,
-			oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-			newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-		)
-	})
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 201
@@ -111,9 +105,11 @@ func setupOfferingChangeFixture(
 }
 
 func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Create")
 
@@ -127,7 +123,6 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, row.Status)
 	assert.Equal(t, fx.childID, row.RequestChildID)
@@ -148,9 +143,11 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PayloadAuto")
 	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch PayloadAuto", func(o *enrollmentModels.CareOffering) {
@@ -165,7 +162,6 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	offerings, ok := row.Payload["offerings"].([]any)
 	require.True(t, ok)
@@ -185,9 +181,11 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 }
 
 func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "ChangedCurrentAuto")
 	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch ChangedCurrentAuto", func(o *enrollmentModels.CareOffering) {
@@ -212,7 +210,6 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	offerings, ok := row.Payload["offerings"].([]any)
 	require.True(t, ok)
@@ -223,13 +220,15 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 }
 
 func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Second")
 
-	first, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+	_, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -238,7 +237,6 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", first.ID) })
 
 	_, err = svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
@@ -252,9 +250,11 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 }
 
 func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "EffectiveSelection")
 
@@ -267,7 +267,6 @@ func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *tes
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", first.ID) })
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: first.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
@@ -287,9 +286,11 @@ func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *tes
 }
 
 func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePeriod(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Notice")
 
@@ -305,9 +306,11 @@ func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePer
 }
 
 func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Foreign")
 
@@ -323,9 +326,11 @@ func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *t
 }
 
 func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Off")
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = false
@@ -342,9 +347,11 @@ func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *test
 }
 
 func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Approve")
 
@@ -357,7 +364,6 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -396,9 +402,11 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 // period start — the queue has to name that date instead of today, or the
 // office approves a switch believing it takes effect immediately.
 func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueClamp")
 
@@ -411,7 +419,6 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// The period start moves behind the requested date while the request waits.
 	phaseStart := timezone.TodayDate().AddDays(30)
@@ -433,9 +440,11 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 }
 
 func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAreDisabled(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "DisabledApproval")
 
@@ -448,7 +457,6 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
@@ -464,9 +472,11 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNothing(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Reject")
 
@@ -479,7 +489,6 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -507,9 +516,11 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 }
 
 func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Full")
 
@@ -522,7 +533,6 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// The offering fills up between submission and decision.
 	zeroCapacity := 0
@@ -546,9 +556,11 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 }
 
 func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "LeaveFull")
 
@@ -561,7 +573,6 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// Capacity can be reduced after enrollment. That must never trap an
 	// already-booked child in the now-over-capacity offering.
@@ -581,9 +592,11 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 }
 
 func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "KeepFull")
 
@@ -597,7 +610,6 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	zeroCapacity := 0
 	fx.oldOffering.Capacity = &zeroCapacity
@@ -613,9 +625,11 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 }
 
 func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Withdraw")
 
@@ -628,7 +642,6 @@ func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	_, otherAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Andere", "Bezugsperson")
 	err = svc.Withdraw(ctx, row.ID, otherAccount.ID, fx.studentID)
@@ -649,9 +662,11 @@ func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 }
 
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Catalog")
 
@@ -682,9 +697,11 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 }
 
 func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Decision")
 
@@ -697,7 +714,6 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:  row.ID,
@@ -735,9 +751,11 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 }
 
 func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "Silent")
 
@@ -750,7 +768,6 @@ func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *test
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
 

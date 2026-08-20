@@ -18,6 +18,8 @@ import (
 )
 
 func TestAssignTransitStudents(t *testing.T) {
+	t.Parallel()
+
 	t.Run("assigns selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		var capturedActiveGroupID int64

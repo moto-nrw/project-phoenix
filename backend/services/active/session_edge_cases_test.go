@@ -28,11 +28,12 @@ func buildSessionEdgeCaseService(t *testing.T, db *bun.DB) activeSvc.Service {
 // =============================================================================
 
 func TestSessionStartWithRoomConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("fails when room has existing session", func(t *testing.T) {
 		// ARRANGE: Create first session in a room
@@ -42,7 +43,6 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 		device1 := testpkg.CreateTestDevice(t, db, "conflict-device1")
 		device2 := testpkg.CreateTestDevice(t, db, "conflict-device2")
 		staff := testpkg.CreateTestStaff(t, db, "Conflict", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, device1.ID, device2.ID, staff.ID)
 
 		// Start first session in the room
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &room.ID)
@@ -65,11 +65,12 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 // =============================================================================
 
 func TestForceStartOverridesExistingSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start ends existing device session", func(t *testing.T) {
 		// ARRANGE: Create first session
@@ -77,7 +78,6 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Force Start Room")
 		device := testpkg.CreateTestDevice(t, db, "force-start-device")
 		staff := testpkg.CreateTestStaff(t, db, "ForceStart", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start first session
 		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -85,7 +85,11 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 		require.NotNil(t, session1)
 
 		// ACT: Force start new session on same device
-		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, nil)
+		// The room is passed explicitly: with nil the service falls back to the
+		// hardcoded room ID 1, which belongs to the bootstrap tenant (#2419).
+		// What is under test here is the device-session override, not room
+		// resolution — the same room as session1 is what force start is for.
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT: New session started, old session ended
 		require.NoError(t, err)
@@ -100,11 +104,12 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 }
 
 func TestForceStartWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -113,7 +118,6 @@ func TestForceStartWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "force-multi-sup-device")
 		staff1 := testpkg.CreateTestStaff(t, db, "ForceMulti1", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "ForceMulti2", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
 
 		// ACT
 		session, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)
@@ -132,7 +136,6 @@ func TestForceStartWithSupervisors(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "force-invalid-sup-activity")
 		room := testpkg.CreateTestRoom(t, db, "Force Invalid Sup Room")
 		device := testpkg.CreateTestDevice(t, db, "force-invalid-sup-device")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID)
 
 		// ACT: Try with non-existent supervisor
 		_, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{99999999}, &room.ID)
@@ -147,11 +150,12 @@ func TestForceStartWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestUpdateActiveGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("replaces supervisors successfully", func(t *testing.T) {
 		// ARRANGE
@@ -160,7 +164,6 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "update-sup-device")
 		staff1 := testpkg.CreateTestStaff(t, db, "UpdateSup1", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "UpdateSup2", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
 
 		// Start session with first supervisor
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID}, &room.ID)
@@ -180,7 +183,6 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 	t.Run("fails for non-existent group", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "NoGroup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		_, err := service.UpdateActiveGroupSupervisors(ctx, 99999999, []int64{staff.ID})
@@ -195,7 +197,6 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Ended Sup Room")
 		device := testpkg.CreateTestDevice(t, db, "ended-sup-device")
 		staff := testpkg.CreateTestStaff(t, db, "EndedSup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start and end session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -217,7 +218,6 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Empty Sup Room")
 		device := testpkg.CreateTestDevice(t, db, "empty-sup-device")
 		staff := testpkg.CreateTestStaff(t, db, "EmptySup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
@@ -239,11 +239,12 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -252,7 +253,6 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "multi-sup-start-device")
 		staff1 := testpkg.CreateTestStaff(t, db, "MultiStart1", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "MultiStart2", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
 
 		// ACT
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)
@@ -271,7 +271,6 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Dup Sup Room")
 		device := testpkg.CreateTestDevice(t, db, "dup-sup-device")
 		staff := testpkg.CreateTestStaff(t, db, "DupSup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// ACT: Pass same supervisor ID twice
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID, staff.ID}, &room.ID)
@@ -289,7 +288,6 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "empty-start-activity")
 		room := testpkg.CreateTestRoom(t, db, "Empty Start Room")
 		device := testpkg.CreateTestDevice(t, db, "empty-start-device")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID)
 
 		// ACT
 		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{}, &room.ID)
@@ -304,17 +302,17 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 // =============================================================================
 
 func TestCheckActivityConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("no conflict for new activity", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-conflict-activity")
 		device := testpkg.CreateTestDevice(t, db, "no-conflict-device")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID)
 
 		// ACT
 		conflictInfo, err := service.CheckActivityConflict(ctx, activity.ID, device.ID)
@@ -330,7 +328,6 @@ func TestCheckActivityConflict(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Conflict Check Room")
 		device := testpkg.CreateTestDevice(t, db, "conflict-check-device")
 		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start a session
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)

@@ -10,6 +10,8 @@ import (
 )
 
 func TestLabelForAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		status string
 		want   string
@@ -29,6 +31,8 @@ func TestLabelForAttendanceStatus(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_CheckedIn(t *testing.T) {
+	t.Parallel()
+
 	checkin := time.Now().Add(-1 * time.Hour)
 	status := &activeService.AttendanceStatus{
 		StudentID:   42,
@@ -50,6 +54,8 @@ func TestBuildSchoolCheckinResponse_CheckedIn(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_OnYard(t *testing.T) {
+	t.Parallel()
+
 	checkin := time.Now().Add(-2 * time.Hour)
 	yard := time.Now().Add(-15 * time.Minute)
 	status := &activeService.AttendanceStatus{
@@ -68,6 +74,8 @@ func TestBuildSchoolCheckinResponse_OnYard(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
+	t.Parallel()
+
 	checkout := time.Now().Add(-5 * time.Minute)
 	status := &activeService.AttendanceStatus{
 		StudentID:    42,
@@ -82,6 +90,8 @@ func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	status := &activeService.AttendanceStatus{
 		StudentID: 42,
 		Status:    "not_checked_in",
@@ -102,6 +112,8 @@ func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 // =============================================================================
 
 func TestIsIdempotentSchoolCheckin(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name          string
 		action        string

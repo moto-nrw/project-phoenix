@@ -6,6 +6,8 @@ import (
 )
 
 func TestCombinedGroupValidate(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -56,6 +58,8 @@ func TestCombinedGroupValidate(t *testing.T) {
 }
 
 func TestCombinedGroupSetEndTime(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -100,6 +104,8 @@ func TestCombinedGroupSetEndTime(t *testing.T) {
 }
 
 func TestCombinedGroupGetDuration(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 

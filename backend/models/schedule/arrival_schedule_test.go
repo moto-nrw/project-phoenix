@@ -14,6 +14,8 @@ import (
 // =============================================================================
 
 func TestStudentArrivalSchedule_Validate(t *testing.T) {
+	t.Parallel()
+
 	validTime := time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -172,6 +174,8 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		weekday      int
@@ -197,12 +201,16 @@ func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetID(t *testing.T) {
+	t.Parallel()
+
 	s := &StudentArrivalSchedule{}
 	s.ID = 42
 	assert.Equal(t, int64(42), s.GetID())
 }
 
 func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.CreatedAt = now
@@ -210,6 +218,8 @@ func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.UpdatedAt = now
@@ -221,6 +231,8 @@ func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalException_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
@@ -350,6 +362,8 @@ func TestStudentArrivalException_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalException_IsAbsent(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
@@ -396,12 +410,16 @@ func TestStudentArrivalException_IsAbsent(t *testing.T) {
 }
 
 func TestStudentArrivalException_GetID(t *testing.T) {
+	t.Parallel()
+
 	exception := &StudentArrivalException{}
 	exception.ID = 42
 	assert.Equal(t, int64(42), exception.GetID())
 }
 
 func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.CreatedAt = now
@@ -409,6 +427,8 @@ func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.UpdatedAt = now
@@ -420,6 +440,8 @@ func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalNote_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 
 	tests := []struct {
@@ -560,12 +582,16 @@ func TestStudentArrivalNote_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalNote_GetID(t *testing.T) {
+	t.Parallel()
+
 	note := &StudentArrivalNote{}
 	note.ID = 42
 	assert.Equal(t, int64(42), note.GetID())
 }
 
 func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.CreatedAt = now
@@ -573,6 +599,8 @@ func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.UpdatedAt = now

@@ -21,11 +21,12 @@ import (
 )
 
 func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	readStatus := func(t *testing.T, db *bun.DB, studentID int64) string {
 		t.Helper()
@@ -40,7 +41,6 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("updates while the row still holds the expected status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(ctx, student.ID,
@@ -52,7 +52,6 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("skips a graduated row instead of resurrecting it", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasAlumnus", "Lifecycle", "4a")
-		defer cleanupStudentRecords(t, db, student.ID)
 		// The tick selected this row as active; a grade transition graduated it
 		// before the update landed.
 		setLifecycle(t, db, student.ID, users.StudentStatusAlumnus, nil, nil)
@@ -67,7 +66,6 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("second run is a no-op, not an error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		first, err := repo.TransitionStatus(ctx, student.ID,
@@ -83,7 +81,6 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("does not write across tenants", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
-		defer cleanupStudentRecords(t, db, student.ID)
 		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,

@@ -14,6 +14,8 @@ import (
 )
 
 func TestParseCareUsageExportRequestLayout(t *testing.T) {
+	t.Parallel()
+
 	t.Run("defaults to detailed", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 			"format": "pdf",
@@ -109,6 +111,8 @@ func compactLayoutTestReport() *enrollmentService.CareUsageReport {
 }
 
 func TestBuildCareUsageCompactTableDocumentOneRowPerChildSortedByClass(t *testing.T) {
+	t.Parallel()
+
 	doc := buildCareUsageCompactTableDocument(compactLayoutTestReport())
 
 	var headings []string
@@ -132,6 +136,8 @@ func TestBuildCareUsageCompactTableDocumentOneRowPerChildSortedByClass(t *testin
 }
 
 func TestBuildCareUsageCompactTableDocumentWeeklyCells(t *testing.T) {
+	t.Parallel()
+
 	doc := buildCareUsageCompactTableDocument(compactLayoutTestReport())
 
 	byName := map[string]map[listexport.ColumnID]string{}
@@ -162,6 +168,8 @@ func TestBuildCareUsageCompactTableDocumentWeeklyCells(t *testing.T) {
 }
 
 func TestBuildCareUsageCompactTableDocumentUsesDisplayCareDays(t *testing.T) {
+	t.Parallel()
+
 	report := compactLayoutTestReport()
 	report.Rows[1].EffectiveDays = nil
 	report.Rows[1].CareDays = []string{"mon", "tue", "wed", "thu", "fri"}
@@ -181,6 +189,8 @@ func TestBuildCareUsageCompactTableDocumentUsesDisplayCareDays(t *testing.T) {
 }
 
 func TestBuildCareUsageCompactTableDocumentPrefersScheduleAndAllGuardians(t *testing.T) {
+	t.Parallel()
+
 	report := compactLayoutTestReport()
 	// The maintained Kind-Gehzeit (#2290) outranks the enrollment-form
 	// snapshot, exactly like the class-roster export.
@@ -209,6 +219,8 @@ func TestBuildCareUsageCompactTableDocumentPrefersScheduleAndAllGuardians(t *tes
 }
 
 func TestBuildCareUsageCompactTableDocumentSingleClassHasNoHeadings(t *testing.T) {
+	t.Parallel()
+
 	report := compactLayoutTestReport()
 	report.Rows = report.Rows[:1]
 
@@ -219,6 +231,8 @@ func TestBuildCareUsageCompactTableDocumentSingleClassHasNoHeadings(t *testing.T
 }
 
 func TestBuildCareUsageCompactTableDocumentMergesClassLabelVariants(t *testing.T) {
+	t.Parallel()
+
 	report := compactLayoutTestReport()
 	report.Rows[0].TargetSchoolClass = testpkg.StrPtr("1A")
 	report.Rows[2].TargetSchoolClass = testpkg.StrPtr("1 a")
@@ -238,6 +252,8 @@ func TestBuildCareUsageCompactTableDocumentMergesClassLabelVariants(t *testing.T
 }
 
 func TestBuildCareUsageExportLayoutDispatch(t *testing.T) {
+	t.Parallel()
+
 	svc := listexport.NewService()
 	report := compactLayoutTestReport()
 

@@ -53,6 +53,8 @@ func endSessionRequest(t *testing.T) *http.Request {
 // back — kiosks and dashboards would show a session the database still has
 // running.
 func TestEndActivitySessionCompletesTimetableBeforeEndingSession(t *testing.T) {
+	t.Parallel()
+
 	newResource := func(t *testing.T, bridgeErr error, order *[]string) *Resource {
 		t.Helper()
 		activeGroupID := int64(66)

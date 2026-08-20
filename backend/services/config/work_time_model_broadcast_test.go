@@ -38,6 +38,8 @@ func (r *broadcastWorkTimeModelRepo) FindByID(_ context.Context, id int64) (*con
 }
 
 func TestWorkTimeModelUpdateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	repo := &broadcastWorkTimeModelRepo{}
 	service := NewWorkTimeModelService(repo)
 	broadcaster := testpkg.NewRecordingBroadcaster()

@@ -87,6 +87,8 @@ func syncEvent() notifications.Event {
 // must report a delivery failure back to the caller, because the caller holds a
 // claim it has to release when the push was not accepted.
 func TestNotifySynchronouslyDeliversAndReportsAcceptance(t *testing.T) {
+	t.Parallel()
+
 	channel := &syncChannel{recordingChannel: recordingChannel{name: "web_push"}}
 	svc := notifications.NewService(openWindowSettings(), nil, channel)
 
@@ -99,6 +101,8 @@ func TestNotifySynchronouslyDeliversAndReportsAcceptance(t *testing.T) {
 }
 
 func TestNotifySynchronouslyReturnsChannelFailure(t *testing.T) {
+	t.Parallel()
+
 	deliveryErr := errors.New("push service unavailable")
 	channel := &syncChannel{recordingChannel: recordingChannel{name: "web_push"}, syncErr: deliveryErr}
 	svc := notifications.NewService(openWindowSettings(), nil, channel)
@@ -114,6 +118,8 @@ func TestNotifySynchronouslyReturnsChannelFailure(t *testing.T) {
 // portal open must see the in-app notification even though Web Push acceptance
 // alone decides whether the producer may mark its durable delivery done.
 func TestNotifySynchronouslyStillDeliversAsyncChannels(t *testing.T) {
+	t.Parallel()
+
 	asyncOnly := &recordingChannel{name: "sse"}
 	svc := notifications.NewService(openWindowSettings(), nil, asyncOnly)
 
@@ -126,6 +132,8 @@ func TestNotifySynchronouslyStillDeliversAsyncChannels(t *testing.T) {
 // An async channel is best-effort: its failure must never reach the claim
 // holder, which would release a claim whose push the durable channel accepted.
 func TestNotifySynchronouslyIgnoresAsyncChannelFailure(t *testing.T) {
+	t.Parallel()
+
 	asyncOnly := &recordingChannel{name: "sse", err: errors.New("hub unavailable")}
 	syncCh := &syncChannel{recordingChannel: recordingChannel{name: "web_push"}}
 	svc := notifications.NewService(openWindowSettings(), nil, asyncOnly, syncCh)
@@ -137,6 +145,8 @@ func TestNotifySynchronouslyIgnoresAsyncChannelFailure(t *testing.T) {
 // A failing durable channel must not cost the other channels their delivery:
 // the in-app notification is correct regardless of what the push service said.
 func TestNotifySynchronouslyDeliversAsyncChannelsDespiteSyncFailure(t *testing.T) {
+	t.Parallel()
+
 	asyncOnly := &recordingChannel{name: "sse"}
 	syncCh := &syncChannel{
 		recordingChannel: recordingChannel{name: "web_push"},
@@ -149,6 +159,8 @@ func TestNotifySynchronouslyDeliversAsyncChannelsDespiteSyncFailure(t *testing.T
 }
 
 func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("validation rejects a malformed event before any channel sees it", func(t *testing.T) {

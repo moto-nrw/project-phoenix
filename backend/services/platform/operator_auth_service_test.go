@@ -32,6 +32,7 @@ var testJWTSecret = func() string {
 }()
 
 func TestOperatorAuthService_Login_OperatorNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -54,6 +55,7 @@ func TestOperatorAuthService_Login_OperatorNotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_Login_RepositoryError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -76,6 +78,7 @@ func TestOperatorAuthService_Login_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_Login_InactiveOperator(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -106,6 +109,7 @@ func TestOperatorAuthService_Login_InactiveOperator(t *testing.T) {
 }
 
 func TestOperatorAuthService_ValidateOperator_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -128,6 +132,7 @@ func TestOperatorAuthService_ValidateOperator_NotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_ValidateOperator_Inactive(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -158,6 +163,7 @@ func TestOperatorAuthService_ValidateOperator_Inactive(t *testing.T) {
 }
 
 func TestOperatorAuthService_GetOperator_Success(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -189,6 +195,7 @@ func TestOperatorAuthService_GetOperator_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_GetOperator_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -211,6 +218,7 @@ func TestOperatorAuthService_GetOperator_NotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_GetOperator_RepositoryError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -233,6 +241,7 @@ func TestOperatorAuthService_GetOperator_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_ListOperators_Success(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		listFn: func(ctx context.Context) ([]*platform.Operator, error) {
@@ -268,6 +277,7 @@ func TestOperatorAuthService_ListOperators_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_ListOperators_Empty(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		listFn: func(ctx context.Context) ([]*platform.Operator, error) {
@@ -290,6 +300,7 @@ func TestOperatorAuthService_ListOperators_Empty(t *testing.T) {
 }
 
 func TestOperatorAuthService_ListOperators_RepositoryError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		listFn: func(ctx context.Context) ([]*platform.Operator, error) {
@@ -312,6 +323,7 @@ func TestOperatorAuthService_ListOperators_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_Success(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -345,6 +357,7 @@ func TestOperatorAuthService_UpdateProfile_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_EmptyName(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
@@ -363,6 +376,7 @@ func TestOperatorAuthService_UpdateProfile_EmptyName(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_WhitespaceName(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
@@ -381,6 +395,7 @@ func TestOperatorAuthService_UpdateProfile_WhitespaceName(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_NameTooLong(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
@@ -404,6 +419,7 @@ func TestOperatorAuthService_UpdateProfile_NameTooLong(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_OperatorNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -426,6 +442,7 @@ func TestOperatorAuthService_UpdateProfile_OperatorNotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -457,6 +474,7 @@ func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_OperatorNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -479,6 +497,7 @@ func TestOperatorAuthService_ChangePassword_OperatorNotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_RepositoryError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -503,8 +522,9 @@ func TestOperatorAuthService_ChangePassword_RepositoryError(t *testing.T) {
 // ========== HAPPY PATH TESTS WITH REAL PASSWORD HASHING ==========
 
 func TestOperatorAuthService_Login_Success(t *testing.T) {
+	t.Parallel()
+
 	// Set JWT secret for token generation BEFORE creating service
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -568,8 +588,9 @@ func TestOperatorAuthService_Login_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
+	t.Parallel()
+
 	// Set JWT secret (even though we won't reach token generation)
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -607,6 +628,7 @@ func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
 }
 
 func TestOperatorAuthService_ValidateOperator_Success(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create real password hash
@@ -644,6 +666,7 @@ func TestOperatorAuthService_ValidateOperator_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_ValidateOperator_WrongPassword(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create real password hash for "Test1234%"
@@ -679,6 +702,7 @@ func TestOperatorAuthService_ValidateOperator_WrongPassword(t *testing.T) {
 }
 
 func TestOperatorAuthService_ValidateOperator_RepositoryError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
@@ -701,10 +725,11 @@ func TestOperatorAuthService_ValidateOperator_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_Success(t *testing.T) {
+	t.Parallel()
+
 	// ChangePassword now uses tenant.WithAdminTx to atomically update the
 	// password and invalidate email-change tokens, so it requires a real DB.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -751,6 +776,7 @@ func TestOperatorAuthService_ChangePassword_Success(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_WrongCurrentPassword(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create real password hash for "OldPass1!"
@@ -786,6 +812,7 @@ func TestOperatorAuthService_ChangePassword_WrongCurrentPassword(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_WeakNewPassword(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create real password hash for old password
@@ -821,6 +848,8 @@ func TestOperatorAuthService_ChangePassword_WeakNewPassword(t *testing.T) {
 }
 
 func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
+	t.Parallel()
+
 	// ChangePassword now wraps the update in a transaction, so a DB error
 	// surfaces as a transaction rollback. With a real DB, we simulate an
 	// update error by deactivating the operator between FindByID (pre-tx
@@ -829,7 +858,6 @@ func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
 	// the simpler invariant: calling ChangePassword on a nonexistent
 	// operator returns an error.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -840,8 +868,9 @@ func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
 }
 
 func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
+	t.Parallel()
+
 	// Set JWT secret for token generation
-	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -917,7 +946,7 @@ func countOperatorRefreshTokens(t *testing.T, db *bun.DB, operatorID int64, toke
 }
 
 func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
@@ -935,7 +964,7 @@ func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
@@ -951,7 +980,7 @@ func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) 
 }
 
 func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
 
 	passwordHash, err := authSvc.HashPassword(testPassword)
 	require.NoError(t, err)
@@ -988,9 +1017,9 @@ func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T
 }
 
 func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1022,9 +1051,9 @@ func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *tes
 }
 
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrace(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1052,9 +1081,9 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrac
 }
 
 func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMultipleHandoffs(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1084,9 +1113,9 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMult
 }
 
 func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1122,9 +1151,9 @@ func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testi
 }
 
 func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1146,9 +1175,9 @@ func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *tes
 }
 
 func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildAuthService(t, db)
 	ctx := context.Background()
@@ -1171,9 +1200,9 @@ func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testi
 }
 
 func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1211,9 +1240,9 @@ func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1256,9 +1285,9 @@ func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
@@ -1296,9 +1325,9 @@ func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 }
 
 func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	rotatedAt := time.Now()
 	replacement := "replacement-handle"

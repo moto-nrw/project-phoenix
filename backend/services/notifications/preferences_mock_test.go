@@ -140,6 +140,8 @@ const (
 )
 
 func TestGetForAccountMergesStoredDecisions(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakePreferenceRepo{stored: []*userModel.NotificationPreference{
 		{AccountID: prefAccountA, NotificationType: notifications.TypePickupUpcoming, Enabled: true},
 		{AccountID: prefAccountA, NotificationType: notifications.TypePickupOverdue, Enabled: false},
@@ -167,6 +169,8 @@ func TestGetForAccountMergesStoredDecisions(t *testing.T) {
 // A type the school switched off is still listed and still switchable — the
 // person's choice has to survive an admin toggling the school setting.
 func TestGetForAccountMarksSchoolGatedTypesUnavailable(t *testing.T) {
+	t.Parallel()
+
 	settings := &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
@@ -187,6 +191,8 @@ func TestGetForAccountMarksSchoolGatedTypesUnavailable(t *testing.T) {
 }
 
 func TestGetForAccountFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("account id is required", func(t *testing.T) {
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
 		_, err := svc.GetForAccount(context.Background(), 0, notifications.PortalStaff)
@@ -217,6 +223,8 @@ func TestGetForAccountFailures(t *testing.T) {
 }
 
 func TestSetForAccount(t *testing.T) {
+	t.Parallel()
+
 	t.Run("records the decision", func(t *testing.T) {
 		repo := &fakePreferenceRepo{}
 		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
@@ -260,6 +268,8 @@ func TestSetForAccount(t *testing.T) {
 }
 
 func TestDisableAllForAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakePreferenceRepo{}
 	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
 
@@ -279,6 +289,8 @@ func TestDisableAllForAccount(t *testing.T) {
 // FilterOptedIn is the single enforcement point for "nothing without consent",
 // so each of its answers is pinned separately.
 func TestFilterOptedIn(t *testing.T) {
+	t.Parallel()
+
 	candidates := []int64{prefAccountA, prefAccountB}
 
 	t.Run("returns only those who agreed", func(t *testing.T) {
@@ -360,6 +372,8 @@ func TestFilterOptedIn(t *testing.T) {
 }
 
 func TestHasAnyOptedIn(t *testing.T) {
+	t.Parallel()
+
 	t.Run("reports stored consent without inventing an audience", func(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
 			notifications.TypePickupUpcoming: {prefAccountA},
@@ -395,6 +409,8 @@ func TestHasAnyOptedIn(t *testing.T) {
 }
 
 func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
+	t.Parallel()
+
 	candidates := []int64{prefAccountA, prefAccountB}
 	var gateCalls int
 	settings := &configtest.Mock{
@@ -438,6 +454,8 @@ func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
 // FilterNotOptedOut is the mirror rule for channels that predate consent: only
 // an explicit no filters, a missing decision does not.
 func TestFilterNotOptedOut(t *testing.T) {
+	t.Parallel()
+
 	candidates := []int64{prefAccountA, prefAccountB}
 
 	t.Run("keeps everyone who did not decline", func(t *testing.T) {
@@ -491,6 +509,8 @@ func TestFilterNotOptedOut(t *testing.T) {
 // mapping repository. Without them the service must refuse rather than act on
 // the request context's tenant, which for a parent request is nobody's school.
 func TestGuardianPathsRequireTheirDependencies(t *testing.T) {
+	t.Parallel()
+
 	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
 	ctx := context.Background()
 

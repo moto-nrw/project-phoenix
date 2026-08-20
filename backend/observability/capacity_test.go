@@ -41,6 +41,8 @@ func (c fakeSSEClientCounter) GetClientCount() int {
 }
 
 func TestHTTPMetricsMiddlewareRecordsRouteStatusAndLatency(t *testing.T) {
+	t.Parallel()
+
 	metrics := NewHTTPMetrics()
 	router := chi.NewRouter()
 	router.Use(metrics.Middleware)
@@ -64,6 +66,8 @@ func TestHTTPMetricsMiddlewareRecordsRouteStatusAndLatency(t *testing.T) {
 }
 
 func TestStatusRecorderPreservesFlusherForSSE(t *testing.T) {
+	t.Parallel()
+
 	recorder := &statusRecorder{
 		ResponseWriter: httptest.NewRecorder(),
 		status:         http.StatusOK,
@@ -75,6 +79,8 @@ func TestStatusRecorderPreservesFlusherForSSE(t *testing.T) {
 }
 
 func TestHTTPMetricsMiddlewareSkipsHealthAndMetricsRoutes(t *testing.T) {
+	t.Parallel()
+
 	metrics := NewHTTPMetrics()
 	router := chi.NewRouter()
 	router.Use(metrics.Middleware)
@@ -94,6 +100,8 @@ func TestHTTPMetricsMiddlewareSkipsHealthAndMetricsRoutes(t *testing.T) {
 }
 
 func TestHTTPMetricsSnapshotSortsAndLimitsRoutes(t *testing.T) {
+	t.Parallel()
+
 	metrics := NewHTTPMetrics()
 	router := chi.NewRouter()
 	router.Use(metrics.Middleware)
@@ -115,6 +123,8 @@ func TestHTTPMetricsSnapshotSortsAndLimitsRoutes(t *testing.T) {
 }
 
 func TestStatusRecorderUnwrapAndFlush(t *testing.T) {
+	t.Parallel()
+
 	base := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
 	recorder := &statusRecorder{ResponseWriter: base, status: http.StatusOK}
 
@@ -125,6 +135,8 @@ func TestStatusRecorderUnwrapAndFlush(t *testing.T) {
 }
 
 func TestCapacityLoggerLogSnapshotUsesProviders(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	metrics := NewHTTPMetrics()
@@ -146,6 +158,8 @@ func TestCapacityLoggerLogSnapshotUsesProviders(t *testing.T) {
 }
 
 func TestCapacityLoggerStartStopsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	capacityLogger := NewCapacityLogger(nil, nil, nil, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
 	capacityLogger.interval = time.Hour

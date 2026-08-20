@@ -20,6 +20,8 @@ import (
 const staffID = int64(4711)
 
 func TestPersonServiceMock_StammdatenDelegatesToFuncFields(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	sentinel := errors.New("boom")
 
@@ -98,6 +100,8 @@ func TestPersonServiceMock_StammdatenDelegatesToFuncFields(t *testing.T) {
 }
 
 func TestPersonServiceMock_StammdatenZeroValuesWithoutStubs(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mock := &userstest.PersonServiceMock{}
 

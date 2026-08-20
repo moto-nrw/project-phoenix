@@ -10,6 +10,8 @@ import (
 )
 
 func TestParseYearQuery_DefaultsToBerlinCalendarYear(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/staff/42/vacation/opening", nil)
 
 	year, err := parseYearQuery(req)

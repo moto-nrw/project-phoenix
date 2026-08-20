@@ -66,6 +66,8 @@ func newNotifyService(notifier notifications.Service, prefs notifications.Prefer
 }
 
 func TestNotifyGuardianDevice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("addresses the thread's guardian and nobody else", func(t *testing.T) {
 		notifier := &captureNotifier{}
 		prefs := &stubPreferences{optedIn: []int64{42}}

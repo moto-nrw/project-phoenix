@@ -48,6 +48,11 @@ var (
 	// Room conflict management errors
 	ErrRoomConflict         = errors.New("room is already occupied by another active group")
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
+	// ErrNoRoomAvailable: no room was selected and the activity has no planned
+	// room. There is no safe default here — room id 1 belongs to one specific
+	// school, so any hardcoded fallback trips fk_active_groups_room_tenant for
+	// every other tenant. The message is part of the PyrePortal contract.
+	ErrNoRoomAvailable = errors.New("no room available for this activity")
 )
 
 type RoomCapacityError struct {

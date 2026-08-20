@@ -25,6 +25,9 @@ import (
 //
 // Tenant-isolation: the neighbor tenant sees an empty conflict list.
 // Query-budget: ≤ 22 queries per B13.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	s := newScenario(t)
 	defer s.teardown()
@@ -37,7 +40,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowB-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowB", "Staff1")
@@ -46,8 +48,6 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	bob := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowB", "3a")
 	cleo := testpkg.CreateTestStudent(t, s.db, "Cleo", "FlowB", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff1.ID, staff2.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", alice.ID, bob.ID, cleo.ID)
 	})
 
 	tmpl := s.buildTemplate(templateSpec{
@@ -74,7 +74,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	// --- Step 1: materialize -----------------------------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 
 	var matResp struct {
@@ -95,7 +95,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
-	cancelledExc.SetTenantID(primaryTenantID)
+	cancelledExc.SetTenantID(s.primaryTenant)
 	_, err := s.db.NewInsert().
 		Model(cancelledExc).
 		ModelTableExpr(`schedule.activity_exceptions`).
@@ -104,7 +104,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	s.registerCleanup("schedule.activity_exceptions", cancelledExc.ID)
 
 	// --- Step 3: re-materialize — skipped_exception, no new instance -------
-	rr = s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr = s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "rematerialize body=%s", rr.Body.String())
 
 	var matResp2 struct {
@@ -130,7 +130,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	qc.reset()
 
 	path := fmt.Sprintf("/exception-conflicts?date=%s&date_to=%s", fromS, fromS)
-	rr = s.do("GET", path, nil, primaryAdminClaims())
+	rr = s.do("GET", path, nil, s.primaryAdminClaims())
 	cancelledQueryCount := qc.get()
 
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts body=%s", rr.Body.String())
@@ -187,7 +187,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		StartTime:       &modifiedStart,
 		Reason:          testpkg.StrPtr("Fruehschluss"),
 	}
-	modifiedExc.SetTenantID(primaryTenantID)
+	modifiedExc.SetTenantID(s.primaryTenant)
 	_, err = s.db.NewInsert().
 		Model(modifiedExc).
 		ModelTableExpr(`schedule.activity_exceptions`).
@@ -196,7 +196,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	s.registerCleanup("schedule.activity_exceptions", modifiedExc.ID)
 
 	qc.reset()
-	rr = s.do("GET", path, nil, primaryAdminClaims())
+	rr = s.do("GET", path, nil, s.primaryAdminClaims())
 	modifiedQueryCount := qc.get()
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts(modified) body=%s", rr.Body.String())
 
@@ -231,7 +231,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		"/exception-conflicts (modified) query count %d exceeds budget of 22", modifiedQueryCount)
 
 	// --- Step 6: tenant isolation -----------------------------------------
-	rr = s.do("GET", path, nil, secondaryAdminClaims())
+	rr = s.do("GET", path, nil, s.secondaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "tenant2 body=%s", rr.Body.String())
 	var t2Resp struct {
 		Conflicts []struct {
@@ -246,19 +246,19 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 // to the scenario cleanup plan. The helpers already cover the dedicated
 // schedule.student_arrival_* tables in cleanupOrder, but rows created via
 // testpkg.CreateTestArrivalSchedule don't go through registerCleanup — they
-// inherit tenant_id=1 and get picked up by table-level cleanup only if we
-// remember the IDs. Simpler: do a targeted DELETE at teardown.
+// inherit the scenario's tenant and get picked up by table-level cleanup only
+// if we remember the IDs. Simpler: do a targeted DELETE at teardown.
 func (s *scenario) registerArrivalFixtures(_ *testing.T) {
 	s.extraCleanup = append(s.extraCleanup, func() {
 		ctx := s.tenantCtx()
 		_, _ = s.db.NewDelete().
 			TableExpr("schedule.student_arrival_schedules").
-			Where("tenant_id = ?", primaryTenantID).
+			Where("tenant_id = ?", s.primaryTenant).
 			Where("created_at > NOW() - INTERVAL '5 minutes'").
 			Exec(ctx)
 		_, _ = s.db.NewDelete().
 			TableExpr("schedule.student_arrival_exceptions").
-			Where("tenant_id = ?", primaryTenantID).
+			Where("tenant_id = ?", s.primaryTenant).
 			Where("created_at > NOW() - INTERVAL '5 minutes'").
 			Exec(ctx)
 	})

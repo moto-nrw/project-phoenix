@@ -8,6 +8,8 @@ import (
 )
 
 func TestRecurrenceRule_Validate(t *testing.T) {
+	t.Parallel()
+
 	count5 := 5
 	count0 := 0
 	negativeCount := -1
@@ -216,6 +218,8 @@ func TestRecurrenceRule_Validate(t *testing.T) {
 }
 
 func TestRecurrenceRule_IsFinite(t *testing.T) {
+	t.Parallel()
+
 	count5 := 5
 	future := time.Now().AddDate(0, 0, 30)
 
@@ -255,6 +259,8 @@ func TestRecurrenceRule_IsFinite(t *testing.T) {
 }
 
 func TestRecurrenceRule_IsWeekdayBased(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rule     *RecurrenceRule
@@ -303,6 +309,8 @@ func TestRecurrenceRule_IsWeekdayBased(t *testing.T) {
 }
 
 func TestRecurrenceRule_IsMonthDayBased(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rule     *RecurrenceRule
@@ -351,6 +359,8 @@ func TestRecurrenceRule_IsMonthDayBased(t *testing.T) {
 }
 
 func TestRecurrenceRule_Clone(t *testing.T) {
+	t.Parallel()
+
 	count5 := 5
 	future := time.Now().AddDate(0, 0, 30)
 	now := time.Now()
@@ -431,6 +441,8 @@ func TestRecurrenceRule_Clone(t *testing.T) {
 }
 
 func TestRecurrenceRule_Clone_EmptySlices(t *testing.T) {
+	t.Parallel()
+
 	original := &RecurrenceRule{
 		Frequency:     FrequencyDaily,
 		IntervalCount: 1,
@@ -453,6 +465,8 @@ func TestRecurrenceRule_Clone_EmptySlices(t *testing.T) {
 }
 
 func TestRecurrenceRule_GetID(t *testing.T) {
+	t.Parallel()
+
 	r := &RecurrenceRule{
 		Model:         base.Model{ID: 42},
 		Frequency:     FrequencyDaily,
@@ -465,6 +479,8 @@ func TestRecurrenceRule_GetID(t *testing.T) {
 }
 
 func TestRecurrenceRule_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	r := &RecurrenceRule{
 		Model:         base.Model{CreatedAt: now},
@@ -478,6 +494,8 @@ func TestRecurrenceRule_GetCreatedAt(t *testing.T) {
 }
 
 func TestRecurrenceRule_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	r := &RecurrenceRule{
 		Model:         base.Model{UpdatedAt: now},

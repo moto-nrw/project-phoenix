@@ -24,14 +24,14 @@ func setupClassListEntryService(t *testing.T, db *bun.DB) (usersService.ClassLis
 }
 
 func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-actor@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
 	t.Run("create records audit and trims input", func(t *testing.T) {
 		entry, err := svc.Create(ctx, usersService.ClassListEntryInput{
@@ -40,7 +40,6 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 			SchoolClass: " 7z ",
 		}, actor.ID)
 		require.NoError(t, err)
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 
 		assert.Equal(t, "CleVorname", entry.FirstName)
 		assert.Equal(t, "7z", entry.SchoolClass)
@@ -55,8 +54,7 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 	})
 
 	t.Run("duplicate entry is rejected case-insensitively", func(t *testing.T) {
-		entry := testpkg.CreateTestClassListEntry(t, db, "CleDup", "Kind", "7z")
-		_ = entry
+		testpkg.CreateTestClassListEntry(t, db, "CleDup", "Kind", "7z")
 
 		_, err := svc.Create(ctx, usersService.ClassListEntryInput{
 			FirstName:   "cledup",
@@ -67,8 +65,7 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 	})
 
 	t.Run("existing student with same name and class is rejected", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "CleStudent", "Kind", "7z")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "CleStudent", "Kind", "7z")
 
 		_, err := svc.Create(ctx, usersService.ClassListEntryInput{
 			FirstName:   "CleStudent",
@@ -121,19 +118,18 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 }
 
 func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-assign-actor@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
 	t.Run("assign deletes the entry and records the matched student", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleAssign", "Kind", "7y")
 		student := testpkg.CreateTestStudent(t, db, "CleAssign", "Kind", "7y")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		require.NoError(t, svc.Assign(ctx, entry.ID, student.ID, actor.ID))
 
@@ -162,7 +158,6 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleAssignFremd", "Kind", "7y")
 		otherName := testpkg.CreateTestStudent(t, db, "CleAnders", "Kind", "7y")
 		otherClass := testpkg.CreateTestStudent(t, db, "CleAssignFremd", "Kind", "8y")
-		defer testpkg.CleanupActivityFixtures(t, db, otherName.ID, otherClass.ID)
 
 		require.ErrorIs(t, svc.Assign(ctx, entry.ID, otherName.ID, actor.ID),
 			usersService.ErrClassListEntryAssignMismatch,
@@ -188,7 +183,6 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 		// The student arrives AFTER the entry (enrollment approval, import) —
 		// exactly the Dubletten case the hint exists for.
 		student := testpkg.CreateTestStudent(t, db, "CleMatch", "Kind", "7y")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		listed, err := svc.List(ctx)
 		require.NoError(t, err)
@@ -204,18 +198,18 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 }
 
 func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Deliberately created out of order: 10x sorts AFTER 9x (numeric class
 	// collation), names sort by German collation within the class.
 	third := testpkg.CreateTestClassListEntry(t, db, "CleSortA", "Kind", "10x")
 	second := testpkg.CreateTestClassListEntry(t, db, "CleSortB", "Zorn", "9x")
 	first := testpkg.CreateTestClassListEntry(t, db, "CleSortC", "Aalders", "9x")
-	defer testpkg.CleanupClassListEntryFixtures(t, db, first.ID, second.ID, third.ID)
 
 	entries, err := svc.ListAll(ctx)
 	require.NoError(t, err)
@@ -232,18 +226,17 @@ func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
 }
 
 func TestClassListEntryService_UpdateGuards(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-update-actor@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
 	t.Run("unchanged update writes nothing and records no audit", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleNoop", "Kind", "6v")
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 
 		updated, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
 			FirstName:   " CleNoop ",
@@ -262,15 +255,14 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 		// The advisory duplicate check cannot catch a concurrent create; the
 		// DB index is the backstop. Pin that a raw insert collision carries
 		// the index name the service maps to ErrClassListEntryDuplicate.
-		entry := testpkg.CreateTestClassListEntry(t, db, "CleRace", "Kind", "6v")
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+		testpkg.CreateTestClassListEntry(t, db, "CleRace", "Kind", "6v")
 
 		clone := &userModels.ClassListEntry{
 			FirstName:   "clerace",
 			LastName:    "KIND",
 			SchoolClass: "6V",
 		}
-		err := repos.ClassListEntry.Create(testpkg.TenantContext(1), clone)
+		err := repos.ClassListEntry.Create(testpkg.Ctx(t), clone)
 		require.Error(t, err)
 		assert.True(t, modelBase.IsUniqueViolationOn(err, userModels.ClassListEntryUniqueIndexName),
 			"the collision must be recognizable via the pinned index name")
@@ -278,8 +270,7 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 
 	t.Run("update into an existing entry's identity is refused", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleMoveDup", "Kind", "6v")
-		blocker := testpkg.CreateTestClassListEntry(t, db, "CleBlock", "Kind", "6v")
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID, blocker.ID)
+		testpkg.CreateTestClassListEntry(t, db, "CleBlock", "Kind", "6v")
 
 		_, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
 			FirstName:   "cleblock",
@@ -291,7 +282,6 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 
 	t.Run("update to whitespace-only fields fails validation", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleLeer", "Kind", "6v")
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 
 		_, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
 			FirstName:   "  ",
@@ -312,14 +302,14 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 }
 
 func TestClassListEntryService_MissingTargets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "cle-missing-actor@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
 	missingID := int64(987654321)
 
@@ -333,9 +323,7 @@ func TestClassListEntryService_MissingTargets(t *testing.T) {
 
 	t.Run("assign to an alumnus is refused", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleAlt", "Kind", "5u")
-		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 		student := testpkg.CreateTestStudent(t, db, "CleAlt", "Kind", "5u")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		_, err := db.NewUpdate().TableExpr("users.students").
 			Set("status = ?", "alumnus").
@@ -352,15 +340,15 @@ func TestClassListEntryService_MissingTargets(t *testing.T) {
 // Errors from the storage layer must propagate, not vanish: a canceled
 // context fails the first repository call of every service path.
 func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassListEntryService(t, db)
 
 	entry := testpkg.CreateTestClassListEntry(t, db, "CleErr", "Kind", "4t")
-	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
 
-	canceled, cancel := context.WithCancel(testpkg.TenantContext(1))
+	canceled, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
 	_, err := svc.ListAll(canceled)
@@ -387,22 +375,24 @@ func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 	require.Error(t, repos.ClassListEntryChange.Create(canceled, &auditModels.ClassListEntryChange{
 		EntryID: entry.ID, Action: auditModels.ClassListEntryActionCreated, ChangedBy: 1,
 	}))
-	require.Error(t, repos.ClassListEntryChange.Create(testpkg.TenantContext(1), &auditModels.ClassListEntryChange{
+	require.Error(t, repos.ClassListEntryChange.Create(testpkg.Ctx(t), &auditModels.ClassListEntryChange{
 		EntryID: entry.ID, Action: "renamed", ChangedBy: 1,
 	}), "an invalid audit row must be rejected by validation")
 }
 
 func TestClassListEntryService_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, _ := setupClassListEntryService(t, db)
 
-	testpkg.EnsureTestTenant(t, db, 42)
-	foreign := testpkg.CreateTestClassListEntryForTenant(t, db, 42, "CleForeign", "Kind", "9x")
+	foreignTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, foreignTenant)
+	foreign := testpkg.CreateTestClassListEntryForTenant(t, db, foreignTenant, "CleForeign", "Kind", "9x")
 
 	t.Run("foreign tenant entries are invisible", func(t *testing.T) {
-		entries, err := svc.ListAll(testpkg.TenantContext(1))
+		entries, err := svc.ListAll(testpkg.Ctx(t))
 		require.NoError(t, err)
 		for _, entry := range entries {
 			assert.NotEqual(t, foreign.ID, entry.ID)
@@ -411,9 +401,8 @@ func TestClassListEntryService_TenantIsolation(t *testing.T) {
 
 	t.Run("foreign tenant entries cannot be deleted", func(t *testing.T) {
 		actor := testpkg.CreateTestAccount(t, db, "cle-iso-actor@test.local")
-		defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
-		err := svc.Delete(testpkg.TenantContext(1), foreign.ID, actor.ID)
+		err := svc.Delete(testpkg.Ctx(t), foreign.ID, actor.ID)
 		require.ErrorIs(t, err, usersService.ErrClassListEntryNotFound)
 	})
 }

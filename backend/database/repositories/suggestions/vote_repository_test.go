@@ -14,17 +14,16 @@ import (
 )
 
 func TestVoteRepository_Upsert(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-upsert")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Vote Upsert %d", time.Now().UnixNano()), "Desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("creates new vote", func(t *testing.T) {
 		vote := &suggestions.Vote{
@@ -71,17 +70,16 @@ func TestVoteRepository_Upsert(t *testing.T) {
 }
 
 func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-delete")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Vote Delete %d", time.Now().UnixNano()), "Desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	createTestVote(t, db, post.ID, account.ID, suggestions.DirectionUp)
 
@@ -101,17 +99,16 @@ func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 }
 
 func TestVoteRepository_FindByPostAndVoter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-find")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Vote Find %d", time.Now().UnixNano()), "Desc")
-	defer cleanupPosts(t, db, post.ID)
 
 	createTestVote(t, db, post.ID, account.ID, suggestions.DirectionDown)
 

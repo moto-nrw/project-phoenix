@@ -55,6 +55,8 @@ func (r *fakeUnregisteredTagScanRepo) DeleteOlderThan(_ context.Context, cutoff 
 }
 
 func TestUnregisteredTagScanRecordTrimsAndStampsTenant(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeUnregisteredTagScanRepo{}
 	service := NewUnregisteredTagScanService(repo, nil)
 	deviceID := int64(42)
@@ -71,6 +73,8 @@ func TestUnregisteredTagScanRecordTrimsAndStampsTenant(t *testing.T) {
 }
 
 func TestUnregisteredTagScanRecordRequiresTenant(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeUnregisteredTagScanRepo{}
 	service := NewUnregisteredTagScanService(repo, nil)
 
@@ -81,6 +85,8 @@ func TestUnregisteredTagScanRecordRequiresTenant(t *testing.T) {
 }
 
 func TestUnregisteredTagScanRecordRequiresTagUID(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeUnregisteredTagScanRepo{}
 	service := NewUnregisteredTagScanService(repo, nil)
 	ctx := tenant.WithTenantID(context.Background(), 99)
@@ -92,6 +98,8 @@ func TestUnregisteredTagScanRecordRequiresTagUID(t *testing.T) {
 }
 
 func TestUnregisteredTagScanRecordPropagatesRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("insert failed")
 	repo := &fakeUnregisteredTagScanRepo{createErr: wantErr}
 	service := NewUnregisteredTagScanService(repo, nil)
@@ -104,6 +112,8 @@ func TestUnregisteredTagScanRecordPropagatesRepositoryError(t *testing.T) {
 }
 
 func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
+	t.Parallel()
+
 	schoolID := int64(10)
 	orgID := schoolID / 2
 	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123"}}
@@ -124,6 +134,8 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 }
 
 func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("list failed")
 	repo := &fakeUnregisteredTagScanRepo{listErr: wantErr}
 	service := NewUnregisteredTagScanService(repo, nil)
@@ -135,6 +147,8 @@ func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.
 }
 
 func TestUnregisteredTagScanResolveValidatesIDs(t *testing.T) {
+	t.Parallel()
+
 	service := NewUnregisteredTagScanService(&fakeUnregisteredTagScanRepo{}, nil)
 
 	_, err := service.Resolve(context.Background(), 0, 15, nil)
@@ -145,6 +159,8 @@ func TestUnregisteredTagScanResolveValidatesIDs(t *testing.T) {
 }
 
 func TestUnregisteredTagScanResolveNormalizesNoteAndReturnsScan(t *testing.T) {
+	t.Parallel()
+
 	scan := &auditModels.UnregisteredTagScan{TagUID: "ABC123"}
 	repo := &fakeUnregisteredTagScanRepo{resolveResult: scan}
 	service := NewUnregisteredTagScanService(repo, nil)
@@ -161,6 +177,8 @@ func TestUnregisteredTagScanResolveNormalizesNoteAndReturnsScan(t *testing.T) {
 }
 
 func TestUnregisteredTagScanResolvePropagatesRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("resolve failed")
 	repo := &fakeUnregisteredTagScanRepo{resolveErr: wantErr}
 	service := NewUnregisteredTagScanService(repo, nil)
@@ -172,6 +190,8 @@ func TestUnregisteredTagScanResolvePropagatesRepositoryError(t *testing.T) {
 }
 
 func TestUnregisteredTagScanDeleteOlderThanUsesDefaultRetention(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeUnregisteredTagScanRepo{deleteResult: 3}
 	service := NewUnregisteredTagScanService(repo, nil)
 	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays)
@@ -186,6 +206,8 @@ func TestUnregisteredTagScanDeleteOlderThanUsesDefaultRetention(t *testing.T) {
 }
 
 func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("delete failed")
 	repo := &fakeUnregisteredTagScanRepo{deleteErr: wantErr}
 	service := NewUnregisteredTagScanService(repo, nil)
@@ -201,6 +223,8 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 }
 
 func TestNormalizeNote(t *testing.T) {
+	t.Parallel()
+
 	note := "  assigned to replacement card  "
 
 	require.Nil(t, strutil.TrimPtrToNil(nil))

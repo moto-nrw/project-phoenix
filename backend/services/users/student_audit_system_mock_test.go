@@ -34,6 +34,8 @@ func (*capturingStudentAuditRepo) DeleteOlderThan(context.Context, time.Time) (i
 }
 
 func TestStudentAuditService_RecordSystemStatusChange(t *testing.T) {
+	t.Parallel()
+
 	repo := &capturingStudentAuditRepo{}
 	service := NewStudentAuditService(repo, nil)
 
@@ -57,6 +59,8 @@ func TestStudentAuditService_RecordSystemStatusChange(t *testing.T) {
 }
 
 func TestStudentAuditService_RecordChangesForActor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		claims     jwt.AppClaims

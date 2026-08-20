@@ -6,6 +6,8 @@ import (
 )
 
 func TestBusDaysValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		days    BusDays
@@ -52,6 +54,8 @@ func TestBusDaysValidate(t *testing.T) {
 }
 
 func TestBusDaysHasAny(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		days BusDays
@@ -73,6 +77,8 @@ func TestBusDaysHasAny(t *testing.T) {
 }
 
 func TestBusDaysNormalize(t *testing.T) {
+	t.Parallel()
+
 	days := BusDays{
 		BusDayMonday:    true,
 		BusDayTuesday:   false,
@@ -100,6 +106,8 @@ func TestBusDaysNormalize(t *testing.T) {
 }
 
 func TestBusDaysFromLegacyFlag(t *testing.T) {
+	t.Parallel()
+
 	disabled := BusDaysFromLegacyFlag(false)
 	if disabled.HasAny() {
 		t.Fatalf("BusDaysFromLegacyFlag(false) = %#v, want no enabled days", disabled)

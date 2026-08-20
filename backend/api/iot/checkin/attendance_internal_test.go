@@ -19,24 +19,32 @@ import (
 // =============================================================================
 
 func TestBuildAttendanceMessage_CheckedIn(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("checked_in", "Max")
 	assert.Equal(t, "Hallo Max!", msg)
 }
 
 func TestBuildAttendanceMessage_CheckedOut(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("checked_out", "Anna")
 	assert.Equal(t, "Tschüss Anna!", msg)
 }
 
 func TestBuildAttendanceMessage_UnknownAction(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("transferred", "Ben")
 	assert.Equal(t, "Attendance transferred for Ben", msg)
 }
 
 func TestBuildAttendanceMessage_EmptyAction(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("", "Test")
 	assert.Equal(t, "Attendance  for Test", msg)
@@ -47,6 +55,8 @@ func TestBuildAttendanceMessage_EmptyAction(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffIDFromContext_NoStaffContext(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	// With context that doesn't have staff set
 	ctx := context.Background()
@@ -59,6 +69,8 @@ func TestGetStaffIDFromContext_NoStaffContext(t *testing.T) {
 // =============================================================================
 
 func TestAttendanceToggleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	dest := "zuhause"
 	req := AttendanceToggleRequest{
 		RFID:        "ABC123",
@@ -72,6 +84,8 @@ func TestAttendanceToggleRequest_Fields(t *testing.T) {
 }
 
 func TestAttendanceGroupInfo_Fields(t *testing.T) {
+	t.Parallel()
+
 	info := AttendanceGroupInfo{
 		ID:   123,
 		Name: "Class 1A",
@@ -82,6 +96,8 @@ func TestAttendanceGroupInfo_Fields(t *testing.T) {
 }
 
 func TestAttendanceStudentInfo_Fields(t *testing.T) {
+	t.Parallel()
+
 	info := AttendanceStudentInfo{
 		ID:        456,
 		FirstName: "Max",
@@ -100,6 +116,8 @@ func TestAttendanceStudentInfo_Fields(t *testing.T) {
 }
 
 func TestAttendanceStudentInfo_NilGroup(t *testing.T) {
+	t.Parallel()
+
 	info := AttendanceStudentInfo{
 		ID:        456,
 		FirstName: "Anna",
@@ -115,6 +133,8 @@ func TestAttendanceStudentInfo_NilGroup(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentGroupInfo_NilGroupID(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	student := &users.Student{} // GroupID is nil
 	result := rs.getStudentGroupInfo(context.Background(), student)
@@ -126,6 +146,8 @@ func TestGetStudentGroupInfo_NilGroupID(t *testing.T) {
 // =============================================================================
 
 func TestHandleCancelAction_Response(t *testing.T) {
+	t.Parallel()
+
 	rs := &AttendanceResource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/toggle", nil)
@@ -140,6 +162,8 @@ func TestHandleCancelAction_Response(t *testing.T) {
 // =============================================================================
 
 func TestAttendanceToggleResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := AttendanceToggleResponse{
 		Action:  "checked_out_daily",
 		Message: "Tschüss Max!",
@@ -156,6 +180,8 @@ func TestAttendanceToggleResponse_Fields(t *testing.T) {
 }
 
 func TestAttendanceInfo_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	later := now.Add(1 * time.Hour)
 	info := AttendanceInfo{
@@ -175,6 +201,8 @@ func TestAttendanceInfo_Fields(t *testing.T) {
 }
 
 func TestAttendanceStatusResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := AttendanceStatusResponse{
 		Student: AttendanceStudentInfo{
 			ID:        456,

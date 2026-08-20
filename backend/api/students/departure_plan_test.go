@@ -8,6 +8,8 @@ import (
 )
 
 func TestApplyDeparturePlan_NoInputPreservesAllowedModes(t *testing.T) {
+	t.Parallel()
+
 	student := &users.Student{
 		AllowedDepartureModes: users.AllowedDepartureModes{
 			users.PickupDayMonday: []users.DepartureMode{
@@ -29,6 +31,8 @@ func TestApplyDeparturePlan_NoInputPreservesAllowedModes(t *testing.T) {
 }
 
 func TestApplyDeparturePlan_LegacyDepartureDoesNotCollapseAllowedModes(t *testing.T) {
+	t.Parallel()
+
 	student := &users.Student{
 		DepartureDays: users.DepartureDays{
 			users.PickupDayMonday: users.DeparturePickup,
@@ -59,6 +63,8 @@ func TestApplyDeparturePlan_LegacyDepartureDoesNotCollapseAllowedModes(t *testin
 }
 
 func TestApplyDeparturePlan_LegacyMapsDoNotReplaceAllowedModes(t *testing.T) {
+	t.Parallel()
+
 	student := &users.Student{
 		AllowedDepartureModes: users.AllowedDepartureModes{
 			users.PickupDayMonday: []users.DepartureMode{

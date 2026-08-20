@@ -153,6 +153,8 @@ func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
 }
 
 func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakePushRepo{staff: []*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/a")}}
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
@@ -192,6 +194,8 @@ func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
 }
 
 func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {
+	t.Parallel()
+
 	dead := testSub(11, 41, "https://fcm.googleapis.com/dead")
 	alive := testSub(12, 41, "https://fcm.googleapis.com/alive")
 	repo := &fakePushRepo{staff: []*iot.PushSubscription{dead, alive}}
@@ -208,6 +212,8 @@ func TestWebPushPrunesExpiredSubscriptions(t *testing.T) {
 }
 
 func TestWebPushKeepsSubscriptionRefreshedDuringDelivery(t *testing.T) {
+	t.Parallel()
+
 	sentSnapshot := testSub(11, 41, "https://fcm.googleapis.com/refreshed")
 	repo := &fakePushRepo{keepExpired: true}
 	channel := testChannel(repo, &fakeSender{})
@@ -224,6 +230,8 @@ func TestWebPushKeepsSubscriptionRefreshedDuringDelivery(t *testing.T) {
 }
 
 func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
+	t.Parallel()
+
 	staff := []*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/s")}
 	admins := []*iot.PushSubscription{testSub(2, 41, "https://fcm.googleapis.com/a")}
 	guardian := testSub(3, 41, "https://fcm.googleapis.com/g")
@@ -301,6 +309,8 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 }
 
 func TestWebPushPriorityMapping(t *testing.T) {
+	t.Parallel()
+
 	ttl, urgency := pushOptionsForPriority(PriorityHigh)
 	assert.Equal(t, 3600, ttl)
 	assert.Equal(t, webpush.UrgencyHigh, urgency)
@@ -315,6 +325,8 @@ func TestWebPushPriorityMapping(t *testing.T) {
 }
 
 func TestWebPushHandlesDeliveryFailures(t *testing.T) {
+	t.Parallel()
+
 	sendFailure := testSub(21, 41, "https://fcm.googleapis.com/send-failure")
 	pruneFailure := testSub(22, 41, "https://fcm.googleapis.com/prune-failure")
 	rejected := testSub(23, 41, "https://fcm.googleapis.com/rejected")
@@ -347,6 +359,8 @@ func TestWebPushHandlesDeliveryFailures(t *testing.T) {
 }
 
 func TestWebPushRejectsOversizedPayload(t *testing.T) {
+	t.Parallel()
+
 	channel := testChannel(&fakePushRepo{}, &fakeSender{})
 	event := Event{
 		Type:     "test",
@@ -361,6 +375,8 @@ func TestWebPushRejectsOversizedPayload(t *testing.T) {
 }
 
 func TestWebPushRejectsUntrustedStoredEndpoint(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakePushRepo{}
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
@@ -374,6 +390,8 @@ func TestWebPushRejectsUntrustedStoredEndpoint(t *testing.T) {
 }
 
 func TestWebPushSendDeadlineAndRedirectPolicy(t *testing.T) {
+	t.Parallel()
+
 	var deadline time.Time
 	sender := &fakeSender{sendFn: func(ctx context.Context) {
 		deadline, _ = ctx.Deadline()
@@ -396,6 +414,8 @@ func TestWebPushSendDeadlineAndRedirectPolicy(t *testing.T) {
 }
 
 func TestWebPushConcurrencyLimitIsSharedAcrossBatches(t *testing.T) {
+	t.Parallel()
+
 	release := make(chan struct{})
 	started := make(chan struct{}, maxConcurrentPushSends*2)
 	sender := &fakeSender{sendFn: func(context.Context) {
@@ -436,11 +456,12 @@ func TestWebPushConcurrencyLimitIsSharedAcrossBatches(t *testing.T) {
 }
 
 func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 
@@ -500,6 +521,8 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 }
 
 func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
+	t.Parallel()
+
 	event := Event{Type: "test", Audience: Audience{TenantID: 41, Scope: ScopeTenant}, Title: "Test"}
 
 	t.Run("without VAPID configuration", func(t *testing.T) {
@@ -519,6 +542,8 @@ func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
 }
 
 func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
+	t.Parallel()
+
 	channel := testChannel(&fakePushRepo{staff: []*iot.PushSubscription{
 		testSub(1, 41, "https://fcm.googleapis.com/device"),
 	}}, &fakeSender{})
@@ -567,7 +592,6 @@ func mockTenantTx(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 	mock.ExpectBegin()
@@ -591,6 +615,8 @@ func staffEventFor(accountID int64, title string) Event {
 // are load-bearing: one transaction is the whole point, and a shared payload
 // would hand one person another's message.
 func TestWebPushDeliverBatchResolvesOnceAndSendsPerRecipient(t *testing.T) {
+	t.Parallel()
+
 	subA := testSub(1, 41, "https://fcm.googleapis.com/a")
 	subA.AccountID = 11
 	subB := testSub(2, 41, "https://fcm.googleapis.com/b")
@@ -632,6 +658,8 @@ func TestWebPushDeliverBatchResolvesOnceAndSendsPerRecipient(t *testing.T) {
 }
 
 func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no events is a no-op", func(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		require.NoError(t, channel.DeliverBatch(context.Background(), nil))
@@ -684,6 +712,8 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 // Only staff-scoped events are grouped; the other scopes resolve their devices
 // from the scope alone and go through the single path.
 func TestWebPushDeliverBatchFallsBackForOtherScopes(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakePushRepo{staff: []*iot.PushSubscription{
 		testSub(1, 41, "https://fcm.googleapis.com/tenant"),
 	}}

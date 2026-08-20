@@ -24,12 +24,13 @@ func buildDeviceLocationService(t *testing.T, db *bun.DB) activeSvc.Service {
 }
 
 func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildDeviceLocationService(t, db)
 	deviceRepo := repositories.NewFactory(db).Device
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("session start updates device room_id", func(t *testing.T) {
 		// ARRANGE
@@ -37,7 +38,6 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "loc-update-device")
 		room := testpkg.CreateTestRoom(t, db, "Location Update Room")
 		staff := testpkg.CreateTestStaff(t, db, "Location", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID, 0)
 
 		// Verify device has no room before session
 		before, err := deviceRepo.FindByID(ctx, device.ID)
@@ -65,8 +65,6 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 		room1 := testpkg.CreateTestRoom(t, db, "First Session Room")
 		room2 := testpkg.CreateTestRoom(t, db, "Second Session Room")
 		staff := testpkg.CreateTestStaff(t, db, "Switch", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room1.ID, staff.ID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room2.ID)
 
 		// Start first session in room1
 		session1, err := service.StartActivitySessionWithSupervisors(

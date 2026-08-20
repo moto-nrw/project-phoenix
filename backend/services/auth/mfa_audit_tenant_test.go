@@ -29,6 +29,8 @@ import (
 // newTestMFAService, which in turn calls testpkg.SetupTestDB. We name
 // SetupTestDB here so the hermetic-check static scanner sees it directly.
 func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	// newTestMFAService internally calls testpkg.SetupTestDB(t) — wired
 	// through the shared fixture in mfa_service_test.go.
@@ -70,6 +72,8 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 // and IPAddress=="" fails. Post-fix we substitute the sentinel
 // 0.0.0.0 (mirroring caregiverCapabilityAuditIP) so the row lands.
 func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 

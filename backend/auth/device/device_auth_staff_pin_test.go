@@ -71,6 +71,7 @@ func newStaffPINTestRequest(apiKey, staffPIN string) *http.Request {
 	return req
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorSetsCredentialBoundStaffContext(t *testing.T) {
 	staff := &users.Staff{}
 	staff.ID = 42
@@ -92,6 +93,7 @@ func TestDeviceAuthenticatorSetsCredentialBoundStaffContext(t *testing.T) {
 	assert.Equal(t, "personal-pin", authenticator.pin)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorIgnoresLegacyStaffIDWithoutCredential(t *testing.T) {
 	authenticator := &stubStaffPINAuthenticator{}
 	handlerCalled := false
@@ -109,6 +111,7 @@ func TestDeviceAuthenticatorIgnoresLegacyStaffIDWithoutCredential(t *testing.T) 
 	assert.Zero(t, authenticator.calls)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorRejectsInvalidStaffCredential(t *testing.T) {
 	authenticator := &stubStaffPINAuthenticator{err: errors.New("invalid credential")}
 	handlerCalled := false
@@ -125,6 +128,7 @@ func TestDeviceAuthenticatorRejectsInvalidStaffCredential(t *testing.T) {
 	assert.Equal(t, 1, authenticator.calls)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorRejectsCrossTenantStaff(t *testing.T) {
 	staff := &users.Staff{}
 	staff.ID = 42

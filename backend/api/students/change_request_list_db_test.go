@@ -52,12 +52,13 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 // chain, real services, real keyset SQL. The distinctive child name plus the
 // server-side search keeps the assertions hermetic on the shared test DB.
 func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggListGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Zaggreg", "Atkind", "AL1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -108,12 +109,13 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "OpenReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggOpenGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Zoffen", "Listkind", "AL2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 

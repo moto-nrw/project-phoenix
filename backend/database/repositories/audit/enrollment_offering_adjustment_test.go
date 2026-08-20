@@ -15,12 +15,13 @@ import (
 )
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	repo := repoFactory.EnrollmentOfferingAdjustment
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Audit", "Adjustment", "1a")
 	account := testpkg.CreateTestAccount(t, db, "adjustment-admin@example.test")
@@ -28,9 +29,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 	request := createAuditAdjustmentRequest(t, repoFactory, phase.ID)
 	child := createAuditAdjustmentChild(t, repoFactory, request.ID)
 	otherChild := createAuditAdjustmentChild(t, repoFactory, request.ID)
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
 
 	older := &audit.EnrollmentOfferingAdjustment{
 		RequestID:      request.ID,
@@ -69,7 +67,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 	require.NoError(t, repo.Create(ctx, older))
 	require.NoError(t, repo.Create(ctx, newer))
 	require.NoError(t, repo.Create(ctx, other))
-	defer testpkg.CleanupTableRecords(t, db, "audit.enrollment_offering_adjustments", older.ID, newer.ID, other.ID)
 
 	rows, err := repo.ListByRequestChildID(ctx, child.ID)
 	require.NoError(t, err)
@@ -80,34 +77,40 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 }
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMissingID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 
-	rows, err := repo.ListByRequestChildID(testpkg.TenantContext(1), 0)
+	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 0)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "request_child_id is required")
 }
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
 	require.NoError(t, db.Close())
 
-	rows, err := repo.ListByRequestChildID(testpkg.TenantContext(1), 999)
+	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 999)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "list enrollment offering adjustments")
 }
 
 func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).EnrollmentOfferingAdjustment
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
-	rows, err := repo.ListDirectForTenant(testpkg.TenantContext(1), time.Now(), 1, 10)
+	rows, err := repo.ListDirectForTenant(ctx, time.Now(), 1, 10)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "list direct enrollment offering adjustments")
@@ -115,7 +118,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError(t
 
 func createAuditAdjustmentPhase(t *testing.T, repoFactory *repositories.Factory) *enrollmentModels.Phase {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	phase := &enrollmentModels.Phase{
 		Name:                      fmt.Sprintf("audit-adjustment-%d", time.Now().UnixNano()),
 		Kind:                      enrollmentModels.PhaseKindSchoolYear,
@@ -131,7 +134,7 @@ func createAuditAdjustmentPhase(t *testing.T, repoFactory *repositories.Factory)
 
 func createAuditAdjustmentRequest(t *testing.T, repoFactory *repositories.Factory, phaseID int64) *enrollmentModels.Request {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	req := &enrollmentModels.Request{
 		PhaseID:           phaseID,
 		GuardianFirstName: "Anna",
@@ -148,7 +151,7 @@ func createAuditAdjustmentRequest(t *testing.T, repoFactory *repositories.Factor
 
 func createAuditAdjustmentChild(t *testing.T, repoFactory *repositories.Factory, requestID int64) *enrollmentModels.RequestChild {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	child := &enrollmentModels.RequestChild{
 		RequestID:      requestID,
 		FirstName:      "Lina",
@@ -166,21 +169,19 @@ func createAuditAdjustmentChild(t *testing.T, repoFactory *repositories.Factory,
 // newest first, request-applied rows excluded, and a follow-up page that
 // continues strictly before the last row of the previous one.
 func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
 	repo := repoFactory.EnrollmentOfferingAdjustment
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Direct", "Correction", "1a")
 	account := testpkg.CreateTestAccount(t, db, "direct-correction-admin@example.test")
 	phase := createAuditAdjustmentPhase(t, repoFactory)
 	request := createAuditAdjustmentRequest(t, repoFactory, phase.ID)
 	child := createAuditAdjustmentChild(t, repoFactory, request.ID)
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
 
 	// A far-future base keeps this window clear of rows other tests leave in
 	// the shared test database.
@@ -207,8 +208,6 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	for _, row := range []*audit.EnrollmentOfferingAdjustment{newest, middle, oldest, applied, unknown} {
 		require.NoError(t, repo.Create(ctx, row))
 	}
-	defer testpkg.CleanupTableRecords(t, db, "audit.enrollment_offering_adjustments",
-		newest.ID, middle.ID, oldest.ID, applied.ID, unknown.ID)
 
 	// First page: newest first; request-applied and unknown legacy rows stay
 	// out because neither is a verified direct correction.
@@ -229,7 +228,8 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 
 	// The explicit repository predicate protects non-HTTP callers whose
 	// database connection bypasses RLS.
-	otherTenantRows, err := repo.ListDirectForTenant(testpkg.TenantContext(2), time.Time{}, 0, 2)
+	otherTenant := testpkg.NewTenantScope(t, db)
+	otherTenantRows, err := repo.ListDirectForTenant(otherTenant.Context(), time.Time{}, 0, 2)
 	require.NoError(t, err)
 	assert.Empty(t, otherTenantRows)
 

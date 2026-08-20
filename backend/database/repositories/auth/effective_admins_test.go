@@ -26,7 +26,13 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
+	// the tenant of the test that created it, so this row may already exist —
+	// what this call still decides is its status.
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
 	require.NoError(t, err)
 
 	var roleID int64
@@ -49,18 +55,19 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 // directions matter: missing an admin is an annoyance, including a non-admin is
 // a disclosure.
 func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Account
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("includes the admin role and excludes a plain user", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-admin@example.test")
 		plain := testpkg.CreateTestAccount(t, db, "effective-plain@example.test")
 
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
-		grantTenantRole(t, db, ctx, plain.ID, 1, authModels.BaseRoleUser)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, plain.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID, plain.ID)
 
@@ -73,7 +80,7 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes a deactivated admin account", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-inactive@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
@@ -91,13 +98,13 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes an admin whose tenant mapping is not active", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-pending@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, 1, authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
 			Set("status = ?", authModels.AccountTenantStatusInactive).
-			Where("account_id = ? AND tenant_id = ?", admin.ID, 1).
+			Where("account_id = ? AND tenant_id = ?", admin.ID, testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -108,7 +115,7 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	})
 
 	t.Run("does not leak another tenant's admins", func(t *testing.T) {
-		const otherTenant int64 = 99045
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignAdmin := testpkg.CreateTestAccount(t, db, "effective-foreign@example.test")

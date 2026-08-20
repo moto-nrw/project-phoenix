@@ -13,6 +13,8 @@ import (
 // mail: whatever the organizer changed for THIS date has to reach the copy, or
 // the mail describes an appointment that no longer happens that way.
 func TestAppointmentWithOverrideAppliesEveryChangedField(t *testing.T) {
+	t.Parallel()
+
 	appointment := helperAppointment()
 	occurrence := timezone.NewDate(2026, 3, 9)
 
@@ -53,6 +55,8 @@ func TestAppointmentWithOverrideAppliesEveryChangedField(t *testing.T) {
 // claim and dispatch a guardian can lose access, and those stale claims have to
 // be released — otherwise the reminder is never retried for them.
 func TestWithoutReminderProfiles(t *testing.T) {
+	t.Parallel()
+
 	claimed := []int64{11, 12, 13}
 
 	assert.Equal(t, []int64{12}, withoutReminderProfiles(claimed, []int64{11, 13}),

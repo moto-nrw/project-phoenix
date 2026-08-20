@@ -36,6 +36,8 @@ func callTodayStatus(t *testing.T, svc *fakeParentService) *httptest.ResponseRec
 // TestTodayStatusEndpointReturnsPresent prueft die zweistufige Antwort: die
 // Ja/Nein-Aussage at_ogs und den erklaerenden Zustand samt Uhrzeit.
 func TestTodayStatusEndpointReturnsPresent(t *testing.T) {
+	t.Parallel()
+
 	present := true
 	w := callTodayStatus(t, &fakeParentService{
 		todayStatus: &parentService.TodayStatus{
@@ -64,6 +66,8 @@ func TestTodayStatusEndpointReturnsPresent(t *testing.T) {
 // belastbare Daten trifft die Antwort keine Ja/Nein-Aussage, statt eine zu
 // erfinden.
 func TestTodayStatusEndpointOmitsJaNeinWhenUnknown(t *testing.T) {
+	t.Parallel()
+
 	w := callTodayStatus(t, &fakeParentService{
 		todayStatus: &parentService.TodayStatus{State: parentService.DayStateUnknown},
 	})
@@ -82,6 +86,8 @@ func TestTodayStatusEndpointOmitsJaNeinWhenUnknown(t *testing.T) {
 // Datenschutz-Zusicherung: die Elternantwort traegt genau vier Felder, nie
 // Raeume, Besuchshistorie, Rohereignisse oder Mitarbeitendennamen.
 func TestTodayStatusEndpointLeaksNoInternalFields(t *testing.T) {
+	t.Parallel()
+
 	present := true
 	w := callTodayStatus(t, &fakeParentService{
 		todayStatus: &parentService.TodayStatus{
@@ -109,6 +115,8 @@ func TestTodayStatusEndpointLeaksNoInternalFields(t *testing.T) {
 // die Berechtigungspruefung nicht umgeht, sondern Konto und Kind an den
 // Service durchreicht, der sie prueft.
 func TestTodayStatusEndpointPassesCallerAndChild(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeParentService{}
 	w := callTodayStatus(t, svc)
 

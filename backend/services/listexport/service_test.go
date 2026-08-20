@@ -12,6 +12,8 @@ import (
 )
 
 func TestRenderFormats(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	service := NewService()
 
@@ -46,6 +48,8 @@ func TestRenderFormats(t *testing.T) {
 }
 
 func TestRenderPDFWritesDocumentHeader(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatPDF, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -56,6 +60,8 @@ func TestRenderPDFWritesDocumentHeader(t *testing.T) {
 }
 
 func TestRenderDOCXWritesWordDocument(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatDOCX, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -91,6 +97,8 @@ func TestRenderDOCXWritesWordDocument(t *testing.T) {
 }
 
 func TestRenderXLSXWritesTable(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -123,6 +131,8 @@ func TestRenderXLSXWritesTable(t *testing.T) {
 }
 
 func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	doc.Rows = []Row{
 		{GroupTitle: "Bestätigte Anmeldungen"},
@@ -156,6 +166,8 @@ func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
 }
 
 func TestRenderXLSXStartsEachGroupOnANewPrintedPage(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	doc.Rows = []Row{
 		{GroupTitle: "Woche 1"},
@@ -193,6 +205,8 @@ func TestRenderXLSXStartsEachGroupOnANewPrintedPage(t *testing.T) {
 }
 
 func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -227,6 +241,8 @@ func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
 }
 
 func TestRenderXLSXStampsConfidentialityFooter(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	doc.Footer = "Vertraulich – nach Gebrauch sicher vernichten."
 	file, err := NewService().Render(doc, FormatXLSX, "liste")
@@ -251,6 +267,8 @@ func TestRenderXLSXStampsConfidentialityFooter(t *testing.T) {
 }
 
 func TestRenderXLSXNoFooterWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -272,6 +290,8 @@ func TestRenderXLSXNoFooterWhenUnset(t *testing.T) {
 }
 
 func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
+	t.Parallel()
+
 	catalog := ColumnCatalog()
 	blocked := []ColumnID{"room", "homeroom", "identifier", "internal_identifier"}
 	for _, columnID := range blocked {
@@ -282,6 +302,8 @@ func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
 }
 
 func TestColumnCatalogIncludesDailyStatus(t *testing.T) {
+	t.Parallel()
+
 	catalog := ColumnCatalog()
 	column, ok := catalog[ColumnDailyStatus]
 	if !ok {
@@ -296,6 +318,8 @@ func TestColumnCatalogIncludesDailyStatus(t *testing.T) {
 // are missing from the catalog would render as a shorter list rather than an
 // error. Pin both entries so that failure mode cannot reappear unnoticed.
 func TestColumnCatalogIncludesBirthdayColumns(t *testing.T) {
+	t.Parallel()
+
 	catalog := ColumnCatalog()
 	for columnID, wantLabel := range map[ColumnID]string{
 		ColumnBirthday: "Geburtstag",
@@ -312,6 +336,8 @@ func TestColumnCatalogIncludesBirthdayColumns(t *testing.T) {
 }
 
 func TestResolveColumnsKeepsBirthdayPresetColumns(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveColumns(nil, PresetBirthdayList)
 
 	want := DefaultColumnsForPreset(PresetBirthdayList)
@@ -326,6 +352,8 @@ func TestResolveColumnsKeepsBirthdayPresetColumns(t *testing.T) {
 }
 
 func TestDefaultColumnsForPreset(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		preset Preset
 		want   []ColumnID
@@ -351,6 +379,8 @@ func TestDefaultColumnsForPreset(t *testing.T) {
 }
 
 func TestResolveColumnsDedupesSkipsUnknownAndFallsBack(t *testing.T) {
+	t.Parallel()
+
 	got := ResolveColumns([]ColumnID{ColumnName, "nope", ColumnName, ColumnStudentGroup}, PresetOGSWeekly)
 	if len(got) != 2 {
 		t.Fatalf("ResolveColumns len = %d, want 2", len(got))
@@ -366,6 +396,8 @@ func TestResolveColumnsDedupesSkipsUnknownAndFallsBack(t *testing.T) {
 }
 
 func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
+	t.Parallel()
+
 	if GeneratedAtLabel(time.Time{}) == "" {
 		t.Fatal("GeneratedAtLabel returned empty label for zero time")
 	}
@@ -379,6 +411,8 @@ func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
 // A large document must spill onto multiple pages (page count parsed from
 // the rendered page objects — see countRenderedPDFPages).
 func TestRenderPDFMultiPage(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	for i := 0; i < 80; i++ {
 		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
@@ -397,6 +431,8 @@ func TestRenderPDFMultiPage(t *testing.T) {
 }
 
 func TestRenderUnsupportedFormat(t *testing.T) {
+	t.Parallel()
+
 	_, err := NewService().Render(sampleDocument(), Format("csv"), "liste")
 	if err == nil {
 		t.Fatal("Render() error = nil, want unsupported format error")
@@ -429,6 +465,8 @@ func sampleDocument() Document {
 // #2079: a multi-line cell must wrap and leave its height automatic, so both
 // explicit and soft line breaks remain visible in fixed-width plan columns.
 func TestRenderXLSXWrapsMultiLineCells(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	doc.Rows = []Row{
 		{Values: map[ColumnID]string{ColumnName: "07:30–14:00\nKüche\nRaum 2"}},
@@ -496,6 +534,8 @@ func TestRenderXLSXWrapsMultiLineCells(t *testing.T) {
 // Single-line rows keep the default height so the existing child lists
 // look exactly as before.
 func TestRenderXLSXKeepsDefaultHeightForSingleLineRows(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -522,6 +562,8 @@ func TestRenderXLSXKeepsDefaultHeightForSingleLineRows(t *testing.T) {
 // The DOCX renderer honours the same "\n is a line break" contract, so the
 // three formats cannot disagree about what a composed cell means.
 func TestRenderDOCXWritesLineBreaks(t *testing.T) {
+	t.Parallel()
+
 	doc := sampleDocument()
 	doc.Rows = []Row{
 		{Values: map[ColumnID]string{ColumnName: "07:30–14:00\nKüche"}},

@@ -7,24 +7,32 @@ import (
 )
 
 func TestParentMessageCopyUsesPortalLocale(t *testing.T) {
+	t.Parallel()
+
 	title, body := ParentMessageCopy("en")
 	assert.Equal(t, "New message from the OGS", title)
 	assert.Equal(t, "You have a new message in the parent portal.", body)
 }
 
 func TestParentAppointmentCopyUsesPortalLocale(t *testing.T) {
+	t.Parallel()
+
 	title, body := ParentAppointmentCopy("sq", ParentAppointmentCancelled)
 	assert.Equal(t, "Takimi u anulua", title)
 	assert.Equal(t, "Një takim për ju është anuluar.", body)
 }
 
 func TestParentAnnouncementCopyUsesPortalLocale(t *testing.T) {
+	t.Parallel()
+
 	title, body := ParentAnnouncementCopy("ru", ParentPollReminder)
 	assert.Equal(t, "Напоминание: опрос открыт", title)
 	assert.Contains(t, body, "ребёнка")
 }
 
 func TestParentRequestDecisionCopyUsesPortalLocale(t *testing.T) {
+	t.Parallel()
+
 	title, body := ParentRequestDecisionCopy("sq", "master_data", "abgelehnt")
 	assert.Equal(t, "Kërkesa u refuzua", title)
 	assert.Equal(t, "Kërkesa juaj për të dhënat bazë u refuzua.", body)
@@ -50,6 +58,8 @@ func assertDistinctPerLocale(t *testing.T, got map[string]string) {
 }
 
 func TestParentAnnouncementCopyCoversEveryLocaleAndKind(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{ParentPollPublished, ParentPollReminder, ParentAnnouncementPublished} {
 		titles := map[string]string{}
 		bodies := map[string]string{}
@@ -62,6 +72,8 @@ func TestParentAnnouncementCopyCoversEveryLocaleAndKind(t *testing.T) {
 }
 
 func TestParentAppointmentCopyCoversEveryLocaleAndKind(t *testing.T) {
+	t.Parallel()
+
 	kinds := []string{
 		ParentAppointmentPublished,
 		ParentAppointmentUpdated,
@@ -80,6 +92,8 @@ func TestParentAppointmentCopyCoversEveryLocaleAndKind(t *testing.T) {
 }
 
 func TestParentMessageCopyCoversEveryLocale(t *testing.T) {
+	t.Parallel()
+
 	titles := map[string]string{}
 	bodies := map[string]string{}
 	for _, locale := range parentLocales {
@@ -90,6 +104,8 @@ func TestParentMessageCopyCoversEveryLocale(t *testing.T) {
 }
 
 func TestParentRequestDecisionCopyCoversEveryLocaleAndRequestType(t *testing.T) {
+	t.Parallel()
+
 	for _, requestType := range []string{"care_schedule", "pickup_change", "master_data", "excused_absence", "unknown"} {
 		for _, status := range []string{"abgelehnt", "genehmigt"} {
 			bodies := map[string]string{}
@@ -105,6 +121,8 @@ func TestParentRequestDecisionCopyCoversEveryLocaleAndRequestType(t *testing.T) 
 
 // An approval and a rejection must never read the same, in any locale.
 func TestParentRequestDecisionCopySeparatesApprovalFromRejection(t *testing.T) {
+	t.Parallel()
+
 	for _, locale := range parentLocales {
 		rejectedTitle, rejectedBody := ParentRequestDecisionCopy(locale, "care_schedule", "abgelehnt")
 		approvedTitle, approvedBody := ParentRequestDecisionCopy(locale, "care_schedule", "genehmigt")
@@ -115,6 +133,8 @@ func TestParentRequestDecisionCopySeparatesApprovalFromRejection(t *testing.T) {
 
 // An unknown locale must answer in German rather than fall through to empty.
 func TestParentCopyFallsBackToGerman(t *testing.T) {
+	t.Parallel()
+
 	deTitle, deBody := ParentMessageCopy("de")
 	title, body := ParentMessageCopy("fr")
 	assert.Equal(t, deTitle, title)

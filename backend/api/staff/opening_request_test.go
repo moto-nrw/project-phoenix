@@ -9,6 +9,8 @@ import (
 )
 
 func TestOpeningBalanceRequest_RequiresBalanceMinutes(t *testing.T) {
+	t.Parallel()
+
 	var request openingBalanceRequest
 	require.NoError(t, json.Unmarshal([]byte(`{"effective_date":"2026-03-01"}`), &request))
 	assert.Nil(t, request.BalanceMinutes)
@@ -19,6 +21,8 @@ func TestOpeningBalanceRequest_RequiresBalanceMinutes(t *testing.T) {
 }
 
 func TestVacationOpeningRequest_RequiresRemainingDays(t *testing.T) {
+	t.Parallel()
+
 	var request setVacationOpeningRequest
 	require.NoError(t, json.Unmarshal([]byte(`{"effective_date":"2026-03-01"}`), &request))
 	assert.Nil(t, request.RemainingDays)

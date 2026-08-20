@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -54,25 +53,12 @@ func (excusedApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64
 // tokens these tests mint.
 const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 
-// init pins the JWT config before the testpkg token-auth singleton is
-// lazily created, so minted tokens are signed with the matching secret
-// and carry a real lifetime.
-func init() {
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
-}
-
 func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	return newWriteRouterWithSettings(t, db, alwaysOnSettings{})
 }
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
-	// Align the Router's MustNewTokenAuth with the secret testpkg signs
-	// with, and give minted tokens a real (non-zero) lifetime so the real
-	// Verifier doesn't treat them as already-expired.
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
@@ -138,10 +124,10 @@ type envelope struct {
 }
 
 func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -164,8 +150,9 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 }
 
 func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := newWriteRouter(t, db)
 
 	rr := doRequest(t, router, http.MethodGet, "/me/children/1/sick-note", "", nil)
@@ -173,10 +160,10 @@ func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 
@@ -194,10 +181,10 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -208,8 +195,9 @@ func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsBadStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := newWriteRouter(t, db)
 	token := parentToken(t, 12345)
 
@@ -227,8 +215,6 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
@@ -242,10 +228,10 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newDisabledWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -256,10 +242,10 @@ func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -271,10 +257,10 @@ func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -289,10 +275,10 @@ func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 // picks "Termin/Abwesenheit" sends status="excused", and the API stores and
 // returns an excused status day (not a Krankmeldung).
 func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -320,10 +306,10 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 // gated path (#1845 review). The freshly created request is discovered via the
 // excused-requests list endpoint the parent UI refetches after a submit.
 func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -359,10 +345,10 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 // TestSickNoteEndpoint_ExcusedRequiresNote covers AC2 at the HTTP boundary: an
 // excused submission with a blank note is rejected.
 func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -375,10 +361,10 @@ func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 // TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the status default:
 // a client that omits "status" still files a Krankmeldung.
 func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -401,10 +387,10 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 // {status_days, ...} object. A parent tab loaded before this deploy calls .map()
 // on the response, so an object here would crash it.
 func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -430,10 +416,10 @@ func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 // renderParentWriteError: a status that is neither sick nor excused is a 400 at
 // the API boundary, never silently coerced.
 func TestSickNoteEndpoint_RejectsInvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)

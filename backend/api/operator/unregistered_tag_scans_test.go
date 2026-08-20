@@ -43,6 +43,8 @@ func (m *mockUnregisteredTagScanService) DeleteOlderThan(context.Context, int) (
 }
 
 func TestResolveUnregisteredTagScanMapsDatabaseErrorToInternal(t *testing.T) {
+	t.Parallel()
+
 	rawErr := errors.New("pq: permission denied for audit.unregistered_tag_scans")
 	service := &mockUnregisteredTagScanService{
 		resolveFn: func(_ context.Context, id, operatorID int64, note *string) (*auditModels.UnregisteredTagScan, error) {
@@ -80,6 +82,8 @@ func TestResolveUnregisteredTagScanMapsDatabaseErrorToInternal(t *testing.T) {
 }
 
 func TestResolveUnregisteredTagScanKeepsValidationErrorsAsBadRequest(t *testing.T) {
+	t.Parallel()
+
 	service := &mockUnregisteredTagScanService{
 		resolveFn: func(context.Context, int64, int64, *string) (*auditModels.UnregisteredTagScan, error) {
 			return nil, errors.New("operator ID is required")
@@ -105,6 +109,8 @@ func TestResolveUnregisteredTagScanKeepsValidationErrorsAsBadRequest(t *testing.
 }
 
 func TestResolveUnregisteredTagScanSuccess(t *testing.T) {
+	t.Parallel()
+
 	resolvedAt := time.Now()
 	service := &mockUnregisteredTagScanService{
 		resolveFn: func(context.Context, int64, int64, *string) (*auditModels.UnregisteredTagScan, error) {

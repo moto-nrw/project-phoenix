@@ -9,6 +9,8 @@ import (
 )
 
 func TestChangeHistoryEntry_IDIsSerializedAsString(t *testing.T) {
+	t.Parallel()
+
 	payload, err := json.Marshal(changeHistoryEntry{ID: "9007199254740993"})
 	require.NoError(t, err)
 

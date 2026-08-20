@@ -8,6 +8,8 @@ import (
 )
 
 func TestAccountRole_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		ar      *AccountRole
@@ -74,6 +76,8 @@ func TestAccountRole_Validate(t *testing.T) {
 }
 
 func TestAccountRole_GetID(t *testing.T) {
+	t.Parallel()
+
 	ar := &AccountRole{
 		Model: base.Model{ID: 42},
 	}
@@ -85,6 +89,8 @@ func TestAccountRole_GetID(t *testing.T) {
 }
 
 func TestAccountRole_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ar := &AccountRole{
 		Model: base.Model{CreatedAt: now},
@@ -96,6 +102,8 @@ func TestAccountRole_GetCreatedAt(t *testing.T) {
 }
 
 func TestAccountRole_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ar := &AccountRole{
 		Model: base.Model{UpdatedAt: now},
