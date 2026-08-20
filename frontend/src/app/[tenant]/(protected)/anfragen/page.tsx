@@ -43,6 +43,13 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "excused", label: "Entschuldigungen" },
 ];
 
+// Direkt-Korrekturen sind keine Anfragen: sie gibt es nur in der Historie,
+// also auch den Filter nur dort (#2436).
+const HISTORY_ONLY_TYPE_OPTIONS: readonly {
+  value: AggregatedRequestType;
+  label: string;
+}[] = [{ value: "direct_correction", label: "Direkt-Korrekturen" }];
+
 // Die Abwesenheitsarten, die Mitarbeitende beantragen können, mit den Namen
 // aus der geteilten Beschriftungstabelle. Freizeitausgleich fehlt bewusst: den
 // trägt die Zeiterfassung ein, er läuft nicht über eine Freigabe.
@@ -117,7 +124,10 @@ export default function AnfragenPage() {
   const filters: AggregatedRequestFilters = useMemo(
     () => ({
       search: deferredSearch,
-      types: typeFilter,
+      types:
+        view === "history"
+          ? typeFilter
+          : typeFilter.filter((type) => type !== "direct_correction"),
       statuses: view === "history" ? statusFilter : [],
       from:
         view === "history" && dateRange?.from
@@ -136,6 +146,16 @@ export default function AnfragenPage() {
     [deferredSearch, absenceTypeFilter],
   );
 
+  // Die im aktuellen Umschalter-Zustand wählbaren Anfragearten. Eine Quelle
+  // für Filterknöpfe UND Filter-Chips: was hier fehlt, ist auch als Chip weg.
+  const typeOptions = useMemo(
+    () => [
+      ...REQUEST_TYPE_OPTIONS,
+      ...(view === "history" ? HISTORY_ONLY_TYPE_OPTIONS : []),
+    ],
+    [view],
+  );
+
   const filterConfigs = useMemo(() => {
     const typeConfig: FilterConfig[] = showTypeFilter
       ? [
@@ -151,7 +171,7 @@ export default function AnfragenPage() {
                   ? value
                   : [value]) as AggregatedRequestType[],
               ),
-            options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
+            options: typeOptions.map((option) => ({ ...option })),
           },
         ]
       : [];
@@ -190,14 +210,14 @@ export default function AnfragenPage() {
           ]
         : [];
     return [...typeConfig, ...historyConfigs];
-  }, [showTypeFilter, view, typeFilter, statusFilter, dateRange]);
+  }, [showTypeFilter, view, typeOptions, typeFilter, statusFilter, dateRange]);
 
   const activeFilters = useMemo(() => {
     const chips: ActiveFilter[] = [];
     for (const type of typeFilter) {
-      const label = REQUEST_TYPE_OPTIONS.find(
-        (option) => option.value === type,
-      )?.label;
+      // Eine Art, die in dieser Ansicht nicht wählbar ist, trägt auch keinen
+      // Chip — in der Arbeitsliste betrifft das die Direkt-Korrekturen.
+      const label = typeOptions.find((option) => option.value === type)?.label;
       if (!label) continue;
       chips.push({
         id: `art-${type}`,
@@ -228,7 +248,7 @@ export default function AnfragenPage() {
       }
     }
     return chips;
-  }, [typeFilter, statusFilter, dateRange, view]);
+  }, [typeOptions, typeFilter, statusFilter, dateRange, view]);
 
   const staffFilterConfigs = useMemo<FilterConfig[]>(
     () => [
@@ -268,6 +288,15 @@ export default function AnfragenPage() {
     setAbsenceTypeFilter([]);
     setStatusFilter([]);
     setDateRange(undefined);
+  };
+
+  const handleElternViewChange = (nextView: "open" | "history") => {
+    if (nextView === "open") {
+      setTypeFilter((previous) =>
+        previous.filter((type) => type !== "direct_correction"),
+      );
+    }
+    setView(nextView);
   };
 
   if (!isReady) {
@@ -330,7 +359,11 @@ export default function AnfragenPage() {
           filters={staffFilters}
         />
       ) : (
-        <ElternTab view={view} onViewChange={setView} filters={filters} />
+        <ElternTab
+          view={view}
+          onViewChange={handleElternViewChange}
+          filters={filters}
+        />
       )}
     </div>
   );

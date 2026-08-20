@@ -17,7 +17,10 @@ import {
   fieldLabel,
   formatValue as formatMasterDataValue,
 } from "~/components/students/master-data-review-item";
-import { RequestReviewCard } from "~/components/students/request-review-card";
+import {
+  RequestReviewCard,
+  ReviewDiffPanel,
+} from "~/components/students/request-review-card";
 
 function MasterDataHistoryCard({
   row,
@@ -64,10 +67,7 @@ function CareHistoryCard({
       }}
     >
       {entries.length > 0 && (
-        <div className="space-y-1 rounded-lg bg-gray-50 p-3">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {showDiff ? "Änderungen" : "Beantragt"}
-          </p>
+        <ReviewDiffPanel title={showDiff ? "Änderungen" : "Beantragt"}>
           {entries.map((entry) => (
             <p
               key={`${entry.label}-${entry.new}`}
@@ -78,7 +78,7 @@ function CareHistoryCard({
                 : `${entry.label}: ${entry.new}`}
             </p>
           ))}
-        </div>
+        </ReviewDiffPanel>
       )}
     </RequestReviewCard>
   );
@@ -100,28 +100,22 @@ function OfferingHistoryCard({
       }}
     >
       {row.diff.length > 0 && (
-        <div className="space-y-1 rounded-lg bg-gray-50 p-3">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Änderungen
-          </p>
+        <ReviewDiffPanel title="Änderungen">
           {row.diff.map((line) => (
             <p key={line.offering_id} className="text-sm text-gray-700">
               {line.label}: {line.old} → {line.new}
             </p>
           ))}
-        </div>
+        </ReviewDiffPanel>
       )}
-      {row.diff.length === 0 && row.requested && row.requested.length > 0 && (
-        <div className="space-y-1 rounded-lg bg-gray-50 p-3">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Beantragt
-          </p>
-          {row.requested.map((line) => (
+      {row.diff.length === 0 && (row.requested?.length ?? 0) > 0 && (
+        <ReviewDiffPanel title="Beantragt">
+          {(row.requested ?? []).map((line) => (
             <p key={line.offering_id} className="text-sm text-gray-700">
               {line.label}: {line.new}
             </p>
           ))}
-        </div>
+        </ReviewDiffPanel>
       )}
     </RequestReviewCard>
   );
@@ -162,5 +156,37 @@ export function RequestHistoryItem({
       return <OfferingHistoryCard row={item.data} />;
     case "excused":
       return <ExcusedHistoryCard row={item.data} />;
+    case "direct_correction": {
+      const row = item.data;
+      return (
+        <RequestReviewCard
+          childName={row.student_name}
+          summary="Betreuungsangebote und AGs"
+          history={{
+            kind: "correction",
+            decidedAt: row.changed_at,
+            decidedByName: row.changed_by_name,
+            reason: row.reason,
+          }}
+        >
+          <ReviewDiffPanel title="Änderungen">
+            {row.diff.map((line) => (
+              <p key={line.offering_id} className="text-sm text-gray-700">
+                {line.label}: {line.old} → {line.new}
+              </p>
+            ))}
+            {/* Auch eine Korrektur ohne Tagesänderung bleibt in der Historie
+                stehen (etwa nur der Wechsel zwischen selbst gesetzten und
+                automatisch übernommenen Tagen). Sie sagt das hin, statt eine
+                leere Fläche zu zeigen. */}
+            {row.diff.length === 0 && (
+              <p className="text-sm text-gray-600">
+                Keine Änderung an den gebuchten Tagen
+              </p>
+            )}
+          </ReviewDiffPanel>
+        </RequestReviewCard>
+      );
+    }
   }
 }

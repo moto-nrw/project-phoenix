@@ -143,7 +143,7 @@ export function CareRequestReviewItem({
           <Alert type="error" message={error} />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         {row.request_reason && (
           <p className="mb-3 text-sm text-gray-700">
             <span className="font-medium text-gray-900">Grund der Eltern:</span>{" "}

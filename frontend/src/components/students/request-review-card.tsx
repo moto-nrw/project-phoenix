@@ -21,12 +21,27 @@ const HISTORY_STATUS_META: Record<
   auto_applied: { label: "Automatisch übernommen", tone: "gray" },
 };
 
-type RequestReviewCardHistory = {
-  readonly status: string;
+// Eine Direkt-Korrektur ist keine entschiedene Anfrage, sondern eine Änderung
+// der Verwaltung selbst (#2436) — eigene Kennzeichnung, eigenes Zeitwort.
+const CORRECTION_META = { label: "Direkt-Korrektur", tone: "blue" as const };
+
+type RequestReviewCardHistoryBase = {
   readonly decidedAt: string;
   readonly decidedByName?: string;
   readonly reason?: string;
 };
+
+/**
+ * Eine entschiedene Anfrage (mit Status) oder eine Direkt-Korrektur der
+ * Verwaltung (ohne). Als Union, damit einer Anfrage-Karte der Status nicht
+ * fehlen kann.
+ */
+type RequestReviewCardHistory =
+  | (RequestReviewCardHistoryBase & {
+      readonly kind?: "decision";
+      readonly status: string;
+    })
+  | (RequestReviewCardHistoryBase & { readonly kind: "correction" });
 
 /**
  * One pending parent change request in the staff Änderungsanfragen queue, in the
@@ -73,10 +88,13 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   if (history) {
-    const meta = HISTORY_STATUS_META[history.status] ?? {
-      label: history.status,
-      tone: "gray" as const,
-    };
+    const meta =
+      history.kind === "correction"
+        ? CORRECTION_META
+        : (HISTORY_STATUS_META[history.status] ?? {
+            label: history.status,
+            tone: "gray" as const,
+          });
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -88,7 +106,8 @@ export function RequestReviewCard({
         </div>
         <p className="mt-1 text-xs text-gray-500">
           {submittedAt ? `Eingereicht am ${formatDate(submittedAt)} · ` : ""}
-          Entschieden am {formatDate(history.decidedAt)}
+          {history.kind === "correction" ? "Geändert am " : "Entschieden am "}
+          {formatDate(history.decidedAt)}
           {history.decidedByName ? ` von ${history.decidedByName}` : ""}
         </p>
         {history.reason && (
@@ -173,12 +192,13 @@ export function RequestReviewCard({
  * heading). Rows are passed as children so each queue keeps its own layout.
  */
 export function ReviewDiffPanel({
+  title,
   children,
-}: Readonly<{ children: ReactNode }>) {
+}: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
       <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Änderungen
+        {title}
       </p>
       {children}
     </div>

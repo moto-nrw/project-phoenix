@@ -8,6 +8,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// Sources of an offering adjustment. A direct correction is the office
+// changing a booking on its own; a request-applied row is the side effect of
+// approving a parent request, which the central history already shows as the
+// decided request (#2436).
+const (
+	OfferingAdjustmentSourceDirect  = "direct"
+	OfferingAdjustmentSourceRequest = "request"
+	// Unknown marks adjustments recorded before source provenance existed.
+	// They remain available in the child detail but are intentionally excluded
+	// from the central direct-correction history.
+	OfferingAdjustmentSourceUnknown = "unknown"
+)
+
 // EnrollmentOfferingAdjustment records an admin correction to one approved
 // child's care-offering selection. Rows are append-only.
 type EnrollmentOfferingAdjustment struct {
@@ -21,6 +34,7 @@ type EnrollmentOfferingAdjustment struct {
 	ActorNameSnapshot  *string         `bun:"actor_name_snapshot" json:"actor_name_snapshot,omitempty"`
 	ActorEmailSnapshot *string         `bun:"actor_email_snapshot" json:"actor_email_snapshot,omitempty"`
 	Reason             string          `bun:"reason,notnull" json:"reason"`
+	Source             string          `bun:"source,notnull" json:"source"`
 	Before             json.RawMessage `bun:"before_json,type:jsonb,notnull" json:"before"`
 	After              json.RawMessage `bun:"after_json,type:jsonb,notnull" json:"after"`
 	ChangedAt          time.Time       `bun:"changed_at,notnull,default:now()" json:"changed_at"`
@@ -41,4 +55,9 @@ func (e *EnrollmentOfferingAdjustment) GetUpdatedAt() time.Time {
 type EnrollmentOfferingAdjustmentRepository interface {
 	Create(ctx context.Context, entry *EnrollmentOfferingAdjustment) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*EnrollmentOfferingAdjustment, error)
+	// ListDirectForTenant returns the tenant's direct corrections, newest
+	// change first, keyset paginated on (changed_at, id). A zero beforeChangedAt
+	// starts at the top; limit is taken literally, so callers probing for a next
+	// page ask for limit+1.
+	ListDirectForTenant(ctx context.Context, beforeChangedAt time.Time, beforeID int64, limit int) ([]*EnrollmentOfferingAdjustment, error)
 }
