@@ -1,6 +1,7 @@
 package active_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestWorkSessionRepository_ListByStaffAndDate(t *testing.T) {
+func TestWorkSessionRepository_ListWithOptionsByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -122,7 +123,7 @@ func TestWorkSessionRepository_ListByStaffAndDate(t *testing.T) {
 			"a second block on the same day must be insertable since #2402")
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", second.ID)
 
-		found, err := repo.ListByStaffAndDate(ctx, staff.ID, today)
+		found, err := listWorkSessionsByStaffAndDate(ctx, repo, staff.ID, today)
 		require.NoError(t, err)
 		require.Len(t, found, 2)
 		assert.Equal(t, first.ID, found[0].ID, "blocks come back in check-in order")
@@ -132,10 +133,17 @@ func TestWorkSessionRepository_ListByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("returns empty list for a day without sessions", func(t *testing.T) {
-		found, err := repo.ListByStaffAndDate(ctx, staff.ID, timezone.TodayDate().AddDays(7))
+		found, err := listWorkSessionsByStaffAndDate(ctx, repo, staff.ID, timezone.TodayDate().AddDays(7))
 		require.NoError(t, err)
 		assert.Empty(t, found)
 	})
+}
+
+func listWorkSessionsByStaffAndDate(ctx context.Context, repo active.WorkSessionRepository, staffID int64, date timezone.Date) ([]*active.WorkSession, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("staff_id", staffID).Equal("date", date)
+	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
+	return repo.List(ctx, options)
 }
 
 // TestWorkSessionRepository_SecondOpenBlockIsRejected pins the partial unique
@@ -352,6 +360,26 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, twoDaysAgo, today)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(history), 2)
+	})
+
+	t.Run("includes a block that started before the requested day", func(t *testing.T) {
+		today := timezone.TodayDate()
+		checkIn := today.AddDays(-1).BerlinMidnight().Add(22 * time.Hour)
+		checkOut := today.BerlinMidnight().Add(2 * time.Hour)
+		overnight := &active.WorkSession{
+			StaffID:      staff.ID,
+			Date:         today.AddDays(-1),
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+			CreatedBy:    staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, overnight))
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", overnight.ID)
+
+		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, today, today)
+		require.NoError(t, err)
+		assert.Contains(t, history, overnight)
 	})
 
 	t.Run("returns empty for date range with no sessions", func(t *testing.T) {

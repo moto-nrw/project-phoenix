@@ -313,11 +313,6 @@ type WorkSessionRepository interface {
 	// LockStaffBalanceWrites serializes all work-session and break mutations
 	// with absence and adjustment mutations for the same staff member.
 	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
-	// ListByStaffAndDate returns all work session blocks of a staff member on
-	// a given date, ordered by check-in time (#2402: a day can carry several
-	// blocks).
-	ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*WorkSession, error)
-
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 

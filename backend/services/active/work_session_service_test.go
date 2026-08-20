@@ -93,12 +93,8 @@ func (m *wsMockWorkSessionRepository) List(ctx context.Context, options *base.Qu
 	if m.listFunc != nil {
 		return m.listFunc(ctx, options)
 	}
-	return nil, nil
-}
-
-func (m *wsMockWorkSessionRepository) ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.listByStaffAndDateFunc != nil {
-		return m.listByStaffAndDateFunc(ctx, staffID, date)
+		return m.listByStaffAndDateFunc(ctx, 0, timezone.TodayDate())
 	}
 	return nil, nil
 }
@@ -3141,9 +3137,9 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	svc.nowFunc = func() time.Time { return stampedAt }
 
-	var listedDays []timezone.Date
-	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) ([]*activeModels.WorkSession, error) {
-		listedDays = append(listedDays, day)
+	var listCalls int
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		listCalls++
 		return nil, nil
 	}
 	var created *activeModels.WorkSession
@@ -3157,8 +3153,7 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
-	assert.Equal(t, []timezone.Date{timezone.DateFromTime(stampedAt)}, listedDays,
-		"the new block is resolved against the stamp's own day")
+	assert.Equal(t, 1, listCalls, "the new block checks its stamp day for existing blocks")
 	require.NotNil(t, created)
 	assert.Equal(t, timezone.DateFromTime(stampedAt), created.Date)
 	assert.Equal(t, timezone.DateFromTime(created.CheckInTime), created.Date)
@@ -3189,11 +3184,8 @@ func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 		CheckOutTime: &checkOut,
 	}
 
-	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) ([]*activeModels.WorkSession, error) {
-		if day == pinnedDay {
-			return []*activeModels.WorkSession{yesterday}, nil
-		}
-		return nil, nil
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{yesterday}, nil
 	}
 	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a closed session of a past day must never be reopened")

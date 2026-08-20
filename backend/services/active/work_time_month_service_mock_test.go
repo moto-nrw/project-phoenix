@@ -28,8 +28,14 @@ func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, f
 	m.calls++
 	m.lastFrom = from
 	var result []*activeModels.WorkSession
+	rangeStart := from.BerlinMidnight()
+	rangeEnd := to.AddDays(1).BerlinMidnight()
 	for _, s := range m.sessions {
-		if !s.Date.Before(from) && !s.Date.After(to) {
+		end := time.Now()
+		if s.CheckOutTime != nil {
+			end = *s.CheckOutTime
+		}
+		if s.CheckInTime.Before(rangeEnd) && end.After(rangeStart) {
 			result = append(result, s)
 		}
 	}
@@ -467,6 +473,27 @@ func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
 	require.NoError(t, err)
 	// July: target_to_date 960 (Mondays 6, 13), actual 0 → carry −960.
 	assert.Equal(t, -960, summary.CarryInMinutes, "future session must not inflate the carry")
+}
+
+func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
+	f := newWTMFixture()
+	start := timezone.NewDate(2026, time.June, 30).BerlinMidnight().Add(22 * time.Hour)
+	end := start.Add(4 * time.Hour)
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		StaffID:      wtmStaffID,
+		Date:         timezone.NewDate(2026, time.June, 30),
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  start,
+		CheckOutTime: &end,
+	}}
+
+	june, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	assert.Equal(t, 120, june.ActualMinutes)
+
+	july, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 120, july.ActualMinutes)
 }
 
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical

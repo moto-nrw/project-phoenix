@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -435,6 +436,22 @@ func (s *workSessionService) now() time.Time {
 	return time.Now()
 }
 
+// listSessionsByStaffAndDate applies the ordinary repository filter path for
+// the two equality conditions used by check-in and auto-check-in. Keeping the
+// lookup here avoids a per-field repository method while retaining the
+// chronological block order required by the caller.
+func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("staff_id", staffID).Equal("date", date)
+	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
+
+	sessions, err := s.repo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list work sessions by staff and date: %w", err)
+	}
+	return sessions, nil
+}
+
 // CheckIn creates a new work session for the staff member.
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
@@ -493,7 +510,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
 	// new check-in — checking in again after a checkout starts a new block
 	// with its own status.
-	existingBlocks, err := s.repo.ListByStaffAndDate(ctx, staffID, stampDay)
+	existingBlocks, err := s.listSessionsByStaffAndDate(ctx, staffID, stampDay)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing sessions: %w", err)
 	}
@@ -2199,7 +2216,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// conscious decision, and a supervision start must not silently begin a
 	// new work block behind their back.
 	today := timezone.DateFromTime(s.now())
-	todaySessions, err := s.repo.ListByStaffAndDate(ctx, staffID, today)
+	todaySessions, err := s.listSessionsByStaffAndDate(ctx, staffID, today)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
 	}

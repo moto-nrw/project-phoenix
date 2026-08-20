@@ -249,17 +249,6 @@ func (m *absWorkSessionRepoMock) List(ctx context.Context, options *base.QueryOp
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
-	if m.getByStaffAndDateFunc != nil {
-		session, err := m.getByStaffAndDateFunc(ctx, staffID, date)
-		if err != nil || session == nil {
-			return nil, err
-		}
-		return []*activeModels.WorkSession{session}, nil
-	}
-	return nil, nil
-}
-
 func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
 	if m.getCurrentByStaffIDFunc != nil {
 		return m.getCurrentByStaffIDFunc(ctx, staffID)

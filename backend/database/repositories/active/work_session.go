@@ -41,32 +41,6 @@ func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staf
 	return lockStaffBalanceWrites(ctx, r.db, staffID)
 }
 
-// ListByStaffAndDate returns all work session blocks of a staff member on a
-// given date, ordered by check-in time. Since #2402 a day can carry several
-// closed blocks (plus at most one open one), so "the session of the day" is a
-// list, not a single row.
-func (r *WorkSessionRepository) ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*active.WorkSession, error) {
-	var sessions []*active.WorkSession
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&sessions).
-		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
-		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date).
-		OrderExpr(`"work_session".check_in_time ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "work_session")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list by staff and date",
-			Err: err,
-		}
-	}
-
-	return sessions, nil
-}
-
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
@@ -177,7 +151,7 @@ func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, st
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".check_out_time IS NULL OR "work_session".check_out_time > ?`, from).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from).
 		OrderExpr(`"work_session".check_in_time ASC`)
 
 	if to != nil {
@@ -203,8 +177,8 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date >= ?`, from).
-		Where(`"work_session".date <= ?`, to).
+		Where(`"work_session".check_in_time < ?`, to.AddDays(1).BerlinMidnight()).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from.BerlinMidnight()).
 		OrderExpr(`"work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
@@ -263,7 +237,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
-		Where(`"work_session".date = ? OR "work_session".check_out_time IS NULL`, today)
+		Where(`("work_session".date = ? OR "work_session".check_out_time IS NULL)`, today)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 
@@ -361,8 +335,8 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
-		Where(`"work_session".date >= ?`, from).
-		Where(`"work_session".date <= ?`, to).
+		Where(`"work_session".check_in_time < ?`, to.AddDays(1).BerlinMidnight()).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from.BerlinMidnight()).
 		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")

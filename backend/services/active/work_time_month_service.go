@@ -563,12 +563,10 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 	return nil
 }
 
-// addActualMinutes sums the net worked minutes per month, skipping sessions
-// dated after today. Targets and absence credits are both clamped at today, so
-// counting a future-dated session (the admin correction service accepts them)
-// would credit Ist against a Soll that is deliberately not there yet and show
-// a phantom plus in the current month — and, via the carry chain, in every
-// later one.
+// addActualMinutes assigns each session's time to every Berlin calendar day it
+// intersects. A work session is filed under its check-in date, but may validly
+// run past midnight; counting it only in that filing month would lose the
+// after-midnight part from the following day's balance.
 func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
 	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, first, last)
 	if err != nil {
@@ -576,31 +574,71 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 	}
 	now := time.Now()
 	for _, session := range sessions {
-		if session.Date.After(today) {
+		end := sessionEndUpTo(session, now)
+		if session.Date.Before(today) && (session.CheckOutTime == nil || session.CheckOutTime.After(now)) {
+			if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+				end = staleEnd
+			}
+		}
+		if !end.After(session.CheckInTime) {
 			continue
 		}
-		agg, ok := aggregates[monthOf(session.Date)]
-		if !ok {
-			continue
-		}
-		minutes := workedMinutesUpTo(session, now)
+
+		breakMinutes := session.BreakMinutes
 		running, err := s.runningBreakMinutes(ctx, session, now)
 		if err != nil {
 			return err
 		}
-		if minutes -= running; minutes < 0 {
-			minutes = 0
+		breakMinutes += running
+
+		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+			if day.Before(first) || day.After(last) || day.After(today) {
+				continue
+			}
+			start := session.CheckInTime
+			if midnight := day.BerlinMidnight(); start.Before(midnight) {
+				start = midnight
+			}
+			dayEnd := day.AddDays(1).BerlinMidnight()
+			if end.Before(dayEnd) {
+				dayEnd = end
+			}
+			minutes := int(dayEnd.Sub(start).Minutes())
+			if minutes <= 0 {
+				continue
+			}
+			// Completed-break durations are cached as a total rather than as
+			// per-day intervals. Deduct them from the earliest covered part of
+			// the session so the monthly total remains identical to netMinutes.
+			if breakMinutes > 0 {
+				deduct := min(minutes, breakMinutes)
+				minutes -= deduct
+				breakMinutes -= deduct
+			}
+			if agg, ok := aggregates[monthOf(day)]; ok {
+				agg.actual += minutes
+			}
 		}
-		agg.actual += minutes
 	}
 	return nil
 }
 
-// workedMinutesUpTo is netMinutes with the session end clamped at both the
-// session's own calendar day and now. netMinutes otherwise measures gross work
-// time up to the check-out (or, for an open session, up to now), so two kinds
-// of bad data inflate Ist without bound and both pass the date guard in
-// addActualMinutes:
+// sessionEndUpTo clamps a session end at now. This prevents a future
+// check-out from being credited before it happens while preserving valid work
+// across Berlin midnight.
+func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time {
+	end := now
+	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
+		end = *session.CheckOutTime
+	}
+	return end
+}
+
+// workedMinutesUpTo is netMinutes with the session end clamped at its own day
+// and now. It is retained for callers that need a whole-session value.
+// netMinutes otherwise measures gross work time up to the check-out (or, for
+// an open session, up to now), so a future check-out can inflate Ist without
+// bound:
 //
 //   - a session left open on a PAST day bills every minute since check-in
 //     through now — potentially days or months of fictitious presence, and via
@@ -609,15 +647,12 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 //     day (the correction API accepts a future check_out_time) bills the whole
 //     span the moment it is saved.
 //
-// The day cap bounds those past cases; the now cap additionally keeps a future
-// check-out on TODAY's session from counting past the current instant, against
-// a target that is deliberately only accrued up to today. A consistent, closed
-// past session is unaffected: its check-out already precedes both caps.
+// The now cap keeps a future check-out on TODAY's session from counting past
+// the current instant, against a target that is deliberately only accrued up
+// to today. A consistent, closed past session is unaffected: its check-out
+// already precedes that cap.
 func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
-	end := now
-	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
-		end = *session.CheckOutTime
-	}
+	end := sessionEndUpTo(session, now)
 	if dayEnd := session.Date.EndOfDay(); dayEnd.Before(end) {
 		end = dayEnd
 	}
