@@ -167,7 +167,6 @@ func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggProtocolGroup")
 	child := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Eigenkind", "AP1")
 	other := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Fremdkind", "AP2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, child.ID, other.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, child.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
