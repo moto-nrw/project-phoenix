@@ -1741,6 +1741,60 @@ describe("staff-api", () => {
       remaining_days: 19,
     };
 
+    it("lädt Anfragen mit Ansicht, Suche und Art-Filter", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ id: 7, staff_name: "Mira Muster", status: "requested" }],
+          }),
+      } as Response);
+
+      const result = await staffAbsenceService.listRequests("history", {
+        search: "  Mira  ",
+        types: ["vacation", "sick"],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/requests?view=history&search=Mira&types=vacation%2Csick",
+        expect.any(Object),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]?.staff_name).toBe("Mira Muster");
+    });
+
+    it("lässt leere Suche und leeren Art-Filter aus der Abfrage weg", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: null }),
+      } as Response);
+
+      const result = await staffAbsenceService.listRequests("open", {
+        search: "   ",
+        types: [],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/requests?view=open",
+        expect.any(Object),
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("wirft, wenn die Anfragenliste fehlschlägt", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffAbsenceService.listRequests("open")).rejects.toThrow(
+        "Failed to fetch absence requests: Forbidden",
+      );
+    });
+
     it("loads absences and returns an empty array for null data", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
