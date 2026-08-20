@@ -40,6 +40,7 @@ type RequestReviewCardHistory = {
 export function RequestReviewCard({
   childName,
   summary,
+  badge,
   submittedAt,
   children,
   history,
@@ -53,6 +54,11 @@ export function RequestReviewCard({
 }: Readonly<{
   childName: string;
   summary?: string;
+  /**
+   * Hinweis, der schon in der zugeklappten Zeile stehen muss, etwa die
+   * Warnung vor einer Komplett-Abmeldung (#2434).
+   */
+  badge?: ReactNode;
   /** Einreichungszeitpunkt (ISO); rendert „Eingereicht am …" (#2432). */
   submittedAt?: string;
   children?: ReactNode;
@@ -106,6 +112,7 @@ export function RequestReviewCard({
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
           {childName}
         </span>
+        {badge}
         <span className="hidden shrink-0 truncate text-sm text-gray-500 sm:block">
           {summary}
         </span>
