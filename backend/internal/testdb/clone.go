@@ -91,18 +91,6 @@ func packageLabel(workdir string) string {
 	return filepath.Base(workdir)
 }
 
-// PackageLabelOf extracts the package label from a clone's database comment.
-func PackageLabelOf(comment string) string {
-	if !strings.HasPrefix(comment, pkgCommentPrefix) {
-		return ""
-	}
-	label := strings.TrimPrefix(comment, pkgCommentPrefix)
-	if idx := strings.Index(label, touchedCommentKey); idx >= 0 {
-		label = label[:idx]
-	}
-	return label
-}
-
 // cloneComment renders a clone's stamp: which package it belongs to, and when
 // its run was last seen alive.
 func cloneComment(label string, now time.Time) string {
