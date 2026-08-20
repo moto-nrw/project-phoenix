@@ -21,8 +21,11 @@ import (
 // That is a mechanical condition, not a judgement call: this whole file is
 // dead the moment cleanupCallBaseline in test/hermetic_verification_test.go
 // reaches zero, because the ID-collision class it defends against exists
-// only inside those helpers' cross-table `id = ?` arms. The #2419 parallel
-// sweep left ~5100 such calls in 36 packages, so it stays for now (ADR 0004).
+// only inside those helpers' cross-table `id = ?` arms. The #2419 teardown
+// sweep took 5120 calls down to 587 in 11 packages — the remainder is
+// teardown the clone genuinely does not cover (tenant-less rows, state reset
+// between subtests, the delete that is the test itself), so the offsets stay
+// for now (ADR 0004).
 //
 // Properties:
 //   - Idempotent and monotonic: setval(GREATEST(last_value, offset)) never
