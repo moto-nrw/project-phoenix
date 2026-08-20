@@ -41,7 +41,7 @@ interface BackendStaff {
 
 interface BackendNavigationContext {
   educational_groups: BackendEducationalGroup[];
-  supervised_groups: BackendActiveGroup[];
+  supervised_groups: BackendActiveGroup[] | null;
   current_staff: BackendStaff | null;
   incomplete: boolean;
   unavailable_sections: string[];
@@ -102,8 +102,9 @@ export const GET = createGetHandler<UserContextResponse>(
     // Transform backend data to frontend format
     const educationalGroups =
       result.data.educational_groups.map(mapEducationalGroup);
-    const supervisedGroups =
-      result.data.supervised_groups.map(mapSupervisedGroup);
+    const supervisedGroups = (result.data.supervised_groups ?? []).map(
+      mapSupervisedGroup,
+    );
     const currentStaff = result.data.current_staff
       ? {
           id: result.data.current_staff.id.toString(),

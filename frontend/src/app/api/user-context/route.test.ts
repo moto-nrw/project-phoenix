@@ -158,6 +158,30 @@ describe("GET /api/user-context", () => {
     expect(json.data.unavailableSections).toEqual(["supervised_groups"]);
   });
 
+  it("maps a null supervised group list to an empty response list", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        educational_groups: [],
+        supervised_groups: null,
+        current_staff: null,
+        incomplete: false,
+        unavailable_sections: [],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/user-context"),
+      createMockContext(),
+    );
+    const json =
+      await parseJsonResponse<ApiResponse<{ supervisedGroups: unknown[] }>>(
+        response,
+      );
+
+    expect(response.status).toBe(200);
+    expect(json.data.supervisedGroups).toEqual([]);
+  });
+
   it("surfaces an aggregate failure instead of returning partial empty data", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("API error (500): failed"));
 
