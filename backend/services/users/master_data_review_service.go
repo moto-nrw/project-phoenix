@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -49,14 +50,29 @@ type MasterDataReviewItem struct {
 	LastName  string
 }
 
-// HistoryCursor points at the last DB row of a change-request history page
-// (shared by all four history services). The next page continues strictly
-// before (UpdatedAt, ID). It must be built from the last row the repository
-// returned — not the last VISIBLE item — because the per-child scope filters
-// after the DB limit; a cursor built from a filtered page would skip rows.
+// HistoryCursor points at the last DB row of a change-request page (shared by
+// all five request queues, open list and history alike). The next page
+// continues strictly before (UpdatedAt, ID) — the field name says updated_at
+// because the history keys on it; the open list keys on created_at, which is
+// the same shape. It must be built from the last row the repository returned —
+// not the last VISIBLE item — because the per-child scope filters after the DB
+// limit; a cursor built from a filtered page would skip rows.
 type HistoryCursor struct {
 	UpdatedAt time.Time
 	ID        int64
+}
+
+// NextCursor turns a repository page into the cursor for the page after it.
+// Callers ask the repository for limit+1 rows so one extra row proves an older
+// page exists without a second count query; this trims that probe row off and
+// returns the position to resume from, or nil on the last page.
+func NextCursor[T any](rows []T, limit int, key func(T) (time.Time, int64)) ([]T, *HistoryCursor) {
+	if limit <= 0 || len(rows) <= limit {
+		return rows, nil
+	}
+	rows = rows[:limit]
+	instant, id := key(rows[len(rows)-1])
+	return rows, &HistoryCursor{UpdatedAt: instant, ID: id}
 }
 
 // MasterDataHistoryItem is one decided request enriched with the child's name
@@ -80,13 +96,15 @@ type MasterDataReviewDecideInput struct {
 // Stammdaten change requests. It runs inside the tenant transaction established
 // by the request middleware, so all repo calls are tenant-scoped via RLS.
 type MasterDataReviewService interface {
-	// ListPending returns every pending change request for the current tenant,
-	// newest-first, enriched with the child's name.
-	ListPending(ctx context.Context) ([]*MasterDataReviewItem, error)
+	// ListPending returns pending change requests for the current tenant,
+	// newest submission first, enriched with the child's name. The filters
+	// narrow and page the query in SQL; their zero value returns the whole
+	// queue, which is what the pending-count badge needs.
+	ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*MasterDataReviewItem, next *HistoryCursor, err error)
 	// ListHistory returns decided requests newest-decision-first, keyset
-	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// paginated on (updated_at, id). A zero BeforeInstant returns the first
 	// page; next is nil when no older rows exist beyond this page.
-	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*MasterDataHistoryItem, next *HistoryCursor, err error)
+	ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*MasterDataHistoryItem, next *HistoryCursor, err error)
 	// Decide approves (and applies) or rejects one pending request and returns
 	// the refreshed row enriched with the child's name.
 	Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error)
@@ -228,13 +246,17 @@ func uniqueStudentIDs(rows []*userModels.StudentDataChangeRequest) []int64 {
 	return ids
 }
 
-func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDataReviewItem, error) {
-	rows, err := s.changeRequestRepo.ListPendingForTenant(ctx)
+func (s *masterDataReviewService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*MasterDataReviewItem, *HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.changeRequestRepo.ListPendingForTenant(ctx, probeLimit(filters))
 	if err != nil {
-		return nil, fmt.Errorf("review: list pending: %w", err)
+		return nil, nil, fmt.Errorf("review: list pending: %w", err)
 	}
+	rows, next := NextCursor(rows, filters.Limit, func(r *userModels.StudentDataChangeRequest) (time.Time, int64) {
+		return r.CreatedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*MasterDataReviewItem{}, nil
+		return []*MasterDataReviewItem{}, next, nil
 	}
 
 	// Scope the queue to children the caller may WRITE (admin, or the child's
@@ -242,7 +264,7 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 	// requests they can act on. Also scopes the sidebar badge (sums ListPending).
 	scope, err := s.loadStudentScope(ctx, uniqueStudentIDs(rows))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	items := make([]*MasterDataReviewItem, 0, len(rows))
@@ -254,21 +276,28 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 		item.FirstName, item.LastName = scope.name(r.StudentID)
 		items = append(items, item)
 	}
-	return items, nil
+	return items, next, nil
 }
 
-func (s *masterDataReviewService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*MasterDataHistoryItem, *HistoryCursor, error) {
+// probeLimit asks the repository for one row more than the caller wants, so a
+// present extra row proves an older page exists. An unbounded page stays
+// unbounded.
+func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFilters {
+	if filters.Limit > 0 {
+		filters.Limit++
+	}
+	return filters
+}
+
+func (s *masterDataReviewService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*MasterDataHistoryItem, *HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.changeRequestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	rows, err := s.changeRequestRepo.ListDecidedForTenant(ctx, probeLimit(filters))
 	if err != nil {
 		return nil, nil, fmt.Errorf("review: list decided: %w", err)
 	}
-	var next *HistoryCursor
-	if len(rows) > limit {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		next = &HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
-	}
+	rows, next := NextCursor(rows, filters.Limit, func(r *userModels.StudentDataChangeRequest) (time.Time, int64) {
+		return r.UpdatedAt, r.ID
+	})
 	if len(rows) == 0 {
 		return []*MasterDataHistoryItem{}, nil, nil
 	}

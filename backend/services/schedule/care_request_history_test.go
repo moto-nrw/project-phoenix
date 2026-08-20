@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -44,7 +45,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 3, "pickup": "15:00"},
 	))
 
-	items, next, err := f.svc.ListHistory(staffCtx, time.Time{}, 0, 25)
+	items, next, err := f.svc.ListHistory(staffCtx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 
@@ -74,11 +75,11 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	assert.Empty(t, withdrawn.ReviewerName, "withdrawals carry no reviewer")
 
 	// Keyset pagination: page size 1 → disjoint pages.
-	page1, next1, err := f.svc.ListHistory(staffCtx, time.Time{}, 0, 1)
+	page1, next1, err := f.svc.ListHistory(staffCtx, modelBase.RequestQueueFilters{Limit: 1})
 	require.NoError(t, err)
 	require.Len(t, page1, 1)
 	require.NotNil(t, next1)
-	page2, next2, err := f.svc.ListHistory(staffCtx, next1.UpdatedAt, next1.ID, 1)
+	page2, next2, err := f.svc.ListHistory(staffCtx, modelBase.RequestQueueFilters{BeforeInstant: next1.UpdatedAt, BeforeID: next1.ID, Limit: 1})
 	require.NoError(t, err)
 	require.Len(t, page2, 1)
 	assert.NotEqual(t, page1[0].Request.ID, page2[0].Request.ID, "pages must not overlap")
@@ -102,7 +103,7 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	items, _, err := f.svc.ListHistory(f.staffCtx(f.staffAccount), time.Time{}, 0, 25)
+	items, _, err := f.svc.ListHistory(f.staffCtx(f.staffAccount), modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	var got *schedule.CareRequestHistoryItem
 	for _, item := range items {

@@ -698,7 +698,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Seite „Anfragen“, Reiter „Eltern“, mit den Bereichen Stammdaten, Betreuungszeiten und Betreuungsangebote, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
+          "Seite „Anfragen“, Reiter „Eltern“: alle offenen Anfragen in einer gemeinsamen Liste, je mit Kind und Änderung (alt → neu), darüber Suchfeld und Filter „Anfrageart“, pro Eintrag die Schaltflächen „Freigeben“ und „Ablehnen“.",
       },
       {
         id: "meine-gruppen",

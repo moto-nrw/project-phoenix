@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -392,7 +393,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	assert.Equal(t, fx.switchDate, newRow.ValidFrom)
 
 	// The queue is empty afterwards.
-	pending, err := svc.ListPending(ctx)
+	pending, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 }
@@ -426,7 +427,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, fx.pastSwitchAt))
 
-	pending, err := svc.ListPending(ctx)
+	pending, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	var queued *enrollmentService.OfferingChangeView
 	for _, view := range pending {

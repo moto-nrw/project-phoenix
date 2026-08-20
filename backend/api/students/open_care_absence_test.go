@@ -280,18 +280,22 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	absencePerms := []string{"users:read", "users:absence"}
 
 	t.Run("request_is_visible_in_the_queue", func(t *testing.T) {
-		rr := authExec(t, tc, testutil.NewRequest("GET", "/excused-absence-requests", nil), claims, absencePerms)
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?types=excused", nil), claims, absencePerms)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 		var env struct {
-			Data []struct {
-				ID string `json:"id"`
+			Data struct {
+				Items []struct {
+					Data struct {
+						ID string `json:"id"`
+					} `json:"data"`
+				} `json:"items"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-		ids := make([]string, 0, len(env.Data))
-		for _, item := range env.Data {
-			ids = append(ids, item.ID)
+		ids := make([]string, 0, len(env.Data.Items))
+		for _, item := range env.Data.Items {
+			ids = append(ids, item.Data.ID)
 		}
 		assert.Contains(t, ids, strconv.FormatInt(pending.ID, 10))
 	})

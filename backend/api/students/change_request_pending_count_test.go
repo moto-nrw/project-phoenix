@@ -92,7 +92,7 @@ func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	rr := authExec(t, tc,
-		testutil.NewRequest("GET", "/excused-absence-requests", nil),
+		testutil.NewRequest("GET", "/change-requests?types=excused", nil),
 		testutil.TeacherTestClaims(int(account.ID)),
 		[]string{"users:read", "users:absence"},
 	)

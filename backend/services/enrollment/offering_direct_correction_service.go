@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -34,29 +35,24 @@ type DirectCorrectionItem struct {
 // newest change first, keyset paginated on (changed_at, id).
 func (s *offeringChangeRequestService) ListDirectCorrections(
 	ctx context.Context,
-	beforeChangedAt time.Time,
-	beforeID int64,
-	limit int,
+	filters modelBase.RequestQueueFilters,
 ) ([]*DirectCorrectionItem, *usersService.HistoryCursor, error) {
 	if s.OfferingAdjustmentRepo == nil {
 		return nil, nil, fmt.Errorf("offering change: offering adjustment repo not configured")
 	}
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.OfferingAdjustmentRepo.ListDirectForTenant(ctx, beforeChangedAt, beforeID, limit+1)
+	rows, err := s.OfferingAdjustmentRepo.ListDirectForTenant(ctx, probeLimit(filters))
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list direct corrections: %w", err)
 	}
 	// The cursor points at the last DB row, not the last visible item: the
 	// per-child scope filters after the DB limit, so a cursor built from the
 	// filtered page would skip rows.
-	var next *usersService.HistoryCursor
-	if len(rows) > limit {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		next = &usersService.HistoryCursor{UpdatedAt: last.ChangedAt, ID: last.ID}
-	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *auditModels.EnrollmentOfferingAdjustment) (time.Time, int64) {
+		return r.ChangedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*DirectCorrectionItem{}, nil, nil
+		return []*DirectCorrectionItem{}, next, nil
 	}
 
 	studentIDs := make([]int64, 0, len(rows))

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // pendingChangeRequestCount returns the combined number of pending parent
@@ -38,7 +39,8 @@ func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	excused, err := rs.ExcusedRequestService.ListPending(ctx)
+	// The badge counts the whole queue, so the filters stay at their zero value.
+	excused, _, err := rs.ExcusedRequestService.ListPending(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -67,11 +69,11 @@ func (rs *Resource) pendingWriteQueueCount(ctx context.Context) (int, error) {
 		return 0, errors.New("change request services not configured")
 	}
 
-	masterData, err := rs.MasterDataReviewService.ListPending(ctx)
+	masterData, _, err := rs.MasterDataReviewService.ListPending(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return 0, err
 	}
-	care, err := rs.CareRequestService.ListPending(ctx)
+	care, _, err := rs.CareRequestService.ListPending(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return 0, err
 	}

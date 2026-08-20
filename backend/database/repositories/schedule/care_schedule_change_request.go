@@ -64,24 +64,32 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudentAndKind(ctx co
 	return row, nil
 }
 
-// ListPendingForTenant returns every pending request for the current tenant
-// (resolved via RLS / the tenant filter), newest-first.
-func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.Context) ([]*schedule.CareScheduleChangeRequest, error) {
-	return r.ListPendingForTenantAndKind(ctx, schedule.CareRequestKindWeeklySchedule)
+// ListPendingForTenant returns the pending requests of BOTH kinds (weekly plan
+// and single-day pickup change) for the current tenant, newest submission
+// first, narrowed and paged by filters. One query rather than one per kind:
+// a keyset page has to be cut across the whole queue, not per kind.
+func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
+	return r.listPending(ctx, nil, filters)
 }
 
-func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx context.Context, requestKind string) ([]*schedule.CareScheduleChangeRequest, error) {
+// ListPendingForTenantAndKind is ListPendingForTenant narrowed to one request
+// kind.
+func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
+	return r.listPending(ctx, []string{requestKind}, filters)
+}
+
+func (r *CareScheduleChangeRequestRepository) listPending(ctx context.Context, kinds []string, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
 	var rows []*schedule.CareScheduleChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
-		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
+	if len(kinds) > 0 {
+		query = query.Where(`"care_schedule_change_request".request_kind IN (?)`, bun.List(kinds))
+	}
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
-	query = query.
-		OrderExpr(`"care_schedule_change_request".created_at DESC`).
-		OrderExpr(`"care_schedule_change_request".id DESC`)
+	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
@@ -93,8 +101,8 @@ func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx co
 // (approved, rejected, withdrawn) newest-decision-first via keyset pagination
 // on (updated_at, id). Every Decide stamps updated_at and decided rows are
 // terminal, so it is the decision instant (withdrawn rows carry no
-// reviewed_at). A zero beforeUpdatedAt returns the first page.
-func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*schedule.CareScheduleChangeRequest, error) {
+// reviewed_at). A zero BeforeInstant returns the first page.
+func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
 	var rows []*schedule.CareScheduleChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
@@ -104,15 +112,9 @@ func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.C
 			schedule.CareRequestStatusRejected,
 			schedule.CareRequestStatusWithdrawn,
 		}))
-	if !beforeUpdatedAt.IsZero() {
-		query = query.Where(`("care_schedule_change_request".updated_at, "care_schedule_change_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
-	}
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
-	query = query.
-		OrderExpr(`"care_schedule_change_request".updated_at DESC`).
-		OrderExpr(`"care_schedule_change_request".id DESC`).
-		Limit(limit)
+	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: err}

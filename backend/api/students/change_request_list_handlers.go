@@ -5,11 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"maps"
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,8 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -56,14 +54,16 @@ var aggregatedRequestTypeOrder = []string{
 }
 
 const (
-	// aggregatedHistoryFetchLimit is the per-service page size of one internal
-	// history fetch; larger than the response limit so name-search pages fill
-	// without a fetch per row.
-	aggregatedHistoryFetchLimit = 50
-	// aggregatedMaxHistoryFetches bounds the DB scanning per type and request
-	// when filters discard most rows. A page may come back underfilled with a
-	// next_cursor; the client's "load more" continues from there.
-	aggregatedMaxHistoryFetches = 4
+	// aggregatedFetchLimit is the per-service page size of one internal fetch;
+	// larger than the response limit so a page still fills when the per-child
+	// scope drops rows.
+	aggregatedFetchLimit = 50
+	// aggregatedMaxFetches bounds the DB scanning per type and request. Child
+	// name and student filters run in SQL, so what still discards rows here is
+	// the status/decided-at filter and the caller's per-child scope. A page may
+	// come back underfilled with a next_cursor; the client's "load more"
+	// continues from there.
+	aggregatedMaxFetches = 4
 )
 
 var errInvalidAggregatedQuery = errors.New("invalid change request list query")
@@ -89,11 +89,14 @@ type AggregatedChangeRequestPage struct {
 }
 
 // aggregatedCursor maps request types to their keyset position — the last DB
-// row of that type the client has consumed. Types absent from the map start
-// from the top. Opaque on the wire (base64url JSON), like the per-type
-// history cursor. On the open view the position instant is the row's
-// created_at; the payload field name (u) just follows the shared wire shape.
-type aggregatedCursor map[string]historyCursorPayload
+// row of that type the client has consumed. A present nil position means that
+// the source had buffered rows but none had been consumed yet, so it resumes
+// from the top without repeating rows emitted by another source. Types absent
+// from the map start from the top. Opaque on the wire (base64url JSON), like
+// the per-type history cursor. On the open view the position instant is the
+// row's created_at; the payload field name (u) just follows the shared wire
+// shape.
+type aggregatedCursor map[string]*historyCursorPayload
 
 func encodeAggregatedCursor(cursor aggregatedCursor) string {
 	if len(cursor) == 0 {
@@ -116,7 +119,7 @@ func decodeAggregatedCursor(raw string) (aggregatedCursor, error) {
 		return nil, errInvalidAggregatedQuery
 	}
 	for typ, pos := range cursor {
-		if !isAggregatedRequestType(typ) || pos.UpdatedAt.IsZero() || pos.ID <= 0 {
+		if !isAggregatedRequestType(typ) || (pos != nil && (pos.UpdatedAt.IsZero() || pos.ID <= 0)) {
 			return nil, errInvalidAggregatedQuery
 		}
 	}
@@ -286,16 +289,19 @@ type aggregatedRow struct {
 	data        any
 }
 
-// matches applies the deterministic row filters. Determinism matters: the
-// cursor may advance past filtered rows, which is only safe when the same row
-// is filtered identically on the next request.
+// queueFilters is the part of the query the repositories evaluate themselves:
+// which children, plus the page size and keyset the source fills in.
+func (q *aggregatedListQuery) queueFilters() modelBase.RequestQueueFilters {
+	return modelBase.RequestQueueFilters{StudentID: q.studentID, Search: q.search}
+}
+
+// matches applies the row filters that stay in Go because they are per-type
+// semantics rather than columns: the status set (auto-applied counts as
+// accepted) and the decided-at range, which reads the same reviewed_at ??
+// updated_at fallback the response shows. Determinism matters: the cursor may
+// advance past filtered rows, which is only safe when the same row is filtered
+// identically on the next request.
 func (q *aggregatedListQuery) matches(row *aggregatedRow) bool {
-	if q.studentID != 0 && row.studentID != q.studentID {
-		return false
-	}
-	if q.search != "" && !strutil.ContainsFold(row.studentName, q.search) {
-		return false
-	}
 	if len(q.statuses) > 0 {
 		status := row.status
 		// Auto-applied rows are shown (and filtered) as accepted — the change
@@ -337,15 +343,6 @@ func rowBefore(a, b *aggregatedRow) bool {
 	return a.id > b.id
 }
 
-// rowBeforeCursor reports whether the row lies strictly before the keyset
-// position, i.e. the client has not consumed it yet.
-func rowBeforeCursor(row *aggregatedRow, pos historyCursorPayload) bool {
-	if !row.sortTime.Equal(pos.UpdatedAt) {
-		return row.sortTime.Before(pos.UpdatedAt)
-	}
-	return row.id < pos.ID
-}
-
 // listAggregatedChangeRequests serves the unified Eltern request list. The
 // route is gated users:update OR users:absence like the pending-count badge;
 // which queues actually contribute follows each queue's own gate: an
@@ -368,12 +365,7 @@ func (rs *Resource) listAggregatedChangeRequests(w http.ResponseWriter, r *http.
 		q.types = intersectTypes(q.types, requestTypeExcused)
 	}
 
-	var page AggregatedChangeRequestPage
-	if q.history {
-		page, err = rs.aggregatedHistoryPage(ctx, &q)
-	} else {
-		page, err = rs.aggregatedOpenPage(ctx, &q)
-	}
+	page, err := rs.aggregatedPage(ctx, &q)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -418,90 +410,6 @@ func mapAggregatedRows[T any](items []T, build func(T) aggregatedRow) []aggregat
 		rows = append(rows, build(item))
 	}
 	return rows
-}
-
-// aggregatedOpenPage merges the four pending queues. The per-type services
-// return the full (short) scoped queue, so pagination is an in-memory keyset
-// cut over the merged snapshot — same cursor semantics as the history view.
-func (rs *Resource) aggregatedOpenPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
-	rows := make([]aggregatedRow, 0, 32)
-	for _, typ := range q.types {
-		typeRows, err := rs.openRowsFor(ctx, typ)
-		if err != nil {
-			return AggregatedChangeRequestPage{}, err
-		}
-		for i := range typeRows {
-			if q.matches(&typeRows[i]) {
-				rows = append(rows, typeRows[i])
-			}
-		}
-	}
-	sort.Slice(rows, func(i, j int) bool { return rowBefore(&rows[i], &rows[j]) })
-	return paginateOpenRows(dropConsumedOpenRows(rows, q.cursor), q), nil
-}
-
-// dropConsumedOpenRows removes rows the client has already consumed according
-// to the per-type cursor positions.
-func dropConsumedOpenRows(rows []aggregatedRow, cursor aggregatedCursor) []aggregatedRow {
-	if cursor == nil {
-		return rows
-	}
-	kept := rows[:0]
-	for i := range rows {
-		pos, ok := cursor[rows[i].typ]
-		if !ok || rowBeforeCursor(&rows[i], pos) {
-			kept = append(kept, rows[i])
-		}
-	}
-	return kept
-}
-
-// paginateOpenRows cuts the merged, filtered snapshot at the page limit and
-// builds the follow-up cursor from the per-type positions of the emitted rows.
-func paginateOpenRows(rows []aggregatedRow, q *aggregatedListQuery) AggregatedChangeRequestPage {
-	page := AggregatedChangeRequestPage{Items: make([]AggregatedChangeRequestItem, 0, min(len(rows), q.limit))}
-	next := make(aggregatedCursor, len(q.cursor)+len(q.types))
-	maps.Copy(next, q.cursor)
-	for i := range rows {
-		if len(page.Items) == q.limit {
-			page.NextCursor = encodeAggregatedCursor(next)
-			return page
-		}
-		row := &rows[i]
-		page.Items = append(page.Items, newAggregatedItem(row))
-		next[row.typ] = historyCursorPayload{UpdatedAt: row.sortTime, ID: row.id}
-	}
-	return page
-}
-
-func (rs *Resource) openRowsFor(ctx context.Context, typ string) ([]aggregatedRow, error) {
-	switch typ {
-	case requestTypeMasterData:
-		items, err := rs.MasterDataReviewService.ListPending(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return mapAggregatedRows(items, masterDataPendingRow), nil
-	case requestTypeCareSchedule:
-		items, err := rs.CareRequestService.ListPending(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return mapAggregatedRows(items, carePendingRow), nil
-	case requestTypeOffering:
-		items, err := rs.OfferingChangeService.ListPending(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return mapAggregatedRows(items, offeringPendingRow), nil
-	case requestTypeExcused:
-		items, err := rs.ExcusedRequestService.ListPending(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return mapAggregatedRows(items, excusedPendingRow), nil
-	}
-	return nil, errors.New("unknown aggregated request type")
 }
 
 func masterDataPendingRow(item *userService.MasterDataReviewItem) aggregatedRow {
@@ -552,14 +460,14 @@ func excusedPendingRow(item *absenceService.ExcusedRequestReviewItem) aggregated
 	}
 }
 
-// aggregatedHistorySource pulls one type's history pages on demand. It keeps
-// the scan frontier (where the next DB fetch continues) separate from the
-// consumed position (what the response cursor reports): the frontier may run
-// ahead over rows the filters discarded, but the reported cursor must never
-// skip a buffered, still-unconsumed row.
-type aggregatedHistorySource struct {
+// aggregatedSource pulls one type's pages on demand. It keeps the scan
+// frontier (where the next DB fetch continues) separate from the consumed
+// position (what the response cursor reports): the frontier may run ahead over
+// rows the Go-side filters discarded, but the reported cursor must never skip
+// a buffered, still-unconsumed row.
+type aggregatedSource struct {
 	typ      string
-	fetch    func(ctx context.Context, before time.Time, beforeID int64, limit int) ([]aggregatedRow, *userService.HistoryCursor, error)
+	fetch    func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]aggregatedRow, *userService.HistoryCursor, error)
 	incoming *historyCursorPayload
 	scan     *historyCursorPayload
 	consumed *historyCursorPayload
@@ -568,15 +476,15 @@ type aggregatedHistorySource struct {
 	fetches  int
 }
 
-func (s *aggregatedHistorySource) peek(ctx context.Context, q *aggregatedListQuery) (*aggregatedRow, error) {
-	for len(s.buf) == 0 && !s.done && s.fetches < aggregatedMaxHistoryFetches {
+func (s *aggregatedSource) peek(ctx context.Context, q *aggregatedListQuery) (*aggregatedRow, error) {
+	for len(s.buf) == 0 && !s.done && s.fetches < aggregatedMaxFetches {
 		s.fetches++
-		var before time.Time
-		var beforeID int64
+		filters := q.queueFilters()
+		filters.Limit = aggregatedFetchLimit
 		if s.scan != nil {
-			before, beforeID = s.scan.UpdatedAt, s.scan.ID
+			filters.BeforeInstant, filters.BeforeID = s.scan.UpdatedAt, s.scan.ID
 		}
-		rows, next, err := s.fetch(ctx, before, beforeID, aggregatedHistoryFetchLimit)
+		rows, next, err := s.fetch(ctx, filters)
 		if err != nil {
 			return nil, err
 		}
@@ -597,7 +505,7 @@ func (s *aggregatedHistorySource) peek(ctx context.Context, q *aggregatedListQue
 	return &s.buf[0], nil
 }
 
-func (s *aggregatedHistorySource) pop() aggregatedRow {
+func (s *aggregatedSource) pop() aggregatedRow {
 	row := s.buf[0]
 	s.buf = s.buf[1:]
 	s.consumed = &historyCursorPayload{UpdatedAt: row.sortTime, ID: row.id}
@@ -606,34 +514,42 @@ func (s *aggregatedHistorySource) pop() aggregatedRow {
 
 // hasMore reports whether this source may still hold unread rows: buffered
 // ones, or DB pages the scan budget did not reach.
-func (s *aggregatedHistorySource) hasMore() bool {
+func (s *aggregatedSource) hasMore() bool {
 	return len(s.buf) > 0 || !s.done
 }
 
 // cursorPosition is the keyset position the response cursor reports for this
-// type. Preference order: last consumed row (exact resume point); the
-// incoming position while unconsumed rows sit in the buffer (never skip
-// them); otherwise the scan frontier, so a page whose rows were ALL filtered
-// still makes progress instead of looping the client forever.
-func (s *aggregatedHistorySource) cursorPosition() *historyCursorPayload {
+// type. The bool distinguishes an omitted source from an explicit nil start
+// position: the latter preserves a source with prefetched but unconsumed rows.
+// Preference order: last consumed row (exact resume point); the incoming
+// position while unconsumed rows sit in the buffer (never skip them); otherwise
+// the scan frontier, so a page whose rows were ALL filtered still makes progress
+// instead of looping the client forever.
+func (s *aggregatedSource) cursorPosition() (*historyCursorPayload, bool) {
 	if s.consumed != nil {
-		return s.consumed
+		return s.consumed, true
 	}
 	if len(s.buf) > 0 {
-		return s.incoming
+		return s.incoming, true
 	}
 	if !s.done && s.scan != nil {
-		return s.scan
+		return s.scan, true
 	}
-	return s.incoming
+	if s.incoming != nil {
+		return s.incoming, true
+	}
+	return nil, false
 }
 
-func (rs *Resource) aggregatedHistoryPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
-	sources := make([]*aggregatedHistorySource, 0, len(q.types))
+// aggregatedPage merges the requested types into one keyset page. Open list
+// and history walk the identical path — they differ only in which service
+// method each source pulls from and which instant the rows sort on.
+func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
+	sources := make([]*aggregatedSource, 0, len(q.types))
 	for _, typ := range q.types {
-		source := rs.historySourceFor(typ)
-		if pos, ok := q.cursor[typ]; ok {
-			pin := pos
+		source := rs.sourceFor(typ, q.history)
+		if pos, ok := q.cursor[typ]; ok && pos != nil {
+			pin := *pos
 			source.incoming = &pin
 			source.scan = &pin
 		}
@@ -652,14 +568,14 @@ func (rs *Resource) aggregatedHistoryPage(ctx context.Context, q *aggregatedList
 		row := best.pop()
 		page.Items = append(page.Items, newAggregatedItem(&row))
 	}
-	page.NextCursor = aggregatedHistoryNextCursor(sources)
+	page.NextCursor = aggregatedNextCursor(sources)
 	return page, nil
 }
 
 // newestAggregatedSource returns the source whose buffered head row sorts
 // first across all types, or nil when every source is drained.
-func newestAggregatedSource(ctx context.Context, q *aggregatedListQuery, sources []*aggregatedHistorySource) (*aggregatedHistorySource, error) {
-	var best *aggregatedHistorySource
+func newestAggregatedSource(ctx context.Context, q *aggregatedListQuery, sources []*aggregatedSource) (*aggregatedSource, error) {
+	var best *aggregatedSource
 	var bestRow *aggregatedRow
 	for _, source := range sources {
 		row, err := source.peek(ctx, q)
@@ -673,17 +589,17 @@ func newestAggregatedSource(ctx context.Context, q *aggregatedListQuery, sources
 	return best, nil
 }
 
-// aggregatedHistoryNextCursor assembles the follow-up cursor, or "" when
-// every source is exhausted.
-func aggregatedHistoryNextCursor(sources []*aggregatedHistorySource) string {
+// aggregatedNextCursor assembles the follow-up cursor, or "" when every source
+// is exhausted.
+func aggregatedNextCursor(sources []*aggregatedSource) string {
 	next := make(aggregatedCursor)
 	hasMore := false
 	for _, source := range sources {
 		if source.hasMore() {
 			hasMore = true
 		}
-		if pos := source.cursorPosition(); pos != nil {
-			next[source.typ] = *pos
+		if pos, ok := source.cursorPosition(); ok {
+			next[source.typ] = pos
 		}
 	}
 	if !hasMore {
@@ -692,13 +608,13 @@ func aggregatedHistoryNextCursor(sources []*aggregatedHistorySource) string {
 	return encodeAggregatedCursor(next)
 }
 
-// historyFetch adapts one typed ListHistory call to the shared source shape.
-func historyFetch[T any](
-	list func(ctx context.Context, before time.Time, beforeID int64, limit int) ([]T, *userService.HistoryCursor, error),
+// queueFetch adapts one typed queue call to the shared source shape.
+func queueFetch[T any](
+	list func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]T, *userService.HistoryCursor, error),
 	build func(T) aggregatedRow,
-) func(ctx context.Context, before time.Time, beforeID int64, limit int) ([]aggregatedRow, *userService.HistoryCursor, error) {
-	return func(ctx context.Context, before time.Time, beforeID int64, limit int) ([]aggregatedRow, *userService.HistoryCursor, error) {
-		items, next, err := list(ctx, before, beforeID, limit)
+) func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]aggregatedRow, *userService.HistoryCursor, error) {
+	return func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]aggregatedRow, *userService.HistoryCursor, error) {
+		items, next, err := list(ctx, filters)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -706,19 +622,37 @@ func historyFetch[T any](
 	}
 }
 
-func (rs *Resource) historySourceFor(typ string) *aggregatedHistorySource {
-	source := &aggregatedHistorySource{typ: typ}
+func (rs *Resource) sourceFor(typ string, history bool) *aggregatedSource {
+	source := &aggregatedSource{typ: typ}
 	switch typ {
 	case requestTypeMasterData:
-		source.fetch = historyFetch(rs.MasterDataReviewService.ListHistory, masterDataHistoryRow)
+		if history {
+			source.fetch = queueFetch(rs.MasterDataReviewService.ListHistory, masterDataHistoryRow)
+		} else {
+			source.fetch = queueFetch(rs.MasterDataReviewService.ListPending, masterDataPendingRow)
+		}
 	case requestTypeCareSchedule:
-		source.fetch = historyFetch(rs.CareRequestService.ListHistory, careHistoryRow)
+		if history {
+			source.fetch = queueFetch(rs.CareRequestService.ListHistory, careHistoryRow)
+		} else {
+			source.fetch = queueFetch(rs.CareRequestService.ListPending, carePendingRow)
+		}
 	case requestTypeOffering:
-		source.fetch = historyFetch(rs.OfferingChangeService.ListHistory, offeringHistoryRow)
+		if history {
+			source.fetch = queueFetch(rs.OfferingChangeService.ListHistory, offeringHistoryRow)
+		} else {
+			source.fetch = queueFetch(rs.OfferingChangeService.ListPending, offeringPendingRow)
+		}
 	case requestTypeExcused:
-		source.fetch = historyFetch(rs.ExcusedRequestService.ListHistory, excusedHistoryRow)
+		if history {
+			source.fetch = queueFetch(rs.ExcusedRequestService.ListHistory, excusedHistoryRow)
+		} else {
+			source.fetch = queueFetch(rs.ExcusedRequestService.ListPending, excusedPendingRow)
+		}
 	case requestTypeDirectCorrection:
-		source.fetch = historyFetch(rs.OfferingChangeService.ListDirectCorrections, directCorrectionRow)
+		// History only — a correction has no open state. parseAggregatedListQuery
+		// drops the type from the working list before it gets here.
+		source.fetch = queueFetch(rs.OfferingChangeService.ListDirectCorrections, directCorrectionRow)
 	}
 	return source
 }

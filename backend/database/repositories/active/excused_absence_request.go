@@ -118,9 +118,10 @@ func (r *ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Conte
 	return rows, nil
 }
 
-// ListPendingForTenant returns every pending request for the current tenant
-// (resolved via RLS / the tenant filter), newest-first.
-func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context) ([]*activeModels.ExcusedAbsenceRequest, error) {
+// ListPendingForTenant returns the pending requests for the current tenant
+// (resolved via RLS / the tenant filter), newest submission first, narrowed and
+// paged by filters.
+func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	var rows []*activeModels.ExcusedAbsenceRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
@@ -130,9 +131,7 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Conte
 	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
 		query = query.Where(where, val)
 	}
-	query = query.
-		OrderExpr(`"excused_absence_request".created_at DESC`).
-		OrderExpr(`"excused_absence_request".id DESC`)
+	query = base.ApplyRequestQueueFilters(query, "excused_absence_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests", Err: err}
@@ -144,8 +143,8 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Conte
 // rejected, withdrawn) newest-decision-first via keyset pagination on
 // (updated_at, id). Every Decide stamps updated_at and decided rows are
 // terminal, so it is the decision instant (withdrawn rows carry no
-// reviewed_at). A zero beforeUpdatedAt returns the first page.
-func (r *ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*activeModels.ExcusedAbsenceRequest, error) {
+// reviewed_at). A zero BeforeInstant returns the first page.
+func (r *ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	var rows []*activeModels.ExcusedAbsenceRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
@@ -155,17 +154,11 @@ func (r *ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Conte
 			activeModels.ExcusedRequestStatusRejected,
 			activeModels.ExcusedRequestStatusWithdrawn,
 		}))
-	if !beforeUpdatedAt.IsZero() {
-		query = query.Where(`("excused_absence_request".updated_at, "excused_absence_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
-	}
 
 	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
 		query = query.Where(where, val)
 	}
-	query = query.
-		OrderExpr(`"excused_absence_request".updated_at DESC`).
-		OrderExpr(`"excused_absence_request".id DESC`).
-		Limit(limit)
+	query = base.ApplyRequestQueueFilters(query, "excused_absence_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list decided excused absence requests", Err: err}

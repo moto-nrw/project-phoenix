@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
@@ -148,7 +149,7 @@ func TestListPending_EnrichedAndScoped(t *testing.T) {
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier")
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 2, "both pending requests must surface in the staff queue")
 		for _, it := range items {
@@ -171,7 +172,7 @@ func TestListPending_Empty(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
 		return nil
@@ -569,7 +570,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	// Exactly two pending rows exist (first + third; the overlap never inserted).
 	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Len(t, items, 2, "only the idempotent-deduped and disjoint requests should remain pending")
 		return nil

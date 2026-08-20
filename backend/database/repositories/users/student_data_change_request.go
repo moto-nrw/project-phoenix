@@ -91,9 +91,10 @@ func (r *StudentDataChangeRequestRepository) ListParentVisibleByStudent(ctx cont
 	return rows, nil
 }
 
-// ListPendingForTenant returns every pending Track B row for the current tenant
-// (resolved via RLS / the tenant filter), newest-first.
-func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Context) ([]*users.StudentDataChangeRequest, error) {
+// ListPendingForTenant returns the pending Track B rows for the current tenant
+// (resolved via RLS / the tenant filter), newest submission first, narrowed and
+// paged by filters.
+func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*users.StudentDataChangeRequest, error) {
 	var rows []*users.StudentDataChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
@@ -101,9 +102,7 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
-	query = query.
-		OrderExpr(`"student_data_change_request".created_at DESC`).
-		OrderExpr(`"student_data_change_request".id DESC`)
+	query = base.ApplyRequestQueueFilters(query, "student_data_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending student data change requests", Err: err}
@@ -115,8 +114,8 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 // approved, rejected) newest-decision-first via keyset pagination on
 // (updated_at, id). updated_at is stamped by every decide/auto-apply path and
 // decided rows are terminal, so it is the decision instant. A zero
-// beforeUpdatedAt returns the first page.
-func (r *StudentDataChangeRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*users.StudentDataChangeRequest, error) {
+// BeforeInstant returns the first page.
+func (r *StudentDataChangeRequestRepository) ListDecidedForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*users.StudentDataChangeRequest, error) {
 	var rows []*users.StudentDataChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
@@ -126,15 +125,9 @@ func (r *StudentDataChangeRequestRepository) ListDecidedForTenant(ctx context.Co
 			users.DataChangeStatusApproved,
 			users.DataChangeStatusRejected,
 		}))
-	if !beforeUpdatedAt.IsZero() {
-		query = query.Where(`("student_data_change_request".updated_at, "student_data_change_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
-	}
 
 	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
-	query = query.
-		OrderExpr(`"student_data_change_request".updated_at DESC`).
-		OrderExpr(`"student_data_change_request".id DESC`).
-		Limit(limit)
+	query = base.ApplyRequestQueueFilters(query, "student_data_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list decided student data change requests", Err: err}

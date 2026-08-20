@@ -73,24 +73,6 @@ async function readError(
   return new ExcusedRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending parent excused-absence requests. */
-export async function listExcusedAbsenceRequests(): Promise<
-  StaffExcusedRequest[]
-> {
-  const response = await fetch("/api/students/excused-absence-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Entschuldigungs-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffExcusedRequest[]>);
-}
-
 /** Approves (marks the child excused) or rejects one excused-absence request. */
 export async function decideExcusedAbsenceRequest(
   requestId: string,
@@ -114,13 +96,6 @@ export async function decideExcusedAbsenceRequest(
   return unwrap((await response.json()) as Envelope<StaffExcusedRequest>);
 }
 
-/** One page of the decided-request history. */
-export interface ExcusedRequestHistoryPage {
-  readonly items: readonly StaffExcusedRequestHistoryEntry[];
-  /** Absent on the last page. */
-  readonly next_cursor?: string;
-}
-
 /**
  * One decided excused-absence request in the staff history. Mirrors
  * api/students.StaffExcusedRequestHistoryResponse.
@@ -129,23 +104,4 @@ export interface StaffExcusedRequestHistoryEntry extends StaffExcusedRequest {
   readonly decided_at: string;
   /** Absent for withdrawn rows (no reviewer). */
   readonly decided_by_name?: string;
-}
-
-/** Lists the tenant's decided excused-absence requests, newest decision first. */
-export async function listExcusedAbsenceRequestHistory(
-  cursor?: string,
-): Promise<ExcusedRequestHistoryPage> {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const response = await fetch(
-    `/api/students/excused-absence-requests/history${query}`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-    },
-  );
-  if (!response.ok) {
-    throw await readError(response, "Historie konnte nicht geladen werden");
-  }
-  return unwrap((await response.json()) as Envelope<ExcusedRequestHistoryPage>);
 }

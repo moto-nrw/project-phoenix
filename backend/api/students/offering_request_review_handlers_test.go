@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -45,16 +45,16 @@ func (f *fakeOfferingChangeRequestService) Withdraw(context.Context, int64, int6
 	return nil
 }
 
-func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, time.Time, int64, int) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
+func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
 	return nil, nil, nil
 }
 
-func (f *fakeOfferingChangeRequestService) ListDirectCorrections(context.Context, time.Time, int64, int) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
+func (f *fakeOfferingChangeRequestService) ListDirectCorrections(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
 	return nil, nil, nil
 }
 
-func (f *fakeOfferingChangeRequestService) ListPending(context.Context) ([]*enrollmentService.OfferingChangeView, error) {
-	return nil, nil
+func (f *fakeOfferingChangeRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
+	return nil, nil, nil
 }
 
 func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, error) {
