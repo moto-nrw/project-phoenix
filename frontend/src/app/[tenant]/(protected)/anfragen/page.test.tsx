@@ -91,6 +91,15 @@ function absenceProbe() {
   };
 }
 
+/**
+ * Die Kopfzeile rendert Reiter-Aktionen zweimal, einmal für Mobil und einmal
+ * für Desktop, und blendet eine davon per CSS aus. jsdom kennt kein CSS, also
+ * greift der Test die erste Kopie — beide schalten denselben Zustand.
+ */
+function umschalten(label: "Offen" | "Historie") {
+  fireEvent.click(screen.getAllByRole("button", { name: label })[0]!);
+}
+
 describe("AnfragenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -138,10 +147,10 @@ describe("AnfragenPage", () => {
   it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {
     render(<AnfragenPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     expect(listProbe().view).toBe("history");
 
-    fireEvent.click(screen.getByRole("button", { name: "Offen" }));
+    umschalten("Offen");
     expect(listProbe().view).toBe("open");
   });
 
@@ -171,20 +180,20 @@ describe("AnfragenPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
     expect(screen.queryByText("Direkt-Korrekturen")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     fireEvent.click(screen.getByText("Direkt-Korrekturen"));
     expect(listProbe().filters.types).toEqual(["direct_correction"]);
 
     // Zurück in der Arbeitsliste dürfen Korrekturen nie auftauchen, auch
     // nicht als übrig gebliebener Filter (#2436).
-    fireEvent.click(screen.getByRole("button", { name: "Offen" }));
+    umschalten("Offen");
     const open = listProbe();
     expect(open.view).toBe("open");
     expect(open.filters.types).toEqual([]);
 
     // Der inkompatible Filter wird beim Wechsel gelöscht und kehrt nicht
     // still zurück, wenn die Historie wieder geöffnet wird.
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     expect(listProbe().filters.types).toEqual([]);
   });
 
@@ -286,7 +295,7 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     expect(absenceProbe().view).toBe("history");
   });
 

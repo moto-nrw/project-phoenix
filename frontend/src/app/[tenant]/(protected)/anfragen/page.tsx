@@ -340,6 +340,18 @@ export default function AnfragenPage() {
 
   const staffActive = activeTab === "mitarbeitende";
 
+  const viewSwitcher = (
+    <SegmentedControl
+      items={[
+        { value: "open", label: "Offen" },
+        { value: "history", label: "Historie" },
+      ]}
+      value={view}
+      onChange={staffActive ? setView : handleElternViewChange}
+      ariaLabel="Ansicht wählen"
+    />
+  );
+
   return (
     <div className="-mt-1.5 w-full">
       {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
@@ -379,23 +391,13 @@ export default function AnfragenPage() {
         onClearAllFilters={clearAllFilters}
         filterVariant="quiet"
         activeFilterDisplay="count"
+        // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
+        // eine Auswahl, was die Liste zeigt. `actionButton` ist der Slot der
+        // Reiterzeile — nicht `primaryAction`, das rendert nur im
+        // Desktop-Zweig (`hidden lg:block`) und wäre auf Telefon und Tablet
+        // gar nicht da.
+        actionButton={viewSwitcher}
       />
-      {/* Der Umschalter steht über der Liste und nicht in der Kopfzeile:
-          deren `primaryAction` rendert nur im Desktop-Zweig (`hidden
-          lg:block`), auf Telefon und Tablet wäre die Historie damit gar
-          nicht erreichbar. Ein Umschalter für beide Reiter, deshalb hier
-          und nicht in den Reiter-Komponenten. */}
-      <div className="mb-4">
-        <SegmentedControl
-          items={[
-            { value: "open", label: "Offen" },
-            { value: "history", label: "Historie" },
-          ]}
-          value={view}
-          onChange={staffActive ? setView : handleElternViewChange}
-          ariaLabel="Ansicht wählen"
-        />
-      </div>
       {staffActive ? (
         <MitarbeitendeTab view={view} filters={staffFilters} />
       ) : (
