@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	dropFeedbackSuggestionsVersion     = "1.15.307"
+	dropFeedbackSuggestionsVersion     = "1.15.308"
 	dropFeedbackSuggestionsDescription = "Drop the feedback and suggestions schemas, their permissions and settings (#2326)"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     dropFeedbackSuggestionsVersion,
 		Description: dropFeedbackSuggestionsDescription,
-		DependsOn:   []string{classListEntriesVersion},
+		DependsOn:   []string{careRequestDecisionSnapshotVersion},
 	})
 
 	Migrations.MustRegister(dropFeedbackSuggestionsUp, dropFeedbackSuggestionsDown)
@@ -45,7 +45,7 @@ func init() {
 // state, not a schema object, so there is nothing to drop — the Go side simply
 // stopped setting it.
 func dropFeedbackSuggestionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.307: Dropping feedback and suggestions...")
+	fmt.Println("Migration 1.15.308: Dropping feedback and suggestions...")
 
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		for _, schema := range []string{"feedback", "suggestions"} {
@@ -104,6 +104,6 @@ func dropFeedbackSuggestionsUp(ctx context.Context, db *bun.DB) error {
 // content only exists in the pre-migration database backup. Restoring it is an
 // operational task (restore the dump), not something a migration can do.
 func dropFeedbackSuggestionsDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Migration 1.15.307 down: no-op — dropped feedback/suggestions data can only be restored from a backup")
+	fmt.Println("Migration 1.15.308 down: no-op — dropped feedback/suggestions data can only be restored from a backup")
 	return nil
 }

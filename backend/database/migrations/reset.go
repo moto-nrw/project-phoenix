@@ -27,7 +27,7 @@ func ResetDatabase() error {
 	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations —
 	// INCLUDING schemas a later migration drops again. A reset replays the
 	// full history, so 1.5.2 recreates feedback and 1.9.1 recreates
-	// suggestions long before 1.15.307 drops them; leaving a stale copy of
+	// suggestions long before 1.15.308 drops them; leaving a stale copy of
 	// either in place makes the intervening CREATE TABLE IF NOT EXISTS a
 	// no-op and the migration after it fails on a missing column (#2326).
 	schemas := []string{
@@ -47,7 +47,7 @@ func ResetDatabase() error {
 		"calendar",   // created by migration 1.15.173
 		"display",    // created by migration 1.15.175
 
-		// Dropped again by migration 1.15.307 (#2326), but recreated on the
+		// Dropped again by migration 1.15.308 (#2326), but recreated on the
 		// way there by 1.5.2 / 1.9.1 — see the note above.
 		"feedback",
 		"suggestions",
