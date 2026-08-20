@@ -318,21 +318,26 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		today := timezone.TodayDate()
 		yesterday := today.AddDays(-1)
 		twoDaysAgo := today.AddDays(-2)
+		session1Out := time.Now().AddDate(0, 0, -2).Add(8 * time.Hour)
+		session2Out := time.Now().AddDate(0, 0, -1).Add(8 * time.Hour)
 
-		// Create sessions across multiple days
+		// Create closed sessions across multiple days. The open-block guard
+		// correctly rejects multiple current sessions for the same person.
 		session1 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        twoDaysAgo,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -2),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         twoDaysAgo,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  time.Now().AddDate(0, 0, -2),
+			CheckOutTime: &session1Out,
+			CreatedBy:    staff.ID,
 		}
 		session2 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        yesterday,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -1),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         yesterday,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  time.Now().AddDate(0, 0, -1),
+			CheckOutTime: &session2Out,
+			CreatedBy:    staff.ID,
 		}
 
 		err := repo.Create(ctx, session1)
