@@ -3373,13 +3373,21 @@ function TimeTrackingContent() {
     );
 
   // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
-  // table fetches and its Monatskarte after a check-in/out, edit or absence
-  // change, so both update without a manual refresh. The Monatskarte belongs
-  // in here: its Ist, Gutschriften, Saldo and Übertrag are server-derived from
-  // exactly the sessions and absences these handlers just changed.
+  // table fetches, its Tagesprojektion and its Monatskarte after a
+  // check-in/out, edit or absence change, so all three update without a manual
+  // refresh. The Monatskarte belongs in here: its Ist, Gutschriften, Saldo and
+  // Übertrag are server-derived from exactly the sessions and absences these
+  // handlers just changed. So is the Tagesprojektion since #2443 — the
+  // schedule-targets key stopped being a pure Soll map and now carries the
+  // server-computed Ist, Gutschrift and Saldo per day, which means every one
+  // of these mutations invalidates it. Leaving it out left the table's own
+  // numbers stale while the session list and the Monatskarte above them had
+  // already moved on. The weekly KPI card (usePeriodMetrics) shares the key
+  // and is refreshed with it.
   const refreshTableData = useTenantMutateMatching([
     "time-tracking-table",
     "time-tracking-month-summary",
+    "time-tracking-schedule-targets-",
   ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)

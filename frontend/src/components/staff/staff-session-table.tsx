@@ -59,6 +59,33 @@ const COLUMN_COUNT = 12;
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
+// Every cache that a correction or backfill in the admin edit modal makes
+// stale. Beyond the sessions, absences and month aggregates: the daily
+// projection, which since #2443 no longer carries the day's Soll alone but the
+// server-computed Ist, Gutschrift and Saldo — exactly the numbers this save
+// just moved. The account-range chart key
+// ("staff-schedule-targets-account-<id>-…") is deliberately NOT matched: it is
+// fetched with target_only=true and holds pure Soll, which no session edit can
+// change. The id-less "time-tracking-schedule-targets-" / month-summary keys
+// belong to the self-service portal and matter when the manager is editing
+// their OWN days. useSWRAuth prefixes keys with the tenant slug
+// ("phoenix:staff-history-…"), so a plain startsWith match would never fire —
+// we use includes instead.
+export function isStaleAfterSessionSave(
+  key: unknown,
+  staffId: string,
+): boolean {
+  return (
+    typeof key === "string" &&
+    (key.includes("staff-history-") ||
+      key.includes("staff-absences-") ||
+      key.includes("staff-month-summary-") ||
+      key.includes(`staff-schedule-targets-${staffId}-`) ||
+      key.includes("time-tracking-month-summary-") ||
+      key.includes("time-tracking-schedule-targets-"))
+  );
+}
+
 // Tooltip der beiden Zeit-Zellen auf einem Mehrblock-Tag (#2402).
 const multiBlockBoundsHint =
   "Tagesgrenzen über alle Blöcke — die Zeit zwischen zwei Blöcken zählt nicht als Arbeitszeit. Die gearbeiteten Zeiten stehen je Block darunter.";
@@ -463,21 +490,13 @@ export function StaffSessionTable({
   } | null>(null);
 
   // SWR mutate — used after a successful save to refresh the visible window
-  // (week/month table), the cumulative range (KpiCards) and the Monatskarte,
-  // whose Ist, Gutschriften, Saldo and Übertrag are all derived from the very
-  // rows this modal just changed. useSWRAuth prefixes keys with the tenant
-  // slug ("phoenix:staff-history-…"), so a plain startsWith match would never
-  // fire — we use includes instead.
+  // (week/month table), its daily projection, the cumulative range (KpiCards)
+  // and the Monatskarte, whose Ist, Gutschriften, Saldo and Übertrag are all
+  // derived from the very rows this modal just changed. Which keys those are:
+  // isStaleAfterSessionSave above.
   const { mutate } = useSWRConfig();
   const handleSaved = () => {
-    void mutate(
-      (key) =>
-        typeof key === "string" &&
-        (key.includes("staff-history-") ||
-          key.includes("staff-absences-") ||
-          key.includes("staff-month-summary-") ||
-          key.includes("time-tracking-month-summary-")),
-    );
+    void mutate((key) => isStaleAfterSessionSave(key, staffId));
   };
 
   return (
