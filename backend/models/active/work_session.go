@@ -28,6 +28,14 @@ const (
 	WorkSessionSourceUnknown = "unknown" // Pre-migration legacy rows; never written by new code
 )
 
+// MaxOpenWorkSessionDuration is the live safety limit for a block that is
+// still open. Past it a running block stops counting as work in progress:
+// the balance stops crediting it (services/active.BalanceSessionEnd) and the
+// presence lookup stops reporting its owner as present
+// (repositories/active.GetTodayPresenceMap). Both read this one constant so a
+// forgotten checkout drops out of both at the same moment (#2402).
+const MaxOpenWorkSessionDuration = 12 * time.Hour
+
 type WorkSession struct {
 	base.Model `bun:"schema:active,table:work_sessions"`
 	base.TenantModel

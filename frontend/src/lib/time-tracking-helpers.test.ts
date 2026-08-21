@@ -975,4 +975,65 @@ describe("indexWorkSessionMinutesByBerlinDate", () => {
     expect(indexed.get("2026-07-20")?.breakMinutes).toBe(30);
     expect(indexed.get("2026-07-21")?.breakMinutes).toBe(60);
   });
+
+  const openSession = (
+    overrides: Partial<WorkSessionHistory>,
+  ): WorkSessionHistory => ({
+    id: "1",
+    staffId: "1",
+    date: "2026-07-20",
+    status: "present",
+    checkInTime: "2026-07-20T20:00:00.000Z",
+    checkOutTime: null,
+    breakMinutes: 0,
+    notes: "",
+    autoCheckedOut: false,
+    createdBy: "1",
+    updatedBy: null,
+    createdAt: "",
+    updatedAt: "",
+    netMinutes: 0,
+    isOvertime: false,
+    isBreakCompliant: true,
+    restPeriodWarning: null,
+    breaks: [],
+    editCount: 0,
+    ...overrides,
+  });
+
+  it("caps an open block from yesterday at the 12-hour live limit", () => {
+    // 22:00 CEST, never checked out, read the next evening. The server caps
+    // its net value at check-in + 12h (10:00 CEST), so the split has to stop
+    // there too — otherwise the capped minutes get spread over a stretch of
+    // the day the block never covered.
+    const session = openSession({ netMinutes: 720 });
+
+    expect(
+      indexWorkSessionMinutesByBerlinDate(
+        [session],
+        new Date("2026-07-21T18:00:00.000Z"),
+      ),
+    ).toEqual(
+      new Map([
+        ["2026-07-20", { netMinutes: 120, breakMinutes: 0 }],
+        ["2026-07-21", { netMinutes: 600, breakMinutes: 0 }],
+      ]),
+    );
+  });
+
+  it("cuts a forgotten checkout at the end of its own Berlin day", () => {
+    const session = openSession({
+      date: "2026-07-18",
+      checkInTime: "2026-07-18T06:00:00.000Z",
+      netMinutes: 959,
+    });
+
+    const indexed = indexWorkSessionMinutesByBerlinDate(
+      [session],
+      new Date("2026-07-21T18:00:00.000Z"),
+    );
+
+    expect([...indexed.keys()]).toEqual(["2026-07-18"]);
+    expect(indexed.get("2026-07-18")?.netMinutes).toBe(959);
+  });
 });

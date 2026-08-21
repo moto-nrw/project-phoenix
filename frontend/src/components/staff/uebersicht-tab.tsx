@@ -58,7 +58,10 @@ import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import type { BalanceAdjustment } from "~/lib/time-tracking-helpers";
+import {
+  balanceSessionEnd,
+  type BalanceAdjustment,
+} from "~/lib/time-tracking-helpers";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
 import { StundenkontoPanel } from "./stundenkonto-panel";
@@ -915,9 +918,15 @@ function splitSessionNetMinutesByBerlinDate(
   session: StaffHistorySession,
 ): Map<string, number> {
   const start = new Date(session.check_in_time);
-  const end = session.check_out_time
+  const checkOut = session.check_out_time
     ? new Date(session.check_out_time)
-    : new Date();
+    : null;
+  // Same live limit as the balance: an open block must not be split through
+  // "now", or its capped net minutes land on a day it never worked.
+  const end = balanceSessionEnd(
+    { date: session.date, checkIn: start, checkOut },
+    new Date(),
+  );
   if (
     Number.isNaN(start.getTime()) ||
     Number.isNaN(end.getTime()) ||

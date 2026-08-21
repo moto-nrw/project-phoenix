@@ -252,8 +252,18 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 // and its owner is working right now even though no row carries today's date.
 // Filtering on the date alone would report that person as absent and drop them
 // out of on-duty notification filtering (#2402).
+//
+// That pickup is bounded by the same live limit the balance applies
+// (active.MaxOpenWorkSessionDuration, see services/active.BalanceSessionEnd):
+// an open block still counts while its check-in is inside that window, and a
+// block filed on today counts regardless. Anything older is a checkout that
+// never happened, not a person at work — without the cutoff a single
+// forgotten checkout would keep its owner "present" for weeks, in today's
+// overview as well as in on-duty notification filtering.
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	today := timezone.TodayDate()
+	now := time.Now()
+	today := timezone.DateFromTime(now)
+	liveOpenSince := now.Add(-active.MaxOpenWorkSessionDuration)
 
 	var results []struct {
 		StaffID      int64      `bun:"staff_id"`
@@ -266,7 +276,8 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
-		Where(`("work_session".date = ? OR "work_session".check_out_time IS NULL)`, today)
+		Where(`("work_session".date = ? OR ("work_session".check_out_time IS NULL AND "work_session".check_in_time > ?))`,
+			today, liveOpenSince)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 

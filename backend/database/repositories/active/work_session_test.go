@@ -361,6 +361,42 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[staff1.ID])
 		assert.Equal(t, "checked_out", presenceMap[staff2.ID])
 	})
+
+	t.Run("open blocks past the live limit stop reporting presence", func(t *testing.T) {
+		running := testpkg.CreateTestStaff(t, db, "Night", "Block")
+		forgotten := testpkg.CreateTestStaff(t, db, "Forgotten", "Checkout")
+		now := time.Now()
+		today := timezone.DateFromTime(now)
+
+		// Filed yesterday, checked in two hours ago: a block that ran across
+		// Berlin midnight. Its owner is at work right now.
+		nightBlock := &active.WorkSession{
+			StaffID:     running.ID,
+			Date:        today.AddDays(-1),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: now.Add(-2 * time.Hour),
+			CreatedBy:   running.ID,
+		}
+		// A checkout that never happened three days ago. The balance stopped
+		// crediting it at the end of its own day (BalanceSessionEnd); presence
+		// has to stop with it instead of reporting the person present forever.
+		staleBlock := &active.WorkSession{
+			StaffID:     forgotten.ID,
+			Date:        today.AddDays(-3),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: now.Add(-72 * time.Hour),
+			CreatedBy:   forgotten.ID,
+		}
+
+		require.NoError(t, repo.Create(ctx, nightBlock))
+		require.NoError(t, repo.Create(ctx, staleBlock))
+
+		presenceMap, err := repo.GetTodayPresenceMap(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[running.ID])
+		_, listed := presenceMap[forgotten.ID]
+		assert.False(t, listed, "a stale open block must not report presence")
+	})
 }
 
 func TestWorkSessionRepository_List(t *testing.T) {

@@ -5,6 +5,7 @@ import {
   berlinTodayISO,
   endOfBerlinDayISO,
   parseISODate,
+  toISODate,
 } from "~/lib/date-helpers";
 
 // Backend response types (snake_case, numbers for IDs)
@@ -212,6 +213,54 @@ export interface WorkSessionDayMinutes {
   breakMinutes: number;
 }
 
+const MAX_OPEN_WORK_SESSION_MS = 12 * 60 * 60 * 1_000;
+
+/**
+ * The instant a block stops counting — mirror of the backend's
+ * `BalanceSessionEnd` (services/active/work_time_month_service.go).
+ *
+ * A closed block is historical fact and ends at its check-out. A block that is
+ * still open would otherwise run through `now` forever, so it carries a live
+ * limit of {@link MAX_OPEN_WORK_SESSION_MS}: a block filed on today keeps
+ * counting (a long shift is not a mistake), one filed yesterday is capped at
+ * check-in plus the limit, and an older one — a checkout that never happened —
+ * is cut at the end of its own Berlin day.
+ *
+ * Callers that split minutes across calendar days MUST use this instead of
+ * `now`: the server already caps the block's `netMinutes` the same way, so
+ * splitting an uncapped window would hand those capped minutes to the wrong
+ * Berlin day.
+ */
+export function balanceSessionEnd(
+  session: { date: string; checkIn: Date; checkOut: Date | null },
+  now: Date,
+): Date {
+  const nowMs = now.getTime();
+  const checkOutMs = session.checkOut?.getTime() ?? null;
+
+  let end = nowMs;
+  if (checkOutMs !== null && checkOutMs < end) end = checkOutMs;
+  // Only a still-open block (or a malformed check-out in the future) needs the
+  // live limit; a completed one already ended when it ended.
+  if (checkOutMs !== null && checkOutMs <= nowMs) return new Date(end);
+
+  const maxEnd = session.checkIn.getTime() + MAX_OPEN_WORK_SESSION_MS;
+  if (end <= maxEnd) return new Date(end);
+
+  const today = berlinTodayISO(now);
+  const yesterdayDate = parseISODate(today);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = toISODate(yesterdayDate);
+  const date = session.date.slice(0, 10);
+
+  if (date < yesterday) {
+    const staleEnd = new Date(endOfBerlinDayISO(parseISODate(date))).getTime();
+    if (staleEnd < end) return new Date(staleEnd);
+  }
+  if (date >= yesterday && date < today) return new Date(maxEnd);
+  return new Date(end);
+}
+
 // Splits the values shown on charts at Berlin calendar boundaries. The backend
 // uses the same rule for the monthly balance; keeping it here avoids filing a
 // complete night block under its check-in date in the client.
@@ -223,7 +272,14 @@ export function indexWorkSessionMinutesByBerlinDate(
 
   for (const session of sessions) {
     const start = new Date(session.checkInTime);
-    const end = new Date(session.checkOutTime ?? now);
+    const checkOut = session.checkOutTime
+      ? new Date(session.checkOutTime)
+      : null;
+    if (checkOut !== null && Number.isNaN(checkOut.getTime())) continue;
+    const end = balanceSessionEnd(
+      { date: session.date, checkIn: start, checkOut },
+      now,
+    );
     if (
       Number.isNaN(start.getTime()) ||
       Number.isNaN(end.getTime()) ||

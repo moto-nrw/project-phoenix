@@ -620,7 +620,10 @@ func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time 
 	return end
 }
 
-const maxOpenWorkSessionDuration = 12 * time.Hour
+// maxOpenWorkSessionDuration is the shared live limit. The presence lookup in
+// database/repositories/active reads the same constant, so a block that stops
+// counting toward the balance stops marking its owner present as well.
+const maxOpenWorkSessionDuration = activeModels.MaxOpenWorkSessionDuration
 
 // BalanceSessionEnd applies the live balance limit using the Berlin day of
 // now. Readers outside this package (notably the kiosk) use it so a running
