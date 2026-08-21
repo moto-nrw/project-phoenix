@@ -261,7 +261,7 @@ func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 
 	item := historyItemByID(t, f, req.ID)
 	require.Equal(t, []schedule.RequestDiffEntry{{
-		Label:    date.String() + " · Abholzeit",
+		Label:    date.Format("02.01.2006") + " · Abholzeit",
 		Old:      "15:00",
 		New:      "16:30",
 		CareKind: schedule.DiffCareKindPickup,

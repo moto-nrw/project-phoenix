@@ -13,6 +13,10 @@ import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api
 import type { StaffExcusedRequestHistoryEntry } from "~/lib/excused-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
 import type { StaffOfferingRequestHistoryEntry } from "~/lib/offering-request-review-api";
+import {
+  careSummary,
+  careTypeLabel,
+} from "~/components/students/care-request-review-item";
 import { datesSummary } from "~/components/students/excused-request-review-item";
 import {
   fieldLabel,
@@ -57,8 +61,9 @@ function CareHistoryCard({
   return (
     <RequestReviewCard
       type="care_schedule"
+      typeLabel={careTypeLabel(row.request_kind)}
       childName={`${row.first_name} ${row.last_name}`}
-      summary={row.request_kind === "pickup_change" ? "Abholzeit" : undefined}
+      summary={careSummary(entries, row.request_kind)}
       submittedAt={row.created_at}
       history={{
         status: row.status,

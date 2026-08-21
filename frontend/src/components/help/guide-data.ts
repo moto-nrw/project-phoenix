@@ -693,6 +693,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Dort ändern Sie auch die Bestätigung für entschuldigte Abmeldungen.",
           "Jede Anfrage zeigt das Kind und die gewünschte Änderung.",
           "Bei Betreuungszeiten sehen Sie den Vergleich für jeden Wochentag.",
+          "Eine Anfrage, die nur einen einzelnen Tag betrifft, ist mit `Einzelner Tag` gekennzeichnet und nennt in der Zeile das Datum, für das die neue Abholzeit gelten soll. Eine Anfrage ohne diese Kennzeichnung ändert den Wochenplan dauerhaft; dort steht statt des Datums der Wochentag.",
           "Bei Angeboten sehen Sie Startdatum, neue und entfernte Buchungen.",
           "Bei Abwesenheiten sehen Sie die Tage und den Hinweis der Eltern.",
           "Angebote, die eine Mitbuchungs-Regel ergänzt, tragen die Markierung `Automatisch mitgebucht` und nennen das Angebot, das die Mitbuchung auslöst. So erkennen Sie, was die Eltern selbst gewählt haben. Über den Haken `Automatisch mitbuchen` können Sie ein solches Angebot für genau diese Anfrage abwählen; die Regel bleibt für alle anderen Anfragen eingeschaltet.",

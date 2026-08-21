@@ -101,8 +101,11 @@ describe("RequestHistoryItem", () => {
     aufklappen();
 
     // Die Zusammenfassung steht in einer eigenen Spalte; der frühere Trenner
-    // vor ihr war der zum Kindernamen auf derselben Zeile.
-    expect(screen.getByText("Abholzeit")).toBeInTheDocument();
+    // vor ihr war der zum Kindernamen auf derselben Zeile. Sie nennt den Tag,
+    // für den die Abholzeit galt, und die Art-Pille sagt, dass die Anfrage
+    // nur diesen einen Tag betraf (#2480).
+    expect(screen.getByText("20.08.2026 · Abholzeit")).toBeInTheDocument();
+    expect(screen.getByText("Einzelner Tag")).toBeInTheDocument();
     expect(screen.getByText("Beantragt")).toBeInTheDocument();
     expect(
       screen.getByText("20.08.2026 · Abholzeit: 15:30"),

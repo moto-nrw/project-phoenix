@@ -562,7 +562,7 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters mo
 func careRequestedSummaryFrom(payload map[string]any) []RequestDiffEntry {
 	if date, pickup, _, err := parsePickupChangePayload(payload); err == nil {
 		return []RequestDiffEntry{{
-			Label:    date.String() + " · Abholzeit",
+			Label:    date.Format(germanDateLayout) + " · Abholzeit",
 			New:      pickup.Format("15:04"),
 			CareKind: DiffCareKindPickup,
 		}}
@@ -832,7 +832,7 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 		}
 	}
 	return []RequestDiffEntry{{
-		Label:    date.String() + " · Abholzeit",
+		Label:    date.Format(germanDateLayout) + " · Abholzeit",
 		Old:      old,
 		New:      pickupTime.Format("15:04"),
 		CareKind: DiffCareKindPickup,

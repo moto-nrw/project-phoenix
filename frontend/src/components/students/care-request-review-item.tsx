@@ -13,6 +13,7 @@ import {
   type StaffCareRequest,
   decideCareScheduleChangeRequest,
 } from "~/lib/care-request-review-api";
+import type { RequestDiffEntry } from "~/lib/messaging-status";
 
 const logger = createLogger({ component: "CareRequestReviewItem" });
 
@@ -43,21 +44,46 @@ function decideErrorMessage(code: string | undefined): string {
   }
 }
 
-// One-line summary for the collapsed card: the distinct change kinds (e.g.
-// "Abholzeit + Abholart"), taken from the part after "·" in each diff label.
-function careSummary(row: StaffCareRequest): string {
-  const kinds = [
-    ...new Set(
-      row.diff.map((entry) => {
-        const parts = entry.label.split("·");
-        return (parts.at(-1) ?? entry.label).trim();
-      }),
-    ),
-  ];
-  if (kinds.length > 0) return kinds.join(" + ");
-  return row.request_kind === "pickup_change"
-    ? "Abholzeit"
-    : "Betreuungszeiten";
+/**
+ * Zusammenfassung für die zugeklappte Zeile, aus den Diff-Labels
+ * ("Freitag · Abholzeit", "21.08.2026 · Abholzeit"). Vorn steht, WOFÜR die
+ * Änderung gilt, dahinter, WAS sie ändert; beide Hälften werden für sich
+ * entdoppelt, damit eine Anfrage über mehrere Tage die Zeile nicht sprengt.
+ *
+ * Der Geltungstag muss vorn stehen: er ist der einzige Unterschied zwischen
+ * einer Anfrage für einen einzelnen Tag (Datum) und einer dauerhaften
+ * (Wochentag), und die Spalte wird bei wenig Platz hinten abgeschnitten. Ohne
+ * ihn lasen sich beide Arten als „Abholzeit" und eine Ganztagskoordinatorin
+ * hat eine Tages-Anfrage für eine dauerhafte Änderung gehalten (#2480).
+ */
+export function careSummary(
+  diff: readonly RequestDiffEntry[],
+  requestKind: StaffCareRequest["request_kind"],
+): string {
+  const days = new Set<string>();
+  const kinds = new Set<string>();
+  for (const entry of diff) {
+    const parts = entry.label.split("·").map((part) => part.trim());
+    const kind = parts.at(-1);
+    if (kind) kinds.add(kind);
+    const day = parts.length > 1 ? parts[0] : undefined;
+    if (day) days.add(day);
+  }
+  if (kinds.size === 0)
+    return requestKind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten";
+  const what = [...kinds].join(" + ");
+  return days.size > 0 ? `${[...days].join(", ")} · ${what}` : what;
+}
+
+/**
+ * Beschriftung der Art-Pille. Eine Anfrage für einen einzelnen Tag heißt nicht
+ * „Betreuungszeiten": dieses Wort steht in der App für den dauerhaften
+ * Wochenplan, und genau diese Verwechslung ist der Grund für #2480.
+ */
+export function careTypeLabel(
+  requestKind: StaffCareRequest["request_kind"],
+): string | undefined {
+  return requestKind === "pickup_change" ? "Einzelner Tag" : undefined;
 }
 
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
@@ -81,12 +107,12 @@ export function CareRequestReviewItem({
   onDecided: (notice: string) => void;
 }>) {
   const decision = useCareRequestDecision(row, onDecided);
-  const summary = careSummary(row);
   return (
     <RequestReviewCard
       type="care_schedule"
+      typeLabel={careTypeLabel(row.request_kind)}
       childName={`${row.first_name} ${row.last_name}`}
-      summary={summary}
+      summary={careSummary(row.diff, row.request_kind)}
       submittedAt={row.created_at}
       reason={decision.reason}
       onReasonChange={decision.setReason}

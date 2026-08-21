@@ -115,6 +115,6 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, got.Request.RequestKind)
 	require.Equal(t, []schedule.RequestDiffEntry{{
-		Label: date.String() + " · Abholzeit", New: "15:30", CareKind: schedule.DiffCareKindPickup,
+		Label: date.Format("02.01.2006") + " · Abholzeit", New: "15:30", CareKind: schedule.DiffCareKindPickup,
 	}}, got.Requested)
 }
