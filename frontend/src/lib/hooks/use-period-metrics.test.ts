@@ -27,7 +27,7 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: {
     getConfig: vi.fn(),
     getMonthSummary: vi.fn(),
-    getScheduleTargets: vi.fn(),
+    getDailyProjection: vi.fn(),
     getHistory: vi.fn(),
     getAbsences: vi.fn(),
   },
@@ -35,7 +35,7 @@ vi.mock("~/lib/time-tracking-api", () => ({
 vi.mock("~/lib/staff-api", () => ({
   staffMonthSummaryService: {
     getMonthSummary: vi.fn(),
-    getScheduleTargets: vi.fn(),
+    getDailyProjection: vi.fn(),
   },
   staffHistoryService: { getHistory: vi.fn() },
   staffAbsenceService: { getAbsences: vi.fn() },
@@ -84,7 +84,26 @@ function mockSWR(
         return { data: data.summary, isLoading: false };
       }
       if (typeof key === "string" && key.includes("schedule-targets")) {
-        return { data: data.targets, isLoading: false };
+        // Der Key trägt seit #2443 die volle Tagesprojektion. Die Testfälle
+        // beschreiben weiterhin nur das Soll je Tag; hier wird daraus die
+        // Nutzlast gebaut, die der Server liefert.
+        const targets = data.targets as ReadonlyMap<string, number> | undefined;
+        return {
+          data:
+            targets &&
+            new Map(
+              [...targets].map(([date, targetMinutes]) => [
+                date,
+                {
+                  targetMinutes,
+                  creditMinutes: 0,
+                  actualMinutes: 0,
+                  balanceMinutes: 0,
+                },
+              ]),
+            ),
+          isLoading: false,
+        };
       }
       if (typeof key === "string" && key.includes("absences")) {
         // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].

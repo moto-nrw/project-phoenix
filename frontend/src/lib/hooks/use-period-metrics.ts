@@ -25,6 +25,8 @@ import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   OPEN_MONTH_REFRESH_MS,
+  targetsFromProjection,
+  type DayProjection,
   type MonthSummary,
   type StaffAbsence,
   type WeeklySummary,
@@ -55,7 +57,8 @@ export interface PeriodMetrics {
  *
  * Sources, all server-computed:
  * - month  -> the current month's Monatskarte (`month-summary`)
- * - week   -> `schedule-targets` for the week + the week's sessions/absences
+ * - week   -> `schedule-targets` (the per-day projection) for the week + the
+ *             week's sessions/absences
  * - Saldo  -> `useAccountBalance`
  *
  * Pass a `staffId` for the admin (`time_tracking:manage`) endpoints; omit it to
@@ -97,19 +100,29 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     return toDateKey(previousDay);
   }, [weekStart]);
 
-  const { data: weekTargets } = useSWRAuth<ReadonlyMap<string, number>>(
+  // Dieselbe Nutzlast wie die Tagestabelle unter demselben Key: die
+  // Tagesprojektion (#2443). Hier zählt nur ihr Soll — aber ein SWR-Key trägt
+  // EINEN Datentyp, und wer sonst das Rennen verliert, liest die Form des
+  // anderen (siehe Kommentar unten zu Sessions/Abwesenheiten).
+  const { data: weekProjection } = useSWRAuth<
+    ReadonlyMap<string, DayProjection>
+  >(
     staffId
       ? `staff-schedule-targets-${staffId}-${weekFromKey}-${weekToKey}`
       : `time-tracking-schedule-targets-${weekFromKey}-${weekToKey}`,
     () =>
       staffId
-        ? staffMonthSummaryService.getScheduleTargets(
+        ? staffMonthSummaryService.getDailyProjection(
             staffId,
             weekFromKey,
             weekToKey,
           )
-        : timeTrackingService.getScheduleTargets(weekFromKey, weekToKey),
+        : timeTrackingService.getDailyProjection(weekFromKey, weekToKey),
     { revalidateOnFocus: false },
+  );
+  const weekTargets = useMemo(
+    () => (weekProjection ? targetsFromProjection(weekProjection) : undefined),
+    [weekProjection],
   );
 
   // Sessions and absences are fetched per portal rather than behind one
