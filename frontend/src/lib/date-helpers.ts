@@ -81,6 +81,10 @@ export function parseISODate(s: string): Date {
  * this before feeding untrusted input (URL params, legacy deep links) into
  * parseISODate.
  */
+export function isValidISODate(s: string): boolean {
+  return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
+}
+
 /**
  * ISO-8601 calendar week number of a "YYYY-MM-DD" date (Mon-based; week 1 is
  * the week holding the first Thursday). Schools plan in calendar weeks, so a
@@ -101,10 +105,6 @@ export function isoWeekNumber(s: string): number {
         7,
     )
   );
-}
-
-export function isValidISODate(s: string): boolean {
-  return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
 }
 
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */

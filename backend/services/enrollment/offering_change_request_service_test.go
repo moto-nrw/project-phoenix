@@ -993,3 +993,86 @@ func TestOfferingChangeRequestService_PreviewDecision_RefusesADateOutOfRange(t *
 	_, err = svc.PreviewDecision(ctx, row.ID, nil, &confirmed)
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
 }
+
+// The confirmed date is checked against the same capacity the parents' date
+// would be: the office must not be able to move a switch onto a day the
+// offering has no room on.
+func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateWithoutCapacity(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "ConfirmedFull")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	zeroCapacity := 0
+	fx.newOffering.Capacity = &zeroCapacity
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+
+	confirmed := fx.switchDate.AddDays(7)
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeCapacityFull)
+
+	stillPending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
+	require.Len(t, rows, 1, "a refused approval must not change the booking")
+}
+
+// A care period that starts in the future is the lower bound, not today: a
+// switch cannot begin before the period it belongs to.
+func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCarePeriod(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "BeforePeriod")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// The period start moves into the future while the request waits.
+	phaseStart := timezone.TodayDate().AddDays(30)
+	env.sourcePhase.ServiceStartDate = phaseStart
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	// Tomorrow is after today but still before the period begins.
+	confirmed := timezone.TodayDate().AddDays(1)
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
+
+	stillPending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+}

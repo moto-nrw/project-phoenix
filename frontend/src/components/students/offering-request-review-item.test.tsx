@@ -625,6 +625,34 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     );
   });
 
+  it("keeps the approval usable when the preview fails transiently", async () => {
+    mockPreview.mockRejectedValue(new Error("network"));
+    renderItem();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    expect(
+      await screen.findByText(/Vorschau konnte nicht aktualisiert werden/),
+    ).toBeInTheDocument();
+    // Ein Netzfehler ist gleich wieder weg: die Karte darf nicht verriegeln.
+    expect(screen.getByRole("button", { name: /Freigeben/ })).toBeEnabled();
+  });
+
+  it("names the selectable range under the field", () => {
+    renderItem(
+      request({
+        earliest_effective_from: "2026-10-20",
+        latest_effective_from: "2027-07-31",
+      }),
+    );
+
+    expect(
+      screen.getByText("Wählbar von 20.10.2026 bis 31.07.2027."),
+    ).toBeInTheDocument();
+  });
+
   it("blocks the approval while the chosen date does not work out", async () => {
     mockPreview.mockRejectedValue(
       new OfferingRequestApiError("range", "offering_change_date_out_of_range"),

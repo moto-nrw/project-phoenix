@@ -23,10 +23,26 @@ import {
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
 
+// Gründe, aus denen die Anfrage so nicht umsetzbar ist. Sie ändern sich nicht
+// von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
+// andere Auswahl oder eine Ablehnung. Alles andere (Netz, Serverfehler) ist ein
+// vorübergehender Fehler und bleibt wiederholbar.
+const CONFLICT_CODES = new Set([
+  "offering_change_capacity_full",
+  "change_request_not_pending",
+  "offering_changes_no_enrollment",
+  "offering_change_date_out_of_range",
+]);
+
 // An approval genuinely applies the switch, so it can fail for reasons the
 // office has to act on rather than retry. Name each one and say what to do; the
-// row deliberately stays pending in all of these cases.
-function decideErrorMessage(code: string | undefined): string {
+// row deliberately stays pending in all of these cases. `fallback` names what
+// failed for everything else — die Vorschau speichert nichts, die Freigabe
+// schon.
+function decideErrorMessage(
+  code: string | undefined,
+  fallback = "Die Entscheidung konnte nicht gespeichert werden.",
+): string {
   switch (code) {
     case "offering_change_capacity_full":
       return "Für ein gewünschtes Angebot ist kein Platz mehr frei. Die Anfrage bleibt offen: Bitte mit der Familie eine Alternative klären oder die Anfrage mit Begründung ablehnen.";
@@ -37,22 +53,7 @@ function decideErrorMessage(code: string | undefined): string {
     case "offering_change_date_out_of_range":
       return "Zu diesem Datum kann die Änderung nicht gelten. Bitte ein Datum innerhalb der Betreuungszeit wählen, frühestens heute.";
     default:
-      return "Die Entscheidung konnte nicht gespeichert werden.";
-  }
-}
-
-// Eine Vorschau speichert nichts. Was sie meldet, ist trotzdem der Grund, aus
-// dem die Freigabe scheitern würde — bekannte Gründe stehen deshalb im Klartext
-// an der Karte, alles andere bleibt ein Hinweis auf die Vorschau selbst.
-function previewErrorMessage(code: string | undefined): string {
-  switch (code) {
-    case "offering_change_capacity_full":
-    case "offering_change_date_out_of_range":
-    case "change_request_not_pending":
-    case "offering_changes_no_enrollment":
-      return decideErrorMessage(code);
-    default:
-      return "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.";
+      return fallback;
   }
 }
 
@@ -182,10 +183,16 @@ export function OfferingRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      // Was die Vorschau meldet, meldet die Freigabe genauso: sie bleibt
-      // gesperrt, bis Datum oder Auswahl passen.
-      setDateBlocked(true);
-      setError(previewErrorMessage(code));
+      // Nur ein echter Konflikt sperrt die Freigabe: er besteht fort, bis Datum
+      // oder Auswahl geändert sind. Ein Netz- oder Serverfehler ist gleich
+      // wieder weg — die Karte muss dann bedienbar bleiben.
+      setDateBlocked(CONFLICT_CODES.has(code ?? ""));
+      setError(
+        decideErrorMessage(
+          code,
+          "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
+        ),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -226,6 +233,14 @@ export function OfferingRequestReviewItem({
   );
 
   const fullWithdrawal = row.full_withdrawal === true;
+
+  // Der Kalender sperrt Tage ausserhalb der Betreuungszeit stumm. Diese Zeile
+  // sagt, warum — sonst sucht die OGS nach einem Weg, ein früheres Datum doch
+  // noch einzutragen.
+  const selectableRange =
+    row.earliest_effective_from && row.latest_effective_from
+      ? `Wählbar von ${formatDate(row.earliest_effective_from)} bis ${formatDate(row.latest_effective_from)}.`
+      : null;
 
   return (
     <RequestReviewCard
@@ -364,16 +379,10 @@ export function OfferingRequestReviewItem({
         )}
       </ReviewDiffPanel>
       <div className="mt-3">
-        <label
-          htmlFor={`gueltig-ab-${row.id}`}
-          className="mb-2 block text-sm font-medium text-gray-700"
-        >
-          Gültig ab
-        </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <ISODatePicker
             id={`gueltig-ab-${row.id}`}
-            ariaLabel="Gültig ab"
+            label="Gültig ab"
             value={effectiveFrom}
             onChange={(iso) => void chooseDate(iso)}
             min={row.earliest_effective_from}
@@ -385,10 +394,13 @@ export function OfferingRequestReviewItem({
             invalid={dateBlocked}
             className="w-44"
           />
-          <span className="text-sm text-gray-600">
+          <span className="pb-3 text-sm text-gray-600">
             KW {isoWeekNumber(effectiveFrom)}
           </span>
         </div>
+        {selectableRange && (
+          <p className="mt-1 text-xs text-gray-500">{selectableRange}</p>
+        )}
       </div>
       <div className="mt-3 rounded-lg bg-gray-50 p-3">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
