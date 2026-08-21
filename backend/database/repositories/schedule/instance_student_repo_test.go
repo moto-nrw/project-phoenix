@@ -2252,6 +2252,17 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
 	require.NoError(t, err)
 	assert.Empty(t, blocks, "a row owned by another pickup exception is not actionable")
+
+	from := timezone.WallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	otherException.ExcusedFrom = &from
+	otherException.ExcusedAuto = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, otherException))
+
+	blocks, err = repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Len(t, blocks, 1, "an automatic pickup excusal is released and reapplied on approval")
+	assert.Equal(t, instance.ID, blocks[0].ID)
 }
 
 // Parallel-presence lookup (#2265): only rows in OTHER instances that are

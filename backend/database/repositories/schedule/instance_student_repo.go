@@ -898,7 +898,16 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 						AND NOT attendance.not_scheduled
 						AND attendance.status IN (?, ?)
 						AND attendance.student_status_day_id IS NULL
-						AND attendance.pickup_exception_id IS NULL
+						AND (
+							attendance.pickup_exception_id IS NULL
+							OR EXISTS (
+								SELECT 1
+								FROM schedule.student_pickup_exceptions AS pickup_exception
+								WHERE pickup_exception.tenant_id = attendance.tenant_id
+									AND pickup_exception.id = attendance.pickup_exception_id
+									AND pickup_exception.excused_auto
+							)
+						)
 				)
 				OR (
 					NOT EXISTS (
