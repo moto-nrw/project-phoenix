@@ -21,19 +21,27 @@ import (
 // =============================================================================
 
 func TestRandomFromSet_EmptySet(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, int64(0), randomFromSet(map[int64]bool{}))
 }
 
 func TestRandomFromSet_NilSet(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, int64(0), randomFromSet(nil))
 }
 
 func TestRandomFromSet_SingleElement(t *testing.T) {
+	t.Parallel()
+
 	set := map[int64]bool{42: true}
 	assert.Equal(t, int64(42), randomFromSet(set))
 }
 
 func TestRandomFromSet_MultipleElements(t *testing.T) {
+	t.Parallel()
+
 	set := map[int64]bool{1: true, 2: true, 3: true}
 	result := randomFromSet(set)
 	assert.True(t, result >= 1 && result <= 3)
@@ -44,6 +52,8 @@ func TestRandomFromSet_MultipleElements(t *testing.T) {
 // =============================================================================
 
 func TestFindStudent_Found(t *testing.T) {
+	t.Parallel()
+
 	students := []seedapi.SeedStudent{
 		{ID: 1, FirstName: "Felix", LastName: "Schneider"},
 		{ID: 2, FirstName: "Emma", LastName: "Meyer"},
@@ -54,6 +64,8 @@ func TestFindStudent_Found(t *testing.T) {
 }
 
 func TestFindStudent_NotFound(t *testing.T) {
+	t.Parallel()
+
 	students := []seedapi.SeedStudent{
 		{ID: 1, FirstName: "Felix", LastName: "Schneider"},
 	}
@@ -64,6 +76,8 @@ func TestFindStudent_NotFound(t *testing.T) {
 }
 
 func TestFindStudent_EmptySlice(t *testing.T) {
+	t.Parallel()
+
 	s := findStudent(nil, 1)
 	assert.Equal(t, "Unknown", s.FirstName)
 }
@@ -73,16 +87,22 @@ func TestFindStudent_EmptySlice(t *testing.T) {
 // =============================================================================
 
 func TestRoomNameByID_Found(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{"Sporthalle": 20, "Mensa": 30}
 	assert.Equal(t, "Sporthalle", roomNameByID(rooms, 20))
 }
 
 func TestRoomNameByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{"Sporthalle": 20}
 	assert.Equal(t, "room-99", roomNameByID(rooms, 99))
 }
 
 func TestRoomNameByID_EmptyMap(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "room-1", roomNameByID(map[string]int64{}, 1))
 }
 
@@ -91,11 +111,15 @@ func TestRoomNameByID_EmptyMap(t *testing.T) {
 // =============================================================================
 
 func TestPrintLiveSummary_ZeroCounts(t *testing.T) {
+	t.Parallel()
+
 	// Should not panic
 	printLiveSummary(&liveCounts{})
 }
 
 func TestPrintLiveSummary_WithCounts(t *testing.T) {
+	t.Parallel()
+
 	counts := &liveCounts{
 		roomMoves:  10,
 		unterwegs:  5,
@@ -112,6 +136,8 @@ func TestPrintLiveSummary_WithCounts(t *testing.T) {
 // =============================================================================
 
 func TestBootstrapLiveState_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -156,6 +182,8 @@ func TestBootstrapLiveState_Success(t *testing.T) {
 }
 
 func TestBootstrapLiveState_NoRFID(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -180,6 +208,8 @@ func TestBootstrapLiveState_NoRFID(t *testing.T) {
 }
 
 func TestBootstrapLiveState_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db fail"}`)
@@ -199,6 +229,8 @@ func TestBootstrapLiveState_ServerError(t *testing.T) {
 }
 
 func TestBootstrapLiveState_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -223,6 +255,8 @@ func TestBootstrapLiveState_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestLiveRoomMove_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -245,6 +279,8 @@ func TestLiveRoomMove_Success(t *testing.T) {
 }
 
 func TestLiveRoomMove_NoCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
@@ -263,6 +299,8 @@ func TestLiveRoomMove_NoCheckedIn(t *testing.T) {
 // =============================================================================
 
 func TestLiveGoUnterwegs_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -285,6 +323,8 @@ func TestLiveGoUnterwegs_Success(t *testing.T) {
 }
 
 func TestLiveGoUnterwegs_NoCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
@@ -302,6 +342,8 @@ func TestLiveGoUnterwegs_NoCheckedIn(t *testing.T) {
 // =============================================================================
 
 func TestLiveReturnFromUnterwegs_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -324,6 +366,8 @@ func TestLiveReturnFromUnterwegs_Success(t *testing.T) {
 }
 
 func TestLiveReturnFromUnterwegs_NobodyUnterwegs_FallsBackToRoomMove(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -349,6 +393,8 @@ func TestLiveReturnFromUnterwegs_NobodyUnterwegs_FallsBackToRoomMove(t *testing.
 // =============================================================================
 
 func TestLiveToggleSick_MarkSick(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -370,6 +416,8 @@ func TestLiveToggleSick_MarkSick(t *testing.T) {
 }
 
 func TestLiveToggleSick_MarkHealthy(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -387,6 +435,8 @@ func TestLiveToggleSick_MarkHealthy(t *testing.T) {
 }
 
 func TestLiveToggleSick_NoStudents(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := &seedapi.SeedState{Students: nil}
 	ls := &liveState{sick: make(map[int64]bool)}
@@ -397,6 +447,8 @@ func TestLiveToggleSick_NoStudents(t *testing.T) {
 }
 
 func TestLiveToggleSick_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"fail"}`)
@@ -418,6 +470,8 @@ func TestLiveToggleSick_ServerError(t *testing.T) {
 // =============================================================================
 
 func TestLiveSchulhofRotate_FullCycle(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -461,6 +515,8 @@ func TestLiveSchulhofRotate_FullCycle(t *testing.T) {
 }
 
 func TestLiveSchulhofRotate_CooldownSkips(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
@@ -478,6 +534,8 @@ func TestLiveSchulhofRotate_CooldownSkips(t *testing.T) {
 }
 
 func TestLiveSchulhofRotate_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -503,6 +561,8 @@ func TestLiveSchulhofRotate_ServerError(t *testing.T) {
 // =============================================================================
 
 func TestLiveAttendanceToggle_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -521,6 +581,8 @@ func TestLiveAttendanceToggle_Success(t *testing.T) {
 }
 
 func TestLiveAttendanceToggle_CooldownSkips(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
@@ -535,6 +597,8 @@ func TestLiveAttendanceToggle_CooldownSkips(t *testing.T) {
 }
 
 func TestLiveAttendanceToggle_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -558,6 +622,8 @@ func TestLiveAttendanceToggle_ServerError(t *testing.T) {
 // =============================================================================
 
 func TestLiveSupervisorSwap_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -573,6 +639,8 @@ func TestLiveSupervisorSwap_Success(t *testing.T) {
 }
 
 func TestLiveSupervisorSwap_NoStaff(t *testing.T) {
+	t.Parallel()
+
 	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{}
@@ -583,6 +651,8 @@ func TestLiveSupervisorSwap_NoStaff(t *testing.T) {
 }
 
 func TestLiveSupervisorSwap_NoActiveSession(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -602,6 +672,8 @@ func TestLiveSupervisorSwap_NoActiveSession(t *testing.T) {
 }
 
 func TestLiveSupervisorSwap_PutErrorResetsSession(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == "PUT" {
@@ -629,6 +701,8 @@ func TestLiveSupervisorSwap_PutErrorResetsSession(t *testing.T) {
 // =============================================================================
 
 func TestRunLiveTick_IncrementsCounts(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -661,12 +735,16 @@ func TestRunLiveTick_IncrementsCounts(t *testing.T) {
 // =============================================================================
 
 func TestRunLive_InvalidStatePath(t *testing.T) {
+	t.Parallel()
+
 	err := RunLive(context.Background(), LiveOptions{StatePath: "/nonexistent/state.json"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load seed state")
 }
 
 func TestRunLive_NoAdminAccounts(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -684,6 +762,8 @@ func TestRunLive_NoAdminAccounts(t *testing.T) {
 }
 
 func TestRunLive_LoginFails(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/auth/login":
@@ -709,6 +789,8 @@ func TestRunLive_LoginFails(t *testing.T) {
 }
 
 func TestRunLive_NoDevices(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -728,6 +810,8 @@ func TestRunLive_NoDevices(t *testing.T) {
 }
 
 func TestRunLive_NoRooms(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -749,6 +833,8 @@ func TestRunLive_NoRooms(t *testing.T) {
 }
 
 func TestRunLive_RejectsNonPositiveInterval(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -773,6 +859,8 @@ func TestRunLive_RejectsNonPositiveInterval(t *testing.T) {
 }
 
 func TestRunLive_NoActiveVisits(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -808,6 +896,8 @@ func TestRunLive_NoActiveVisits(t *testing.T) {
 }
 
 func TestRunLive_CancelledContext(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -836,6 +926,8 @@ func TestRunLive_CancelledContext(t *testing.T) {
 }
 
 func TestRunLive_RunsTicksBeforeCancel(t *testing.T) {
+	t.Parallel()
+
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
@@ -863,6 +955,8 @@ func TestRunLive_RunsTicksBeforeCancel(t *testing.T) {
 }
 
 func TestRunLive_BootstrapFallback(t *testing.T) {
+	t.Parallel()
+
 	// Server that fails on /api/active/visits so bootstrap falls back
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -912,6 +1006,8 @@ func TestRunLive_BootstrapFallback(t *testing.T) {
 // =============================================================================
 
 func TestLiveOptions_Fields(t *testing.T) {
+	t.Parallel()
+
 	opts := LiveOptions{
 		StatePath: "/tmp/state.json",
 		Interval:  5 * time.Second,
@@ -927,6 +1023,8 @@ func TestLiveOptions_Fields(t *testing.T) {
 // =============================================================================
 
 func TestLiveCounts_Defaults(t *testing.T) {
+	t.Parallel()
+
 	c := &liveCounts{}
 	assert.Equal(t, 0, c.roomMoves)
 	assert.Equal(t, 0, c.unterwegs)
@@ -940,6 +1038,8 @@ func TestLiveCounts_Defaults(t *testing.T) {
 // =============================================================================
 
 func TestLiveState_Initialization(t *testing.T) {
+	t.Parallel()
+
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
 		unterwegs: make(map[int64]bool),

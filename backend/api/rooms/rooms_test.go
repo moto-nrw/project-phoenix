@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -56,12 +55,6 @@ func setupTestContext(t *testing.T) *testContext {
 		DB:                 db,
 	})
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	return &testContext{
 		db:       db,
 		services: svc,
@@ -75,12 +68,13 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestListRooms(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test rooms
-	room1 := testpkg.CreateTestRoom(t, tc.db, "Test Room 1")
-	room2 := testpkg.CreateTestRoom(t, tc.db, "Test Room 2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room1.ID, room2.ID)
+	_ = testpkg.CreateTestRoom(t, tc.db, "Test Room 1")
+	_ = testpkg.CreateTestRoom(t, tc.db, "Test Room 2")
 
 	t.Run("success_lists_all_rooms", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
@@ -112,11 +106,12 @@ func TestListRooms(t *testing.T) {
 // =============================================================================
 
 func TestGetRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "Get Room Test")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_gets_room", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
@@ -149,6 +144,8 @@ func TestGetRoom(t *testing.T) {
 // =============================================================================
 
 func TestCreateRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_room", func(t *testing.T) {
@@ -206,7 +203,6 @@ func TestCreateRoom(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 		require.NotZero(t, resp.Data.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, resp.Data.ID)
 	})
 
 	t.Run("bad_request_missing_name", func(t *testing.T) {
@@ -227,11 +223,12 @@ func TestCreateRoom(t *testing.T) {
 // =============================================================================
 
 func TestUpdateRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "Update Room Test")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_updates_room", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("Updated Room %d", time.Now().UnixNano())
@@ -275,6 +272,8 @@ func TestUpdateRoom(t *testing.T) {
 // =============================================================================
 
 func TestDeleteRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_room", func(t *testing.T) {
@@ -300,8 +299,7 @@ func TestDeleteRoom(t *testing.T) {
 	t.Run("conflict_when_room_has_active_group", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, "Room With Active Group")
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveGroupInRoom")
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
 
@@ -324,6 +322,8 @@ func TestDeleteRoom(t *testing.T) {
 // =============================================================================
 
 func TestGetRoomsByCategory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_rooms_by_category", func(t *testing.T) {
@@ -348,6 +348,8 @@ func TestGetRoomsByCategory(t *testing.T) {
 // =============================================================================
 
 func TestGetBuildingList(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_building_list", func(t *testing.T) {
@@ -361,6 +363,8 @@ func TestGetBuildingList(t *testing.T) {
 }
 
 func TestGetCategoryList(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_category_list", func(t *testing.T) {
@@ -378,6 +382,8 @@ func TestGetCategoryList(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableRooms(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_available_rooms", func(t *testing.T) {
@@ -402,13 +408,15 @@ func TestGetAvailableRooms(t *testing.T) {
 // =============================================================================
 
 func TestGetRoomHistory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Room history is gated by gdpr.attendance_log_enabled — opt-in per
 	// tenant. Enable it so the smoke checks below exercise the happy path
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
@@ -416,7 +424,6 @@ func TestGetRoomHistory(t *testing.T) {
 
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "History Room Test")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_gets_room_history", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
@@ -475,10 +482,11 @@ func TestGetRoomHistory(t *testing.T) {
 // JSON-decode assertion below locks the shape in so a refactor of
 // common.ErrorForbidden can't silently break it.
 func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FeatureDisabled Room")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 	rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
@@ -502,9 +510,11 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 //     (`not_group_supervisor`) — the failure mode for a caregiver or other
 //     non-staff role that happens to hold the read permission.
 func TestGetRoomHistory_StaffScope(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
@@ -515,11 +525,9 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 
 	supervisor, supervisorAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "Scope", "Supervisor")
-	bystander, bystanderAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "Scope", "Bystander")
+	_, bystanderAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "Scope", "Bystander")
 
 	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "lead")
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, supervisor.ID, bystander.ID)
 
 	type historyResp struct {
 		Data []map[string]any `json:"data"`
@@ -544,7 +552,7 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 			Username:    "teacher",
 			Roles:       []string{"user"},
 			Permissions: staffPermissions,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 		}
 	}
 
@@ -588,13 +596,11 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 		// handler maps to 403 not_group_supervisor. This is the branch
 		// the #2329 relaxation deliberately keeps closed: a staff record
 		// is still required, only the group affiliation is not.
-		nonStaffPerson, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Caregiver")
+		_, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Caregiver")
 		t.Cleanup(func() {
 			// Person first, then the auth account (CleanupAccount only
 			// removes auth-side rows — a leftover person would leak
 			// across hermetic runs).
-			testpkg.CleanupPerson(t, tc.db, nonStaffPerson.ID)
-			testpkg.CleanupAccount(t, tc.db, nonStaffAcc.ID)
 		})
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
@@ -620,9 +626,11 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 // before the window so this case truly tests the cap, not the activeness
 // branch.
 func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
@@ -647,8 +655,6 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 		Where("id = ?", old.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
 
 	start := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
 	end := time.Now().Add(time.Hour).Format(time.RFC3339)
@@ -677,9 +683,11 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 // duration_minutes ≈ 90. Also asserts ended_at is non-null (the other
 // branch in the JSON envelope for closed sessions).
 func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
@@ -688,7 +696,6 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DurationActivity")
 	session := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
 
 	// Backdate the fixture and close it 90 minutes later. Direct UPDATE
 	// because there's no fixture knob for end_time today (same pattern as

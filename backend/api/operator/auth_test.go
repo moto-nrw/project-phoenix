@@ -117,6 +117,8 @@ func (m *mockOperatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Co
 }
 
 func TestLogin_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			assert.Equal(t, "test@example.com", email)
@@ -167,6 +169,8 @@ func TestLogin_Success(t *testing.T) {
 }
 
 func TestLogin_EmptyEmail(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewAuthResource(mockService)
 
@@ -186,6 +190,8 @@ func TestLogin_EmptyEmail(t *testing.T) {
 }
 
 func TestLogin_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewAuthResource(mockService)
 
@@ -205,6 +211,8 @@ func TestLogin_EmptyPassword(t *testing.T) {
 }
 
 func TestLogin_InvalidCredentials(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			return nil, &platformSvc.InvalidCredentialsError{}
@@ -229,6 +237,8 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 }
 
 func TestLogin_OperatorInactive(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			return nil, &platformSvc.OperatorInactiveError{}
@@ -253,6 +263,8 @@ func TestLogin_OperatorInactive(t *testing.T) {
 }
 
 func TestLogin_OperatorNotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			return nil, &platformSvc.OperatorNotFoundError{}
@@ -277,6 +289,8 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 }
 
 func TestLogin_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			return nil, errors.New("database connection error")
@@ -301,6 +315,8 @@ func TestLogin_ServiceError(t *testing.T) {
 }
 
 func TestLogin_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewAuthResource(mockService)
 
@@ -314,6 +330,8 @@ func TestLogin_InvalidJSON(t *testing.T) {
 }
 
 func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
+	t.Parallel()
+
 	var capturedIP string
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
@@ -345,6 +363,8 @@ func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
 }
 
 func TestLogin_ClientIPExtraction_IgnoresRawXRealIP(t *testing.T) {
+	t.Parallel()
+
 	var capturedIP string
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
@@ -384,6 +404,8 @@ func serveOperatorLoginThroughXFFMiddleware(resource *operator.AuthResource, rr 
 }
 
 func TestLoginRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	loginReq := &operator.LoginRequest{}
 
@@ -392,6 +414,8 @@ func TestLoginRequest_Bind(t *testing.T) {
 }
 
 func TestRefreshToken_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
 			assert.Equal(t, int64(42), operatorID)
@@ -438,6 +462,8 @@ func TestRefreshToken_Success(t *testing.T) {
 }
 
 func TestRefreshToken_MissingTokenContext(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewAuthResource(mockService)
 
@@ -451,6 +477,8 @@ func TestRefreshToken_MissingTokenContext(t *testing.T) {
 }
 
 func TestRefreshToken_InvalidClaims(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewAuthResource(mockService)
 
@@ -466,6 +494,8 @@ func TestRefreshToken_InvalidClaims(t *testing.T) {
 }
 
 func TestRefreshToken_RejectsNonPlatformScope(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
@@ -496,6 +526,8 @@ func TestRefreshToken_RejectsNonPlatformScope(t *testing.T) {
 }
 
 func TestRefreshToken_RejectsLegacyDeterministicOperatorToken(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
@@ -525,6 +557,8 @@ func TestRefreshToken_RejectsLegacyDeterministicOperatorToken(t *testing.T) {
 }
 
 func TestRefreshToken_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
 			return "", "", &platformSvc.OperatorInactiveError{}
@@ -556,6 +590,8 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 }
 
 func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
 			return "", "", &platformSvc.OperatorRefreshTokenInvalidError{}

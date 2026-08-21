@@ -15,6 +15,8 @@ import (
 // users:absence holder write access to the child's record.
 
 func TestIsAbsenceOnly(t *testing.T) {
+	t.Parallel()
+
 	strPtr := func(s string) *string { return &s }
 	boolPtr := func(b bool) *bool { return &b }
 
@@ -53,6 +55,8 @@ func TestIsAbsenceOnly(t *testing.T) {
 // the gate silently stops recognizing absence payloads (every absence write
 // would 403 under open care) and the map entry would be dead weight.
 func TestAbsenceOnlyUpdateFieldsExist(t *testing.T) {
+	t.Parallel()
+
 	structType := reflect.TypeOf(UpdateStudentRequest{})
 	for name := range absenceOnlyUpdateFields {
 		_, ok := structType.FieldByName(name)

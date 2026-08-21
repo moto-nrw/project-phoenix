@@ -57,6 +57,11 @@ import {
 import { useSSE } from "~/lib/hooks/use-sse";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
+import {
+  clearOwnAttendanceMutation,
+  isOwnAttendanceEvent,
+  markOwnAttendanceMutation,
+} from "~/lib/sse-optimistic-mutations";
 
 describe("useGlobalSSE", () => {
   beforeEach(() => {
@@ -294,6 +299,84 @@ describe("useGlobalSSE", () => {
   });
 
   describe("event handling", () => {
+    it("load budget: one remote check-in revalidates the supervision aggregate once", () => {
+      renderHook(() => useGlobalSSE());
+
+      // Current backends emit the scoped movement, one group-scoped legacy
+      // roster refresh, and one combined tenant refresh (#2115).
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      const aggregateRevalidations = vi
+        .mocked(mutate)
+        .mock.calls.filter(([matcher]) => {
+          return (
+            typeof matcher === "function" &&
+            (matcher as (key: string) => boolean)(
+              "tenant:active-supervision-dashboard-0",
+            )
+          );
+        });
+
+      expect(aggregateRevalidations).toHaveLength(1);
+    });
+
+    it("keeps the optimistic roster response for the user's own check-in", () => {
+      markOwnAttendanceMutation("student_checkin", "42");
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      const matchers = vi
+        .mocked(mutate)
+        .mock.calls.map(([matcher]) => matcher)
+        .filter(
+          (matcher): matcher is (key: string) => boolean =>
+            typeof matcher === "function",
+        );
+      expect(
+        matchers.some((matcher) => matcher("tenant:timetable-roster-88")),
+      ).toBe(false);
+      expect(
+        matchers.filter((matcher) =>
+          matcher("tenant:active-supervision-dashboard-0"),
+        ),
+      ).toHaveLength(1);
+      expect(isOwnAttendanceEvent("student_checkin", "42")).toBe(false);
+
+      clearOwnAttendanceMutation("student_checkin", "42");
+    });
+
     it("invalidates dashboard caches on student_checkin event as a fallback", () => {
       renderHook(() => useGlobalSSE());
 
@@ -332,8 +415,15 @@ describe("useGlobalSSE", () => {
 
       // #2057: the count-dashboard invalidation is an explicit key list — it
       // must NOT drag the OGS BFF or staff time tracking into every check-in.
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const dashboardAnalyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(dashboardAnalyticsCall).toBeDefined();
+      const matcher = dashboardAnalyticsCall![0] as (key: string) => boolean;
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
     });
@@ -686,12 +776,66 @@ describe("useGlobalSSE", () => {
       });
       expect(dashboardCall).toBeDefined();
 
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const analyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(analyticsCall).toBeDefined();
+      const matcher = analyticsCall![0] as (key: string) => boolean;
       // #2057: the OGS BFF must not ride the count events — its live data is
       // covered by the (scoped) ogs-students refetch.
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
+    });
+
+    it("treats a reasoned dashboard event as the combined rolling-deploy refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:active-supervision-dashboard-0",
+          "tenant:room-detail-12",
+          "tenant:ogs-students-7",
+          "tenant:ogs-students-8",
+        ]),
+      ).toEqual([
+        "tenant:active-supervision-dashboard-0",
+        "tenant:room-detail-12",
+        "tenant:ogs-students-7",
+      ]);
+    });
+
+    it("keeps the dashboard broad fallback on an unscoped combined refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved" },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:ogs-students-7",
+          "tenant:search-students-gall-name-asc",
+          "tenant:room-detail-12",
+        ]),
+      ).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:search-students-gall-name-asc",
+        "tenant:room-detail-12",
+      ]);
     });
 
     it("invalidates staff time-account caches after a work-session change", () => {
@@ -790,10 +934,16 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(listCall).toBeDefined();
-      const listMatcher = listCall![0] as (key: string) => boolean;
-      expect(listMatcher("my-tenant:tracking-indicators-search-group1")).toBe(
-        true,
-      );
+      const trackingCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)(
+            "my-tenant:tracking-indicators-search-group1",
+          )
+        );
+      });
+      expect(trackingCall).toBeDefined();
     });
 
     it("student_checkout without active_group_id invalidates dashboard caches", () => {
@@ -822,8 +972,15 @@ describe("useGlobalSSE", () => {
       });
       expect(dashboardCall).toBeDefined();
 
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const analyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(analyticsCall).toBeDefined();
+      const matcher = analyticsCall![0] as (key: string) => boolean;
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
     });
 
@@ -1183,7 +1340,7 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles mutate rejection in activity_supervision scope gracefully", async () => {
+    it("handles activity-triggered supervision rejection gracefully", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
       const consoleSpy = vi
         .spyOn(console, "debug")
@@ -1204,7 +1361,7 @@ describe("useGlobalSSE", () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         "swr_revalidation_failed",
-        expect.objectContaining({ scope: "activity_supervision" }),
+        expect.objectContaining({ scope: "active_supervision" }),
       );
 
       consoleSpy.mockRestore();
@@ -1809,6 +1966,21 @@ describe("useGlobalSSE", () => {
       expect(matchedKeys(searchKeys)).toEqual(searchKeys);
     });
 
+    it("refreshes only the unfiltered search for an unscoped movement", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(searchKeys)).toEqual([
+        "tenant:search-students-gall---------",
+      ]);
+    });
+
     it("keeps tenant-wide plan changes broad", () => {
       // arrival/pickup/student_updated carry no group scope and rewrite the
       // times the list rows render.
@@ -1851,7 +2023,7 @@ describe("useGlobalSSE", () => {
       fire({
         type: "active_supervision_changed",
         active_group_id: "123",
-        data: { reason: "student_moved", student_id: "42" },
+        data: { reason: "student_moved" },
       });
       vi.advanceTimersByTime(500);
 
@@ -2006,8 +2178,8 @@ describe("useGlobalSSE", () => {
     it("announces phoenix:supervision-stale so the sidebar group list refetches", () => {
       // SupervisionContext owns the sidebar's "Meine Gruppen" list in local
       // state behind its own fetch — no SWR key exists to invalidate, and its
-      // own refresh is a one-minute tick. Without this announcement a handover
-      // stays invisible in the sidebar for up to a minute.
+      // does not use SWR. Without this announcement a handover stays invisible
+      // until another explicit refresh.
       const listener = vi.fn();
       window.addEventListener("phoenix:supervision-stale", listener);
       renderHook(() => useGlobalSSE());

@@ -667,11 +667,10 @@ describe("InvitationAcceptForm", () => {
         expect(
           screen.getByText(/Bitte gib Vor- und Nachname an/i),
         ).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
 

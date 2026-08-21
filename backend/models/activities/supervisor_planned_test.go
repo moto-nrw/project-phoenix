@@ -8,6 +8,8 @@ import (
 )
 
 func TestSupervisorPlannedValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		supervisorPlanned *SupervisorPlanned
@@ -78,6 +80,8 @@ func TestSupervisorPlannedValidate(t *testing.T) {
 }
 
 func TestSupervisorPlannedSetPrimary(t *testing.T) {
+	t.Parallel()
+
 	supervisorPlanned := &SupervisorPlanned{
 		StaffID:   1,
 		GroupID:   1,
@@ -92,6 +96,8 @@ func TestSupervisorPlannedSetPrimary(t *testing.T) {
 }
 
 func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
+	t.Parallel()
+
 	supervisorPlanned := &SupervisorPlanned{
 		StaffID:   1,
 		GroupID:   1,
@@ -106,6 +112,8 @@ func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
 }
 
 func TestSupervisorPlanned_GetID(t *testing.T) {
+	t.Parallel()
+
 	sp := &SupervisorPlanned{
 		Model:   base.Model{ID: 42},
 		StaffID: 1,
@@ -118,6 +126,8 @@ func TestSupervisorPlanned_GetID(t *testing.T) {
 }
 
 func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	sp := &SupervisorPlanned{
 		Model:   base.Model{CreatedAt: now},
@@ -131,6 +141,8 @@ func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
 }
 
 func TestSupervisorPlanned_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	sp := &SupervisorPlanned{
 		Model:   base.Model{UpdatedAt: now},

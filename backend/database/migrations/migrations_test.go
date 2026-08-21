@@ -13,6 +13,8 @@ import (
 )
 
 func TestNoDuplicateMigrationVersions(t *testing.T) {
+	t.Parallel()
+
 	// This test scans migration source files to detect version collisions.
 	// MigrationRegistry is a map[string]*Migration — if two init() functions
 	// register the same version key, the second silently overwrites the first.
@@ -115,7 +117,6 @@ func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 
 func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	if err := downOperatorRefreshTokens(ctx, db); err != nil {

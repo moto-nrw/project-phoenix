@@ -13,6 +13,8 @@ import (
 )
 
 func TestErrorRenderer_NotFoundError(t *testing.T) {
+	t.Parallel()
+
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrPostNotFound)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -21,6 +23,8 @@ func TestErrorRenderer_NotFoundError(t *testing.T) {
 }
 
 func TestErrorRenderer_ForbiddenError(t *testing.T) {
+	t.Parallel()
+
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrForbidden)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -29,6 +33,8 @@ func TestErrorRenderer_ForbiddenError(t *testing.T) {
 }
 
 func TestErrorRenderer_BadRequestError(t *testing.T) {
+	t.Parallel()
+
 	renderer := suggestions.ErrorRenderer(suggestionsSvc.ErrInvalidData)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -37,6 +43,8 @@ func TestErrorRenderer_BadRequestError(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	unknownErr := errors.New("unknown error")
 	renderer := suggestions.ErrorRenderer(unknownErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -46,6 +54,8 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 }
 
 func TestErrorInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("invalid input")
 	renderer := suggestions.ErrorInvalidRequest(testErr)
 	resp, ok := renderer.(*common.ErrResponse)
@@ -56,6 +66,8 @@ func TestErrorInvalidRequest(t *testing.T) {
 }
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	errResp := &common.ErrResponse{
 		Err:            errors.New("test error"),
 		HTTPStatusCode: http.StatusNotFound,

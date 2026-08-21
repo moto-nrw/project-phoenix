@@ -18,11 +18,12 @@ import (
 var activeSvcBypassAuth = activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}
 
 func TestActiveService_ListStudentsInTransit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-list")
@@ -34,18 +35,11 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	inRoomStudent := testpkg.CreateTestStudent(t, db, "In", "Room", "TLS2")
 	checkedOutStudent := testpkg.CreateTestStudent(t, db, "Checked", "Out", "TLS3")
 
-	transitAttendance := testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	inRoomAttendance := testpkg.CreateTestAttendance(t, db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	checkedOutAttendance := testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), &checkOutTime)
-	visit := testpkg.CreateTestVisit(t, db, inRoomStudent.ID, activeGroup.ID, now.Add(-15*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		activity.ID, room.ID, activeGroup.ID, staff.ID, device.ID,
-		transitStudent.ID, inRoomStudent.ID, checkedOutStudent.ID, visit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID, checkedOutAttendance.ID)
+	testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), &checkOutTime)
+	testpkg.CreateTestVisit(t, db, inRoomStudent.ID, activeGroup.ID, now.Add(-15*time.Minute), nil)
 
 	ids, err := service.ListStudentsInTransit(ctx)
 
@@ -56,8 +50,9 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(987654)
@@ -69,11 +64,12 @@ func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsPresentToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	staff := testpkg.CreateTestStaff(t, db, "Present", "List")
@@ -82,12 +78,9 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 	checkedOutStudent := testpkg.CreateTestStudent(t, db, "Checked", "Out", "PLS2")
 	absentStudent := testpkg.CreateTestStudent(t, db, "Absent", "PresentList", "PLS3")
 
-	presentAttendance := testpkg.CreateTestAttendance(t, db, presentStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, presentStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	checkedOutAttendance := testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), &checkOutTime)
-
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID, presentStudent.ID, checkedOutStudent.ID, absentStudent.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", presentAttendance.ID, checkedOutAttendance.ID)
+	testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), &checkOutTime)
 
 	ids, err := service.ListStudentsPresentToday(ctx)
 
@@ -98,8 +91,9 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(987654)
@@ -111,11 +105,12 @@ func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-source")
@@ -132,20 +127,11 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	transitStudent := testpkg.CreateTestStudent(t, db, "Move", "FromTransit", "MFT1")
 	absentStudent := testpkg.CreateTestStudent(t, db, "Move", "Absent", "MA1")
 
-	inSourceAttendance := testpkg.CreateTestAttendance(t, db, inSourceStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
-	inTargetAttendance := testpkg.CreateTestAttendance(t, db, inTargetStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
-	transitAttendance := testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, inSourceStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, inTargetStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	sourceVisit := testpkg.CreateTestVisit(t, db, inSourceStudent.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
 	targetVisit := testpkg.CreateTestVisit(t, db, inTargetStudent.ID, targetGroup.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID,
-		inSourceStudent.ID, inTargetStudent.ID, transitStudent.ID, absentStudent.ID,
-		sourceVisit.ID, targetVisit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", inSourceAttendance.ID, inTargetAttendance.ID, transitAttendance.ID)
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{inSourceStudent.ID, inTargetStudent.ID, transitStudent.ID, absentStudent.ID, inSourceStudent.ID}, targetGroup.ID, activeSvcBypassAuth)
 
@@ -186,11 +172,12 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-graduate-source")
@@ -202,14 +189,8 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 	staff := testpkg.CreateTestStaff(t, db, "MoveGraduate", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "move-graduate-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveGraduate", "Student", "MGS1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, visit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 
 	_, err := db.NewUpdate().
 		TableExpr("users.students").
@@ -230,18 +211,17 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-all-absent-target")
 	room := testpkg.CreateTestRoom(t, db, "Move All Absent Target Room")
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	absentStudent := testpkg.CreateTestStudent(t, db, "Move", "AllAbsent", "MAA1")
-
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, absentStudent.ID)
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{absentStudent.ID}, targetGroup.ID, activeSvcBypassAuth)
 
@@ -251,11 +231,12 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t 
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, nil, 0, activeSvcBypassAuth)
 	require.Error(t, err)
@@ -265,7 +246,6 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-invalid-input")
 	room := testpkg.CreateTestRoom(t, db, "Move Invalid Input Room")
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
 
 	result, err = service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{-42}, targetGroup.ID, activeSvcBypassAuth)
 	require.Error(t, err)
@@ -274,11 +254,12 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-ended-target")
 	room := testpkg.CreateTestRoom(t, db, "Move Ended Target Room")
@@ -288,8 +269,6 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 	targetGroup.EndTime = &endTime
 	require.NoError(t, service.UpdateActiveGroup(ctx, targetGroup))
 
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
-
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
 
 	require.Error(t, err)
@@ -298,11 +277,12 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-source")
@@ -314,17 +294,9 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSou
 	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "TargetOnly")
 	device := testpkg.CreateTestDevice(t, db, "move-auth-reject-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Rejected", "MAR1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
-	sourceVisit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
-	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, sourceVisit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", targetSupervisor.ID)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
@@ -341,11 +313,12 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSou
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceAndTarget(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-allowed-source")
@@ -357,18 +330,10 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "BothRooms")
 	device := testpkg.CreateTestDevice(t, db, "move-auth-allow-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Allowed", "MAA1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	sourceVisit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
-	sourceSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, sourceGroup.ID, "supervisor")
-	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, sourceVisit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sourceSupervisor.ID, targetSupervisor.ID)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
@@ -386,11 +351,12 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitIntoSupervisedTarget(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-transit-target")
@@ -399,12 +365,8 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "Transit")
 	device := testpkg.CreateTestDevice(t, db, "move-auth-transit-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Transit", "MAT1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
-	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
-
-	defer testpkg.CleanupActivityFixtures(t, db, targetActivity.ID, targetRoom.ID, targetGroup.ID, staff.ID, device.ID, student.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", targetSupervisor.ID)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
@@ -418,11 +380,12 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 }
 
 func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-transit-auth-source")
@@ -431,11 +394,8 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 	staff := testpkg.CreateTestStaff(t, db, "MoveTransitAuth", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "move-transit-auth-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveTransitAuth", "Rejected", "MTAR1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID, device.ID, student.ID, visit.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{student.ID}, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
@@ -451,27 +411,27 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Move Binary Target Room")
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
 
 	const (
 		studentA int64 = 50001
@@ -491,21 +451,22 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	now := time.Now()
@@ -518,15 +479,8 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 	staff := testpkg.CreateTestStaff(t, db, "MoveBinaryStale", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "move-binary-stale-device")
 	student := testpkg.CreateTestStudent(t, db, "MoveBinaryStale", "Student", "MBS1")
-	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		sourceActivity.ID, sourceRoom.ID, sourceGroup.ID,
-		targetActivity.ID, targetRoom.ID, targetGroup.ID,
-		staff.ID, device.ID, student.ID, visit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
 
@@ -542,11 +496,12 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 }
 
 func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-transit-source")
@@ -561,18 +516,10 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 	absentStudent := testpkg.CreateTestStudent(t, db, "TransitMove", "Absent", "TMA2")
 
 	inRoomAttendance := testpkg.CreateTestAttendance(t, db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
-	alreadyTransitAttendance := testpkg.CreateTestAttendance(t, db, alreadyTransitStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, alreadyTransitStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
 	checkOutTime := now.Add(-5 * time.Minute)
-	checkedOutAttendance := testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), &checkOutTime)
+	testpkg.CreateTestAttendance(t, db, checkedOutStudent.ID, staff.ID, device.ID, now.Add(-30*time.Minute), &checkOutTime)
 	visit := testpkg.CreateTestVisit(t, db, inRoomStudent.ID, activeGroup.ID, now.Add(-20*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		activity.ID, room.ID, activeGroup.ID, staff.ID, device.ID,
-		inRoomStudent.ID, alreadyTransitStudent.ID, checkedOutStudent.ID, absentStudent.ID,
-		visit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", inRoomAttendance.ID, alreadyTransitAttendance.ID, checkedOutAttendance.ID)
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{inRoomStudent.ID, alreadyTransitStudent.ID, checkedOutStudent.ID, absentStudent.ID}, activeSvcBypassAuth)
 
@@ -606,14 +553,14 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 }
 
 func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	absentStudent := testpkg.CreateTestStudent(t, db, "TransitMove", "AllAbsent", "TMA3")
-	defer testpkg.CleanupActivityFixtures(t, db, absentStudent.ID)
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{absentStudent.ID}, activeSvcBypassAuth)
 
@@ -623,11 +570,12 @@ func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *tes
 }
 
 func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, nil, activeSvcBypassAuth)
 	require.Error(t, err)
@@ -641,21 +589,22 @@ func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	const (
@@ -674,11 +623,12 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "transit-assign-source")
@@ -692,17 +642,9 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 	transitStudent := testpkg.CreateTestStudent(t, db, "Transit", "Assignable", "TAS1")
 	inRoomStudent := testpkg.CreateTestStudent(t, db, "Already", "Roomed", "TAS2")
 
-	transitAttendance := testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	inRoomAttendance := testpkg.CreateTestAttendance(t, db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
-	existingVisit := testpkg.CreateTestVisit(t, db, inRoomStudent.ID, sourceGroup.ID, now.Add(-15*time.Minute), nil)
-
-	defer testpkg.CleanupActivityFixtures(
-		t, db,
-		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
-		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID,
-		transitStudent.ID, inRoomStudent.ID, existingVisit.ID,
-	)
-	defer testpkg.CleanupTableRecords(t, db, "active.attendance", transitAttendance.ID, inRoomAttendance.ID)
+	testpkg.CreateTestAttendance(t, db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestAttendance(t, db, inRoomStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+	testpkg.CreateTestVisit(t, db, inRoomStudent.ID, sourceGroup.ID, now.Add(-15*time.Minute), nil)
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, []int64{transitStudent.ID, inRoomStudent.ID, transitStudent.ID}, targetGroup.ID)
 
@@ -722,11 +664,12 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, nil, 42)
 	require.Error(t, err)
@@ -736,7 +679,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-invalid-input")
 	room := testpkg.CreateTestRoom(t, db, "Transit Invalid Input Room")
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
 
 	result, err = service.AssignTransitStudentsToActiveGroup(ctx, []int64{-42}, targetGroup.ID)
 	require.Error(t, err)
@@ -745,28 +687,28 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		VALUES (?, 'operations.presence_mode', '"binary"', NULL)
 		ON CONFLICT (tenant_id, setting_key)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`).Exec(ctx)
+	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
 	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Transit Binary Target Room")
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, db, "Transit", "Binary", "TBS1")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
 
@@ -787,11 +729,12 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-ended-target")
 	room := testpkg.CreateTestRoom(t, db, "Transit Ended Target Room")
@@ -800,8 +743,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *te
 	endTime := time.Now()
 	targetGroup.EndTime = &endTime
 	require.NoError(t, service.UpdateActiveGroup(ctx, targetGroup))
-
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
 

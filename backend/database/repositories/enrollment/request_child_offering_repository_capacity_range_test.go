@@ -12,6 +12,8 @@ import (
 )
 
 func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	futureFrom := from.AddDays(30)
@@ -41,6 +43,8 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_Incl
 }
 
 func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)

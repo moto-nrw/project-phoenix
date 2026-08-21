@@ -17,25 +17,6 @@ interface SickNoteBody {
   status?: string;
 }
 
-interface BackendExcusedRequest {
-  id: string;
-  student_id: string;
-  status: string;
-  dates: string[];
-  note: string;
-  decision_reason?: string;
-  created_at: string;
-  reviewed_at?: string;
-}
-
-// The POST response is the envelope `{ status_days, pending_request? }` — an
-// excused submission behind the approval gate returns an empty status_days and
-// a populated pending_request instead of recording the days immediately.
-interface SickNoteSubmitResponse {
-  status_days: BackendStatusDay[];
-  pending_request?: BackendExcusedRequest;
-}
-
 /**
  * Proxy GET /api/parent/me/children/{studentId}/sick-note → backend.
  * Returns the child's active sick days (today .. +2 months by default).
@@ -49,9 +30,11 @@ export const GET = proxyGet<BackendStatusDay[]>(
  * Proxy POST /api/parent/me/children/{studentId}/sick-note → backend
  * /parent/me/children/{studentId}/sick-note. The route-wrapper injects
  * the parent session token + 401 retry. The backend verifies the account
- * is a guardian of the child (account id from the JWT, never the URL).
+ * is a guardian of the child (account id from the JWT, never the URL). The
+ * response remains a bare status-day array for compatibility; an empty array
+ * can mean that the backend created an approval request instead.
  */
-export const POST = proxyPost<SickNoteSubmitResponse, SickNoteBody>(
+export const POST = proxyPost<BackendStatusDay[], SickNoteBody>(
   (params) =>
     `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`,
 );

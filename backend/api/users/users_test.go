@@ -33,12 +33,6 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	resource := usersAPI.NewResource(svc.Users, db)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	return &testContext{
 		db:       db,
 		services: svc,
@@ -76,11 +70,11 @@ func authWithPerms(t *testing.T, perms ...string) testutil.RequestOption {
 // =============================================================================
 
 func TestListPersons_Success(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "ListTest", "Person")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+	_ = testpkg.CreateTestPerson(t, tc.db, "ListTest", "Person")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
 		authWithPerms(t, "users:read"),
@@ -91,11 +85,11 @@ func TestListPersons_Success(t *testing.T) {
 }
 
 func TestListPersons_WithFilters(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "FilterTest", "PersonFilter")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+	_ = testpkg.CreateTestPerson(t, tc.db, "FilterTest", "PersonFilter")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users?first_name=FilterTest", nil,
 		authWithPerms(t, "users:read"),
@@ -106,6 +100,7 @@ func TestListPersons_WithFilters(t *testing.T) {
 }
 
 func TestListPersons_WithoutPermission(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
@@ -121,11 +116,11 @@ func TestListPersons_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestGetPerson_Success(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
 	person := testpkg.CreateTestPerson(t, tc.db, "GetTest", "PersonGet")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
 		authWithPerms(t, "users:read"),
@@ -142,6 +137,7 @@ func TestGetPerson_Success(t *testing.T) {
 }
 
 func TestGetPerson_NotFound(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/999999", nil,
@@ -154,6 +150,7 @@ func TestGetPerson_NotFound(t *testing.T) {
 }
 
 func TestGetPerson_InvalidID(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/invalid", nil,
@@ -165,10 +162,10 @@ func TestGetPerson_InvalidID(t *testing.T) {
 }
 
 func TestGetPerson_WithoutPermission(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	person := testpkg.CreateTestPerson(t, tc.db, "PermTest", "PersonPerm")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
 		authWithPerms(t), // No permissions
@@ -183,11 +180,11 @@ func TestGetPerson_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestCreatePerson_Success(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create an account first to satisfy the constraint
 	account := testpkg.CreateTestAccount(t, tc.db, "create-person-test@example.com")
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
 	body := map[string]interface{}{
 		"first_name": "NewPerson",
@@ -208,12 +205,10 @@ func TestCreatePerson_Success(t *testing.T) {
 	assert.Equal(t, "NewPerson", data["first_name"])
 	assert.Equal(t, "Created", data["last_name"])
 
-	// Cleanup created person
-	personID := int64(data["id"].(float64))
-	testpkg.CleanupPerson(t, tc.db, personID)
 }
 
 func TestCreatePerson_MissingFirstName(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -230,6 +225,7 @@ func TestCreatePerson_MissingFirstName(t *testing.T) {
 }
 
 func TestCreatePerson_MissingLastName(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -246,7 +242,8 @@ func TestCreatePerson_MissingLastName(t *testing.T) {
 }
 
 func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
-	tc, router := setupProtectedRouter(t)
+	t.Parallel()
+	_, router := setupProtectedRouter(t)
 
 	// Persons can be created without tag_id or account_id
 	// They can be linked later via /users/{id}/rfid or /users/{id}/account
@@ -262,14 +259,10 @@ func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created person
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	personID := int64(data["id"].(float64))
-	testpkg.CleanupPerson(t, tc.db, personID)
 }
 
 func TestCreatePerson_WithoutPermission(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -291,14 +284,13 @@ func TestCreatePerson_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestUpdatePerson_Success(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person with account
 	account := testpkg.CreateTestAccount(t, tc.db, "update-person-test@example.com")
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
 	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "Original", "Name", account.ID)
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{
 		"first_name": "Updated",
@@ -321,6 +313,7 @@ func TestUpdatePerson_Success(t *testing.T) {
 }
 
 func TestUpdatePerson_NotFound(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -339,6 +332,7 @@ func TestUpdatePerson_NotFound(t *testing.T) {
 }
 
 func TestUpdatePerson_InvalidID(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -356,10 +350,10 @@ func TestUpdatePerson_InvalidID(t *testing.T) {
 }
 
 func TestUpdatePerson_WithoutPermission(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	person := testpkg.CreateTestPerson(t, tc.db, "NoPerm", "Update")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{
 		"first_name": "Updated",
@@ -380,6 +374,7 @@ func TestUpdatePerson_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestDeletePerson_Success(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person to delete
@@ -395,6 +390,7 @@ func TestDeletePerson_Success(t *testing.T) {
 }
 
 func TestDeletePerson_NotFound(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/999999", nil,
@@ -407,6 +403,7 @@ func TestDeletePerson_NotFound(t *testing.T) {
 }
 
 func TestDeletePerson_InvalidID(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/invalid", nil,
@@ -418,10 +415,10 @@ func TestDeletePerson_InvalidID(t *testing.T) {
 }
 
 func TestDeletePerson_WithoutPermission(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	person := testpkg.CreateTestPerson(t, tc.db, "NoPermDelete", "Person")
-	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
 		authWithPerms(t), // No permissions

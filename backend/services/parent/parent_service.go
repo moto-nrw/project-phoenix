@@ -83,26 +83,19 @@ type Service interface {
 	// status must be StudentStatusDaySick or StudentStatusDayExcused. Gated by
 	// operations.parent_sick_note_enabled for the child's tenant.
 	//
-	// A "sick" report (and, by default, an "excused" report) is written straight
-	// to the status days — it clears any opposing status days for the date,
-	// upserts a status-day per date with source=parent, and (for sick) flips the
-	// live sick flag when today is included; excused sets no live flag (#1735).
+	// By default, both statuses become PENDING requests. The independent sick
+	// and excused approval settings can opt a school into direct status writes.
 	// A note is mandatory for both absence types.
-	//
-	// When the school turned operations.parent_excused_requires_approval on, an
-	// "excused" report instead becomes a PENDING request (#1845): no status day
-	// is written until staff approve it, so the result carries PendingRequest
-	// and an empty StatusDays. Sick reports are always direct.
 	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
 
-	// ListExcusedRequests returns the child's pending excused-absence approval
-	// requests plus any decided in the recent window (so a parent sees a
-	// declined request), newest-first. Empty when the approval gate is off.
-	// Authorization only.
+	// ListExcusedRequests returns the child's pending sick and excused absence
+	// requests plus any decided in the recent window, newest-first. The method
+	// retains its legacy excused-only name. Authorization only.
 	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
 
-	// WithdrawExcusedRequest withdraws the caller's own pending excused-absence
-	// request. Authorization: the account must be the submitting guardian.
+	// WithdrawExcusedRequest withdraws the caller's own pending sick or excused
+	// absence request. The method retains its legacy excused-only name.
+	// Authorization: the account must be the submitting guardian.
 	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
 
 	// ListSickDays returns the child's currently-active parent-facing
@@ -344,6 +337,9 @@ type Service interface {
 // toggles for a single child.
 type ChildFeatureFlags struct {
 	SickNoteEnabled bool
+	// SickRequiresApproval is true when a Krankmeldung stays pending until the
+	// OGS confirms it (operations.parent_sick_requires_approval, #2449).
+	SickRequiresApproval bool
 	// ExcusedRequiresApproval is true when an "excused" report must be confirmed
 	// by the office before it takes effect (operations.parent_excused_requires_approval,
 	// #1845). The parent UI uses it to explain that the absence will be pending
@@ -468,9 +464,9 @@ type ServiceConfig struct {
 	ArrivalSchedules scheduleSvc.ArrivalScheduleService
 	PickupSchedules  scheduleSvc.PickupScheduleService
 	CareRequests     scheduleSvc.CareScheduleRequestService
-	// ExcusedRequests backs the optional office-approval gate for parent
-	// excused absences (#1845). When the school setting is on, an excused
-	// submission becomes a pending request here instead of a direct status day.
+	// ExcusedRequests is the legacy-named office-approval store for parent sick
+	// and excused absences. When the matching setting is on, a submission becomes
+	// a pending request here instead of a direct status day.
 	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
 
 	// AbsenceNotifier informs the child's group and the office that an absence

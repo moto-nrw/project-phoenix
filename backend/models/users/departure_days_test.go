@@ -6,6 +6,8 @@ import (
 )
 
 func TestDepartureDaysValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		days    DepartureDays
@@ -52,6 +54,8 @@ func TestDepartureDaysValidate(t *testing.T) {
 }
 
 func TestDepartureDaysNormalize(t *testing.T) {
+	t.Parallel()
+
 	days := DepartureDays{
 		PickupDayMonday:    DepartureBus,
 		PickupDayTuesday:   DepartureAlone, // dropped (default)
@@ -76,6 +80,8 @@ func TestDepartureDaysNormalize(t *testing.T) {
 }
 
 func TestDepartureDaysModeForAndHasAny(t *testing.T) {
+	t.Parallel()
+
 	days := DepartureDays{PickupDayMonday: DepartureBus}
 	if got := days.ModeFor(PickupDayMonday); got != DepartureBus {
 		t.Fatalf("ModeFor(mon) = %q, want bus", got)
@@ -92,6 +98,8 @@ func TestDepartureDaysModeForAndHasAny(t *testing.T) {
 }
 
 func TestDepartureDaysDerivations(t *testing.T) {
+	t.Parallel()
+
 	days := DepartureDays{
 		PickupDayMonday:    DepartureBus,
 		PickupDayWednesday: DeparturePickup,
@@ -120,6 +128,8 @@ func TestDepartureDaysDerivations(t *testing.T) {
 }
 
 func TestDepartureDaysFromLegacy(t *testing.T) {
+	t.Parallel()
+
 	t.Run("merges disjoint maps", func(t *testing.T) {
 		got := DepartureDaysFromLegacy(
 			BusDays{PickupDayMonday: true},
@@ -151,6 +161,8 @@ func TestDepartureDaysFromLegacy(t *testing.T) {
 // a valid, normalizable mode that survives the DepartureDays <-> allowed-modes
 // round-trip but never leaks into the legacy bus/pickup mirrors.
 func TestDepartureAccompaniedMode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("validates and normalizes", func(t *testing.T) {
 		days := DepartureDays{PickupDayMonday: DepartureAccompanied}
 		if err := days.Validate(); err != nil {
@@ -223,6 +235,8 @@ func TestDepartureAccompaniedMode(t *testing.T) {
 // because the projection ranks bus above accompanied and would otherwise bucket
 // the child as a self-goer (#1694).
 func TestAllowedDepartureModesLegacyPickupStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		modes AllowedDepartureModes
@@ -260,6 +274,8 @@ func TestAllowedDepartureModesLegacyPickupStatus(t *testing.T) {
 // carries multiple fields targeting allowed_departure_modes: a later field never
 // drops a mode an earlier field allowed (#1694).
 func TestAllowedDepartureModesMerge(t *testing.T) {
+	t.Parallel()
+
 	t.Run("union preserves accompanied from the earlier field", func(t *testing.T) {
 		first := AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied}}
 		second := AllowedDepartureModes{PickupDayMonday: {DepartureBus}}
@@ -290,6 +306,8 @@ func TestAllowedDepartureModesMerge(t *testing.T) {
 // mode wins per day, and accompanied always beats bus so the merge never drops
 // the "Mit anderem Kind" signal (#1694).
 func TestDepartureDaysMerge(t *testing.T) {
+	t.Parallel()
+
 	t.Run("accompanied beats bus", func(t *testing.T) {
 		got := DepartureDays{PickupDayMonday: DepartureAccompanied}.
 			Merge(DepartureDays{PickupDayMonday: DepartureBus})
@@ -326,6 +344,8 @@ func TestDepartureDaysMerge(t *testing.T) {
 // self-goer on the staff confirm diff (#1694). An unknown mode falls back to the
 // alone label, matching how an unset weekday is treated.
 func TestDepartureModeGermanLabel(t *testing.T) {
+	t.Parallel()
+
 	cases := map[DepartureMode]string{
 		DepartureBus:         "Fährt Bus",
 		DeparturePickup:      "Wird abgeholt",

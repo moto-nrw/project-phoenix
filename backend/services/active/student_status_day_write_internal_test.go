@@ -10,11 +10,15 @@ import (
 )
 
 func TestDedupeStudentIDsPreservesFirstOccurrenceOrder(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, []int64{7, 3, 9}, dedupeStudentIDs([]int64{7, 3, 7, 9, 3}))
 	assert.Empty(t, dedupeStudentIDs(nil))
 }
 
 func TestIsNewReportableAbsence(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 7, 29)
 	yesterday := timezone.NewDate(2026, 7, 28)
 	trueValue := true

@@ -91,6 +91,19 @@ describe("getCachedSession", () => {
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
+  it("clears rate-limit backoff with the session context", async () => {
+    const { clearSessionCache } = await freshModule();
+    const { rateLimitBlockedError, recordRateLimit } =
+      await import("./rate-limit-backoff");
+
+    recordRateLimit("17", "PATCH");
+    expect(rateLimitBlockedError("PATCH")).not.toBeNull();
+
+    clearSessionCache();
+
+    expect(rateLimitBlockedError("PATCH")).toBeNull();
+  });
+
   it("does not let an in-flight lookup repopulate the cache across a clear", async () => {
     // Regression guard for the 401→refresh race: request A starts a session
     // lookup, a refresh clears the cache, then A resolves with the PRE-refresh

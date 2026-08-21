@@ -19,7 +19,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -33,6 +32,8 @@ const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 // =============================================================================
 
 func TestActiveGroup_IsActive(t *testing.T) {
+	t.Parallel()
+
 	t.Run("group with no end time is active", func(t *testing.T) {
 		group := &activeModels.Group{
 			RoomID: 1,
@@ -65,6 +66,8 @@ func TestActiveGroup_IsActive(t *testing.T) {
 // =============================================================================
 
 func TestVisit_Fields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("visit has required fields", func(t *testing.T) {
 		now := time.Now()
 		visit := &activeModels.Visit{
@@ -119,6 +122,8 @@ func TestVisit_Fields(t *testing.T) {
 // =============================================================================
 
 func TestCheckinRequest_Validation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid request with active_group_id", func(t *testing.T) {
 		req := active.CheckinRequest{
 			ActiveGroupID: 1,
@@ -133,6 +138,8 @@ func TestCheckinRequest_Validation(t *testing.T) {
 }
 
 func TestCheckinRequest_JSONDecoding(t *testing.T) {
+	t.Parallel()
+
 	t.Run("decodes from JSON correctly", func(t *testing.T) {
 		jsonData := `{"active_group_id": 456}`
 		var req active.CheckinRequest
@@ -162,6 +169,8 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 // =============================================================================
 
 func TestAttendance_Fields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -208,13 +217,6 @@ func TestAttendance_Fields(t *testing.T) {
 // Handler Integration Tests (Hermetic with Test DB)
 // =============================================================================
 
-// setupViperForTest configures viper with the test JWT secret
-func setupViperForTest() {
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
-}
-
 // setupCheckinTestHandler creates a handler with real services for integration testing
 func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
@@ -244,11 +246,12 @@ func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token s
 }
 
 func TestCheckinStudent_Integration(t *testing.T) {
-	// Configure viper with test JWT secret before any router is created
-	setupViperForTest()
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	// A web check-in books attendance against the virtual WEB-MANUAL-001
+	// device every real school is provisioned with.
+	testpkg.EnsureWebManualDevice(t, db)
 
 	// Permissions needed for checkin endpoint
 	checkinPermissions := []string{permissions.VisitsUpdate}
@@ -261,8 +264,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "No Auth Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a")
-
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
 		// Make request without JWT token
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
@@ -280,7 +281,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		body := active.CheckinRequest{ActiveGroupID: 1}
 		req := makeCheckinRequest(t, student.ID, body, "invalid-token")
@@ -296,9 +296,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -321,11 +319,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
 		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a")
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -345,11 +340,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
 		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b")
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -369,14 +361,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create person with account but NO staff record
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
+		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
 		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c")
 		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test")
 		room := testpkg.CreateTestRoom(t, db, "Not Staff Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -398,14 +387,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		// former "you must be their group teacher" refusal is gone.
 		handler := setupCheckinTestHandler(t, db)
 
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
 		room := testpkg.CreateTestRoom(t, db, "No Access Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -446,9 +432,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
 
@@ -477,10 +460,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(context.Background())
 		require.NoError(t, err)
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		existingVisit := testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
-
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, existingStudent.ID, activity.ID, room.ID, activeGroup.ID, existingVisit.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_ = testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
@@ -496,7 +476,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Ensure web manual device exists (required for manual check-ins)
-		webDevice := testpkg.EnsureWebManualDevice(t, db)
+		_ = testpkg.EnsureWebManualDevice(t, db)
 
 		// Create teacher with account and education group
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
@@ -510,9 +490,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test")
 		room := testpkg.CreateTestRoom(t, db, "Success Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID, webDevice.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)

@@ -8,6 +8,8 @@ import (
 )
 
 func TestIsValidStaffDocumentCategory(t *testing.T) {
+	t.Parallel()
+
 	for _, category := range StaffDocumentCategories {
 		assert.True(t, IsValidStaffDocumentCategory(category), "expected %q to be valid", category)
 	}
@@ -18,6 +20,8 @@ func TestIsValidStaffDocumentCategory(t *testing.T) {
 }
 
 func TestStaffDocumentCategories_MatchConstants(t *testing.T) {
+	t.Parallel()
+
 	// The list is mirrored by the CHECK constraint on
 	// users.staff_documents.category and by the frontend label map.
 	assert.Equal(t, []string{
@@ -45,6 +49,8 @@ func validStaffDocument() StaffDocument {
 }
 
 func TestStaffDocument_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*StaffDocument)
@@ -124,6 +130,8 @@ func TestStaffDocument_Validate(t *testing.T) {
 }
 
 func TestStaffDocument_ValidateAcceptsEveryCategory(t *testing.T) {
+	t.Parallel()
+
 	for _, category := range StaffDocumentCategories {
 		doc := validStaffDocument()
 		doc.Category = category

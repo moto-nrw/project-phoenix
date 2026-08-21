@@ -468,7 +468,7 @@ func resetLiveLocationFields(responses []StudentResponse) {
 }
 
 func hasActualAttendanceToday(attendance *activeService.AttendanceStatus) bool {
-	return attendance != nil && attendance.CheckInTime != nil && attendance.Status != "not_checked_in"
+	return attendance.IsCurrentlyPresent()
 }
 
 func attendanceMapFromSnapshot(snapshot *common.StudentDataSnapshot) map[int64]*activeService.AttendanceStatus {

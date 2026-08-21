@@ -49,6 +49,8 @@ func mergeAuditAbsences() (*activeModels.StaffAbsence, *activeModels.StaffAbsenc
 }
 
 func TestAbsCreateAbsenceFor_MergeWritesSecondaryDeletionAudit(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	primary, secondary := mergeAuditAbsences()
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -75,6 +77,8 @@ func TestAbsCreateAbsenceFor_MergeWritesSecondaryDeletionAudit(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_MergeAuditFailureKeepsSecondary(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	primary, secondary := mergeAuditAbsences()
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {

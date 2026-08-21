@@ -14,6 +14,8 @@ import (
 )
 
 func TestStaffShiftCreateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	service := NewStaffShiftService(
 		&shiftMockRepo{},
 		&shiftMockStaffRepo{},
@@ -41,6 +43,8 @@ func TestStaffShiftCreateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 }
 
 func TestStaffShiftCreateDoesNotBroadcastAfterFailure(t *testing.T) {
+	t.Parallel()
+
 	service := NewStaffShiftService(
 		&shiftMockRepo{createFunc: func(context.Context, *scheduleModels.StaffShift) error {
 			return errors.New("insert failed")
@@ -64,6 +68,8 @@ func TestStaffShiftCreateDoesNotBroadcastAfterFailure(t *testing.T) {
 }
 
 func TestStaffShiftUpdateCanDeferTimeTrackingBroadcast(t *testing.T) {
+	t.Parallel()
+
 	existing := validShift(7)
 	existing.ID = 1
 	service := NewStaffShiftService(
@@ -92,6 +98,8 @@ func TestStaffShiftUpdateCanDeferTimeTrackingBroadcast(t *testing.T) {
 }
 
 func TestStaffShiftSeriesCreateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	service := newSeriesServiceForTest(seriesServiceMocks{}).(*staffShiftSeriesService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.SetBroadcaster(broadcaster)

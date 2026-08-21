@@ -74,7 +74,7 @@ func TestBackfillMensaCategory(t *testing.T) {
 func TestBackfillMensaCategoryDownPreservesPreexistingCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	const tenantID int64 = 21313
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	insertMensaTestCategory(t, db, tenantID, "Mensa")
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)

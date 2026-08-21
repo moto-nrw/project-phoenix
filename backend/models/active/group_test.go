@@ -6,6 +6,8 @@ import (
 )
 
 func TestGroupValidate(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -133,6 +135,8 @@ func TestGroupValidate(t *testing.T) {
 // call site in services / repositories / handlers now goes through these,
 // so a regression here would silently corrupt consumer behaviour.
 func TestGroupTemplateHelpers(t *testing.T) {
+	t.Parallel()
+
 	templateID := int64(42)
 
 	t.Run("template-backed group", func(t *testing.T) {
@@ -173,6 +177,8 @@ func TestGroupTemplateHelpers(t *testing.T) {
 }
 
 func TestGroupIsActive(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 
@@ -209,6 +215,8 @@ func TestGroupIsActive(t *testing.T) {
 }
 
 func TestGroupSetEndTime(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -253,6 +261,8 @@ func TestGroupSetEndTime(t *testing.T) {
 }
 
 func TestGroupGetDuration(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 

@@ -14,12 +14,16 @@ import (
 // =============================================================================
 
 func TestNewSecurityLogger(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 	assert.NotNil(t, sl)
 	assert.NotNil(t, sl.logger)
 }
 
 func TestSecurityLogger_LogEvent(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -36,6 +40,8 @@ func TestSecurityLogger_LogEvent(t *testing.T) {
 }
 
 func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
@@ -46,6 +52,8 @@ func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 }
 
 func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -67,6 +75,8 @@ func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 }
 
 func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
@@ -82,6 +92,8 @@ func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
 // =============================================================================
 
 func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	r := chi.NewRouter()
@@ -99,6 +111,8 @@ func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
 }
 
 func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	r := chi.NewRouter()
@@ -116,6 +130,8 @@ func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
 }
 
 func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
+	t.Parallel()
+
 	sl := NewSecurityLogger()
 
 	statusCodes := []int{
@@ -152,6 +168,8 @@ func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 // =============================================================================
 
 func TestResponseWriter_WriteHeader(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
 
@@ -162,6 +180,8 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 }
 
 func TestResponseWriter_DefaultStatusCode(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
 
@@ -170,6 +190,8 @@ func TestResponseWriter_DefaultStatusCode(t *testing.T) {
 }
 
 func TestResponseWriter_Write(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
 
@@ -181,6 +203,8 @@ func TestResponseWriter_Write(t *testing.T) {
 }
 
 func TestResponseWriter_Flush(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
 

@@ -74,7 +74,7 @@ func TestRepairSchulhofIsSystemBackfill_FlagsStaffProvisionedRows(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	const tenantID int64 = 9106
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 

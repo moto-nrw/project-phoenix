@@ -42,24 +42,21 @@ func createPoolShift(t *testing.T, s *moveSetup, staffID int64, startHHMM, endHH
 	shift.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(shift).ModelTableExpr(`schedule.staff_shifts`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.staff_shifts", shift.ID) })
 	return shift
 }
 
 // TestGetStaffPoolForInstance_Categories covers every category in one scene:
 // target 14:30–15:30; five staff members in distinct situations.
 func TestGetStaffPoolForInstance_Categories(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	db := s.db
 	suffix := time.Now().UnixNano()
 
 	free := testpkg.CreateTestStaffForTenant(t, db, s.tenantID, "Frida", fmt.Sprintf("Frei-%d", suffix))
 	partial := testpkg.CreateTestStaffForTenant(t, db, s.tenantID, "Paula", fmt.Sprintf("Teilweise-%d", suffix))
 	absent := testpkg.CreateTestStaffForTenant(t, db, s.tenantID, "Abbi", fmt.Sprintf("Abwesend-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixturesForTenant(t, db, s.tenantID, free.ID, partial.ID, absent.ID)
-	})
 
 	// staffID: assigned to the overlapping source block, full shift.
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
@@ -118,8 +115,9 @@ func TestGetStaffPoolForInstance_Categories(t *testing.T) {
 // TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse: without any
 // shift in the calendar week, not_on_shift carries no signal.
 func TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 
 	repoFactory := repositories.NewFactory(s.db)
 	serviceFactory, err := services.NewFactory(repoFactory, s.db, slog.Default())
@@ -136,10 +134,10 @@ func TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
 // TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending
 // exactly when the target starts does not occupy the person.
 func TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	before := createMoveInstance(t, s, "Davor", "13:30", "14:30", scheduleModels.InstanceStatusPlanned)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", before.ID) })
 	createMoveStaffRow(t, s, before.ID, s.staffID, nil)
 	createPoolShift(t, s, s.staffID, "12:00", "16:00", false)
 
@@ -158,8 +156,9 @@ func TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
 // TestGetStaffPoolForInstance_CancelledShiftIgnored: a cancelled shift does
 // not make someone available.
 func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
 
 	repoFactory := repositories.NewFactory(s.db)
@@ -178,8 +177,9 @@ func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
 // report dienstplan_in_use=false and show the missing-Dienstplan hint instead
 // of misleading not_on_shift categories.
 func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
-	defer s.cleanup(t)
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
 	createPoolShift(t, s, s.otherID, "08:00", "12:00", true)
 
@@ -195,18 +195,16 @@ func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *tes
 }
 
 func TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusCompleted,
 		scheduleModels.InstanceStatusCancelled,
 	} {
 		t.Run(status, func(t *testing.T) {
 			s := makeMoveSetup(t)
-			defer s.cleanup(t)
 
 			terminal := createMoveInstance(t, s, "Historie", "09:00", "10:00", status)
-			t.Cleanup(func() {
-				testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", terminal.ID)
-			})
 			createMoveStaffRow(t, s, terminal.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
 				row.IsAbsent = true
 				row.AbsenceReason = testpkg.StrPtr("krank")

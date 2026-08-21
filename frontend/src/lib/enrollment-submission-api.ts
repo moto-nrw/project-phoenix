@@ -119,6 +119,8 @@ interface EnrollmentEditDraftChild {
   custom_data?: Record<string, unknown>;
   offering_ids: string[];
   offering_days?: EnrollmentEditDraftOfferingDays[];
+  /** Taken over into care: the change form shows this child read-only. */
+  locked?: boolean;
 }
 
 interface EnrollmentEditDraftGuardian {
@@ -594,6 +596,12 @@ export interface StatusChild {
     | "auto_renewed"
     | "pending_admin_review";
   status_reason?: string | null;
+  /**
+   * True once the child is taken over into care. Its data stays readable
+   * through the status link, but changes run through the parents app only
+   * (ADR 0003).
+   */
+  locked?: boolean;
 }
 
 /** One additional guardian (co-guardian) on the public status page. */

@@ -42,11 +42,13 @@ type CareRequestDiffResponse struct {
 	NewMode  string   `json:"new_mode,omitempty"`
 }
 
-func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequestResponse {
-	r := item.Request
-	diff := make([]CareRequestDiffResponse, 0, len(item.Diff))
-	for _, e := range item.Diff {
-		diff = append(diff, CareRequestDiffResponse{
+// toCareRequestDiffResponses maps service diff entries onto the wire shape —
+// shared by the review queue and both history projections (frozen diff and
+// requested summary; the latter's Old/OldModes are empty by construction).
+func toCareRequestDiffResponses(entries []scheduleService.RequestDiffEntry) []CareRequestDiffResponse {
+	out := make([]CareRequestDiffResponse, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, CareRequestDiffResponse{
 			Label:    e.Label,
 			Old:      e.Old,
 			New:      e.New,
@@ -56,6 +58,12 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 			NewMode:  e.NewMode,
 		})
 	}
+	return out
+}
+
+func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequestResponse {
+	r := item.Request
+	diff := toCareRequestDiffResponses(item.Diff)
 	return CareRequestResponse{
 		ID:             strconv.FormatInt(r.ID, 10),
 		StudentID:      strconv.FormatInt(r.StudentID, 10),
@@ -69,25 +77,6 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 		CreatedAt:      r.CreatedAt,
 		ReviewedAt:     r.ReviewedAt,
 	}
-}
-
-// listCareScheduleChangeRequests returns the tenant's pending parent
-// care-schedule change requests for the staff review queue.
-func (rs *Resource) listCareScheduleChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.CareRequestService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
-		return
-	}
-	items, err := rs.CareRequestService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]CareRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toCareRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Care schedule change requests retrieved")
 }
 
 // DecideCareRequestBody is the body of POST

@@ -74,6 +74,7 @@ vi.mock("~/lib/logger", () => {
       console.warn(msg, ctx),
     error: (msg: string, ctx?: Record<string, unknown>) =>
       console.error(msg, ctx),
+    flush: () => Promise.resolve(),
     child: () => createMockLogger(),
   });
   return {

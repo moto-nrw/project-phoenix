@@ -15,6 +15,8 @@ import (
 const openingBalanceCSVHeader = "Personalnummer,Vorname,Nachname,Stundensaldo,Jahresanspruch,Vorjahresübertrag,Resturlaub\n"
 
 func TestParseOpeningBalanceCSV_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	csvData := openingBalanceCSVHeader +
 		"P-100,Anna,Lehmann,\"12,5\",30,\"2\",\"17,5\"\n" +
 		",Bernd,Schulz,,,,\"5\""
@@ -39,6 +41,8 @@ func TestParseOpeningBalanceCSV_MapsColumns(t *testing.T) {
 }
 
 func TestParseOpeningBalanceCSV_HeaderIsCaseInsensitiveAndOptionalAnnotated(t *testing.T) {
+	t.Parallel()
+
 	csvData := "vorname,nachname,stundensaldo (optional),resturlaub (optional)\n" +
 		"Anna,Lehmann,\"12,5\",\"17,5\""
 
@@ -50,6 +54,8 @@ func TestParseOpeningBalanceCSV_HeaderIsCaseInsensitiveAndOptionalAnnotated(t *t
 }
 
 func TestParseOpeningBalanceCSV_PersonnelNumberDoesNotRequireNames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		header string
@@ -75,6 +81,8 @@ func TestParseOpeningBalanceCSV_PersonnelNumberDoesNotRequireNames(t *testing.T)
 }
 
 func TestParseOpeningBalanceCSV_SkipsEmptyRows(t *testing.T) {
+	t.Parallel()
+
 	csvData := openingBalanceCSVHeader +
 		",,,,,,\n" +
 		"P-100,Anna,Lehmann,\"12,5\",,,\n" +
@@ -87,6 +95,8 @@ func TestParseOpeningBalanceCSV_SkipsEmptyRows(t *testing.T) {
 }
 
 func TestParseOpeningBalanceCSV_TemplateWithoutDataRows(t *testing.T) {
+	t.Parallel()
+
 	rows, err := ParseOpeningBalanceCSV(strings.NewReader(openingBalanceCSVHeader))
 
 	require.Error(t, err)
@@ -95,6 +105,8 @@ func TestParseOpeningBalanceCSV_TemplateWithoutDataRows(t *testing.T) {
 }
 
 func TestParseOpeningBalanceCSV_ShortRowKeepsMappedColumns(t *testing.T) {
+	t.Parallel()
+
 	// Trailing columns omitted entirely (a common spreadsheet export shape).
 	csvData := openingBalanceCSVHeader + "P-100,Anna,Lehmann"
 
@@ -107,6 +119,8 @@ func TestParseOpeningBalanceCSV_ShortRowKeepsMappedColumns(t *testing.T) {
 }
 
 func TestParseOpeningBalanceXLSX_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Personalnummer", "Vorname", "Nachname", "Stundensaldo", "Jahresanspruch", "Vorjahresübertrag", "Resturlaub"},
 		{"P-100", "Anna", "Lehmann", "12,5", "30", "2", "17,5"},
@@ -124,6 +138,8 @@ func TestParseOpeningBalanceXLSX_MapsColumns(t *testing.T) {
 }
 
 func TestParseOpeningBalanceXLSX_PersonnelNumberDoesNotRequireNames(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Personalnummer", "Nachname", "Stundensaldo"},
 		{"P-100", "Lehmann", "12,5"},
@@ -141,6 +157,8 @@ func TestParseOpeningBalanceXLSX_PersonnelNumberDoesNotRequireNames(t *testing.T
 // who arrives with a MINUS on the Stundenkonto (or an overdrawn vacation
 // account). The value must reach Validate parseable.
 func TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer(t *testing.T) {
+	t.Parallel()
+
 	csvData := openingBalanceCSVHeader + "P-100,Anna,Lehmann,\"-3,25\",30,,\"-2\""
 
 	rows, err := ParseOpeningBalanceCSV(strings.NewReader(csvData))
@@ -161,6 +179,8 @@ func TestParseOpeningBalanceCSV_NegativeValuesSurviveTheSanitizer(t *testing.T) 
 }
 
 func TestParseOpeningBalanceCSV_RejectsMissingIdentityColumns(t *testing.T) {
+	t.Parallel()
+
 	// Neither a Personalnummer nor both name columns: nothing can be matched.
 	csvData := "vorname,stundensaldo\nAnna,\"12,5\""
 
@@ -172,6 +192,8 @@ func TestParseOpeningBalanceCSV_RejectsMissingIdentityColumns(t *testing.T) {
 }
 
 func TestParseOpeningBalanceCSV_RejectsEmptyFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseOpeningBalanceCSV(strings.NewReader(""))
 
 	require.Error(t, err)
@@ -179,6 +201,8 @@ func TestParseOpeningBalanceCSV_RejectsEmptyFile(t *testing.T) {
 }
 
 func TestParseOpeningBalanceXLSX_RejectsNonExcelInput(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseOpeningBalanceXLSX(strings.NewReader("Personalnummer;Vorname\nP-100;Anna"))
 
 	require.Error(t, err)
@@ -186,6 +210,8 @@ func TestParseOpeningBalanceXLSX_RejectsNonExcelInput(t *testing.T) {
 }
 
 func TestParseOpeningBalanceXLSX_RejectsMissingIdentityColumns(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Vorname", "Stundensaldo"},
 		{"Anna", "12,5"},
@@ -198,6 +224,8 @@ func TestParseOpeningBalanceXLSX_RejectsMissingIdentityColumns(t *testing.T) {
 }
 
 func TestParseOpeningBalanceXLSX_TemplateWithoutDataRows(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Personalnummer", "Vorname", "Nachname", "Stundensaldo"},
 	})

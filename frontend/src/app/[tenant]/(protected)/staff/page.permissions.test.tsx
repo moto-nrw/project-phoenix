@@ -86,9 +86,8 @@ vi.mock("~/lib/staff-overview-api", () => ({
   staffOverviewService: { getTimeAccounts, getDashboardSummary },
 }));
 
-vi.mock("~/components/staff/staff-pending-inbox", () => ({
-  StaffPendingInbox: () => <div />,
-  useStaffPendingInbox: () => ({ rows: [], canReview: false }),
+vi.mock("~/lib/hooks/use-staff-pending-absences", () => ({
+  useStaffPendingAbsences: () => ({ rows: [], canReview: false }),
 }));
 
 vi.mock("~/components/staff/school-overview-section", () => ({

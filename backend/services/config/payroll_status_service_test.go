@@ -22,7 +22,6 @@ import (
 func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.PayrollStatusGetter, *repositories.Factory, context.Context) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	settings := &configtest.Mock{
@@ -30,10 +29,12 @@ func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.Pay
 			return values[key], nil
 		},
 	}
-	return configSvc.NewPayrollStatusService(settings, repos.Staff), repos, testpkg.TenantContext(1)
+	return configSvc.NewPayrollStatusService(settings, repos.Staff), repos, testpkg.Ctx(t)
 }
 
 func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := payrollStatusFixture(t, map[string]string{})
 
 	status, err := svc.GetPayrollStatus(ctx)
@@ -61,6 +62,8 @@ func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {
 }
 
 func TestPayrollStatus_CompletenessCounting(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := payrollStatusFixture(t, map[string]string{
 		configModel.KeyPayrollLohnartRegelarbeit:   "9001",
 		configModel.KeyPayrollLohnartKrank:         "9002", // no unit yet → not complete
@@ -80,16 +83,16 @@ func TestPayrollStatus_CompletenessCounting(t *testing.T) {
 }
 
 func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	svc, repos, ctx := payrollStatusFixture(t, map[string]string{})
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	before, err := svc.GetPayrollStatus(ctx)
 	require.NoError(t, err)
 
 	withNumber := testpkg.CreateTestStaff(t, db, "Payroll", "MitNummer")
-	withoutNumber := testpkg.CreateTestStaff(t, db, "Payroll", "OhneNummer")
-	_ = withoutNumber
+	testpkg.CreateTestStaff(t, db, "Payroll", "OhneNummer")
 
 	number := "90040"
 	withNumber.PersonnelNumber = &number

@@ -77,6 +77,47 @@ export WEB_JWT="..."
 SSE_CONNECTIONS=300 SSE_HOLD_SECONDS=900 node loadtests/node/sse-hold.mjs
 ```
 
+## Parallel Supervision Acceptance (#2458)
+
+Run this against staging or a dedicated throwaway environment. It opens one
+SSE stream for each staff account, then both staff members check in ten distinct
+children in parallel (sequentially per person). It fails on any 429, non-2xx
+response, missing combined refresh, or SSE wire delivery over two seconds.
+
+```bash
+export API_BASE_URL="https://api-staging.moto-app.de"
+export WEB_JWTS="<staff-1-jwt>,<staff-2-jwt>"
+export TIMETABLE_INSTANCE_ID="<shared-instance>"
+export ACTIVE_GROUP_ID="<shared-instance-active-group>"
+export STUDENT_IDS="<10 comma-separated ids>;<10 comma-separated ids>"
+
+node loadtests/node/parallel-supervision.mjs
+```
+
+The students must start at home. Both tokens must be assigned to the same active
+timetable block and allowed to check in their ten students. Each action waits
+for both writes in that round to reach the other staff member's SSE stream.
+During the run, verify the
+Grafana **Requests/s by tenant** panel stays below 20 RPS and the **Rate-limit
+rejections** panel stays at zero. The script measures server-to-client SSE wire
+latency; verify the open browser rosters render each update within two seconds
+to close the end-to-end UI criterion.
+
+### Request budgets
+
+The changed hot paths are pinned by tests:
+
+| Surface             |                                             Cold page / action budget |                          SSE budget |
+| ------------------- | --------------------------------------------------------------------: | ----------------------------------: |
+| Shared user context |                                                     1 backend request |               only on access change |
+| Active supervision  | 1 aggregate request, plus 1 roster when a timetable block is selected |  1 aggregate revalidation per burst |
+| Room detail         |                                           2 parallel backend requests | no extra page-specific subscription |
+| OGS group           |                                        1 aggregated live-data request |         1 scoped group revalidation |
+
+The unfiltered **Alle Kinder** search intentionally makes one slim-list request
+after a movement because every row can show live location; filtered searches
+skip events from other educational groups.
+
 ## Recommended Scenarios
 
 Baseline:

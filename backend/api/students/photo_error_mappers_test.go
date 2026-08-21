@@ -19,6 +19,8 @@ func mapperReq() *http.Request {
 }
 
 func TestMapPhotoUploadError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		err  error
@@ -66,6 +68,8 @@ func contains(haystack, needle string) bool {
 }
 
 func TestMapPhotoDeleteError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		err  error
@@ -90,6 +94,8 @@ func TestMapPhotoDeleteError(t *testing.T) {
 }
 
 func TestMapPhotoReadError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		err  error

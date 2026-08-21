@@ -32,6 +32,8 @@ func validSeries(t *testing.T) *StaffShiftSeries {
 }
 
 func TestStaffShiftSeriesValidate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid series passes", func(t *testing.T) {
 		assert.NoError(t, validSeries(t).Validate())
 	})
@@ -98,6 +100,8 @@ func TestStaffShiftSeriesValidate(t *testing.T) {
 }
 
 func TestStaffShiftSeriesRootID(t *testing.T) {
+	t.Parallel()
+
 	s := validSeries(t)
 	s.ID = 7
 	assert.Equal(t, int64(7), s.RootID(), "unsplit series is its own root")
@@ -107,6 +111,8 @@ func TestStaffShiftSeriesRootID(t *testing.T) {
 }
 
 func TestStaffShiftSeriesContainsWeekday(t *testing.T) {
+	t.Parallel()
+
 	s := validSeries(t)
 	assert.True(t, s.ContainsWeekday(1))
 	assert.True(t, s.ContainsWeekday(3))

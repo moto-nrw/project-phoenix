@@ -42,8 +42,9 @@ func (p *failingRolloverDeadlineProbe) RunDeadlineWorker(ctx context.Context, _ 
 }
 
 func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
 	probe := &failingRolloverDeadlineProbe{
 		repo:        repos.Timeframe,
@@ -59,7 +60,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	s.checkAndRunRolloverDeadline(&ScheduledTask{})
 
 	assert.GreaterOrEqual(t, probe.calls, 1)
-	rows, err := repos.Timeframe.FindByDescription(testpkg.TenantContext(1), probe.description)
+	rows, err := repos.Timeframe.FindByDescription(testpkg.Ctx(t), probe.description)
 	require.NoError(t, err)
 	assert.Empty(t, rows,
 		"returning the worker error must roll back writes made in that tenant tick")

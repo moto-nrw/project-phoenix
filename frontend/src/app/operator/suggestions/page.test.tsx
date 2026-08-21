@@ -3,7 +3,27 @@
  * Tests the rendering, filtering, search, and status updates for feedback/suggestions
  */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const originalScrollHeight = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollHeight",
+);
+const originalClientHeight = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "clientHeight",
+);
+
+function restoreHTMLElementDimension(
+  property: "scrollHeight" | "clientHeight",
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(HTMLElement.prototype, property, descriptor);
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, property);
+  }
+}
 
 // Hoisted mocks
 const {
@@ -172,6 +192,12 @@ describe("OperatorSuggestionsPage", () => {
 
     // Mock window.dispatchEvent
     vi.spyOn(window, "dispatchEvent").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    restoreHTMLElementDimension("scrollHeight", originalScrollHeight);
+    restoreHTMLElementDimension("clientHeight", originalClientHeight);
   });
 
   it("renders loading state", () => {

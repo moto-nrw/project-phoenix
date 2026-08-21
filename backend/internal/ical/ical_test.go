@@ -13,6 +13,8 @@ func stamp() time.Time {
 }
 
 func TestRenderTimedEvent(t *testing.T) {
+	t.Parallel()
+
 	out := Render("Familienkalender", []Event{{
 		UID:        "appt-1@moto",
 		Summary:    "Elternabend",
@@ -46,6 +48,8 @@ func TestRenderTimedEvent(t *testing.T) {
 }
 
 func TestRenderAllDayEvent(t *testing.T) {
+	t.Parallel()
+
 	out := Render("", []Event{{
 		UID:       "appt-2@moto",
 		Summary:   "Wandertag",
@@ -64,6 +68,8 @@ func TestRenderAllDayEvent(t *testing.T) {
 }
 
 func TestRenderRecurrence(t *testing.T) {
+	t.Parallel()
+
 	until := timezone.NewDate(2026, 6, 30)
 	out := Render("", []Event{{
 		UID:        "appt-3@moto",
@@ -86,6 +92,8 @@ func TestRenderRecurrence(t *testing.T) {
 }
 
 func TestRenderFoldsLongLines(t *testing.T) {
+	t.Parallel()
+
 	// A long, multibyte summary forces RFC 5545 line folding (continuation
 	// lines start with a space) without splitting a UTF-8 rune.
 	long := "Sehr langer Terminname mit Umlauten äöü und vielen Wörtern zur Prüfung der Zeilenfaltung über fünfundsiebzig Oktette hinaus"
@@ -111,6 +119,8 @@ func TestRenderFoldsLongLines(t *testing.T) {
 }
 
 func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
+	t.Parallel()
+
 	timed := Render("", []Event{{
 		UID:        "appt-tz@moto",
 		Summary:    "Besprechung",
@@ -148,6 +158,8 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 }
 
 func TestRenderRecurrenceWithExDates(t *testing.T) {
+	t.Parallel()
+
 	out := Render("", []Event{{
 		UID:        "appt-ex@moto",
 		Summary:    "Wöchentliche AG",
@@ -180,6 +192,8 @@ func TestRenderRecurrenceWithExDates(t *testing.T) {
 }
 
 func TestRenderCancelledAndEscaping(t *testing.T) {
+	t.Parallel()
+
 	out := Render("", []Event{{
 		UID:         "appt-4@moto",
 		Summary:     "Abgesagt; wichtig, mit Komma",
@@ -206,6 +220,8 @@ func TestRenderCancelledAndEscaping(t *testing.T) {
 }
 
 func TestRenderAllDayRecurrenceUntilIsDate(t *testing.T) {
+	t.Parallel()
+
 	until := timezone.NewDate(2026, 6, 30)
 	out := Render("", []Event{{
 		UID:        "appt-allday-rrule@moto",
@@ -227,6 +243,8 @@ func TestRenderAllDayRecurrenceUntilIsDate(t *testing.T) {
 }
 
 func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
+	t.Parallel()
+
 	// A daily rule that happens to carry weekdays must NOT export BYDAY — the app
 	// ignores weekdays for daily rules, so exporting BYDAY would diverge.
 	daily := Render("", []Event{{
@@ -281,6 +299,8 @@ func eventRRULE(out string) string {
 }
 
 func TestRenderSequenceAndLastModified(t *testing.T) {
+	t.Parallel()
+
 	out := Render("", []Event{{
 		UID:          "appt-rev@moto",
 		Summary:      "Geändert",

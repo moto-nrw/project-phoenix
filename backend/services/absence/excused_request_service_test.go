@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
@@ -44,6 +45,9 @@ type countingBroadcaster struct {
 }
 
 func (b *countingBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
+func (b *countingBroadcaster) BroadcastToGroups(int64, []string, realtime.Event) error {
+	return nil
+}
 func (b *countingBroadcaster) BroadcastToStaffAccounts(_ int64, _ []int64, _ realtime.Event) error {
 	return nil
 }
@@ -72,7 +76,6 @@ func (b *countingBroadcaster) BroadcastToGuardian(_, guardianAccountID int64, _ 
 func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService, *countingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := &countingBroadcaster{}
 	emitter := parentmessaging.NewEmitter(
@@ -107,11 +110,15 @@ func adminCtx() context.Context {
 // createPending stores a pending request for the chain's child inside a tenant
 // transaction, mirroring how the parent write service calls CreateRequest.
 func createPending(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note string) *activeModels.ExcusedAbsenceRequest {
+	return createPendingStatus(t, svc, db, chain, dates, note, activeModels.StudentStatusDayExcused)
+}
+
+func createPendingStatus(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note, status string) *activeModels.ExcusedAbsenceRequest {
 	t.Helper()
 	var req *activeModels.ExcusedAbsenceRequest
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
-		req, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, dates, note)
+		req, e = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, dates, note, status)
 		return e
 	})
 	require.NoError(t, err)
@@ -119,9 +126,38 @@ func createPending(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db
 	return req
 }
 
+func TestCreateRequestForStatus_DistinguishesSickAndExcusedRetries(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	day := timezone.TodayDate().AddDays(2)
+
+	sick := createPendingStatus(t, svc, db, chain, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sick.AbsenceStatus)
+
+	var retried *activeModels.ExcusedAbsenceRequest
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var createErr error
+		retried, createErr = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+		return createErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, sick.ID, retried.ID, "an identical sick request must be idempotent")
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, createErr := svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin", activeModels.StudentStatusDayExcused)
+		return createErr
+	})
+	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestOverlap,
+		"the same day cannot have pending sick and excused requests")
+}
+
 // TestCreateRequest_Validation covers the three input guards that reject before
 // any DB write, so no tenant transaction is needed.
 func TestCreateRequest_Validation(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildAbsenceService(t)
 	day := timezone.TodayDate().AddDays(2)
 
@@ -138,15 +174,16 @@ func TestCreateRequest_Validation(t *testing.T) {
 // TestListPending_EnrichedAndScoped verifies the staff review queue returns
 // pending requests newest-first with the child's name filled in.
 func TestListPending_EnrichedAndScoped(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier")
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 2, "both pending requests must surface in the staff queue")
 		for _, it := range items {
@@ -163,12 +200,13 @@ func TestListPending_EnrichedAndScoped(t *testing.T) {
 // TestListPending_Empty covers the early return when the tenant has no pending
 // requests.
 func TestListPending_Empty(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
 		return nil
@@ -180,9 +218,10 @@ func TestListPending_Empty(t *testing.T) {
 // pending request that covers the queried day is returned per student, and a day
 // no request covers yields no entry.
 func TestPendingByStudentForDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	covered := timezone.TodayDate().AddDays(4)
 	createPending(t, svc, db, chain, []timezone.Date{covered}, "Familienfeier")
@@ -205,9 +244,10 @@ func TestPendingByStudentForDate(t *testing.T) {
 // TestListForStudent_FiltersOutcomes verifies the parent view keeps pending and
 // rejected requests but hides approved and withdrawn ones.
 func TestListForStudent_FiltersOutcomes(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "bleibt sichtbar")
 	rejected := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(3)}, "wird abgelehnt")
@@ -244,9 +284,10 @@ func TestListForStudent_FiltersOutcomes(t *testing.T) {
 // TestPendingByStudentForDate_DedupesPerStudent verifies only the newest
 // pending request per student is kept when several cover the same day.
 func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(4)
 	createPending(t, svc, db, chain, []timezone.Date{day}, "aeltere Anfrage")
@@ -265,9 +306,10 @@ func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
 // TestDecide_ForbiddenWithoutWriteAccess verifies a caller who cannot write the
 // child (no admin perms, no staff record) is refused even on a valid pending id.
 func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -285,6 +327,8 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 
 // TestDecide_ValidationErrors covers the pre-lock guards.
 func TestDecide_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildAbsenceService(t)
 
 	_, err := svc.Decide(context.Background(), absenceSvc.ExcusedRequestDecideInput{RequestID: 0, Approve: true})
@@ -299,9 +343,10 @@ func TestDecide_ValidationErrors(t *testing.T) {
 
 // TestDecide_NotFoundAndNotPending covers the locked-row error mapping.
 func TestDecide_NotFoundAndNotPending(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -326,9 +371,10 @@ func TestDecide_NotFoundAndNotPending(t *testing.T) {
 // today-branch: approving a request that includes today clears a stale live sick
 // flag and broadcasts a student update.
 func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Mark the child live-sick so the approve path has something to clear.
 	_, err := db.NewUpdate().
@@ -373,9 +419,10 @@ func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
 // pill path reached neither a co-guardian nor a messaging-off school, leaving an
 // already-open parents-app tab stale until a focus refetch.
 func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 	assert.Contains(t, bc.guardianWakeups, chain.AccountID,
@@ -405,9 +452,10 @@ func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
 // APIs now hide) and the request stays pending; REJECTING stays available so
 // staff can wind it down. Mirrors the care-schedule request guard.
 func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 
@@ -444,9 +492,10 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 
 // TestWithdrawRequest covers success plus the ownership and status guards.
 func TestWithdrawRequest(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
@@ -476,6 +525,8 @@ func TestWithdrawRequest(t *testing.T) {
 
 // TestExcusedAbsenceRequestModel covers the pure model helpers.
 func TestExcusedAbsenceRequestModel(t *testing.T) {
+	t.Parallel()
+
 	req := &activeModels.ExcusedAbsenceRequest{}
 
 	req.Status = activeModels.ExcusedRequestStatusPending
@@ -513,9 +564,10 @@ func insertStatusDay(t *testing.T, db *bun.DB, chain testpkg.ParentChain, date t
 // retry, no duplicate), a partial overlap is refused, and a disjoint date set is
 // allowed as a second request.
 func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	d1 := timezone.TodayDate().AddDays(2)
 	d2 := timezone.TodayDate().AddDays(3)
@@ -552,7 +604,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	// Exactly two pending rows exist (first + third; the overlap never inserted).
 	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Len(t, items, 2, "only the idempotent-deduped and disjoint requests should remain pending")
 		return nil
@@ -565,9 +617,10 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 // request was filed. A newer status blocks approval with a conflict; rejecting
 // stays available so staff can wind the stale request down.
 func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
@@ -594,14 +647,12 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 }
 
 func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	day := timezone.TodayDate().AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
@@ -638,14 +689,12 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 }
 
 func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	day := timezone.TodayDate().AddDays(4)
 	from := timezone.WallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
@@ -680,9 +729,10 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 // BEFORE the request) is exactly what the parent's request supersedes, so
 // approval proceeds and writes the excused day.
 func TestDecide_ApproveOverwritesOlderStatus(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	// An older sick status, reported a day BEFORE the request is filed.

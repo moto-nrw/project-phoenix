@@ -77,6 +77,10 @@ src/app/
 
 Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-roll buttons/cards/modals/tables. Brand colors come only from `LOCATION_COLORS` (`src/lib/location-helper.ts`) via arbitrary-value hex (`bg-[#83CD2D]`) — never generic Tailwind hues (`bg-green-500`), which are different colors. Component map, hex table, radius/spacing tokens, gotchas, and the design checklist: **`.claude/rules/frontend-ui-kit.md`**. Search `src/components/` and `src/lib/` for existing code before writing anything new.
 
+### Verständlichkeit: Missverständnis-Check (MANDATORY)
+
+Any change a school user sees runs the checklist in **`.claude/rules/verstaendlichkeit.md`** and records the result in the PR description. Core points: every visible block explains its purpose in one sentence, read-only blocks carry no button/chevron/pointer affordance, a function with a precondition (installed app, activated device, released phase) states that precondition where it is switched on, and two labels sharing a word stem need a visible boundary. All user-facing German copy follows the `moto-einfache-sprache` skill (`.claude/skills/moto-einfache-sprache/SKILL.md`) — load it before writing labels, errors, empty states, or hints.
+
 ### Before/After Screenshots for UI Changes (MANDATORY)
 
 When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`.claude/skills/ui-before-after/`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and at the end tell the user the local file paths so they can attach the images to the PR manually (GitHub has no API for native attachment uploads; never host screenshots via releases, tags, or Gists — see the PR-screenshots rule in the root `CLAUDE.md`). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.

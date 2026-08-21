@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,17 +23,14 @@ import (
 // child's and the reviewer's names, pending rows stay out, and the keyset
 // cursor pages without overlap.
 func TestMasterDataReview_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	reviewerStaff, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
-	defer testpkg.CleanupStaffFixtures(t, db, reviewerStaff.ID)
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.
 	rejected := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -64,7 +61,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	err = tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, next, e := svc.ListHistory(txCtx, time.Time{}, 0, 25)
+		items, next, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		assert.Nil(t, next, "one page must not report more")
 
@@ -91,16 +88,16 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 		assert.Equal(t, autoApplied.ID, items[0].Request.ID, "newest decision first")
 
 		// Keyset pagination: page size 1 → two pages, disjoint, then done.
-		page1, next1, e := svc.ListHistory(txCtx, time.Time{}, 0, 1)
+		page1, next1, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 1})
 		require.NoError(t, e)
 		require.Len(t, page1, 1)
 		require.NotNil(t, next1)
-		page2, next2, e := svc.ListHistory(txCtx, next1.UpdatedAt, next1.ID, 1)
+		page2, next2, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{BeforeInstant: next1.UpdatedAt, BeforeID: next1.ID, Limit: 1})
 		require.NoError(t, e)
 		require.Len(t, page2, 1)
 		assert.NotEqual(t, page1[0].Request.ID, page2[0].Request.ID, "pages must not overlap")
 		if next2 != nil {
-			page3, next3, e := svc.ListHistory(txCtx, next2.UpdatedAt, next2.ID, 1)
+			page3, next3, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{BeforeInstant: next2.UpdatedAt, BeforeID: next2.ID, Limit: 1})
 			require.NoError(t, e)
 			assert.Empty(t, page3)
 			assert.Nil(t, next3)
@@ -113,15 +110,13 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 // TestMasterDataReview_ListHistoryScopedToWritableChildren proves the history
 // applies the same per-child write gate as the pending queue.
 func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -132,7 +127,7 @@ func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 
 	denyBase := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:update"})
 	err = tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, _, e := svc.ListHistory(txCtx, time.Time{}, 0, 25)
+		items, _, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		for _, item := range items {
 			assert.NotEqual(t, row.ID, item.Request.ID, "a caller who cannot write the child must not see its decided request")

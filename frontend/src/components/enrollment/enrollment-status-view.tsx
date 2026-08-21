@@ -453,6 +453,11 @@ function EnrollmentStatusContent({
   );
   const canRequestChange =
     status.edit_mode === "change_request" && !hasOpenChangeRequest;
+  // Every child taken over into care: the status link stays readable and
+  // points at the parents app instead of a change form (ADR 0003).
+  const allLocked =
+    status.children.length > 0 &&
+    status.children.every((child) => child.locked);
   const pendingRenewalCount = status.children.filter(
     (child) => child.status === "pending_renewal",
   ).length;
@@ -467,6 +472,7 @@ function EnrollmentStatusContent({
   const adjustHref = pathname?.startsWith("/parents")
     ? `/parents/enroll/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
+  const parentsHref = pathname?.startsWith("/parents") ? "/" : "/parents";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -493,6 +499,22 @@ function EnrollmentStatusContent({
         <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-2xl border p-4 text-sm">
           {info}
         </div>
+      ) : null}
+
+      {allLocked ? (
+        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("lockedAllTitle")}
+          </h2>
+          <p className="text-sm leading-6 text-gray-600">
+            {status.children.length > 1
+              ? t("lockedAllBodyMany")
+              : t("lockedAllBodyOne")}
+          </p>
+          <ButtonLink href={parentsHref} className="w-full sm:w-auto">
+            {t("lockedAllAction")}
+          </ButtonLink>
+        </section>
       ) : null}
 
       {canRequestChange || changeRequests.length > 0 ? (
@@ -522,6 +544,7 @@ function EnrollmentStatusContent({
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
         justSubmitted={justSubmitted}
+        parentsHref={parentsHref}
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -540,13 +563,15 @@ function EnrollmentStatusContent({
         setEditPhone={setEditPhone}
         setEditing={setEditing}
       />
-      <WithdrawAllSection
-        allWithdrawn={allWithdrawn}
-        hasMultipleChildren={hasMultipleChildren}
-        justSubmitted={justSubmitted}
-        withdrawingAll={withdrawingChild === "__all__"}
-        onWithdraw={onWithdraw}
-      />
+      {!allLocked ? (
+        <WithdrawAllSection
+          allWithdrawn={allWithdrawn}
+          hasMultipleChildren={hasMultipleChildren}
+          justSubmitted={justSubmitted}
+          withdrawingAll={withdrawingChild === "__all__"}
+          onWithdraw={onWithdraw}
+        />
+      ) : null}
     </div>
   );
 }
@@ -765,6 +790,7 @@ interface EnrollmentChildRowProps {
   readonly child: StatusChild;
   readonly isWithdrawing: boolean;
   readonly onWithdraw: (childId?: string) => void;
+  readonly parentsHref: string;
 }
 
 function EnrollmentChildRow({
@@ -772,6 +798,7 @@ function EnrollmentChildRow({
   child,
   isWithdrawing,
   onWithdraw,
+  parentsHref,
 }: EnrollmentChildRowProps) {
   const t = useTranslations("enrollmentStatus");
   const handleWithdraw = () => {
@@ -793,6 +820,14 @@ function EnrollmentChildRow({
               <p className="mt-1 text-sm text-gray-600">
                 {child.status_reason}
               </p>
+            ) : null}
+            {child.locked ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                <span>{t("lockedChildHint")}</span>
+                <ButtonLink href={parentsHref} size="sm">
+                  {t("lockedAllAction")}
+                </ButtonLink>
+              </div>
             ) : null}
           </div>
         </div>
@@ -823,12 +858,14 @@ function EnrollmentChildrenSection({
   justSubmitted,
   withdrawingChild,
   onWithdraw,
+  parentsHref,
 }: Readonly<{
   enrollments: StatusChild[];
   hasMultipleChildren: boolean;
   justSubmitted: boolean;
   withdrawingChild: string | null;
   onWithdraw: (childId?: string) => void;
+  parentsHref: string;
 }>) {
   const t = useTranslations("enrollmentStatus");
   return (
@@ -856,6 +893,7 @@ function EnrollmentChildrenSection({
               child={child}
               isWithdrawing={withdrawingChild === child.id}
               onWithdraw={onWithdraw}
+              parentsHref={parentsHref}
             />
           );
         })}

@@ -18,8 +18,8 @@ import (
 )
 
 func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Daily Sync Room %d", time.Now().UnixNano()))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Daily Sync Activity %d", time.Now().UnixNano()))
@@ -45,12 +45,6 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Where("id = ?", presentRow.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudent.ID, presentRow.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID, presentStudent.ID)
-	})
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	instanceStudentRepo := scheduleRepo.NewInstanceStudentRepository(db)

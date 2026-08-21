@@ -6,6 +6,8 @@ import (
 )
 
 func TestPointerHelpers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("StringPtr", func(t *testing.T) {
 		s := "test"
 		ptr := StringPtr(s)

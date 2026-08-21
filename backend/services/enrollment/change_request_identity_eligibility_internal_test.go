@@ -45,6 +45,8 @@ func identityEligibilitySubmit(id int64, firstName string) SubmitChild {
 // name+birthday must be rejected on a new_students phase: approval would take
 // the fresh-create branch and duplicate a child the school already has (#1663).
 func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdentity(t *testing.T) {
+	t.Parallel()
+
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
 	children := []*enrollmentModels.RequestChild{
@@ -69,6 +71,8 @@ func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdenti
 // change request filed after approval sits on a child whose own approval created
 // the matching student; probing it would reject every later change request.
 func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *testing.T) {
+	t.Parallel()
+
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
@@ -83,6 +87,8 @@ func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *tes
 // The inverse audience is covered by the same probe: an existing_students child
 // edited into an identity nobody is enrolled under is rejected.
 func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownIdentity(t *testing.T) {
+	t.Parallel()
+
 	svc := newIdentityEligibilityService(false)
 	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceExistingStudents}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
@@ -97,6 +103,8 @@ func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownI
 
 // Audiences without an enrolled-status rule never probe, even on a rewrite.
 func TestValidateChangedChildIdentityEligibility_OtherAudiencesPass(t *testing.T) {
+	t.Parallel()
+
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceOpen}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}

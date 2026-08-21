@@ -7,6 +7,10 @@
 
 import type { SWRConfiguration } from "swr";
 import { createLogger } from "~/lib/logger";
+import {
+  isRateLimitError,
+  remainingRateLimitMs,
+} from "~/lib/rate-limit-backoff";
 
 const logger = createLogger({ component: "useSWRAuth" });
 
@@ -20,7 +24,7 @@ const logger = createLogger({ component: "useSWRAuth" });
  */
 function logSWRError(error: unknown, key: string): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  const isRateLimited = errorMessage.includes("API error: 429");
+  const isRateLimited = isRateLimitError(error);
   const logContext = {
     key,
     error: errorMessage,
@@ -58,6 +62,20 @@ export const swrConfig: SWRConfiguration = {
   // Error handling
   errorRetryCount: 3,
   errorRetryInterval: 1000,
+  onErrorRetry: (error, _key, _config, revalidate, options) => {
+    if (options.retryCount >= 3) return;
+    if (isRateLimitError(error)) {
+      setTimeout(
+        () => revalidate({ retryCount: options.retryCount }),
+        Math.max(50, remainingRateLimitMs() + 50),
+      );
+      return;
+    }
+    setTimeout(
+      () => revalidate({ retryCount: options.retryCount }),
+      1000 * 2 ** Math.max(0, options.retryCount - 1),
+    );
+  },
 
   // Don't revalidate on mount if data exists (improves perceived performance)
   revalidateOnMount: undefined, // Let SWR decide based on staleness

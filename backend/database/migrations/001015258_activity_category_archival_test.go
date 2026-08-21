@@ -17,7 +17,6 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalUpgrade")
-	originalCategoryID := group.CategoryID
 	restored := false
 	var firstID, secondID int64
 
@@ -26,7 +25,6 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 		if !restored {
 			require.NoError(t, activityCategoryArchivalUp(ctx, db))
 		}
-		testpkg.CleanupActivityFixtures(t, db, group.ID, *group.CreatedBy, originalCategoryID, firstID, secondID)
 	}()
 
 	baseName := fmt.Sprintf("UpgradeCase-%d", time.Now().UnixNano())
@@ -166,8 +164,6 @@ func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.
 
 	defer func() {
 		require.NoError(t, activityCategoryArchivalUp(ctx, db))
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, group.ID, group.CategoryID, 0)
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, replacement.ID, 0)
 	}()
 
 	require.NoError(t, activityCategoryArchivalDown(ctx, db))

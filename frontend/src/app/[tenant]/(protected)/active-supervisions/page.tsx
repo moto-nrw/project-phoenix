@@ -20,6 +20,10 @@ import {
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import {
+  clearOwnAttendanceMutation,
+  markOwnAttendanceMutation,
+} from "~/lib/sse-optimistic-mutations";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -114,6 +118,20 @@ import type {
 } from "~/components/active-supervisions/view-model";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
+
+async function runOwnAttendanceMutation<T>(
+  eventType: "student_checkin" | "student_checkout",
+  studentId: string,
+  request: () => Promise<T>,
+): Promise<T> {
+  markOwnAttendanceMutation(eventType, studentId);
+  try {
+    return await request();
+  } catch (error) {
+    clearOwnAttendanceMutation(eventType, studentId);
+    throw error;
+  }
+}
 
 type ActiveRoom = ActiveSupervisionRoom;
 type StudentWithVisit = ActiveSupervisionStudent;
@@ -357,6 +375,39 @@ function RosterSummaryStat({
 
 type RosterAction =
   "check-in" | "check-out" | "excused" | "absent" | "expected";
+
+async function runRosterActionRequest(
+  action: RosterAction,
+  instanceId: string,
+  studentId: string,
+): Promise<TimetableRoster | null> {
+  if (action === "check-in") {
+    return runOwnAttendanceMutation("student_checkin", studentId, () =>
+      timetableOperationsApi.checkIn(instanceId, studentId),
+    );
+  }
+  if (action === "check-out") {
+    return runOwnAttendanceMutation("student_checkout", studentId, () =>
+      timetableOperationsApi.checkOut(instanceId, studentId),
+    );
+  }
+  if (action === "expected") {
+    await timetableOperationsApi.patchAttendance(instanceId, studentId, {
+      status: "expected",
+      substatus: null,
+      note: null,
+    });
+    return null;
+  }
+  await timetableOperationsApi.patchAttendance(
+    instanceId,
+    studentId,
+    action === "excused"
+      ? { status: "absent", substatus: "excused" }
+      : { status: "absent" },
+  );
+  return null;
+}
 
 interface RosterRowActionsProps {
   readonly row: TimetableRosterRow;
@@ -1774,48 +1825,17 @@ function MeinRaumPageContent() {
   }, [router, schulhofStatusRef]);
 
   const handleRosterAction = useCallback(
-    async (
-      action: "check-in" | "check-out" | "excused" | "absent" | "expected",
-      row: TimetableRosterRow,
-    ) => {
+    async (action: RosterAction, row: TimetableRosterRow) => {
       if (!activeTimetableInstanceId) return;
       const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
+      let roster: TimetableRoster | null;
       try {
-        if (action === "check-in") {
-          const roster = await timetableOperationsApi.checkIn(
-            instanceId,
-            row.studentId,
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "check-out") {
-          const roster = await timetableOperationsApi.checkOut(
-            instanceId,
-            row.studentId,
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "expected") {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            { status: "expected", substatus: null, note: null },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        } else {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            action === "excused"
-              ? { status: "absent", substatus: "excused" }
-              : { status: "absent" },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        }
+        roster = await runRosterActionRequest(
+          action,
+          instanceId,
+          row.studentId,
+        );
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed timetable roster action", {
@@ -1824,6 +1844,25 @@ function MeinRaumPageContent() {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
+        return;
+      }
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      try {
+        if (action === "check-in" && roster) {
+          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
+        }
+        await (roster
+          ? mutateRoster(roster, { revalidate: false })
+          : mutateRoster());
+      } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        logger.warn("timetable_roster_sync_failed_after_successful_action", {
+          action,
+          student_id: row.studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void logger.flush();
+        window.location.reload();
       }
     },
     [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
@@ -1903,9 +1942,10 @@ function MeinRaumPageContent() {
         let nextRoster: TimetableRoster | null = null;
         const notices: string[] = [];
         for (const row of rows) {
-          nextRoster = await timetableOperationsApi.checkIn(
-            instanceId,
+          nextRoster = await runOwnAttendanceMutation(
+            "student_checkin",
             row.studentId,
+            () => timetableOperationsApi.checkIn(instanceId, row.studentId),
           );
           if (activeTimetableInstanceIdRef.current !== instanceId) continue;
           const notice = moveNoticeFromRoster(nextRoster, row.studentId);
@@ -1918,10 +1958,8 @@ function MeinRaumPageContent() {
         } else {
           await mutateRoster();
         }
-        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         await mutateDashboard();
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
-        setRefreshKey((prev) => prev + 1);
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed to confirm expected timetable students", {
@@ -1949,9 +1987,10 @@ function MeinRaumPageContent() {
       setMoveNotice(null);
       try {
         setIsAddingStudent(true);
-        const roster = await timetableOperationsApi.checkIn(
-          instanceId,
+        const roster = await runOwnAttendanceMutation(
+          "student_checkin",
           studentId,
+          () => timetableOperationsApi.checkIn(instanceId, studentId),
         );
         if (activeTimetableInstanceIdRef.current !== instanceId) return false;
         setMoveNotice(moveNoticeFromRoster(roster, studentId));

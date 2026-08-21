@@ -17,6 +17,8 @@ import (
 // silently stop recording departure-plan edits. This test fails loudly in that
 // case.
 func TestApplyStudentFieldUpdates_BeforeImageStable(t *testing.T) {
+	t.Parallel()
+
 	strPtr := func(s string) *string { return &s }
 
 	fresh := &usersModel.Student{

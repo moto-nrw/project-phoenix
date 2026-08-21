@@ -23,6 +23,8 @@ func extractErrResponse(t *testing.T, renderer render.Renderer) (int, string, st
 }
 
 func TestErrInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("invalid field")
 	renderer := operator.ErrInvalidRequest(err)
 
@@ -33,6 +35,8 @@ func TestErrInvalidRequest(t *testing.T) {
 }
 
 func TestErrInvalidCredentials(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.ErrInvalidCredentials()
 
 	status, statusText, errorText := extractErrResponse(t, renderer)
@@ -42,6 +46,8 @@ func TestErrInvalidCredentials(t *testing.T) {
 }
 
 func TestErrNotFound(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.ErrNotFound("Resource not found")
 
 	status, statusText, errorText := extractErrResponse(t, renderer)
@@ -51,6 +57,8 @@ func TestErrNotFound(t *testing.T) {
 }
 
 func TestErrForbidden(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.ErrForbidden("Access denied")
 
 	status, statusText, errorText := extractErrResponse(t, renderer)
@@ -60,6 +68,8 @@ func TestErrForbidden(t *testing.T) {
 }
 
 func TestErrInternal(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.ErrInternal("Internal error")
 
 	status, statusText, errorText := extractErrResponse(t, renderer)
@@ -69,6 +79,8 @@ func TestErrInternal(t *testing.T) {
 }
 
 func TestErrServiceUnavailable(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.ErrServiceUnavailable("MFA status temporarily unavailable, please retry")
 
 	status, statusText, errorText := extractErrResponse(t, renderer)
@@ -78,6 +90,8 @@ func TestErrServiceUnavailable(t *testing.T) {
 }
 
 func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.InvalidCredentialsError{}
 	renderer := operator.AuthErrorRenderer(err)
 
@@ -87,6 +101,8 @@ func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.OperatorInactiveError{OperatorID: 123}
 	renderer := operator.AuthErrorRenderer(err)
 
@@ -96,6 +112,8 @@ func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 }
 
 func TestAuthErrorRenderer_OperatorNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.OperatorNotFoundError{Email: "test@example.com"}
 	renderer := operator.AuthErrorRenderer(err)
 
@@ -105,6 +123,8 @@ func TestAuthErrorRenderer_OperatorNotFound(t *testing.T) {
 }
 
 func TestAuthErrorRenderer_GenericError(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("database error")
 	renderer := operator.AuthErrorRenderer(err)
 
@@ -119,6 +139,8 @@ func TestAuthErrorRenderer_GenericError(t *testing.T) {
 // out (operator MFA is mandatory; silently treating it as "not enrolled"
 // would issue an enrollment-token bypass during a credentials-table outage).
 func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
+	t.Parallel()
+
 	renderer := operator.AuthErrorRenderer(authService.ErrMFAStatusUnavailable)
 
 	status, _, errorText := extractErrResponse(t, renderer)
@@ -127,6 +149,8 @@ func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 }
 
 func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
 	renderer := operator.AnnouncementErrorRenderer(err)
 
@@ -136,6 +160,8 @@ func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
 }
 
 func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	innerErr := errors.New("title required")
 	err := &platformSvc.InvalidDataError{Err: innerErr}
 	renderer := operator.AnnouncementErrorRenderer(err)
@@ -146,6 +172,8 @@ func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {
 }
 
 func TestAnnouncementErrorRenderer_GenericError(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("database error")
 	renderer := operator.AnnouncementErrorRenderer(err)
 
@@ -155,6 +183,8 @@ func TestAnnouncementErrorRenderer_GenericError(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.PostNotFoundError{PostID: 555}
 	renderer := operator.SuggestionsErrorRenderer(err)
 
@@ -164,6 +194,8 @@ func TestSuggestionsErrorRenderer_PostNotFound(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_CommentNotFound_Platform(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.CommentNotFoundError{CommentID: 666}
 	renderer := operator.SuggestionsErrorRenderer(err)
 
@@ -173,6 +205,8 @@ func TestSuggestionsErrorRenderer_CommentNotFound_Platform(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_CommentNotFound_Suggestions(t *testing.T) {
+	t.Parallel()
+
 	err := &suggestionsSvc.CommentNotFoundError{CommentID: 777}
 	renderer := operator.SuggestionsErrorRenderer(err)
 
@@ -182,6 +216,8 @@ func TestSuggestionsErrorRenderer_CommentNotFound_Suggestions(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	err := &suggestionsSvc.ForbiddenError{Reason: "Not your comment"}
 	renderer := operator.SuggestionsErrorRenderer(err)
 
@@ -191,6 +227,8 @@ func TestSuggestionsErrorRenderer_Forbidden(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	innerErr := errors.New("content required")
 	err := &platformSvc.InvalidDataError{Err: innerErr}
 	renderer := operator.SuggestionsErrorRenderer(err)
@@ -201,6 +239,8 @@ func TestSuggestionsErrorRenderer_InvalidData(t *testing.T) {
 }
 
 func TestSuggestionsErrorRenderer_GenericError(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("database error")
 	renderer := operator.SuggestionsErrorRenderer(err)
 

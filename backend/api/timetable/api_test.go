@@ -187,11 +187,15 @@ func newTestPeriod() *schedule.CalendarPeriod {
 // =============================================================================
 
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{})
 	assert.NotNil(t, res)
 }
 
 func TestResource_Router(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockCalendarPeriodService{}
 	res := NewResource(Dependencies{CalendarPeriodService: mock})
 	router := res.Router()
@@ -203,6 +207,8 @@ func TestResource_Router(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid request", func(t *testing.T) {
 		req := &CalendarPeriodRequest{
 			Name:       "Test Period",
@@ -305,6 +311,8 @@ func TestCalendarPeriodRequest_Bind(t *testing.T) {
 // =============================================================================
 
 func TestMapPeriodToResponse(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps period without anchor", func(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "School Year 2025/2026",
@@ -363,6 +371,8 @@ func TestMapPeriodToResponse(t *testing.T) {
 // =============================================================================
 
 func TestListPeriods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns periods list", func(t *testing.T) {
 		p1 := &schedule.CalendarPeriod{
 			Name:            "Period A",
@@ -410,6 +420,8 @@ func TestListPeriods(t *testing.T) {
 }
 
 func TestListPeriods_UsageCounts(t *testing.T) {
+	t.Parallel()
+
 	p1 := newTestPeriod()
 	p1.ID = int64(10)
 
@@ -463,6 +475,8 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 // =============================================================================
 
 func TestGetPeriod(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns period by ID", func(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "Found Period",
@@ -538,6 +552,8 @@ func TestGetPeriod(t *testing.T) {
 // =============================================================================
 
 func TestCreatePeriod(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates period successfully", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -844,6 +860,8 @@ func TestCreatePeriod(t *testing.T) {
 // =============================================================================
 
 func TestCreatePeriodOverlapWarnings(t *testing.T) {
+	t.Parallel()
+
 	validBody := CalendarPeriodRequest{
 		Name:       "Aktiv mit Kollision",
 		PeriodType: "school_year",
@@ -904,6 +922,8 @@ func TestCreatePeriodOverlapWarnings(t *testing.T) {
 }
 
 func TestUpdatePeriodOverlapWarnings(t *testing.T) {
+	t.Parallel()
+
 	t.Run("attaches warning on update of overlapping active period", func(t *testing.T) {
 		other := newTestPeriod()
 		other.Name = "Schuljahr 2030/2031"
@@ -944,6 +964,8 @@ func TestUpdatePeriodOverlapWarnings(t *testing.T) {
 // =============================================================================
 
 func TestBootstrapPeriods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns 200 with created flag", func(t *testing.T) {
 		p := newTestPeriod()
 		mock := &mockCalendarPeriodService{
@@ -1021,6 +1043,8 @@ func TestBootstrapPeriods(t *testing.T) {
 // =============================================================================
 
 func TestUpdatePeriod(t *testing.T) {
+	t.Parallel()
+
 	existingPeriod := newTestPeriod()
 
 	t.Run("updates period successfully", func(t *testing.T) {
@@ -1393,6 +1417,8 @@ func TestUpdatePeriod(t *testing.T) {
 // =============================================================================
 
 func TestDeletePeriod(t *testing.T) {
+	t.Parallel()
+
 	t.Run("deletes period successfully", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: newTestPeriod()}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -1472,8 +1498,9 @@ func TestDeletePeriod(t *testing.T) {
 }
 
 func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 	email := fmt.Sprintf("period-delete-rollback-%d@test.local", time.Now().UnixNano())
@@ -1502,7 +1529,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), 1)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
 		})
 	})
 	router.Use(tenant.TenantTxMiddleware(db))
@@ -1512,14 +1539,15 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), "doppelte aktive Kinder- oder Personalzuordnungen")
-	_, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
+	_, err := repo.FindByID(testpkg.Ctx(t), profile.ID)
 	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
 		"calendar period delete conflicts must roll back writes despite returning 409")
 }
 
 func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
@@ -1529,7 +1557,6 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 			Where("tenant_id = ?", tenantID).
 			Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
 		require.NoError(t, cleanupErr)
 		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)

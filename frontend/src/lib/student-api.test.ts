@@ -93,6 +93,9 @@ describe("student-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetSession.mockResolvedValue(mockSessionData());
+    mockedHandleDomainApiError.mockImplementation(() => {
+      throw new Error("Mocked error");
+    });
   });
 
   describe("fetchStudents", () => {

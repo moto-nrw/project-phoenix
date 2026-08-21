@@ -15,6 +15,8 @@ import (
 )
 
 func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
 			"gruppe 1a": {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
@@ -75,6 +77,8 @@ func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
 }
 
 func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
 			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
@@ -143,6 +147,8 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 }
 
 func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
 			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
@@ -194,6 +200,8 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 }
 
 func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
 			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
@@ -244,6 +252,8 @@ func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 }
 
 func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
 			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
@@ -308,6 +318,8 @@ func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
 // ============================================================================
 
 func TestNewRelationshipResolver(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates resolver with empty caches", func(t *testing.T) {
 		// ACT
 		resolver := NewRelationshipResolver(nil, nil)
@@ -372,6 +384,8 @@ func (m *mockGroupRepo) CountWithOptions(_ context.Context, _ *base.QueryOptions
 }
 
 func TestRelationshipResolver_PreloadGroups(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("preloads groups successfully", func(t *testing.T) {
@@ -449,6 +463,8 @@ func (m *mockRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*fac
 }
 
 func TestRelationshipResolver_PreloadRooms(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("preloads rooms successfully", func(t *testing.T) {
@@ -492,6 +508,8 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 // ============================================================================
 
 func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
+	t.Parallel()
+
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
 			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},

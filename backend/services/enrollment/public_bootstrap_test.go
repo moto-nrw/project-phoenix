@@ -14,10 +14,12 @@ import (
 )
 
 func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data, err := env.svc.LoadPublicFormBootstrap(ctx, env.phaseID, time.Now(), "")
 	require.NoError(t, err)
 	require.NotNil(t, data)
@@ -30,9 +32,11 @@ func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities
 }
 
 func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(env.db)
 	config := env.config
 	config.LateInviteRepo = repos.LateInvite
@@ -60,12 +64,14 @@ func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t 
 }
 
 func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
 	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadPublicFormBootstrap(ctx, env.phaseID, time.Now(), "")
 	require.Error(t, err)
 
@@ -75,12 +81,14 @@ func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t 
 }
 
 func TestRequestService_LoadManualEnrollmentBootstrap_CapabilityFailureIsRaw(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
 	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadManualEnrollmentBootstrap(ctx, env.phaseID)
 	require.Error(t, err)
 

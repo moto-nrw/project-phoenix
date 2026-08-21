@@ -125,6 +125,52 @@ func (rs *Resource) listPendingAbsenceRequests(w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, resp, "Pending absence requests retrieved")
 }
 
+// listAbsenceRequests handles GET /api/staff/absences/requests — the
+// Mitarbeitende-Reiter of the Anfragen module (#2433). view=history returns
+// the decided requests, anything else the open work list; search filters by
+// staff name, types is a comma-separated list of absence types.
+func (rs *Resource) listAbsenceRequests(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	req := activeSvc.AbsenceRequestListQuery{
+		History: query.Get("view") == "history",
+		Search:  query.Get("search"),
+	}
+	if types := strings.TrimSpace(query.Get("types")); types != "" {
+		for _, t := range strings.Split(types, ",") {
+			if trimmed := strings.TrimSpace(t); trimmed != "" {
+				req.Types = append(req.Types, trimmed)
+			}
+		}
+	}
+	items, err := rs.StaffAbsenceService.ListAbsenceRequests(r.Context(), req)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	responses := make([]absenceRequestResponse, len(items))
+	for i, item := range items {
+		responses[i] = absenceRequestResponse{
+			StaffAbsenceRequestItem: item,
+			ID:                      strconv.FormatInt(item.ID, 10),
+			StaffID:                 strconv.FormatInt(item.StaffID, 10),
+		}
+		if item.ApprovedBy != nil {
+			approvedBy := strconv.FormatInt(*item.ApprovedBy, 10)
+			responses[i].ApprovedBy = &approvedBy
+		}
+	}
+	common.Respond(w, r, http.StatusOK, responses, "Absence requests retrieved")
+}
+
+// absenceRequestResponse keeps the three identifiers lossless for JavaScript
+// consumers. The embedded service response provides all non-ID fields.
+type absenceRequestResponse struct {
+	*activeSvc.StaffAbsenceRequestItem
+	ID         string  `json:"id"`
+	StaffID    string  `json:"staff_id"`
+	ApprovedBy *string `json:"approved_by,omitempty"`
+}
+
 // approveAbsence handles POST /api/staff/absences/{absenceId}/approve
 func (rs *Resource) approveAbsence(w http.ResponseWriter, r *http.Request) {
 	absenceID, err := parseInt64Param(r, "absenceId")

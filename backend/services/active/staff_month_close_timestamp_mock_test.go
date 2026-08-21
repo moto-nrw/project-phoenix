@@ -46,6 +46,8 @@ func (timestampMonthCloseStaffLister) ListAllWithPerson(context.Context) ([]*use
 }
 
 func TestStaffMonthCloseService_UsesOneTimestampForSchoolWideClose(t *testing.T) {
+	t.Parallel()
+
 	repo := &timestampMonthCloseSnapshotRepo{}
 	service := NewStaffMonthCloseService(
 		repo,

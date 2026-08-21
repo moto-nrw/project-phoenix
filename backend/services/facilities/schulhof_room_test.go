@@ -12,6 +12,8 @@ import (
 )
 
 func TestValidateSchulhofActivityRoomRejectsNormalSameNameActivity(t *testing.T) {
+	t.Parallel()
+
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
 		Name:     constants.SchulhofRoomName,
@@ -30,6 +32,8 @@ func TestValidateSchulhofActivityRoomRejectsNormalSameNameActivity(t *testing.T)
 }
 
 func TestFindCanonicalSchulhofRoomRejectsNormalSameNameRoom(t *testing.T) {
+	t.Parallel()
+
 	service := &schulhofConflictFacilityService{
 		room: &facilityModels.Room{
 			Name:     constants.SchulhofRoomName,

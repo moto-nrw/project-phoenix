@@ -196,6 +196,7 @@ Apply before marking any UI work complete (and reviewers: before approving):
 - [ ] Works on mobile
 - [ ] Dense enough for daily operational use (not airy / landing-page)
 - [ ] Visually verified: ran the app, screenshotted the changed screen, compared against a canonical screen
+- [ ] **Missverständnis-Check** passed and recorded in the PR description: every visible block explains its purpose in one sentence, nothing read-only looks clickable, preconditions are stated in the product, no two labels share a word stem without a visible boundary, copy follows `moto-einfache-sprache` — full checklist in `.claude/rules/verstaendlichkeit.md`
 
 ## When to deviate
 

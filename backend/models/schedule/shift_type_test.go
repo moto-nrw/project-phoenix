@@ -10,6 +10,8 @@ import (
 )
 
 func TestShiftTypeValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     ShiftType
@@ -79,6 +81,8 @@ func TestShiftTypeValidate(t *testing.T) {
 }
 
 func TestShiftType_EntityAccessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	st := &ShiftType{}
 	st.ID = 42

@@ -16,11 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,6 @@ type shiftTypeTestSetup struct {
 func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
 	db, svcs := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	res := NewResource(svcs.ShiftTypes, svcs.Activities, db, slog.Default())
 
@@ -45,13 +45,13 @@ func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), 1)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
 		})
 	})
 	r.Post("/", res.create)
 	r.Put("/{id}", res.update)
 
-	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.TenantContext(1)}
+	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.Ctx(t)}
 }
 
 func (s *shiftTypeTestSetup) do(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {
@@ -83,11 +83,11 @@ func decodeShiftTypeID(t *testing.T, w *httptest.ResponseRecorder) int64 {
 }
 
 func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-2")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID, cat2.ID)
 
 	w := s.do(t, http.MethodPost, "/", ShiftTypeRequest{
 		Name:        fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()),
@@ -105,11 +105,11 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 }
 
 func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-2")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID, cat2.ID)
 
 	name := fmt.Sprintf("Vorbereitung-%d", time.Now().UnixNano())
 	cw := s.do(t, http.MethodPost, "/", ShiftTypeRequest{
@@ -139,10 +139,10 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 }
 
 func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID)
 
 	name := fmt.Sprintf("Betreuung-%d", time.Now().UnixNano())
 	cw := s.do(t, http.MethodPost, "/", ShiftTypeRequest{

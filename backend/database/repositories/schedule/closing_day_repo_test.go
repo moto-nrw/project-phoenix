@@ -17,14 +17,14 @@ import (
 
 func createTestClosingDay(t *testing.T, repo scheduleModels.ClosingDayRepository, start, end timezone.Date, reason string) *scheduleModels.ClosingDay {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	day := &scheduleModels.ClosingDay{
 		StartDate: start,
 		EndDate:   end,
 		Reason:    reason,
 	}
-	day.SetTenantID(1)
+	day.SetTenantID(testpkg.Tenant(t))
 
 	err := repo.Create(ctx, day)
 	require.NoError(t, err)
@@ -33,11 +33,12 @@ func createTestClosingDay(t *testing.T, repo scheduleModels.ClosingDayRepository
 }
 
 func TestClosingDayRepository_CRUD(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates and reads a range", func(t *testing.T) {
 		day := createTestClosingDay(t, repo,
@@ -66,7 +67,7 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 			StartDate: timezone.NewDate(2026, 12, 24),
 			EndDate:   timezone.NewDate(2026, 12, 31),
 		}
-		day.SetTenantID(1)
+		day.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, day)
 		require.Error(t, err)
@@ -97,15 +98,15 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 }
 
 func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	day := createTestClosingDay(t, repo,
 		timezone.NewDate(2026, 7, 20), timezone.NewDate(2026, 8, 7), "Sommerschließung")
-	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
 	contains := func(days []*scheduleModels.ClosingDay) bool {
 		for _, d := range days {
@@ -136,22 +137,23 @@ func TestClosingDayRepository_FindOverlappingRange(t *testing.T) {
 }
 
 func TestClosingDayRepository_TenantIsolation(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	testpkg.EnsureTestTenant(t, db, 2)
+	db := testpkg.SetupTestDB(t)
+
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	repo := scheduleRepo.NewClosingDayRepository(db)
 
 	day := createTestClosingDay(t, repo,
 		timezone.NewDate(2026, 11, 2), timezone.NewDate(2026, 11, 6), "Pädagogische Woche")
-	defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
-	ctxT2 := testpkg.TenantContext(2)
+	ctxT2 := testpkg.TenantContext(otherTenantID)
 	days, err := repo.FindByTenantID(ctxT2)
 	require.NoError(t, err)
 	for _, d := range days {
-		assert.NotEqual(t, day.ID, d.ID, "tenant 2 must not see tenant 1 closing days")
+		assert.NotEqual(t, day.ID, d.ID, "the other tenant must not see this tenant's closing days")
 	}
 
 	overlapping, err := repo.FindOverlappingRange(ctxT2, timezone.NewDate(2026, 11, 1), timezone.NewDate(2026, 11, 30))

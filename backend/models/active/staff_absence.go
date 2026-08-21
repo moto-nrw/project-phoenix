@@ -82,6 +82,30 @@ type StaffAbsence struct {
 	SubstituteStaffID *int64        `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
 }
 
+// AbsenceRequestFilter selects staff absence requests for the Anfragen module
+// (#2433). Statuses picks the view (open work list vs decided history), Types
+// and Search narrow it; Search matches the name of the person the absence
+// belongs to.
+type AbsenceRequestFilter struct {
+	Statuses []string
+	Types    []string
+	Search   string
+	// Limit caps the result; 0 means no cap.
+	Limit int
+	// Decided orders the newest decision first (history). Otherwise the
+	// oldest request comes first, as the work list expects.
+	Decided bool
+}
+
+// AbsenceRequestRow is one absence request plus the names the request list
+// displays. Both names are empty when the person row is gone; callers render
+// "Unbekannt" in that case.
+type AbsenceRequestRow struct {
+	*StaffAbsence `bun:",extend"`
+	StaffName     string `bun:"staff_name" json:"staff_name"`
+	DecidedByName string `bun:"decided_by_name" json:"decided_by_name,omitempty"`
+}
+
 // Validate validates the absence record
 func (sa *StaffAbsence) Validate() error {
 	if sa.StaffID <= 0 {

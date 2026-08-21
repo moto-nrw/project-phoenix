@@ -26,8 +26,8 @@ func uniqueRoomName(prefix string) string {
 // the SCHOOLYARD orange should fail with the German message even if a sneaky
 // caller bypasses the picker and posts the hex directly.
 func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -63,8 +63,8 @@ func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
 // TestFacilitiesService_CreateRoom_AcceptsCustomColor sanity-checks the happy
 // path: a color that is neither reserved nor in use gets persisted as-is.
 func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -78,7 +78,6 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 
 	err := service.CreateRoom(ctx, room)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 	retrieved, err := service.GetRoom(ctx, room.ID)
 	require.NoError(t, err)
@@ -91,8 +90,8 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 // share a color; the service translates the 23505 to ErrColorAlreadyInUse so
 // the frontend toast can surface the German message instead of a 500.
 func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -102,12 +101,10 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 	colorA := "#A3D977"
 	roomA := &facilities.Room{Name: uniqueRoomName("RoomA"), Color: &colorA}
 	require.NoError(t, service.CreateRoom(ctx, roomA))
-	defer testpkg.CleanupActivityFixtures(t, db, roomA.ID)
 
 	// Second room created without color (so the create succeeds)
 	roomB := &facilities.Room{Name: uniqueRoomName("RoomB")}
 	require.NoError(t, service.CreateRoom(ctx, roomB))
-	defer testpkg.CleanupActivityFixtures(t, db, roomB.ID)
 
 	// ACT — try to update Room B to the same color as Room A.
 	colorBAttempt := colorA
@@ -132,8 +129,8 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 // (constants.IsWCRoomName matches the WC aliases by exact name);
 // CreateTestRoom would suffix a timestamp and dodge the check.
 func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -141,7 +138,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 
 	t.Run("rejects color change on WC", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#A3D977"
 		room.Color = &newColor
@@ -157,7 +153,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 		// field*, not on every update. Editing Capacity must still succeed,
 		// otherwise admins lose the ability to change any non-name field.
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 200
 		room.Capacity = &newCapacity
@@ -170,7 +165,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 		// should not be flagged as a change. equalStringPtr handles this —
 		// without it, every update on a colorless toilet room would 403.
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Color = nil // unchanged
 		room.Building = "Updated"
@@ -186,7 +180,6 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 		// edit. Now the service preserves the existing colour when the
 		// request omits it.
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Bypass Validate() (would reject the reserved colour) by writing
 		// the legacy hex directly with a raw UPDATE — this matches what a
@@ -237,8 +230,8 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 // TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms for the part of
 // the rule that survived.
 func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -246,7 +239,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 
 	t.Run("accepts a valid color", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#A3D977"
 		room.Color = &newColor
@@ -262,7 +254,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 		// "No colour" is the state the orange Schulhof default renders for,
 		// so the picker's reset button has to be able to reach it.
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#B3D977"
 		room.Color = &newColor
@@ -282,7 +273,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 		// The Schulhof is not exempt from the palette rules — including the
 		// SCHOOLYARD orange itself, which stays reserved as a status hex.
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		reserved := "#F78C10"
 		room.Color = &reserved
@@ -295,7 +285,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 
 	t.Run("still rejects a malformed color", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		bad := "not-a-hex"
 		room.Color = &bad
@@ -307,12 +296,10 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 		// other room.
 		taken := "#C3D977"
 		other := createRoomWithExactName(t, db, tenantID, uniqueRoomName("Farbbelegt"))
-		defer cleanupRoom(t, db, tenantID, other.ID)
 		other.Color = &taken
 		require.NoError(t, service.UpdateRoom(ctx, other))
 
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 		room.Color = &taken
 		err := service.UpdateRoom(ctx, room)
 
@@ -323,7 +310,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 
 	t.Run("still refuses to rename the Schulhof", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Hinterhof"
 		err := service.UpdateRoom(ctx, room)
@@ -335,7 +321,6 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 
 	t.Run("still refuses to delete the Schulhof", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		err := service.DeleteRoom(ctx, room.ID)
 
@@ -350,8 +335,8 @@ func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
 // unique index ignores NULLs, so multiple rooms can hold "no color" — the
 // blue fallback in the badge renderer covers them.
 func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
@@ -361,7 +346,6 @@ func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
 	color := "#1ABC9C"
 	room := &facilities.Room{Name: uniqueRoomName("ClearColor"), Color: &color}
 	require.NoError(t, service.CreateRoom(ctx, room))
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 	// ACT — clear to nil (frontend's "Zurücksetzen" button)
 	room.Color = nil

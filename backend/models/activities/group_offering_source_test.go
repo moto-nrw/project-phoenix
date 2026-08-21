@@ -3,6 +3,8 @@ package activities
 import "testing"
 
 func TestGroupValidateOfferingSource(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   Group
@@ -106,6 +108,8 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 }
 
 func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
+	t.Parallel()
+
 	group := Group{
 		TargetGroupType:       TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{5},
@@ -120,6 +124,8 @@ func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
 }
 
 func TestGroupMatchesSourceGradeFilter(t *testing.T) {
+	t.Parallel()
+
 	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
 	if !unfiltered.MatchesSourceGradeFilter(nil) || !unfiltered.MatchesSourceGradeFilter(int16Ptr(3)) {
 		t.Fatal("empty filter must admit every child")
@@ -145,6 +151,8 @@ func TestGroupMatchesSourceGradeFilter(t *testing.T) {
 // (ad-hoc scan struct, no bun type mapping) — decoding it is the only place
 // the filter turns back into the list the API serializes (#2137).
 func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		raw     string
@@ -184,6 +192,8 @@ func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
 // The list read model also carries the source id array as jsonb text
 // (multi-source follow-up to #2137).
 func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		raw     string

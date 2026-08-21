@@ -10,6 +10,8 @@ import (
 )
 
 func TestStudentStatusDayModelAccessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	entry := &active.StudentStatusDay{
 		Model: modelBase.Model{

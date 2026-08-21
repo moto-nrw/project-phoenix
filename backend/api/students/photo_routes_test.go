@@ -109,7 +109,7 @@ func buildMultipart(t *testing.T, fieldName, filename string, fileBytes []byte, 
 // audit-bearing UI writes.
 func enableStudentPhotos(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t,
 		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
@@ -131,7 +131,7 @@ func adminBearer(t *testing.T) string {
 // holds users:update + users:read but who is NOT an admin and is NOT
 // (by default) a group supervisor. Since #2329 the handler-level
 // canUpdateStudent gate admits this caller for every child of the tenant.
-func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
+func staffWithUsersUpdate(tb testing.TB, accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          int(accountID),
 		Sub:         "staff@example.com",
@@ -140,7 +140,7 @@ func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
 		LastName:    "Member",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read", "users:update"},
-		TenantID:    1,
+		TenantID:    testpkg.RebaseTenantID(tb, 1),
 	}
 }
 
@@ -150,7 +150,7 @@ func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
 // unrelated PUT /privacy-consent handler.
 func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_consent_given_at = now(),
@@ -163,7 +163,7 @@ func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 
 func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
-	_, err := tc.db.ExecContext(testpkg.TenantContext(1), `
+	_, err := tc.db.ExecContext(testpkg.Ctx(t), `
 		UPDATE users.students SET status = ? WHERE id = ?
 	`, users.StudentStatusAlumnus, studentID)
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
 // upload/delete actually mutated the DB.
 func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
@@ -207,7 +207,7 @@ func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (store
 	storedURL = common.StudentPhotoStoredURLPrefix + filepath.Base(tmp.Name())
 	onDisk = tmp.Name()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_path = ?,
@@ -269,11 +269,12 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 // the handler would refuse — that branch is exercised in a separate
 // test below.
 func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Happy", "PU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	stampPhotoConsentRow(t, tc, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -306,11 +307,12 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 // The handler must atomically stamp consent and write photo_path so
 // the user does not need an intermediate PUT round-trip.
 func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Ack", "PU2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t),
 		map[string]string{"consent_acknowledged": "true"})
@@ -324,7 +326,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	// Assert the consent audit columns got stamped in the same tx.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var s users.Student
 	err := tc.db.NewSelect().Model(&s).Where("id = ?", student.ID).Scan(ctx)
 	require.NoError(t, err)
@@ -336,6 +338,8 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 // The handler returns 400 before any DB work; useful regression
 // against a future "lenient" parser silently coercing to 0.
 func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -353,11 +357,12 @@ func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 // handler returns 400. Without this assertion a future refactor
 // could silently accept zero-byte files.
 func TestUploadStudentPhoto_NoFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "NoFile", "PU3")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "", nil, nil) // nil bytes → no file part
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
@@ -373,11 +378,12 @@ func TestUploadStudentPhoto_NoFile(t *testing.T) {
 // application/octet-stream, not an allowed image MIME. The handler
 // must reject with 400 before any disk write.
 func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "BadBytes", "PU4")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "evil.exe",
 		[]byte("definitely not an image — random ASCII bytes"), nil)
@@ -395,11 +401,12 @@ func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 // cannot bypass parental consent. The file gets unlinked so disk
 // stays clean.
 func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "NoConsent", "PU5")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
@@ -420,11 +427,12 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 // the German error verbatim. Critical: a school that never opted in
 // MUST NOT receive photo writes even from an admin.
 func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Deliberately do NOT call enableStudentPhotos.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "FeatureOff", "PU6")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	stampPhotoConsentRow(t, tc, student.ID) // make sure consent is NOT the failing gate
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -443,6 +451,8 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 // per-student write gate (canUpdateStudent) asks only for a staff record, so
 // this upload must succeed exactly like an admin's.
 func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -451,10 +461,9 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	stampPhotoConsentRow(t, tc, student.ID)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NonSup", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NonSup", "Staff")
 
-	claims := staffWithUsersUpdate(account.ID)
+	claims := staffWithUsersUpdate(t, account.ID)
 	token := testutil.MintTestJWT(t, claims)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -474,6 +483,8 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 // the tenant. Handler must return 404 (not 500). A legitimate caller
 // hitting a stale URL must see a clean error.
 func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -487,11 +498,12 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Graduate", "PU7")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	graduateStudent(t, tc, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), map[string]string{"consent_acknowledged": "true"})
@@ -510,11 +522,12 @@ func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 // NOT assert the old file is gone (that is racy with the after-commit
 // goroutine) — only that the row points at a NEW filename.
 func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "Replace", "PU8")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	oldStored, oldDisk := seedStudentWithPhoto(t, tc, student.ID)
 
 	body, contentType := buildMultipart(t, "photo", "test.jpg", jpegBytes(t), nil)
@@ -541,11 +554,12 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 // deletes, row's photo_path goes NULL, response is 200 "Foto entfernt",
 // and a broadcast is emitted.
 func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "Happy", "PD1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedStudentWithPhoto(t, tc, student.ID)
 
 	tc.broadcaster.Reset() // reset before action
@@ -566,11 +580,12 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 // frontend can fire DELETE blindly when the user clicks "Foto
 // entfernen" without checking state first.
 func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "NoPhoto", "PD2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
@@ -585,11 +600,12 @@ func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 // school that disabled photos but still has rows pointing at files
 // could not be administered consistently.
 func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Feature DELIBERATELY left disabled.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "FeatureOff", "PD3")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedStudentWithPhoto(t, tc, student.ID)
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
@@ -603,6 +619,8 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 // upload: a staff member with users:update deletes any child's photo since
 // #2329, supervision of the group no longer participates.
 func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -611,10 +629,9 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	_, _ = seedStudentWithPhoto(t, tc, student.ID)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "DelNonSup", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "DelNonSup", "Staff")
 
-	token := testutil.MintTestJWT(t, staffWithUsersUpdate(account.ID))
+	token := testutil.MintTestJWT(t, staffWithUsersUpdate(t, account.ID))
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -628,6 +645,8 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 // TestDeleteStudentPhoto_StudentNotFound — non-existent ID. The
 // pre-tx parseAndGetStudent maps to 404 before any tx work.
 func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -639,11 +658,12 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "Graduate", "PD7")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	storedURL, diskPath := seedStudentWithPhoto(t, tc, student.ID)
 	t.Cleanup(func() { _ = os.Remove(diskPath) })
 	graduateStudent(t, tc, student.ID)
@@ -665,11 +685,12 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 // feature/consent/delete take effect on the next image load), and
 // the body contains the on-disk bytes.
 func TestServeStudentPhoto_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Happy", "PS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	storedURL, _ := seedStudentWithPhoto(t, tc, student.ID)
 	filename := filepath.Base(storedURL)
 
@@ -685,6 +706,8 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 // TestServeStudentPhoto_InvalidStudentID — non-numeric URL param.
 // Returns 400 before any DB or filesystem work.
 func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -699,11 +722,12 @@ func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 // admin with a previously-cached URL must be rejected. The byte
 // boundary must enforce the gate, not just the JSON serializer.
 func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Photos enabled NOT called.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "FeatureOff", "PS2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	// Seed photo BEFORE flipping (or rather: never flip on). Test
 	// simulates "URL was cached when feature was on, then admin
 	// turned it off".
@@ -721,11 +745,12 @@ func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 // photo_path is NULL. Returns 404 with the German "kein Foto
 // hinterlegt" message.
 func TestServeStudentPhoto_NoPhoto(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "NoPhoto", "PS3")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/anything.jpg", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
@@ -740,11 +765,12 @@ func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 // row's current photo would let a leaked filename outlive a delete
 // or replacement.
 func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Mismatch", "PS4")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedStudentWithPhoto(t, tc, student.ID)
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/wrong-filename.jpg", student.ID), nil)
@@ -762,6 +788,8 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 // that merely holds users:read. Mirrors the policy used by getStudent and
 // protects against leaked photo URLs.
 func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -772,7 +800,6 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 	filename := filepath.Base(storedURL)
 
 	guest := testpkg.CreateTestAccount(t, tc.db, "photo-serve-guest@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, guest.ID)
 
 	claims := jwt.AppClaims{
 		ID:          int(guest.ID),
@@ -780,7 +807,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 		Username:    "noread",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read"},
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 	}
 	token := testutil.MintTestJWT(t, claims)
 
@@ -794,6 +821,8 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 // TestServeStudentPhoto_AllowedForStaffOutsideGroup — the counterpart: a staff
 // member who does not supervise the child's group fetches the photo normally.
 func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -803,8 +832,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 	storedURL, _ := seedStudentWithPhoto(t, tc, student.ID)
 	filename := filepath.Base(storedURL)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
 
 	claims := jwt.AppClaims{
 		ID:          int(account.ID),
@@ -812,7 +840,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 		Username:    "staffread",
 		Roles:       []string{"user"},
 		Permissions: []string{"users:read"},
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 	}
 	token := testutil.MintTestJWT(t, claims)
 
@@ -827,6 +855,8 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 // (not 500). The DB lookup distinguishes sql.ErrNoRows from real
 // infrastructure failures so monitoring stays clean.
 func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -838,11 +868,12 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Graduate", "PS7")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	storedURL, diskPath := seedStudentWithPhoto(t, tc, student.ID)
 	t.Cleanup(func() { _ = os.Remove(diskPath) })
 	graduateStudent(t, tc, student.ID)

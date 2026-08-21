@@ -23,7 +23,6 @@ import (
 // this whole epic is built to avoid.
 func TestNotificationPreferencesBackfill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	parentAccount := testpkg.CreateTestAccount(t, db, "backfill-parent@example.com")
@@ -44,15 +43,20 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 		now := time.Now()
 		mapping := &authModels.AccountTenant{
 			AccountID:   accountID,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		_, err := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(ctx)
+		// Upsert: since #2419 CreateTestAccount already maps a fixture account
+		// to the tenant of the test that created it.
+		_, err := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+			On("CONFLICT (account_id, tenant_id) DO UPDATE").
+			Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+			Exec(ctx)
 		require.NoError(t, err)
 
 		adminRole := &authModels.AccountRole{AccountID: accountID, RoleID: adminRoleID}
-		adminRole.SetTenantID(1)
+		adminRole.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(adminRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -72,11 +76,14 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 		now := time.Now()
 		mapping := &authModels.AccountTenant{
 			AccountID:   accountID,
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Status:      authModels.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		_, merr := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(ctx)
+		_, merr := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+			On("CONFLICT (account_id, tenant_id) DO UPDATE").
+			Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+			Exec(ctx)
 		require.NoError(t, merr)
 	}
 	mapToTenant(parentAccount.ID)
@@ -95,13 +102,13 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	// change any other test that relies on the registry default.
 	_, derr := db.ExecContext(ctx, `
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (1, 'notifications.dispatch_enabled', 'true'::jsonb)
-		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb`)
+		VALUES (?, 'notifications.dispatch_enabled', 'true'::jsonb)
+		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb`, testpkg.Tenant(t))
 	require.NoError(t, derr)
 	t.Cleanup(func() {
 		_, cerr := db.ExecContext(context.Background(), `
 			DELETE FROM config.setting_values
-			WHERE tenant_id = 1 AND setting_key = 'notifications.dispatch_enabled'`)
+			WHERE tenant_id = ? AND setting_key = 'notifications.dispatch_enabled'`, testpkg.Tenant(t))
 		require.NoError(t, cerr)
 	})
 
@@ -114,7 +121,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			P256dh:    "test-p256dh",
 			Auth:      "test-auth",
 		}
-		sub.SetTenantID(1)
+		sub.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -130,7 +137,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	// Somebody who already said no. A backfill must never overwrite a decision.
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO users.notification_preferences (tenant_id, account_id, notification_type, enabled)
-		VALUES (1, ?, 'pickup_upcoming', FALSE)`, optedOutAccount.ID)
+		VALUES (?, ?, 'pickup_upcoming', FALSE)`, testpkg.Tenant(t), optedOutAccount.ID)
 	require.NoError(t, err)
 
 	accountIDs := []int64{parentAccount.ID, adminAccount.ID, staffAccount.ID, silentAccount.ID, optedOutAccount.ID}
@@ -204,7 +211,6 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 // no-op, so nothing takes it back.
 func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)
@@ -256,7 +262,6 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 // wrong (data minimisation).
 func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)
@@ -383,16 +388,9 @@ func setupBackfillTenants(t *testing.T, db *bun.DB) *backfillTenantEnv {
 			Where("tenant_id IN (?)", bun.List(tenantIDs)).
 			Exec(cleanupCtx)
 		require.NoError(t, cerr)
-		_, cerr = db.NewDelete().
-			Table("platform.schools").
-			Where("id IN (?)", bun.List(tenantIDs)).
-			Exec(cleanupCtx)
-		require.NoError(t, cerr)
-		_, cerr = db.NewDelete().
-			Table("platform.organizations").
-			Where("id = ?", orgID).
-			Exec(cleanupCtx)
-		require.NoError(t, cerr)
+		// The school and its organization stay: their IDs come from the test
+		// band, so they are not leftovers, and deleting them now trips the FKs
+		// of rows whose own teardown is gone (#2419).
 	})
 
 	return env
@@ -411,7 +409,10 @@ func (e *backfillTenantEnv) mapAccount(accountID, tenantID int64, status string)
 		Status:      status,
 		ActivatedAt: &now,
 	}
-	_, err := e.db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").Exec(context.Background())
+	_, err := e.db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(context.Background())
 	require.NoError(e.t, err)
 }
 

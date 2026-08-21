@@ -96,6 +96,20 @@ func IDFetch[I IDType, T any](param, invalidMsg string, fn func(ctx context.Cont
 	}
 }
 
+// Fetch returns a handler that fetches one payload and responds 200 with the
+// payload wrapped in the standard success envelope.
+func Fetch[T any](fn func(ctx context.Context) (T, error), renderErr func(error) render.Renderer, successMsg string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		payload, err := fn(r.Context())
+		if err != nil {
+			RenderError(w, r, renderErr(err))
+			return
+		}
+
+		Respond(w, r, http.StatusOK, payload, successMsg)
+	}
+}
+
 // BindAction returns a handler that binds the request body into a fresh
 // Req (render.Bind runs its Bind() validation), invokes fn, and responds
 // with the given status and payload. Bind failures render a 400.

@@ -101,18 +101,13 @@ func assertWissingenPickupStatus(t *testing.T, expected string, actual *string) 
 
 func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlans(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 	require.NoError(t, studentsDepartureAccompaniedUp(ctx, db))
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("wissingen-departure-%d@example.test", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, account.ID) })
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
-		testpkg.CleanupTestTenant(t, db, tenantID, otherTenantID)
-	})
+	testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
 	_, err := db.NewRaw(`
 		UPDATE platform.schools
 		SET slug = 'ogs-wissingen', subdomain = 'ogs-wissingen'

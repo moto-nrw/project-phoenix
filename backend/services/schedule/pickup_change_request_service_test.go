@@ -15,15 +15,25 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// nextSchoolDay moves a date off the weekend. A pickup schedule only knows
+// Monday to Friday, so a plain "today + 2" made this test fail every Thursday
+// and Friday — the calendar, not the code, decided whether it was green
+// (#2419).
+func nextSchoolDay(d timezone.Date) timezone.Date {
+	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+		d = d.AddDays(1)
+	}
+	return d
+}
+
 func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(2)
+	date := nextSchoolDay(timezone.TodayDate().AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
-	if weekday == 0 {
-		weekday = 7
-	}
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,
@@ -95,6 +105,8 @@ func seedPickupChangeRequest(t *testing.T, f *careFixture, date timezone.Date) *
 // staff already set a pickup time for it, approving a parent request must not
 // quietly overwrite that decision.
 func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate().AddDays(3)
@@ -130,6 +142,8 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 // states when the child leaves. A pickup change on the same day would contradict
 // it, so the approval has to fail instead of producing two answers.
 func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate().AddDays(4)
@@ -160,6 +174,8 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 }
 
 func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate()
@@ -199,6 +215,8 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 // request for the SAME day collides, and an open weekly-schedule request
 // coexists with open pickup requests (separate partial unique indexes).
 func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	tuesday := timezone.TodayDate().AddDays(7)
@@ -232,6 +250,8 @@ func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 // while it sat in the queue cannot be approved (the day is over), but staff
 // must still be able to close it by rejecting.
 func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	// CreatePickupChangeRequest refuses past dates, so an expired request can
@@ -269,6 +289,8 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 // TestWithdrawPickupChangeRequestClosesIt: a parent may take a request back
 // while it is still pending, and it must not stay in the staff queue afterwards.
 func TestWithdrawPickupChangeRequestClosesIt(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate().AddDays(5)
@@ -292,6 +314,8 @@ func TestWithdrawPickupChangeRequestClosesIt(t *testing.T) {
 // TestListPickupChangeRequestsReturnsTheParentsOwn covers the read the parents
 // app uses for its status list.
 func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := timezone.TodayDate().AddDays(6)

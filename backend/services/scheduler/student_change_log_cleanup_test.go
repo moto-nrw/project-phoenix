@@ -29,12 +29,11 @@ func (r *failingDeleteStudentFieldEditRepo) DeleteOlderThan(context.Context, tim
 }
 
 func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Rollback", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	defer func() {
 		_, _ = db.NewRaw(`DELETE FROM audit.data_deletions WHERE student_id = ?`, student.ID).Exec(context.Background())
 		_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, student.ID).Exec(context.Background())

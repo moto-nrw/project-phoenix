@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestConvertWeekdayToString_AllDays(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected string
@@ -40,6 +42,8 @@ func TestConvertWeekdayToString_AllDays(t *testing.T) {
 }
 
 func TestConvertWeekdayToString_Unknown(t *testing.T) {
+	t.Parallel()
+
 	// Unknown input should be returned as-is
 	tests := []string{
 		"MONDAY",
@@ -62,23 +66,31 @@ func TestConvertWeekdayToString_Unknown(t *testing.T) {
 // =============================================================================
 
 func TestFormatEndTime_WithTime(t *testing.T) {
+	t.Parallel()
+
 	endTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 	result := formatEndTime(&endTime)
 	assert.Equal(t, "14:30", result)
 }
 
 func TestFormatEndTime_NilTime(t *testing.T) {
+	t.Parallel()
+
 	result := formatEndTime(nil)
 	assert.Equal(t, "", result)
 }
 
 func TestFormatEndTime_Midnight(t *testing.T) {
+	t.Parallel()
+
 	endTime := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 	result := formatEndTime(&endTime)
 	assert.Equal(t, "00:00", result)
 }
 
 func TestFormatEndTime_BeforeMidnight(t *testing.T) {
+	t.Parallel()
+
 	endTime := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
 	result := formatEndTime(&endTime)
 	assert.Equal(t, "23:59", result)
@@ -89,6 +101,8 @@ func TestFormatEndTime_BeforeMidnight(t *testing.T) {
 // =============================================================================
 
 func TestGenerateSlotName_WithEndTime(t *testing.T) {
+	t.Parallel()
+
 	startTime := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 	endTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -97,6 +111,8 @@ func TestGenerateSlotName_WithEndTime(t *testing.T) {
 }
 
 func TestGenerateSlotName_NilEndTime(t *testing.T) {
+	t.Parallel()
+
 	startTime := time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)
 
 	result := generateSlotName(startTime, nil)
@@ -104,6 +120,8 @@ func TestGenerateSlotName_NilEndTime(t *testing.T) {
 }
 
 func TestGenerateSlotName_MorningSlot(t *testing.T) {
+	t.Parallel()
+
 	startTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 	endTime := time.Date(2024, 1, 15, 9, 15, 0, 0, time.UTC)
 
@@ -112,6 +130,8 @@ func TestGenerateSlotName_MorningSlot(t *testing.T) {
 }
 
 func TestGenerateSlotName_AfternoonSlot(t *testing.T) {
+	t.Parallel()
+
 	startTime := time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)
 	endTime := time.Date(2024, 1, 15, 16, 0, 0, 0, time.UTC)
 
@@ -124,6 +144,8 @@ func TestGenerateSlotName_AfternoonSlot(t *testing.T) {
 // =============================================================================
 
 func TestQuickActivityRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(10)
 	req := QuickActivityRequest{
 		Name:            "Test Activity",
@@ -139,6 +161,8 @@ func TestQuickActivityRequest_Fields(t *testing.T) {
 }
 
 func TestQuickActivityRequest_NilRoomID(t *testing.T) {
+	t.Parallel()
+
 	req := QuickActivityRequest{
 		Name:            "Test Activity",
 		CategoryID:      5,
@@ -151,6 +175,8 @@ func TestQuickActivityRequest_NilRoomID(t *testing.T) {
 }
 
 func TestActivityRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(20)
 	req := ActivityRequest{
 		Name:            "Test Activity",
@@ -170,6 +196,8 @@ func TestActivityRequest_Fields(t *testing.T) {
 }
 
 func TestScheduleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	timeframeID := int64(5)
 	req := ScheduleRequest{
 		Weekday:     1, // Monday
@@ -181,6 +209,8 @@ func TestScheduleRequest_Fields(t *testing.T) {
 }
 
 func TestScheduleRequest_NilTimeframeID(t *testing.T) {
+	t.Parallel()
+
 	req := ScheduleRequest{
 		Weekday:     2, // Tuesday
 		TimeframeID: nil,
@@ -191,6 +221,8 @@ func TestScheduleRequest_NilTimeframeID(t *testing.T) {
 }
 
 func TestSupervisorRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := SupervisorRequest{
 		StaffID:   123,
 		IsPrimary: true,
@@ -201,6 +233,8 @@ func TestSupervisorRequest_Fields(t *testing.T) {
 }
 
 func TestBatchEnrollmentRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := BatchEnrollmentRequest{
 		StudentIDs: []int64{1, 2, 3},
 	}
@@ -210,6 +244,8 @@ func TestBatchEnrollmentRequest_Fields(t *testing.T) {
 }
 
 func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	req := BatchEnrollmentRequest{
 		StudentIDs: []int64{},
 	}
@@ -222,6 +258,8 @@ func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
 // =============================================================================
 
 func TestNewResource_ReturnsResource(t *testing.T) {
+	t.Parallel()
+
 	resource := NewResource(nil, nil, nil, nil, nil)
 	assert.NotNil(t, resource)
 }
@@ -231,6 +269,8 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 // =============================================================================
 
 func TestAddSupervisorsToResponse_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	addSupervisorsToResponse(response, []*activitiesModel.SupervisorPlanned{})
 	assert.Nil(t, response.SupervisorIDs)
@@ -238,6 +278,8 @@ func TestAddSupervisorsToResponse_EmptyList(t *testing.T) {
 }
 
 func TestAddSupervisorsToResponse_NilList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	addSupervisorsToResponse(response, nil)
 	assert.Nil(t, response.SupervisorIDs)
@@ -245,6 +287,8 @@ func TestAddSupervisorsToResponse_NilList(t *testing.T) {
 }
 
 func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	sup := &activitiesModel.SupervisorPlanned{
 		Model:     base.Model{ID: 1},
@@ -262,6 +306,8 @@ func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
 }
 
 func TestAddSupervisorsToResponse_WithPrimarySupervisor(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	supervisors := []*activitiesModel.SupervisorPlanned{
 		{Model: base.Model{ID: 1}, StaffID: 1, IsPrimary: false},
@@ -275,6 +321,8 @@ func TestAddSupervisorsToResponse_WithPrimarySupervisor(t *testing.T) {
 }
 
 func TestAddSupervisorsToResponse_NoPrimarySupervisor(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	supervisors := []*activitiesModel.SupervisorPlanned{
 		{Model: base.Model{ID: 1}, StaffID: 1, IsPrimary: false},
@@ -290,18 +338,24 @@ func TestAddSupervisorsToResponse_NoPrimarySupervisor(t *testing.T) {
 // =============================================================================
 
 func TestAddSchedulesToResponse_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	addSchedulesToResponse(response, []*activitiesModel.Schedule{})
 	assert.Empty(t, response.Schedules)
 }
 
 func TestAddSchedulesToResponse_NilList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	addSchedulesToResponse(response, nil)
 	assert.Empty(t, response.Schedules)
 }
 
 func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	sch := &activitiesModel.Schedule{
 		Model:   base.Model{ID: 1},
@@ -318,6 +372,8 @@ func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
 }
 
 func TestAddSchedulesToResponse_WithMultipleSchedules(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	timeframeID := int64(5)
 	schedules := []*activitiesModel.Schedule{
@@ -333,6 +389,8 @@ func TestAddSchedulesToResponse_WithMultipleSchedules(t *testing.T) {
 // =============================================================================
 
 func TestAddCategoryToResponse_NilCategory(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	group := &activitiesModel.Group{Category: nil}
 	addCategoryToResponse(response, group)
@@ -340,6 +398,8 @@ func TestAddCategoryToResponse_NilCategory(t *testing.T) {
 }
 
 func TestAddCategoryToResponse_WithCategory(t *testing.T) {
+	t.Parallel()
+
 	response := &ActivityResponse{}
 	group := &activitiesModel.Group{
 		Category: &activitiesModel.Category{
@@ -358,6 +418,8 @@ func TestAddCategoryToResponse_WithCategory(t *testing.T) {
 // =============================================================================
 
 func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(10)
 	now := time.Now()
 	group := &activitiesModel.Group{
@@ -383,6 +445,8 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 }
 
 func TestBuildBaseActivityResponse_UnlimitedCapacity(t *testing.T) {
+	t.Parallel()
+
 	group := &activitiesModel.Group{
 		Name:            "Open Sports Hall",
 		MaxParticipants: 0,
@@ -395,6 +459,8 @@ func TestBuildBaseActivityResponse_UnlimitedCapacity(t *testing.T) {
 }
 
 func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {
+	t.Parallel()
+
 	group := &activitiesModel.Group{
 		Model:         base.Model{ID: 1},
 		Name:          "Test Activity",
@@ -410,6 +476,8 @@ func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {
 // =============================================================================
 
 func TestUpdateGroupFields_AllFields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(25)
 	group := &activitiesModel.Group{}
 	req := &ActivityRequest{
@@ -430,6 +498,8 @@ func TestUpdateGroupFields_AllFields(t *testing.T) {
 }
 
 func TestUpdateGroupFields_NilRoomID(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(10)
 	group := &activitiesModel.Group{
 		PlannedRoomID: &roomID,
@@ -449,6 +519,8 @@ func TestUpdateGroupFields_NilRoomID(t *testing.T) {
 // =============================================================================
 
 func TestNewCategoryResponse_FullCategory(t *testing.T) {
+	t.Parallel()
+
 	category := &activitiesModel.Category{
 		Model:       base.Model{ID: 1},
 		Name:        "Sports",
@@ -465,6 +537,8 @@ func TestNewCategoryResponse_FullCategory(t *testing.T) {
 }
 
 func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
+	t.Parallel()
+
 	category := &activitiesModel.Category{
 		Model: base.Model{ID: 1},
 		Name:  "Minimal",
@@ -479,6 +553,8 @@ func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
 }
 
 func TestNewCategoryResponse_NilCategory(t *testing.T) {
+	t.Parallel()
+
 	response := newCategoryResponse(nil)
 	assert.Equal(t, "Unknown Category", response.Name)
 }
@@ -488,6 +564,8 @@ func TestNewCategoryResponse_NilCategory(t *testing.T) {
 // =============================================================================
 
 func TestNewScheduleResponse_Basic(t *testing.T) {
+	t.Parallel()
+
 	schedule := &activitiesModel.Schedule{
 		Model:   base.Model{ID: 1},
 		Weekday: 1,
@@ -500,6 +578,8 @@ func TestNewScheduleResponse_Basic(t *testing.T) {
 }
 
 func TestNewScheduleResponse_WithTimeframeID(t *testing.T) {
+	t.Parallel()
+
 	timeframeID := int64(5)
 	schedule := &activitiesModel.Schedule{
 		Model:       base.Model{ID: 1},
@@ -515,6 +595,8 @@ func TestNewScheduleResponse_WithTimeframeID(t *testing.T) {
 }
 
 func TestNewScheduleResponse_NilSchedule(t *testing.T) {
+	t.Parallel()
+
 	response := newScheduleResponse(nil)
 	assert.Equal(t, int64(0), response.ID)
 }
@@ -524,6 +606,8 @@ func TestNewScheduleResponse_NilSchedule(t *testing.T) {
 // =============================================================================
 
 func TestNewSupervisorResponse_Complete(t *testing.T) {
+	t.Parallel()
+
 	supervisor := &activitiesModel.SupervisorPlanned{
 		Model:     base.Model{ID: 1},
 		StaffID:   10,
@@ -548,6 +632,8 @@ func TestNewSupervisorResponse_Complete(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_NilStaff(t *testing.T) {
+	t.Parallel()
+
 	supervisor := &activitiesModel.SupervisorPlanned{
 		Model:     base.Model{ID: 1},
 		StaffID:   10,
@@ -565,6 +651,8 @@ func TestNewSupervisorResponse_NilStaff(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
+	t.Parallel()
+
 	supervisor := &activitiesModel.SupervisorPlanned{
 		Model:     base.Model{ID: 1},
 		StaffID:   10,
@@ -583,6 +671,8 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_NilSupervisor(t *testing.T) {
+	t.Parallel()
+
 	response := newSupervisorResponse(nil)
 	assert.Equal(t, int64(0), response.ID)
 }
@@ -592,6 +682,8 @@ func TestNewSupervisorResponse_NilSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActivityResponse_DefaultSchedules(t *testing.T) {
+	t.Parallel()
+
 	response := ActivityResponse{}
 	assert.Nil(t, response.Schedules)
 
@@ -602,6 +694,8 @@ func TestActivityResponse_DefaultSchedules(t *testing.T) {
 }
 
 func TestCategoryResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	response := CategoryResponse{
 		ID:          1,
 		Name:        "Test",

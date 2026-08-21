@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,15 +24,11 @@ import (
 // =============================================================================
 
 func TestSetupAPITest(t *testing.T) {
+	t.Parallel()
+
 	db, services := testutil.SetupAPITest(t)
 	require.NotNil(t, db)
 	require.NotNil(t, services)
-
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
 
 	// Verify services are available
 	assert.NotNil(t, services.Auth)
@@ -42,6 +40,8 @@ func TestSetupAPITest(t *testing.T) {
 // =============================================================================
 
 func TestWithPermissions(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	// Apply permissions
@@ -57,6 +57,8 @@ func TestWithPermissions(t *testing.T) {
 }
 
 func TestWithPermissions_Empty(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	// Apply empty permissions
@@ -74,6 +76,8 @@ func TestWithPermissions_Empty(t *testing.T) {
 }
 
 func TestWithClaims(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	claims := jwt.AppClaims{
@@ -83,7 +87,7 @@ func TestWithClaims(t *testing.T) {
 		IsAdmin:  true,
 	}
 
-	opt := testutil.WithClaims(claims)
+	opt := testutil.WithClaims(t, claims)
 	opt(req)
 
 	// Verify claims are in context
@@ -96,6 +100,8 @@ func TestWithClaims(t *testing.T) {
 }
 
 func TestWithDeviceContext(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	device := &iot.Device{
@@ -113,6 +119,8 @@ func TestWithDeviceContext(t *testing.T) {
 }
 
 func TestWithStaffContext(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	staff := &users.Staff{
@@ -128,6 +136,8 @@ func TestWithStaffContext(t *testing.T) {
 }
 
 func TestWithStaffContext_NilStaff(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	// Should handle nil staff without panicking
@@ -142,6 +152,8 @@ func TestWithStaffContext_NilStaff(t *testing.T) {
 // =============================================================================
 
 func TestNewRequest(t *testing.T) {
+	t.Parallel()
+
 	body := bytes.NewBufferString(`{"test": "data"}`)
 	req := testutil.NewRequest("POST", "/api/test", body)
 
@@ -151,9 +163,11 @@ func TestNewRequest(t *testing.T) {
 }
 
 func TestNewRequest_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
-		testutil.WithClaims(jwt.AppClaims{ID: 1, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: 1}),
 	)
 
 	assert.Equal(t, "GET", req.Method)
@@ -164,6 +178,8 @@ func TestNewRequest_WithOptions(t *testing.T) {
 }
 
 func TestNewAuthenticatedRequest_WithBody(t *testing.T) {
+	t.Parallel()
+
 	body := map[string]interface{}{
 		"name": "test",
 		"id":   123,
@@ -178,6 +194,8 @@ func TestNewAuthenticatedRequest_WithBody(t *testing.T) {
 }
 
 func TestNewAuthenticatedRequest_NilBody(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/api/test", nil)
 
 	assert.Equal(t, "GET", req.Method)
@@ -185,9 +203,11 @@ func TestNewAuthenticatedRequest_NilBody(t *testing.T) {
 }
 
 func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/api/test", nil,
 		testutil.WithPermissions("admin:*"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 	)
 
 	perms := req.Context().Value(jwt.CtxPermissions)
@@ -197,6 +217,8 @@ func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
 }
 
 func TestNewJSONRequest_WithBody(t *testing.T) {
+	t.Parallel()
+
 	body := map[string]string{"key": "value"}
 	req := testutil.NewJSONRequest(t, "PUT", "/api/resource", body)
 
@@ -206,6 +228,8 @@ func TestNewJSONRequest_WithBody(t *testing.T) {
 }
 
 func TestNewJSONRequest_NilBody(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewJSONRequest(t, "DELETE", "/api/resource", nil)
 
 	assert.Equal(t, "DELETE", req.Method)
@@ -213,6 +237,8 @@ func TestNewJSONRequest_NilBody(t *testing.T) {
 }
 
 func TestNewMultipartRequest(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"file", "test.csv", "name,value\nfoo,bar")
 
@@ -233,6 +259,8 @@ func TestNewMultipartRequest(t *testing.T) {
 }
 
 func TestNewMultipartRequest_EmptyContent(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"file", "empty.txt", "")
 
@@ -244,10 +272,12 @@ func TestNewMultipartRequest_EmptyContent(t *testing.T) {
 }
 
 func TestNewMultipartRequest_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
-		testutil.WithClaims(jwt.AppClaims{ID: 42, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 1}),
 	)
 
 	assert.Equal(t, "POST", req.Method)
@@ -271,6 +301,8 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 // =============================================================================
 
 func TestExecuteRequest(t *testing.T) {
+	t.Parallel()
+
 	router := chi.NewRouter()
 	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -289,6 +321,8 @@ func TestExecuteRequest(t *testing.T) {
 // =============================================================================
 
 func TestParseResponse(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"status":"success","data":{"id":1},"message":"OK"}`)
 
 	response := testutil.ParseResponse(t, body)
@@ -299,6 +333,8 @@ func TestParseResponse(t *testing.T) {
 }
 
 func TestParseJSONResponse(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"status":"success","data":{"id":1,"name":"test"}}`)
 
 	response := testutil.ParseJSONResponse(t, body)
@@ -314,6 +350,8 @@ func TestParseJSONResponse(t *testing.T) {
 // =============================================================================
 
 func TestAssertSuccessResponse(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusOK)
 	_, _ = rr.WriteString(`{"status":"success","data":{}}`)
@@ -323,6 +361,8 @@ func TestAssertSuccessResponse(t *testing.T) {
 }
 
 func TestAssertSuccessResponse_NoContent(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusNoContent)
 
@@ -331,6 +371,8 @@ func TestAssertSuccessResponse_NoContent(t *testing.T) {
 }
 
 func TestAssertErrorResponse(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
 	_, _ = rr.WriteString(`{"status":"error","message":"bad request"}`)
@@ -339,6 +381,8 @@ func TestAssertErrorResponse(t *testing.T) {
 }
 
 func TestAssertUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusUnauthorized)
 	_, _ = rr.WriteString(`{"status":"Unauthorized"}`)
@@ -347,6 +391,8 @@ func TestAssertUnauthorized(t *testing.T) {
 }
 
 func TestAssertForbidden(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusForbidden)
 	_, _ = rr.WriteString(`{"status":"Forbidden"}`)
@@ -355,6 +401,8 @@ func TestAssertForbidden(t *testing.T) {
 }
 
 func TestAssertNotFound(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusNotFound)
 	_, _ = rr.WriteString(`{"status":"Not Found"}`)
@@ -363,6 +411,8 @@ func TestAssertNotFound(t *testing.T) {
 }
 
 func TestAssertBadRequest(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
 	_, _ = rr.WriteString(`{"status":"Invalid Request"}`)
@@ -375,6 +425,8 @@ func TestAssertBadRequest(t *testing.T) {
 // =============================================================================
 
 func TestDefaultTestClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := testutil.DefaultTestClaims()
 
 	assert.Equal(t, 1, claims.ID)
@@ -388,6 +440,8 @@ func TestDefaultTestClaims(t *testing.T) {
 }
 
 func TestTeacherTestClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := testutil.TeacherTestClaims(42)
 
 	assert.Equal(t, 42, claims.ID)
@@ -400,6 +454,8 @@ func TestTeacherTestClaims(t *testing.T) {
 }
 
 func TestAdminTestClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := testutil.AdminTestClaims(99)
 
 	assert.Equal(t, 99, claims.ID)
@@ -408,4 +464,26 @@ func TestAdminTestClaims(t *testing.T) {
 	assert.Contains(t, claims.Roles, "admin")
 	assert.Contains(t, claims.Permissions, "admin:*")
 	assert.True(t, claims.IsAdmin)
+}
+
+// TestClaimsFollowTheTestIntoItsOwnTenant pins the mechanism that lets ~950
+// claims-helper call sites stay untouched by the per-test-tenant migration
+// (#2419): claims carrying the bootstrap tenant are rebased onto the tenant
+// the test owns, while claims naming a tenant explicitly are left alone.
+func TestClaimsFollowTheTestIntoItsOwnTenant(t *testing.T) {
+	t.Parallel()
+
+	own := testpkg.Tenant(t)
+
+	// DefaultTestClaims carries the bootstrap tenant, so this also pins that
+	// the shipped helpers keep working untouched.
+	req := httptest.NewRequest("GET", "/test", nil)
+	testutil.WithClaims(t, testutil.DefaultTestClaims())(req)
+	assert.Equal(t, own, req.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+		"bootstrap-tenant claims must follow the test")
+
+	other := httptest.NewRequest("GET", "/test", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 4711})(other)
+	assert.Equal(t, int64(4711), other.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+		"an explicitly named tenant must survive untouched")
 }

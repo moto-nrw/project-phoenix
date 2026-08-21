@@ -17,6 +17,8 @@ import (
 // attached, so comparing the handler-observed context with a re-wrapped copy
 // proves the middleware attached the cache (#2099).
 func TestRequestIdentityCacheMiddlewareAttachesCache(t *testing.T) {
+	t.Parallel()
+
 	var observed context.Context
 	handler := common.RequestIdentityCacheMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		observed = r.Context()

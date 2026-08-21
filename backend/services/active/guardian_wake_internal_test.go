@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,6 +27,8 @@ func (r *recordingWaker) BroadcastChildUpdateToGuardians(tenantID, studentID int
 // verdrahteter Weckdienst schweigt statt zu panicken. Tests und CLI-Pfade
 // bauen den Active-Service ohne ihn.
 func TestWakeGuardiansAfterCommitIsNoOpWithoutWaker(t *testing.T) {
+	t.Parallel()
+
 	s := &service{}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 
@@ -36,6 +39,8 @@ func TestWakeGuardiansAfterCommitIsNoOpWithoutWaker(t *testing.T) {
 // Tenant im Kontext liegt: dann waere die Weckung nicht zuzuordnen und
 // unterbleibt, statt eine falsche Schule zu benachrichtigen.
 func TestWakeGuardiansAfterCommitSkipsWithoutTenant(t *testing.T) {
+	t.Parallel()
+
 	waker := &recordingWaker{}
 	s := &service{}
 	s.SetGuardianWaker(waker)
@@ -50,6 +55,8 @@ func TestWakeGuardiansAfterCommitSkipsWithoutTenant(t *testing.T) {
 // TestWakeGuardiansAfterCommitSkipsInvalidStudent haelt fest, dass eine
 // unbrauchbare Kind-ID nicht zu einer Weckung fuehrt.
 func TestWakeGuardiansAfterCommitSkipsInvalidStudent(t *testing.T) {
+	t.Parallel()
+
 	waker := &recordingWaker{}
 	s := &service{}
 	s.SetGuardianWaker(waker)
@@ -59,5 +66,26 @@ func TestWakeGuardiansAfterCommitSkipsInvalidStudent(t *testing.T) {
 
 	if len(waker.calls) != 0 {
 		t.Fatalf("ohne gueltige Kind-ID darf nicht geweckt werden, es gab %d Weckungen", len(waker.calls))
+	}
+}
+
+func TestBroadcastVisitMovedWakesGuardiansWithoutBroadcaster(t *testing.T) {
+	t.Parallel()
+
+	waker := &recordingWaker{}
+	s := &service{}
+	s.SetGuardianWaker(waker)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	s.broadcastVisitMoved(ctx, &activeModels.Visit{}, &activeModels.Visit{StudentID: 4242}, nil, nil)
+	commit()
+
+	if len(waker.calls) != 1 {
+		t.Fatalf("expected one guardian wake, got %d", len(waker.calls))
+	}
+	if waker.calls[0].tenantID != 42 || waker.calls[0].studentID != 4242 {
+		t.Fatalf("unexpected guardian wake: %+v", waker.calls[0])
 	}
 }

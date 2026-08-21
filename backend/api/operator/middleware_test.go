@@ -28,6 +28,8 @@ func (s operatorLookupStub) GetOperator(ctx context.Context, id int64) (*platfor
 }
 
 func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
+	t.Parallel()
+
 	// Create a next handler that records if it was called
 	nextCalled := false
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +57,8 @@ func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
 }
 
 func TestRequiresOperatorScope_TenantToken(t *testing.T) {
+	t.Parallel()
+
 	// Create a next handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -80,6 +84,8 @@ func TestRequiresOperatorScope_TenantToken(t *testing.T) {
 }
 
 func TestRequiresOperatorScope_NoClaims(t *testing.T) {
+	t.Parallel()
+
 	// Create a next handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -98,6 +104,8 @@ func TestRequiresOperatorScope_NoClaims(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
@@ -120,6 +128,8 @@ func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_MissingLookupFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
@@ -136,6 +146,8 @@ func TestRequiresActiveOperator_MissingLookupFailsClosed(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_InactiveOperator(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
@@ -158,6 +170,8 @@ func TestRequiresActiveOperator_InactiveOperator(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_NilOperatorFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
@@ -178,6 +192,8 @@ func TestRequiresActiveOperator_NilOperatorFailsClosed(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_OperatorNotFound(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
@@ -197,6 +213,8 @@ func TestRequiresActiveOperator_OperatorNotFound(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_LookupErrorFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
@@ -216,6 +234,8 @@ func TestRequiresActiveOperator_LookupErrorFailsClosed(t *testing.T) {
 }
 
 func TestRequiresActiveOperator_MissingOperatorID(t *testing.T) {
+	t.Parallel()
+
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
@@ -243,6 +263,8 @@ func requestWithOperatorClaims(operatorID int) *http.Request {
 }
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	errResp := &operator.ErrResponse{
 		HTTPStatusCode: http.StatusBadRequest,
 		StatusText:     "error",

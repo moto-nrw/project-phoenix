@@ -10,6 +10,8 @@ import (
 // WOULD do — never as if the deletion already happened — because the same text
 // backs both the pre-confirmation preview and the admin 409 body.
 func TestGuardianFullDeleteWarning(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no links", func(t *testing.T) {
 		msg := guardianFullDeleteWarning(nil)
 		if !strings.Contains(msg, "keinem Kind") {

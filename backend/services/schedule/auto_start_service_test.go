@@ -18,6 +18,8 @@ import (
 )
 
 func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
 	repo := &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
 		autoStartInstance(101, scheduleModel.InstanceStatusPlanned, 14, 0, 15, 0),
@@ -62,6 +64,8 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 }
 
 func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
 	startErr := errors.New("start failed")
 	repo := &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
@@ -94,6 +98,8 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 // scheduler tick re-reads and starts the block on its real day. The rest of the
 // batch must still start (#1840).
 func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
 	repo := &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
 		autoStartInstance(321, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
@@ -127,6 +133,8 @@ func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
 // The Schulhof is a regular plannable room since #2161: its planned blocks
 // are conflict-checked and auto-started exactly like any other room's.
 func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
 	schulhof := autoStartInstance(311, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0)
 	schulhof.RoomID = 401

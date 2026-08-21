@@ -49,14 +49,14 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // PostgreSQL would resolve with a deadlock abort — a 500 on an edit that is
 // perfectly legal and succeeds on the next attempt.
 func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyLow", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, busy.ID)
 
 	holdStudentRowLock(t, db, busy.ID)
 
@@ -75,17 +75,17 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 // context deadline is what ends this call — proof that it queued rather than
 // bailing out with ErrCompanionLockBusy.
 func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := newCompanionTestService(db)
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyHigh", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, busy.ID)
 
 	holdStudentRowLock(t, db, busy.ID)
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 750*time.Millisecond)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 750*time.Millisecond)
 	defer cancel()
 
 	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID)
@@ -98,15 +98,15 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 // path the refusal must not regress: with nobody holding the rows, both the
 // plain entry point and the bounded one simply take their locks.
 func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	first := testpkg.CreateTestStudent(t, db, "LockFreeOne", "Companion", "1a")
 	second := testpkg.CreateTestStudent(t, db, "LockFreeTwo", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
 
 	require.NoError(t, service.LockStudentsForUpdate(ctx, []int64{second.ID, first.ID}))
 	// A free row below the bound goes through the NOWAIT path and must still
@@ -129,17 +129,16 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 // The far end of the SECOND subject is the one held here: a pass that only
 // looked at the first subject's graph would sail past it and return nil.
 func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
 
 	firstSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectOne", "Companion", "1a")
 	secondSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectTwo", "Companion", "1a")
 	farEnd := testpkg.CreateTestStudent(t, db, "GraphFarEnd", "Companion", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
-	defer cleanupCompanionEdges(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
 
 	setAccompaniedDays(t, db, ctx, secondSubject.ID, "mon")
 	setAccompaniedDays(t, db, ctx, farEnd.ID, "mon")

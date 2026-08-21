@@ -25,6 +25,8 @@ func berlinClock(t *testing.T, hour, minute int) time.Time {
 // fachliche Rangfolge (was passiert ist schlaegt was geplant war) ohne
 // Datenbank pruefbar bleibt.
 func TestDeriveTodayStatus(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		facts      todayStatusFacts
@@ -190,6 +192,8 @@ func TestDeriveTodayStatus(t *testing.T) {
 // Anwesenheit immer gewinnt, auch wenn davor am selben Tag bereits eine
 // geschlossene Zeile steht (Kind war weg und ist zurueckgekommen).
 func TestApplyAttendanceRowsPrefersOpenRow(t *testing.T) {
+	t.Parallel()
+
 	closedOut := berlinClock(t, 11, 40)
 	rows := []*activeModels.Attendance{
 		{CheckInTime: berlinClock(t, 8, 5), CheckOutTime: &closedOut},
@@ -214,6 +218,8 @@ func TestApplyAttendanceRowsPrefersOpenRow(t *testing.T) {
 // expects: Monday = 1 through Sunday = 7. Go's own Weekday numbers Sunday 0,
 // so an unshifted value would make Sunday look like a Monday care day.
 func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
+	t.Parallel()
+
 	// 2026-08-17 is a Monday.
 	monday := timezone.NewDate(2026, 8, 17)
 	want := []int{
@@ -236,6 +242,8 @@ func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
 // TestIsWeekendCoversTheWeek keeps Saturday and Sunday out of the weekly plan,
 // which only knows Monday to Friday and rejects anything else.
 func TestIsWeekendCoversTheWeek(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, 8, 17)
 	want := []bool{false, false, false, false, false, true, true}
 	for offset, expected := range want {

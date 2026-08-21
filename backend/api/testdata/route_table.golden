@@ -10,6 +10,7 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/calendar/appointments/{appointmentId}
+DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
@@ -162,10 +163,13 @@ GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-day/
 GET /api/class-day/classes
+GET /api/class-list-entries/
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
 GET /api/enrollment/admin/change-requests/
+GET /api/enrollment/admin/change-requests/list
+GET /api/enrollment/admin/change-requests/pending-count
 GET /api/enrollment/admin/change-requests/{id}/
 GET /api/enrollment/admin/reports/care-usage
 GET /api/enrollment/admin/requests/
@@ -222,6 +226,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/class-list-entries/template
 GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
@@ -253,6 +258,7 @@ GET /api/me/groups/activity
 GET /api/me/groups/supervised
 GET /api/me/groups/{groupID}/students
 GET /api/me/groups/{groupID}/visits
+GET /api/me/navigation
 GET /api/me/profile
 GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
@@ -305,6 +311,7 @@ GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
 GET /api/staff/
 GET /api/staff/absences/pending
+GET /api/staff/absences/requests
 GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
@@ -338,17 +345,10 @@ GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
-GET /api/students/care-schedule-change-requests
-GET /api/students/care-schedule-change-requests/history
+GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
 GET /api/students/day-log
 GET /api/students/day-log/export
-GET /api/students/excused-absence-requests
-GET /api/students/excused-absence-requests/history
-GET /api/students/master-data-change-requests
-GET /api/students/master-data-change-requests/history
-GET /api/students/offering-change-requests
-GET /api/students/offering-change-requests/history
 GET /api/students/ogs-group-live
 GET /api/students/school-classes
 GET /api/students/status-days
@@ -573,6 +573,8 @@ POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
 POST /api/calendar/recipients/{recipientId}/response
+POST /api/class-list-entries/
+POST /api/class-list-entries/{id}/assign
 POST /api/display/
 POST /api/display/{id}/regenerate
 POST /api/emergency/snapshot/export
@@ -613,6 +615,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/class-list-entries/import
+POST /api/import/class-list-entries/preview
 POST /api/import/opening-balances/import
 POST /api/import/opening-balances/preview
 POST /api/import/students/import
@@ -860,6 +864,7 @@ PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
 PUT /api/birthdays/opt-out
 PUT /api/calendar/appointments/{appointmentId}
+PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/

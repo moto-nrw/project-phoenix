@@ -106,6 +106,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     arrival_is_exception: student.arrival_is_exception,
     arrival_notes: student.arrival_notes,
     day_planning_status: student.day_planning_status,
+    day_planning_reason: student.day_planning_reason,
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
     actual_arrival_time: student.actual_arrival_time,

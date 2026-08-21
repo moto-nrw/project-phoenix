@@ -707,6 +707,7 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 			body: map[string]any{
 				"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
 				"pickup_time": "14:30",
+				"reason":      "Demo-Abholänderung aus dem Elternportal",
 			},
 		},
 		{

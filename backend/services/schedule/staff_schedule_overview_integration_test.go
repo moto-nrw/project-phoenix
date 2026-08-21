@@ -75,15 +75,6 @@ func createOverviewTenantFixture(
 	return fixture
 }
 
-func cleanupOverviewTenantFixture(t *testing.T, db *bun.DB, fixture overviewTenantFixture) {
-	t.Helper()
-	testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", fixture.shiftID)
-	testpkg.CleanupInstanceStaffFixtures(t, db, fixture.assignmentID)
-	testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", fixture.instanceID)
-	testpkg.CleanupStaffFixtures(t, db, fixture.staffID)
-	testpkg.CleanupTableRecords(t, db, "facilities.rooms", fixture.roomID)
-}
-
 type overviewQueryCounter struct {
 	count atomic.Int64
 }
@@ -97,22 +88,17 @@ func (h *overviewQueryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) 
 }
 
 func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	foreignTenantID := int64(1812002)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	date := timezone.TodayDate().AddDays(12000 + int(time.Now().UnixNano()%1000))
-	local := createOverviewTenantFixture(t, db, 1, date, false)
+	local := createOverviewTenantFixture(t, db, testpkg.Tenant(t), date, false)
 	foreign := createOverviewTenantFixture(t, db, foreignTenantID, date, true)
-	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, 1, "Overview", "Second-Assignment")
+	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Overview", "Second-Assignment")
 	secondLocalAssignment := &scheduleModel.InstanceStaff{InstanceID: local.instanceID, StaffID: secondLocalStaff.ID}
-	secondLocalAssignment.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).InstanceStaff.Create(testpkg.TenantContext(1), secondLocalAssignment))
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, db, secondLocalAssignment.ID)
-		testpkg.CleanupStaffFixtures(t, db, secondLocalStaff.ID)
-		cleanupOverviewTenantFixture(t, db, foreign)
-		cleanupOverviewTenantFixture(t, db, local)
-	})
+	secondLocalAssignment.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).InstanceStaff.Create(testpkg.Ctx(t), secondLocalAssignment))
 
 	queryCounter := &overviewQueryCounter{}
 	countedDB := db.WithQueryHook(queryCounter)
@@ -123,7 +109,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
 
-	localOverview, err := service.GetOverview(testpkg.TenantContext(1), date, date.AddDays(4))
+	localOverview, err := service.GetOverview(testpkg.Ctx(t), date, date.AddDays(4))
 	require.NoError(t, err)
 	assert.Equal(t, int64(6), queryCounter.count.Load(), "overview query count must stay fixed as assignment volume grows")
 	assert.False(t, localOverview.DienstplanInUse, "foreign tenant shift must not activate the local Dienstplan")
@@ -155,18 +141,6 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	assert.Equal(t, scheduleSvc.CoverageStatusCovered, foreignOverview.Assignments[0].CoverageStatus)
 }
 
-func cleanupWorkSchedulesForStaff(t *testing.T, db *bun.DB, staffIDs ...int64) {
-	t.Helper()
-	if len(staffIDs) == 0 {
-		return
-	}
-	_, err := db.NewDelete().
-		Table("config.staff_work_schedules").
-		Where("staff_id IN (?)", bun.List(staffIDs)).
-		Exec(context.Background())
-	require.NoError(t, err)
-}
-
 func insertWorkScheduleRow(t *testing.T, db *bun.DB, tenantID, staffID int64, day, targetMinutes int, validFrom timezone.Date) {
 	t.Helper()
 	row := &configModel.StaffWorkSchedule{
@@ -191,10 +165,11 @@ func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date
 }
 
 func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	tenantID := int64(1837003)
-	foreignTenantID := int64(1837004)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 
 	monday := timezone.TodayDate().AddDays(14000 + int(time.Now().UnixNano()%1000))
 	for monday.Weekday() != time.Monday {
@@ -209,12 +184,12 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	insertWorkScheduleRow(t, db, foreignTenantID, foreign.staffID, configModel.DayMonday, 480, validFrom)
 
 	scheduledStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "Scheduled")
-	scheduledShiftID := createOverviewShift(t, db, tenantID, scheduledStaff.ID, monday, "08:00", "12:30", 30)
+	createOverviewShift(t, db, tenantID, scheduledStaff.ID, monday, "08:00", "12:30", 30)
 	insertWorkScheduleRow(t, db, tenantID, scheduledStaff.ID, configModel.DayMonday, 240, validFrom)
 	insertWorkScheduleRow(t, db, tenantID, scheduledStaff.ID, configModel.DayTuesday, 60, validFrom)
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
-	modelShiftID := createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
+	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
 	modelRepo := repositories.NewFactory(db).WorkTimeModel
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
@@ -234,16 +209,11 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	insertWorkScheduleRow(t, db, tenantID, contractedStaff.ID, configModel.DayMonday, 480, validFrom)
 
 	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", scheduledShiftID, modelShiftID)
-		cleanupWorkSchedulesForStaff(t, db, scheduledStaff.ID, contractedStaff.ID, foreign.staffID)
 		_, _ = db.NewUpdate().Table("users.staff").
 			Set("work_time_model_id = NULL").
 			Where("id = ?", modelStaff.ID).
 			Exec(context.Background())
 		_ = modelRepo.Delete(testpkg.TenantContext(tenantID), workModel.ID)
-		testpkg.CleanupStaffFixtures(t, db, scheduledStaff.ID, modelStaff.ID, contractedStaff.ID)
-		cleanupOverviewTenantFixture(t, db, foreign)
-		cleanupOverviewTenantFixture(t, db, local)
 	})
 
 	queryCounter := &overviewQueryCounter{}
@@ -316,9 +286,10 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 }
 
 func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	tenantID := int64(1882001)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	monday := timezone.TodayDate().AddDays(15000 + int(time.Now().UnixNano()%1000))
@@ -331,11 +302,6 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "Weekend")
 	weekdayShiftID := createOverviewShift(t, db, tenantID, staff.ID, friday, "08:00", "10:00", 0)
 	weekendShiftID := createOverviewShift(t, db, tenantID, staff.ID, saturday, "09:00", "12:00", 0)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", weekdayShiftID, weekendShiftID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	repos := repositories.NewFactory(db)
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
@@ -370,9 +336,10 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 }
 
 func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	foreignTenantID := int64(1812003)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	monday := timezone.TodayDate().AddDays(13000 + int(time.Now().UnixNano()%1000))
 	// Keep the fixture anchored to Monday so containing-calendar-week activation is
@@ -385,15 +352,15 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	nextMonday := monday.AddDays(7)
 	nextWednesday := monday.AddDays(9)
 
-	localGroup := testpkg.CreateTestActivityGroupForTenant(t, db, 1, "Coverage-Local")
+	localGroup := testpkg.CreateTestActivityGroupForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignGroup := testpkg.CreateTestActivityGroupForTenant(t, db, foreignTenantID, "Coverage-Foreign")
-	localBase := testpkg.CreateTestStaffForTenant(t, db, 1, "Coverage", "Base")
-	localSub := testpkg.CreateTestStaffForTenant(t, db, 1, "Coverage", "Substitute")
+	localBase := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Coverage", "Base")
+	localSub := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Coverage", "Substitute")
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Coverage", "Foreign")
-	localRoom := testpkg.CreateTestRoomForTenant(t, db, 1, "Coverage-Local")
+	localRoom := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
 	repos := repositories.NewFactory(db)
-	localCtx := testpkg.TenantContext(1)
+	localCtx := testpkg.Ctx(t)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
 	period := &scheduleModel.CalendarPeriod{
@@ -401,14 +368,14 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		PeriodType: scheduleModel.PeriodTypeSchoolYear,
 		StartDate:  monday, EndDate: nextWednesday, WeekCycleLength: 1, IsActive: true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.CalendarPeriod.Create(localCtx, period))
 	validFrom := friday
 	localSchedule := &activitiesModel.Schedule{
 		Weekday: activitiesModel.WeekdayMonday, ActivityGroupID: localGroup.ID,
 		CalendarPeriodID: &period.ID, ValidFrom: &validFrom,
 	}
-	localSchedule.SetTenantID(1)
+	localSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(localCtx, localSchedule))
 	foreignSchedule := &activitiesModel.Schedule{
 		Weekday: activitiesModel.WeekdayMonday, ActivityGroupID: foreignGroup.ID,
@@ -416,9 +383,6 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignSchedule.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.ActivitySchedule.Create(foreignCtx, foreignSchedule))
 
-	localInstanceIDs := make([]int64, 0, 2)
-	localAssignmentIDs := make([]int64, 0, 4)
-	localShiftIDs := make([]int64, 0, 2)
 	for _, date := range []timezone.Date{monday, nextMonday} {
 		groupID := localGroup.ID
 		instance := &scheduleModel.ActivityInstance{
@@ -426,31 +390,28 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 			StartTime: integrationClock(t, "09:00"), EndTime: integrationClock(t, "10:00"),
 			RoomID: localRoom.ID, Status: scheduleModel.InstanceStatusPlanned,
 		}
-		instance.SetTenantID(1)
+		instance.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repos.ActivityInstance.Create(localCtx, instance))
-		localInstanceIDs = append(localInstanceIDs, instance.ID)
 		for _, assignment := range []*scheduleModel.InstanceStaff{
 			{InstanceID: instance.ID, StaffID: localBase.ID, IsAbsent: true},
 			{InstanceID: instance.ID, StaffID: localSub.ID, IsSubstitute: true},
 		} {
-			assignment.SetTenantID(1)
+			assignment.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, repos.InstanceStaff.Create(localCtx, assignment))
-			localAssignmentIDs = append(localAssignmentIDs, assignment.ID)
 		}
 		shift := &scheduleModel.StaffShift{
 			StaffID: localSub.ID, Date: date,
 			StartTime: integrationClock(t, "09:00"), EndTime: integrationClock(t, "10:00"),
 			CreatedBy: localSub.ID,
 		}
-		shift.SetTenantID(1)
+		shift.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repos.StaffShift.Create(localCtx, shift))
-		localShiftIDs = append(localShiftIDs, shift.ID)
 	}
 	localException := &scheduleModel.ActivityException{
 		ActivityGroupID: localGroup.ID, ExceptionDate: friday,
 		ExceptionType: scheduleModel.ActivityExceptionCancelled,
 	}
-	localException.SetTenantID(1)
+	localException.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivityException.Create(localCtx, localException))
 
 	foreignGroupID := foreignGroup.ID
@@ -470,19 +431,6 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	}
 	foreignException.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.ActivityException.Create(foreignCtx, foreignException))
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", localShiftIDs...)
-		testpkg.CleanupInstanceStaffFixtures(t, db, append(localAssignmentIDs, foreignAssignment.ID)...)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", localException.ID, foreignException.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", append(localInstanceIDs, foreignInstance.ID)...)
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", localSchedule.ID, foreignSchedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.groups", localGroup.ID, foreignGroup.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", localGroup.CategoryID, foreignGroup.CategoryID)
-		testpkg.CleanupStaffFixtures(t, db, localBase.ID, localSub.ID, foreignStaff.ID, *localGroup.CreatedBy, *foreignGroup.CreatedBy)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", localRoom.ID, foreignRoom.ID)
-	})
 
 	instanceReader, ok := repos.ActivityInstance.(scheduleSvc.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)

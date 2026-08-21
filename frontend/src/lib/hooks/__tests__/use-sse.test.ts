@@ -193,7 +193,6 @@ describe("useSSE Hook", () => {
         active_group_id: "123",
         data: {
           student_id: "456",
-          student_name: "Test Student",
         },
         timestamp: new Date().toISOString(),
       };

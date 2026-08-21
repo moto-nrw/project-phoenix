@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,28 +38,24 @@ func (c *trackingSettingValuesCounter) BeforeQuery(ctx context.Context, event *b
 
 func (*trackingSettingValuesCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
-// JWT-safe tenant IDs: UniqueTestTenantID values exceed 2^53 and corrupt when
-// the tenant_id claim round-trips through JSON, so JWT-driving tests use a
-// small offset counter (same pattern as api/rooms/system_filter_test.go).
-var trackingBudgetTenantCounter int64 = 890_000 + time.Now().UnixNano()%100_000
-
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
 // way production attaches it) and asserts the four settings the handler reads
 // (toggle + three labels) cost exactly one config.setting_values query
 // (issue #2065).
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	tenantID := atomic.AddInt64(&trackingBudgetTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	valueRepo := configRepository.NewSettingValueRepository(db)
@@ -72,7 +67,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicator1, "Bibliothek", nil, nil))
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 
 	active := &trackingMockActiveService{
 		getTrackingIndicatorsFunc: func(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {

@@ -6,6 +6,8 @@ import (
 )
 
 func TestCompareSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	classes := []string{"10a", "2a", "1b", "Übergang", "1a", "", "Eulen", "2 c"}
 	sort.SliceStable(classes, func(i, j int) bool {
 		return CompareSchoolClasses(classes[i], classes[j]) < 0
@@ -19,6 +21,8 @@ func TestCompareSchoolClasses(t *testing.T) {
 }
 
 func TestCompareSchoolClassesKlassePrefixSortsNumerically(t *testing.T) {
+	t.Parallel()
+
 	classes := []string{"Klasse 10a", "3a", "Klassenfahrt", "Klasse 2a", "1b", "klasse 4b"}
 	sort.SliceStable(classes, func(i, j int) bool {
 		return CompareSchoolClasses(classes[i], classes[j]) < 0
@@ -34,6 +38,8 @@ func TestCompareSchoolClassesKlassePrefixSortsNumerically(t *testing.T) {
 }
 
 func TestCompareSchoolClassesLogicalClassEquivalence(t *testing.T) {
+	t.Parallel()
+
 	// Grouped exports treat comparator equality as "same logical class";
 	// pin the variants that must merge into one section.
 	equal := [][2]string{
@@ -53,6 +59,8 @@ func TestCompareSchoolClassesLogicalClassEquivalence(t *testing.T) {
 }
 
 func TestCompareSchoolClassesPrefixVariantsStayAdjacentAmongMixedLabels(t *testing.T) {
+	t.Parallel()
+
 	// Regression: "2a" and "Klasse 2a" compare equal, so with non-grade
 	// labels ("Eulen") in the mix they must still end up adjacent — the
 	// old fallback compared originals across forms ("2a" < "Eulen" <
@@ -71,6 +79,8 @@ func TestCompareSchoolClassesPrefixVariantsStayAdjacentAmongMixedLabels(t *testi
 }
 
 func TestCompareSchoolClassesTransitivity(t *testing.T) {
+	t.Parallel()
+
 	labels := []string{"2a", "Klasse 2a", "Eulen", "1b", "Klasse 10a", "Klassenfahrt", "Übergang", "2 c", ""}
 	for _, x := range labels {
 		for _, y := range labels {
@@ -90,6 +100,8 @@ func TestCompareSchoolClassesTransitivity(t *testing.T) {
 }
 
 func TestCompareSchoolClassesSymmetry(t *testing.T) {
+	t.Parallel()
+
 	cases := [][2]string{
 		{"1a", "1a"},
 		{"2a", "10a"},

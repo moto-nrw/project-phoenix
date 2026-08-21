@@ -52,7 +52,7 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
 
-// Thrown by reportSick when a gated excused absence was created server-side but
+// Thrown by reportSick when a gated absence was created server-side but
 // the follow-up reload that would surface the new pending request failed. The
 // SickNoteModal maps it to a localized "submitted but couldn't refresh" hint
 // rather than leaking a raw message — the submission itself succeeded (#1845).
@@ -65,6 +65,8 @@ class ChildCareRefreshError extends Error {
 
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
+
+export type AbsenceSubmissionOutcome = "applied" | "pending";
 
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
@@ -113,11 +115,6 @@ function formatLocaleDate(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
-  // Default false on fetch failure: without a confirmed override we treat excused
-  // absences as immediate (the pre-feature behavior), so a transient hiccup never
-  // makes the UI claim an OGS confirmation is pending when it isn't. The backend
-  // enforces the real gate regardless.
-  excused_requires_approval: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -254,8 +251,8 @@ export function resolveTodayPickup(params: {
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
-  // Excused-absence requests that went through the OGS approval gate (pending +
-  // recently-decided). Empty for schools that don't gate excused absences.
+  // Absence requests that went through the OGS approval gate (pending +
+  // recently decided). Empty for schools that gate neither absence type.
   readonly excusedRequests: ExcusedRequest[];
   readonly careExceptions: CareException[];
   readonly pickupChangeRequests: PickupChangeRequest[];
@@ -274,7 +271,7 @@ export interface ChildCare {
     dates: string[],
     reason: string,
     status: StudentStatusKind,
-  ): Promise<void>;
+  ): Promise<AbsenceSubmissionOutcome | void>;
   withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
@@ -413,6 +410,8 @@ export function useChildCare(studentId: string): ChildCare {
             weekPlanOk = false;
             return null;
           }),
+          // Approval settings have no safe fallback: keep them unknown when
+          // the feature request fails so the modal uses neutral wording.
           getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
         ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
@@ -474,7 +473,7 @@ export function useChildCare(studentId: string): ChildCare {
     return () => clearInterval(id);
   }, []);
 
-  // A parent write or a staff decision on an excused request flips the request's
+  // A parent write or a staff decision on an absence request flips the request's
   // state / writes status days server-side but emits only an SSE trigger — no
   // payload and no local state change here. The portal-wide ParentRealtimeBridge
   // turns the backend's message-INDEPENDENT parent_child_updated event into a
@@ -539,9 +538,9 @@ export function useChildCare(studentId: string): ChildCare {
           setTodayAbsent(true);
           setWeekPlanDate(berlinTodayISO());
         }
-        return;
+        return "applied" as const;
       }
-      // Empty status days means the school gated this excused absence: the backend
+      // Empty status days means the school gated this absence: the backend
       // created a pending request but no longer returns it inline (the sick-note
       // response is always the bare status-day array for backward compatibility).
       // Reload authoritatively to surface the new "Freigabe ausstehend" request.
@@ -557,6 +556,7 @@ export function useChildCare(studentId: string): ChildCare {
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
       }
+      return "pending" as const;
     },
     [studentId, load],
   );
@@ -665,20 +665,32 @@ export function useChildCare(studentId: string): ChildCare {
 
 // --- sick-note modal ---
 
+function resolveSickError(
+  err: unknown,
+  refreshFailed: string,
+  overlap: string,
+  save: string,
+): string {
+  if (err instanceof ChildCareRefreshError) return refreshFailed;
+  if (err instanceof ParentApiError && err.code === "excused_request_overlap") {
+    return overlap;
+  }
+  return err instanceof Error ? err.message : save;
+}
+
 export function SickNoteModal({
   onClose,
   onSubmit,
-  excusedRequiresApproval = false,
+  sickRequiresApproval,
+  excusedRequiresApproval,
 }: Readonly<{
   onClose: () => void;
   onSubmit: (
     dates: string[],
     reason: string,
     status: StudentStatusKind,
-  ) => Promise<void>;
-  // When true AND the parent picks "Entschuldigt", the absence must be confirmed
-  // by the OGS before it takes effect — the modal shows a hint saying so. Mirrors
-  // the backend operations.parent_excused_requires_approval gate.
+  ) => Promise<AbsenceSubmissionOutcome | void>;
+  sickRequiresApproval?: boolean;
   excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
@@ -689,27 +701,32 @@ export function SickNoteModal({
   const [status, setStatus] = useState<StudentStatusKind>("sick");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const errorId = useId();
-
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
   const noteMissing = reason.trim() === "";
-
-  // Map submit failures to localized text; never surface a raw English backend
-  // string to the German-only parent UI (mirrors PickupTimeModal.resolveError).
-  const resolveSickError = (err: unknown): string => {
-    if (err instanceof ChildCareRefreshError) {
-      return t("sick.submittedButRefreshFailed");
-    }
-    if (
-      err instanceof ParentApiError &&
-      err.code === "excused_request_overlap"
-    ) {
-      return t("sick.overlapError");
-    }
-    return err instanceof Error ? err.message : t("sick.saveError");
-  };
+  const requiresApproval =
+    status === "sick" ? sickRequiresApproval : excusedRequiresApproval;
+  const kindHint =
+    status === "sick"
+      ? requiresApproval === true
+        ? "sick.kindHintSickApproval"
+        : requiresApproval === false
+          ? "sick.kindHintSick"
+          : "sick.kindHintSickUnknown"
+      : requiresApproval === true
+        ? "sick.kindHintExcusedApproval"
+        : requiresApproval === false
+          ? "sick.kindHintExcused"
+          : "sick.kindHintExcusedUnknown";
+  const dayCopy =
+    requiresApproval === undefined
+      ? t("sick.unknownDaysCount", { count: dates.length })
+      : requiresApproval
+        ? t("sick.requestDaysCount")
+        : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
     if (dates.length === 0) {
@@ -724,10 +741,18 @@ export function SickNoteModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(dates, reason, status);
-      onClose();
+      const outcome = await onSubmit(dates, reason, status);
+      if (outcome === "pending") setSubmitted(true);
+      else onClose();
     } catch (err) {
-      setError(resolveSickError(err));
+      setError(
+        resolveSickError(
+          err,
+          t("sick.submittedButRefreshFailed"),
+          t("sick.overlapError"),
+          t("sick.saveError"),
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -737,139 +762,147 @@ export function SickNoteModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("sick.title")}
+      title={submitted ? t("sick.requestSentTitle") : t("sick.title")}
       closeLabel={t("close")}
       mobileSheet
       footer={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="hidden sm:inline-flex"
-            onClick={onClose}
-          >
-            {t("cancel")}
+        submitted ? (
+          <Button type="button" size="md" onClick={onClose}>
+            {t("close")}
           </Button>
-          <Button
-            type="button"
-            size="md"
-            className="w-full gap-2 sm:w-auto"
-            onClick={() => void handleSubmit()}
-            disabled={submitting}
-          >
-            {submitting && (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            )}
-            {status === "sick" ? t("sick.submitSick") : t("sick.submitExcused")}
-          </Button>
-        </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="hidden sm:inline-flex"
+              onClick={onClose}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="md"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => void handleSubmit()}
+              disabled={submitting}
+            >
+              {submitting && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {status === "sick"
+                ? t("sick.submitSick")
+                : t("sick.submitExcused")}
+            </Button>
+          </>
+        )
       }
     >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-700">
-          {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
+      {submitted ? (
+        <p role="status" className="text-sm leading-6 text-gray-700">
+          {t("sick.requestSentBody")}
         </p>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            {t("sick.kindLabel")}
-          </span>
-          <CustomSelect
-            value={status}
-            ariaLabel={t("sick.kindLabel")}
-            onChange={(value) => {
-              setStatus(value as StudentStatusKind);
-              setError(null);
-            }}
-            options={[
-              { value: "sick", label: t("sick.kindSick") },
-              { value: "excused", label: t("sick.kindExcused") },
-            ]}
-          />
-        </label>
-        <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
-          {status === "sick"
-            ? t("sick.kindHintSick")
-            : t("sick.kindHintExcused")}
-        </p>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700">
-            {t("sick.periodLabel")}
-          </legend>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("sick.from")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("sick.from")}
-                value={from}
-                min={initial}
-                onChange={(next) => {
-                  setFrom(next);
-                  if (next > to) setTo(next);
-                }}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("sick.to")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("sick.to")}
-                value={to}
-                min={from}
-                onChange={setTo}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
-          </div>
-        </fieldset>
-        <p className="text-sm text-gray-600">
-          {t("sick.daysCount", { count: dates.length })}
-        </p>
-        {status === "excused" && excusedRequiresApproval && (
-          <p className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm">
-            {t("sick.approvalHint")}
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-gray-700">{t("sick.intro")}</p>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              {t("sick.kindLabel")}
+            </span>
+            <CustomSelect
+              value={status}
+              ariaLabel={t("sick.kindLabel")}
+              onChange={(value) => {
+                setStatus(value as StudentStatusKind);
+                setError(null);
+              }}
+              options={[
+                { value: "sick", label: t("sick.kindSick") },
+                { value: "excused", label: t("sick.kindExcused") },
+              ]}
+            />
+          </label>
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+            {t(kindHint)}
           </p>
-        )}
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            {t("sick.reasonLabelRequired")} <span aria-hidden="true">*</span>
-          </span>
-          <textarea
-            ref={reasonRef}
-            value={reason}
-            maxLength={MAX_NOTE_LEN}
-            onChange={(e) => {
-              setReason(e.target.value);
-              if (error) setError(null);
-            }}
-            name="absence-reason"
-            autoComplete="off"
-            required
-            rows={3}
-            placeholder={t("sick.reasonPlaceholder")}
-            aria-invalid={noteMissing && Boolean(error)}
-            aria-describedby={noteMissing && error ? errorId : undefined}
-            className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          />
-        </label>
-        {error && (
-          <p
-            id={errorId}
-            role="alert"
-            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
-          >
-            {error}
-          </p>
-        )}
-      </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-gray-700">
+              {t("sick.periodLabel")}
+            </legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("sick.from")}
+                </span>
+                <ISODatePicker
+                  {...datePicker}
+                  ariaLabel={t("sick.from")}
+                  value={from}
+                  min={initial}
+                  onChange={(next) => {
+                    setFrom(next);
+                    if (next > to) setTo(next);
+                  }}
+                  calendarLayout="popover"
+                  hideClearButton
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("sick.to")}
+                </span>
+                <ISODatePicker
+                  {...datePicker}
+                  ariaLabel={t("sick.to")}
+                  value={to}
+                  min={from}
+                  onChange={setTo}
+                  calendarLayout="popover"
+                  hideClearButton
+                />
+              </label>
+            </div>
+          </fieldset>
+          <p className="text-sm text-gray-600">{dayCopy}</p>
+          {requiresApproval === true && (
+            <p className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm">
+              {t("sick.approvalHint")}
+            </p>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              {t("sick.reasonLabelRequired")} <span aria-hidden="true">*</span>
+            </span>
+            <textarea
+              ref={reasonRef}
+              value={reason}
+              maxLength={MAX_NOTE_LEN}
+              onChange={(event) => {
+                setReason(event.target.value);
+                if (error) setError(null);
+              }}
+              name="absence-reason"
+              autoComplete="off"
+              required
+              rows={3}
+              placeholder={t("sick.reasonPlaceholder")}
+              aria-invalid={noteMissing && Boolean(error)}
+              aria-describedby={noteMissing && error ? errorId : undefined}
+              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+          {error && (
+            <p
+              id={errorId}
+              role="alert"
+              className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
@@ -1240,7 +1273,7 @@ export function SickStatusSummary({
   onWithdraw,
 }: Readonly<{
   sickDays: StatusDay[];
-  // Excused requests behind the OGS approval gate. Pending ones show as
+  // Absence requests behind an OGS approval gate. Pending ones show as
   // "Freigabe ausstehend" with a withdraw action; rejected ones show the
   // decision reason. Confirmed (approved) requests arrive as StatusDays instead.
   excusedRequests?: readonly ExcusedRequest[];
@@ -1311,7 +1344,11 @@ export function SickStatusSummary({
     .map((d) => d.date);
   const pending = excusedRequests.filter((r) => r.status === "pending");
   const rejected = excusedRequests.filter((r) => r.status === "rejected");
-  // Approved requests normally surface as excused status days above, but the
+  const requestLabel = (request: ExcusedRequest) =>
+    request.absence_status === "sick"
+      ? t("summary.sickLabel")
+      : t("summary.excusedLabel");
+  // Approved requests normally surface as status days above, but the
   // status-day fetch is windowed (today..+2 months, matching the backend's
   // listSickDays range). An approval for a past date (delayed decision) or one
   // more than two months ahead has NO status day here, so it would silently
@@ -1319,26 +1356,33 @@ export function SickStatusSummary({
   // request instead.
   //
   // Critically, only surface dates that are genuinely OUTSIDE the fetched window.
-  // A within-window date with no excused status day was NOT dropped for being out
-  // of range — it was superseded by a newer authoritative status (e.g. staff
-  // marked the child sick, or cleared it). Showing it from the approved request
-  // would render the same day as both sick AND excused. Inside the window the
-  // status days are authoritative; the approved request only fills the gaps the
-  // windowed fetch cannot see (#1845 review).
+  // A within-window date with no matching status day was NOT dropped for being
+  // out of range — it was superseded or cleared. Inside the window the status
+  // days are authoritative; approved requests only fill gaps outside it.
   const windowStart = todayISO();
   const windowEnd = (() => {
     const d = parseISODate(windowStart);
     d.setMonth(d.getMonth() + 2);
     return toISODate(d);
   })();
-  const shownExcusedDates = new Set(excusedConfirmedDates);
+  const shownDatesByStatus = {
+    sick: new Set(sickDates),
+    excused: new Set(excusedConfirmedDates),
+  };
   const isOutOfWindow = (d: string) => d < windowStart || d > windowEnd;
   const approvedOutOfWindow = excusedRequests
     .filter((r) => r.status === "approved")
     .map((r) => ({
       id: r.id,
+      label: requestLabel(r),
       dates: r.dates.filter(
-        (d) => isOutOfWindow(d) && !shownExcusedDates.has(d),
+        (d) =>
+          isOutOfWindow(d) &&
+          !(
+            r.absence_status === "sick"
+              ? shownDatesByStatus.sick
+              : shownDatesByStatus.excused
+          ).has(d),
       ),
     }))
     .filter((r) => r.dates.length > 0);
@@ -1367,14 +1411,14 @@ export function SickStatusSummary({
       )}
       {approvedOutOfWindow.map((r) => (
         <p key={r.id} className="text-sm font-semibold text-gray-900">
-          {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+          {r.label}: {rangeLabel(r.dates)}
         </p>
       ))}
       {pending.map((r) => (
         <div key={r.id} className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-gray-900">
-              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+              {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
             <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.pendingLabel")}
@@ -1401,7 +1445,7 @@ export function SickStatusSummary({
         <div key={r.id} className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-x-2">
             <p className="text-sm font-semibold text-gray-900">
-              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+              {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
             <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.rejectedLabel")}
@@ -1418,17 +1462,18 @@ export function SickStatusSummary({
   );
 }
 
-// --- OGS quick actions (parent self-service, immediate) --------------------
+// --- OGS quick actions (parent self-service) -------------------------------
 //
 // The care-schedule change request FORM now lives in ./care-schedule-request-
 // modal and is owned entirely by the Stammdaten page (#1803) — it is no longer
-// reachable from the chat. Only the immediate self-service actions (sick note,
-// one-day pickup change) remain here as quick-action pills above the composer.
+// reachable from the chat. Only the sick-note and one-day pickup-change actions
+// remain here as quick-action pills above the composer.
 
 export type OgsActionKey = "sick" | "pickup";
 
-// A single parent self-service action available from the OGS chat. Each takes
-// effect immediately for a single day (no OGS confirmation).
+// A single parent self-service action available from the OGS chat. Whether it
+// takes effect immediately or needs OGS confirmation depends on the action and
+// the school's settings.
 export interface OgsAction {
   readonly key: OgsActionKey;
   readonly concept: MotoConceptKey;

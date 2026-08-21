@@ -24,6 +24,8 @@ import (
 // issued a full session token pair — an attacker who could DoS the settings
 // table could downgrade MFA-required tenants to no-MFA-at-all.
 func TestLoginWithMFAGate_IsRequiredInfraError_ReturnsMFAStatusUnavailable(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, false) // no real MFA service — we inject our own
 
 	stub := &authsvc.MFAStub{
@@ -49,6 +51,8 @@ func TestLoginWithMFAGate_IsRequiredInfraError_ReturnsMFAStatusUnavailable(t *te
 // HasEnrollment from "swallow ALL errors as (false, nil)" to
 // "swallow only sql.ErrNoRows; propagate everything else".
 func TestLoginWithMFAGate_HasEnrollmentInfraError_ReturnsMFAStatusUnavailable(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, false)
 
 	stub := &authsvc.MFAStub{
@@ -80,6 +84,8 @@ func TestLoginWithMFAGate_HasEnrollmentInfraError_ReturnsMFAStatusUnavailable(t 
 // account hits FindByAccountID's sql.ErrNoRows path and HasEnrollment must
 // still return (false, nil)).
 func TestLoginWithMFAGate_StubReturnsNotEnrolledNoError_TreatedAsNotEnrolled(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, false)
 
 	stub := &authsvc.MFAStub{

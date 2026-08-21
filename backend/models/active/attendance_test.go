@@ -10,6 +10,8 @@ import (
 )
 
 func TestAttendance_GetID(t *testing.T) {
+	t.Parallel()
+
 	attendance := &Attendance{
 		StudentID:   1,
 		Date:        timezone.TodayDate(),
@@ -21,6 +23,8 @@ func TestAttendance_GetID(t *testing.T) {
 }
 
 func TestAttendance_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:   1,
@@ -33,6 +37,8 @@ func TestAttendance_GetCreatedAt(t *testing.T) {
 }
 
 func TestAttendance_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:   1,
@@ -45,6 +51,8 @@ func TestAttendance_GetUpdatedAt(t *testing.T) {
 }
 
 func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:    1,
@@ -57,6 +65,8 @@ func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
 }
 
 func TestAttendance_IsCheckedIn_WhenCheckedOut(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	checkoutTime := now.Add(2 * time.Hour)
 
@@ -71,6 +81,8 @@ func TestAttendance_IsCheckedIn_WhenCheckedOut(t *testing.T) {
 }
 
 func TestAttendance_IsCheckedIn_ZeroValue(t *testing.T) {
+	t.Parallel()
+
 	// Test with zero-initialized struct
 	attendance := &Attendance{
 		StudentID:    1,
@@ -83,6 +95,8 @@ func TestAttendance_IsCheckedIn_ZeroValue(t *testing.T) {
 }
 
 func TestAttendance_CompleteLifecycle(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	// Create attendance record (check-in)
@@ -120,6 +134,8 @@ func TestAttendance_CompleteLifecycle(t *testing.T) {
 }
 
 func TestAttendance_MultipleRecords(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -164,6 +180,8 @@ func TestAttendance_MultipleRecords(t *testing.T) {
 }
 
 func TestAttendance_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	checkoutTime := now.Add(2 * time.Hour)
 	checkedOutBy := int64(99)
@@ -202,6 +220,8 @@ func timePtr(t time.Time) *time.Time {
 }
 
 func TestAttendance_IsOnYard(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	yard := now.Add(-10 * time.Minute)
 	checkout := now

@@ -16,6 +16,8 @@ import (
 )
 
 func TestRequireBalanceAdjustmentStaffClassifiesLookupErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		lookupErr  error

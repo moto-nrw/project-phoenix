@@ -17,7 +17,6 @@ import (
 // planned+spontaneous) keep their flag.
 func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	room := testpkg.CreateTestRoom(t, db, "Migration-2299-Room")
@@ -36,11 +35,6 @@ func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
 	})
 	plannedNormal := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Status: schedule.InstanceStatusPlanned,
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-			plannedSpont.ID, activeSpont.ID, completedSpont.ID, plannedNormal.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	})
 
 	require.NoError(t, reclassifyPlannedSpontaneousInstancesUp(ctx, db))

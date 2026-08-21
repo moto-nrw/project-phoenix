@@ -5,6 +5,8 @@ import "testing"
 func intPtr(v int) *int { return &v }
 
 func TestRequiredStaffForChildren(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		children int
@@ -29,6 +31,8 @@ func TestRequiredStaffForChildren(t *testing.T) {
 }
 
 func TestEffectiveRequiredStaff(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		override *int

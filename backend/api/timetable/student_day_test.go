@@ -48,18 +48,14 @@ type studentDaySetup struct {
 func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SD-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SD-Act-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SD", fmt.Sprintf("Staff-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "SD", fmt.Sprintf("Stu-%d", suffix), "3a")
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, 0, activity.ID, room.ID)
-	})
 
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
@@ -127,6 +123,8 @@ func decodeEnvelope(t *testing.T, w *httptest.ResponseRecorder, target any) {
 // --- /day -----------------------------------------------------------------
 
 func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Create a planned instance on Wed 2026-04-22.
@@ -136,20 +134,12 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 		EndHHMM:         "15:00",
 		Title:           "Lernzeit-3a",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusExpected)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusExpected)
 
 	// Wednesday is weekday 3 (ISO).
-	arrival := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
-	pickup := testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			[]int64{arrival.ID}, nil,
-			[]int64{pickup.ID}, nil,
-			nil, nil)
-	})
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -186,15 +176,13 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 }
 
 func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
-	arrSched := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
-	arrExc := testpkg.CreateTestArrivalException(t, s.db, s.studentID,
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			[]int64{arrSched.ID}, []int64{arrExc.ID}, nil, nil, nil, nil)
-	})
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -211,16 +199,14 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 }
 
 func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
 	// the day. Source must still be "exception", ExpectedTime must be nil.
-	exc := testpkg.CreateTestPickupException(t, s.db, s.studentID,
+	testpkg.CreateTestPickupException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(t, s.db,
-			nil, nil, nil, []int64{exc.ID}, nil, nil)
-	})
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -236,6 +222,8 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 }
 
 func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	router := adminRouter(s.ctx, s.res)
@@ -259,11 +247,12 @@ func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
 // loop skips ids already present in enrolledInstanceIDs; this test locks
 // that behavior in so a future rewrite can't introduce a duplicate.
 func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Active group + bridge instance (same shape as the unplanned test).
 	ag := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
@@ -276,15 +265,12 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 			EndHHMM:         "15:00",
 			Title:           "Enrolled-And-Present",
 		})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// Both signals: enrolled row AND a visit on the same active_group.
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
 
-	visit := testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
+	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -305,11 +291,12 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 // Unplanned scenario: active.visit exists for student on an active
 // instance's bridge group, but no instance_students row.
 func TestGetStudentDay_UnplannedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Active group + bridge instance.
 	ag := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
@@ -322,13 +309,11 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 			EndHHMM:         "15:00",
 			Title:           "Unplanned-Session",
 		})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// No instance_students row for our student — they're NOT on the plan.
 	// But they checked in, so a visit exists.
-	visit := testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
+	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -349,6 +334,8 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 }
 
 func TestGetStudentDay_InvalidDate_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -358,6 +345,8 @@ func TestGetStudentDay_InvalidDate_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_MissingDate_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -367,6 +356,8 @@ func TestGetStudentDay_MissingDate_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_InvalidStudentID_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -376,6 +367,8 @@ func TestGetStudentDay_InvalidStudentID_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_UnknownStudent_Returns404(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -386,6 +379,8 @@ func TestGetStudentDay_UnknownStudent_Returns404(t *testing.T) {
 // Cross-tenant must 404, not 403: returning 403 for a student in tenant B
 // would leak their existence to a caller in tenant A.
 func TestGetStudentDay_CrossTenant_Returns404(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Pretend the caller is in tenant 2 — our fixture student lives in
@@ -400,6 +395,8 @@ func TestGetStudentDay_CrossTenant_Returns404(t *testing.T) {
 // Same-tenant, non-admin, not a group supervisor → 403 (we already know the
 // student exists in this tenant, so hiding them would be misleading).
 func TestGetStudentDay_SameTenantNoSupervisor_Returns403(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Strip admin perms; CanReadStudent falls through to the group-
@@ -413,6 +410,8 @@ func TestGetStudentDay_SameTenantNoSupervisor_Returns403(t *testing.T) {
 // --- /week ----------------------------------------------------------------
 
 func TestGetStudentWeek_HappyPath_ReturnsEntryPerDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -435,6 +434,8 @@ func TestGetStudentWeek_HappyPath_ReturnsEntryPerDay(t *testing.T) {
 }
 
 func TestGetStudentWeek_RangeAtLimit_14Days_ReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -447,6 +448,8 @@ func TestGetStudentWeek_RangeAtLimit_14Days_ReturnsOK(t *testing.T) {
 }
 
 func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -462,6 +465,8 @@ func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
 // to.Sub(from).Hours()/24 would undercount by the missing hour and let it
 // through.
 func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -473,6 +478,8 @@ func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
 // Spring DST: the same span minus one day (14 inclusive days crossing the
 // transition) must pass and return one entry per day.
 func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -485,6 +492,8 @@ func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
 }
 
 func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -494,6 +503,8 @@ func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
 }
 
 func TestGetStudentWeek_MissingParams_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -516,6 +527,9 @@ func (h *queryCounterHook) AfterQuery(context.Context, *bun.QueryEvent) {}
 // TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne locks in the N+1 fix:
 // a 14-day /week must fire at most 7 DB queries (enrolled + instances +
 // visits + 2 schedules + 2 exceptions). Previously this was ~98.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	s := buildStudentDaySetup(t)
 

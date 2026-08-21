@@ -12,6 +12,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,36 +55,6 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 		TimeframeRepo:            repos.Timeframe,
 		ActivityExceptionRepo:    repos.ActivityException,
 		PhaseRepo:                repos.Phase,
-	})
-
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		for _, table := range []string{
-			"enrollment.request_child_offerings",
-			"enrollment.request_children",
-			"enrollment.requests",
-			"enrollment.care_offerings",
-			"enrollment.phases",
-			"schedule.activity_exceptions",
-			"activities.schedules",
-			"activities.groups",
-			"activities.categories",
-			"schedule.calendar_periods",
-			"schedule.timeframes",
-			"facilities.rooms",
-		} {
-			_, err := db.NewDelete().
-				TableExpr(table).
-				Where("tenant_id = ?", tenantID).
-				Exec(cleanupCtx)
-			require.NoError(t, err, "clean up %s", table)
-		}
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		_, err := db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-		_, err = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-		require.NoError(t, db.Close())
 	})
 
 	return &calendarPeriodValidationFixture{
@@ -220,6 +191,31 @@ func (f *calendarPeriodValidationFixture) validator(
 	return validator
 }
 
+// validate runs the validation inside a tenant transaction, which is how it
+// runs in production: the sweep it performs (ListByTenant and friends) has no
+// tenant_id filter of its own and relies on RLS to narrow it. Called with a
+// plain tenant context — as these tests did while per-row teardowns removed
+// every other test's rows — it sees the care offerings of the whole clone
+// (#2419).
+func (f *calendarPeriodValidationFixture) validate(
+	t *testing.T,
+	periodID int64,
+	replacement *scheduleModels.CalendarPeriod,
+) error {
+	t.Helper()
+	var validationErr error
+	require.NoError(t, tenant.WithTenantTx(f.ctx, f.db, f.tenantID,
+		func(txCtx context.Context, _ bun.Tx) error {
+			validationErr = f.validator(t).ValidateCalendarPeriodChange(txCtx, periodID, replacement)
+			return nil
+		}))
+	return validationErr
+}
+
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-mutation")
@@ -228,22 +224,26 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	replacement := *period
 	replacement.EndDate = fixture.phase.ServiceEndDate.AddDays(-1)
 
-	err := fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, &replacement)
+	err := fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
 
-	err = fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, nil)
+	err = fixture.validate(t, period.ID, nil)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 
 	replacement = *period
 	replacement.IsActive = false
-	err = fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, &replacement)
+	err = fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-cycle-change")
@@ -259,12 +259,16 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
 	replacement.WeekCycleLength = 2
 	replacement.WeekCycleAnchor = &anchor
-	err = fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, &replacement)
+	err = fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, "does not cover")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-inactive-referenced")
@@ -275,11 +279,15 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 
 	replacement := *period
 	replacement.IsActive = false
-	err := fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, &replacement)
+	err := fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	rootPeriod := fixture.createPeriod(t, "care-period-linked-root")
@@ -316,11 +324,15 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	successorSchedule.SetTenantID(fixture.tenantID)
 	require.NoError(t, repos.ActivitySchedule.Create(fixture.ctx, successorSchedule))
 
-	err = fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, rootPeriod.ID, nil)
+	err = fixture.validate(t, rootPeriod.ID, nil)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testing.T) {
 	t.Run("period update still contains phase", func(t *testing.T) {
 		fixture := newCalendarPeriodValidationFixture(t)
@@ -329,7 +341,7 @@ func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testi
 
 		replacement := *period
 		replacement.Name += " renamed"
-		err := fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, period.ID, &replacement)
+		err := fixture.validate(t, period.ID, &replacement)
 		require.NoError(t, err)
 	})
 
@@ -339,7 +351,7 @@ func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testi
 		overridePeriod := fixture.createPeriod(t, "care-period-schedule-override")
 		fixture.createLinkedTemplate(t, &deletedPeriod.ID, &overridePeriod.ID)
 
-		err := fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, deletedPeriod.ID, nil)
+		err := fixture.validate(t, deletedPeriod.ID, nil)
 		require.NoError(t, err)
 	})
 
@@ -349,7 +361,7 @@ func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testi
 		fallbackPeriod := fixture.createPeriod(t, "care-period-template-fallback")
 		fixture.createLinkedTemplate(t, &fallbackPeriod.ID, &deletedPeriod.ID)
 
-		err := fixture.validator(t).ValidateCalendarPeriodChange(fixture.ctx, deletedPeriod.ID, nil)
+		err := fixture.validate(t, deletedPeriod.ID, nil)
 		require.NoError(t, err)
 	})
 }

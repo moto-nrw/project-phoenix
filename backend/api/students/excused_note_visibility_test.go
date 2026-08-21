@@ -27,6 +27,8 @@ import (
 // child while being unable to open or decide the queue. The fix gates the whole enrichment on
 // users:update; this test pins that only that permission flips the note on.
 func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The caller is verified staff, so they have full read access to the child
@@ -36,14 +38,13 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ExcusedNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Note", "EN1")
 	// A second account supplies a valid submitted_by (FK) for the seeded request.
-	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Submitter")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	_, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Submitter")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	// Seed a pending excused request covering today for this child.
 	const note = "Zahnarzttermin am Vormittag"
-	err := tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
@@ -84,18 +85,19 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 // must reach its reviewer. A note withheld from the person who decides it
 // hides work they own — the same drift as the leak above, mirrored.
 func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "AbsenceNote", "Kind", "AN1")
-	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	_, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	const note = "Familienfeier, kommt später"
-	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,

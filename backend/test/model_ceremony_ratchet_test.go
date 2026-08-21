@@ -59,6 +59,8 @@ var modelTableNameAllowlist = map[string]int{}
 var modelDeadHookAllowlist = map[string]int{}
 
 func TestModelCeremonyRatchet(t *testing.T) {
+	t.Parallel()
+
 	backendRoot, err := findBackendRoot()
 	if err != nil {
 		t.Skipf("Could not find backend root: %v", err)

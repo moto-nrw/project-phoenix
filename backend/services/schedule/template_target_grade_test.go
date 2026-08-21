@@ -9,6 +9,8 @@ import (
 )
 
 func TestValidateTemplateTargetGradeLimit(t *testing.T) {
+	t.Parallel()
+
 	gradeFive := int16(5)
 	gradeSix := int16(6)
 	legacy := &activitiesModel.Group{
@@ -51,6 +53,8 @@ func TestValidateTemplateTargetGradeLimit(t *testing.T) {
 }
 
 func TestValidateTemplateTargetsGradeLimitPreservesAllExistingGrades(t *testing.T) {
+	t.Parallel()
+
 	gradeFive := int16(5)
 	gradeSix := int16(6)
 	gradeSeven := int16(7)

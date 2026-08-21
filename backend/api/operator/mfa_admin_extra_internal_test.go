@@ -73,6 +73,8 @@ func provisioningResourceFor(mfa authSvc.MFAService) *ProvisioningResource {
 // --- tests -------------------------------------------------------------
 
 func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.HasEnrollmentFn = func(context.Context, int64) (bool, error) { return true, nil }
 	mfa.GetTenantMFAOverrideFn = func(context.Context, int64, int64) (string, error) { return authSvc.MFAAdminOverrideForceOn, nil }
@@ -87,6 +89,8 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 }
 
 func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, nil }
 	rs := provisioningResourceFor(mfa)
@@ -100,6 +104,8 @@ func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
 }
 
 func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") }
 	rs := provisioningResourceFor(mfa)
@@ -112,6 +118,8 @@ func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	var capturedReason string
 	mfa := newStubTenantMFAService()
 	mfa.OperatorAdminDisableFn = func(_ context.Context, _, _, _ int64, reason string) error {
@@ -130,6 +138,8 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
@@ -142,6 +152,8 @@ func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
@@ -155,6 +167,8 @@ func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
 }
 
 func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.OperatorAdminDisableFn = func(context.Context, int64, int64, int64, string) error {
 		return authSvc.ErrMFAPermissionDenied
@@ -170,6 +184,8 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	var capturedOverride string
 	mfa := newStubTenantMFAService()
 	mfa.OperatorSetMFAOverrideFn = func(_ context.Context, _, _, _ int64, override, _ string) error {
@@ -191,6 +207,8 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	rs := provisioningResourceFor(mfa)
 
@@ -203,6 +221,8 @@ func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
 		return authSvc.ErrMFAInvalidOverride
@@ -218,6 +238,8 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 }
 
 func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
+	t.Parallel()
+
 	mfa := newStubTenantMFAService()
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
 		return authSvc.ErrMFAPermissionDenied
@@ -233,11 +255,15 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 }
 
 func TestMFAAdminResetRequest_BindRejectsShortReason(t *testing.T) {
+	t.Parallel()
+
 	req := &MFAAdminResetRequest{Reason: "no"}
 	require.Error(t, req.Bind(nil))
 }
 
 func TestMFAAdminOverrideSetRequest_Trim(t *testing.T) {
+	t.Parallel()
+
 	req := &MFAAdminOverrideSetRequest{
 		Override: "  force_off  ",
 		Reason:   "   compromise   ",

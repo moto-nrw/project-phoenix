@@ -13,6 +13,8 @@ import (
 // TestParentMessageNotificationTemplate_Renders verifies the "Neue Nachricht von
 // der OGS" mail (#2307) renders with the payload the messaging service supplies.
 func TestParentMessageNotificationTemplate_Renders(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 
@@ -60,6 +62,8 @@ func TestParentMessageNotificationTemplate_Renders(t *testing.T) {
 // minimisation the mail was cut down to: it announces that a message arrived and
 // links to the portal, it never carries the message text or the child's name.
 func TestParentMessageNotificationTemplate_OmitsMessageContent(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 	tpl, err := template.ParseGlob(filepath.Join(templatesDir, "*.html"))
@@ -90,6 +94,8 @@ func TestParentMessageNotificationTemplate_OmitsMessageContent(t *testing.T) {
 // readable when the school name or the child could not be resolved: the sentence
 // must still be a sentence, never "die OGS  hat Ihnen eine Nachricht zu ".
 func TestParentMessageNotificationTemplate_RendersWithoutSchool(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 	tpl, err := template.ParseGlob(filepath.Join(templatesDir, "*.html"))
@@ -116,6 +122,8 @@ func TestParentMessageNotificationTemplate_RendersWithoutSchool(t *testing.T) {
 }
 
 func TestParentMessageNotificationTemplate_RendersLocalizedChrome(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 	tpl, err := template.ParseGlob(filepath.Join(templatesDir, "*.html"))

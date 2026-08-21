@@ -27,6 +27,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -124,6 +125,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
+	ClassListEntries *classlistentriesAPI.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -390,6 +392,15 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return "read"
+		default:
+			return "write"
+		}
+	})
+	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
 		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	}
@@ -507,6 +518,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
 		StudentService:          api.Services.Students,
+		ClassListEntryService:   api.Services.ClassListEntries,
 		StudentDeletionService:  api.Services.StudentDeletion,
 		StudentAuditService:     api.Services.StudentAudit,
 		EducationService:        api.Services.Education,
@@ -551,7 +563,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
@@ -612,6 +624,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
+	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -900,6 +913,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount the Lehrkraft class-day view (#1772)
 		r.Mount("/class-day", a.ClassDay.Router())
+
+		// Mount class-list-only entries (#2382)
+		r.Mount("/class-list-entries", a.ClassListEntries.Router())
 
 		// Mount substitutions resources
 		r.Mount("/substitutions", a.Substitutions.Router())

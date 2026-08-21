@@ -97,14 +97,13 @@ interface SSEEventData {
   // active_supervision_changed and dashboard_counts_changed carry room /
   // group scope only.
   student_id?: string;
-  student_name?: string;
   school_class?: string;
   group_name?: string; // Student's OGS group
 
   // Affected students on a bulk_student_checkout or bulk_student_checkin event.
   student_ids?: string[];
 
-  // Affected educational (OGS) group ids on dashboard_counts_changed /
+  // Affected educational (OGS) group ids on active_supervision_changed / dashboard_counts_changed /
   // student_checkin / student_checkout / bulk_student_checkout /
   // bulk_student_checkin (#2057).
   // Group ids only — never student identity — so the tenant-wide

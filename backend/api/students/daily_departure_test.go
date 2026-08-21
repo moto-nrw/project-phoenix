@@ -11,6 +11,8 @@ import (
 )
 
 func TestDailyDepartureModes(t *testing.T) {
+	t.Parallel()
+
 	student := StudentResponse{
 		AllowedDepartureModes: users.AllowedDepartureModes{
 			users.PickupDayMonday: {users.DeparturePickup},
@@ -35,6 +37,8 @@ func TestDailyDepartureModes(t *testing.T) {
 }
 
 func TestDailyDepartureModesRedactionAndMissingRule(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.June, 1)
 	configured := StudentResponse{
 		AllowedDepartureModes: users.AllowedDepartureModes{
@@ -53,6 +57,8 @@ func TestDailyDepartureModesRedactionAndMissingRule(t *testing.T) {
 }
 
 func TestDailyDepartureModesSupportsLegacyRules(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.June, 1)
 	tests := []struct {
 		status string
@@ -86,6 +92,8 @@ func TestDailyDepartureModesSupportsLegacyRules(t *testing.T) {
 }
 
 func TestDailyDeparturePreservesUnknownLegacyRuleAsNonSelf(t *testing.T) {
+	t.Parallel()
+
 	departure := dailyDepartureForDate(StudentResponse{
 		PickupStatus:            "Taxi mit Begleitperson",
 		DepartureRuleConfigured: true,
@@ -102,6 +110,8 @@ func TestDailyDeparturePreservesUnknownLegacyRuleAsNonSelf(t *testing.T) {
 }
 
 func TestDailyDepartureMatchesFilterSupportsMultipleModes(t *testing.T) {
+	t.Parallel()
+
 	departure := dailyDeparture{
 		Modes:      []users.DepartureMode{users.DepartureAlone, users.DeparturePickup},
 		Configured: true,

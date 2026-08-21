@@ -29,11 +29,13 @@ func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status str
 // status, or the deadline worker's later transition would make the change
 // request permanently unapprovable via the snapshot conflict guard.
 func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
 	setChildStatus(t, env, result.Children[0].ID, enrollmentModels.ChildStatusPendingRenewal)
@@ -68,11 +70,13 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 }
 
 func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	setChildStatus(t, env, result.Children[0].ID, enrollmentModels.ChildStatusAutoRenewed)
 
@@ -88,11 +92,13 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 }
 
 func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
-	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 

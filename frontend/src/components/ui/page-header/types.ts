@@ -53,6 +53,18 @@ export interface PageHeaderWithSearchProps {
   readonly mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
 
   /**
+   * Bedienelement, das auf JEDER Breite in der Reiterzeile bleibt, rechts
+   * neben den Reitern bzw. neben deren mobilem Dropdown.
+   *
+   * Der Unterschied zu `actionButton`/`mobileActionButton`: die beiden wandern
+   * auf Mobil in die Titelzeile, sobald `title` gesetzt ist. Das passt für
+   * einen Knopf, der zur Seite gehört, nicht aber für eine zweite Auswahl, die
+   * neben den Reitern stehen soll (Anfragen: Reiter + Offen/Historie).
+   * Erfordert `tabs`; ohne Reiter gibt es keine Reiterzeile.
+   */
+  readonly tabsRowAction?: React.ReactNode;
+
+  /**
    * Optional kebab-menu (⋮) items rendered right of the tabs/title row.
    * Empty or undefined → no menu rendered. Used for rarely-touched actions
    * (export, "Gruppe übergeben", etc.) so the visible header stays calm.

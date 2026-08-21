@@ -39,6 +39,8 @@ func mkChild(id int64) *enrollmentModels.RequestChild {
 // (the listing path leaves it nil to keep the payload light).
 
 func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
+	t.Parallel()
+
 	phone := "+49 170 1234567"
 	withdrawn := time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)
 	req := mkRequest(1234, 5678)
@@ -79,6 +81,8 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
+	t.Parallel()
+
 	req := mkRequest(1234, 5678)
 	req.StatusToken = "token-abc"
 
@@ -94,6 +98,8 @@ func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
+	t.Parallel()
+
 	// Listing endpoints intentionally skip Phase to keep the payload
 	// light. The shaper must not panic on a nil Phase pointer.
 	in := &enrollmentService.RequestSummary{
@@ -107,6 +113,8 @@ func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_EmptyChildrenSliceNotNil(t *testing.T) {
+	t.Parallel()
+
 	// JSON consumers (frontend list page) iterate Children without a
 	// null check; "" / nil distinction matters when marshalling.
 	in := &enrollmentService.RequestSummary{
@@ -119,6 +127,8 @@ func TestToAdminRequestSummary_EmptyChildrenSliceNotNil(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
+	t.Parallel()
+
 	// GuardianPhone nil, WithdrawnAt nil, ReviewedAt/By nil per child —
 	// they must round-trip as nil so omitempty drops them from JSON.
 	req := mkRequest(1234, 5678)
@@ -145,6 +155,8 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	g := int16(2)
 	reason := "Grade level above max"
 	reviewed := time.Date(2026, 4, 5, 9, 0, 0, 0, time.UTC)
@@ -173,6 +185,8 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
+	t.Parallel()
+
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"

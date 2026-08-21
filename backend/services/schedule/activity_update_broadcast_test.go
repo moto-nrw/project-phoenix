@@ -17,10 +17,12 @@ import (
 )
 
 func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
-	tenantID := tenant.FromContext(testpkg.TenantContext(1))
+	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	instance := &scheduleModel.ActivityInstance{
 		Date:      timezone.NewDate(2026, 7, 15),
 		StartTime: time.Date(1970, 1, 1, 9, 30, 0, 0, time.UTC),
@@ -43,10 +45,12 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 }
 
 func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
-	tenantID := tenant.FromContext(testpkg.TenantContext(1))
+	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	instance := &scheduleModel.ActivityInstance{Date: timezone.NewDate(2026, 7, 15)}
 	rollback := errors.New("rollback")
 

@@ -23,10 +23,14 @@ func validSchema() *FormSchema {
 }
 
 func TestFormSchema_Validate_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, validSchema().Validate())
 }
 
 func TestFormSchema_Validate_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Name = ""
 	err := s.Validate()
@@ -35,6 +39,8 @@ func TestFormSchema_Validate_RequiresName(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RequiresPositiveVersion(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Version = 0
 	err := s.Validate()
@@ -43,6 +49,8 @@ func TestFormSchema_Validate_RequiresPositiveVersion(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsNegativeVersion(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Version = -1
 	err := s.Validate()
@@ -50,6 +58,8 @@ func TestFormSchema_Validate_RejectsNegativeVersion(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RequiresCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.CreatedBy = 0
 	err := s.Validate()
@@ -58,6 +68,8 @@ func TestFormSchema_Validate_RequiresCreatedBy(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsNegativeCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.CreatedBy = -1
 	err := s.Validate()
@@ -65,6 +77,8 @@ func TestFormSchema_Validate_RejectsNegativeCreatedBy(t *testing.T) {
 }
 
 func TestFormSchema_Validate_EmptyFieldsOK(t *testing.T) {
+	t.Parallel()
+
 	// A "no extra fields" schema is legal — admins might publish a
 	// schema with only the standard fields enabled.
 	s := validSchema()
@@ -73,6 +87,8 @@ func TestFormSchema_Validate_EmptyFieldsOK(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsUnknownCoreRequirement(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.CoreRequirements = CoreRequirements{"guardian_fax": true}
 	err := s.Validate()
@@ -81,6 +97,8 @@ func TestFormSchema_Validate_RejectsUnknownCoreRequirement(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.LegalBlocks = []FormLegalBlock{
 		{
@@ -107,6 +125,8 @@ func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AcceptsAGBPDFLegalBlock(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.LegalBlocks = []FormLegalBlock{
 		{
@@ -127,6 +147,8 @@ func TestFormSchema_Validate_AcceptsAGBPDFLegalBlock(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AcceptsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
+	t.Parallel()
+
 	// Deliberately supported: pilot schools without a standalone
 	// Datenschutzinformation run their consent via the Elternbrief/AGB
 	// block, so a template may enable blocks while keeping
@@ -155,6 +177,8 @@ func TestFormSchema_Validate_AcceptsDisabledDataProcessingWithEnabledBlocks(t *t
 }
 
 func TestFormSchema_Validate_AcceptsAllDisabledLegalBlocks(t *testing.T) {
+	t.Parallel()
+
 	// An all-disabled snapshot stays valid — the submission service falls
 	// back to the tenant-wide legal settings for those templates.
 	s := validSchema()
@@ -179,6 +203,8 @@ func TestFormSchema_Validate_AcceptsAllDisabledLegalBlocks(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsDuplicateLegalBlockKey(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.LegalBlocks = []FormLegalBlock{
 		{Key: "custom_pool", Kind: LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true},
@@ -191,6 +217,8 @@ func TestFormSchema_Validate_RejectsDuplicateLegalBlockKey(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsInvalidLegalBlockShape(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		block FormLegalBlock
@@ -251,6 +279,8 @@ func TestFormSchema_Validate_RejectsInvalidLegalBlockShape(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsNonScalarVisibleWhenValue(t *testing.T) {
+	t.Parallel()
+
 	// JSON decodes arrays/objects as []any / map[string]any. Comparing two
 	// such values at evaluation time panics, so a non-scalar condition value
 	// must be rejected at schema-save time with a clean error.
@@ -280,6 +310,8 @@ func TestFormSchema_Validate_RejectsNonScalarVisibleWhenValue(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AcceptsScalarVisibleWhenValue(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Fields = []FormField{{
 		Key:         "x",
@@ -297,6 +329,8 @@ func TestFormSchema_Validate_AcceptsScalarVisibleWhenValue(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Fields = []FormField{
 		{Key: "allergies", Label: "Allergien", Type: FormFieldText, SortOrder: 0},
@@ -309,6 +343,8 @@ func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
 }
 
 func TestFormSchema_Validate_RejectsDuplicateReservedTarget(t *testing.T) {
+	t.Parallel()
+
 	// Two fields pointing at the same Stammdaten target produce an undefined
 	// last-field-wins outcome on approval — the departure plan can silently
 	// collapse back into self-goer semantics (#1694), so the schema is rejected.
@@ -326,6 +362,8 @@ func TestFormSchema_Validate_RejectsDuplicateReservedTarget(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AllowsRepeatedEmptyTarget(t *testing.T) {
+	t.Parallel()
+
 	// Free custom fields have no target and may repeat freely.
 	s := validSchema()
 	s.Fields = []FormField{
@@ -336,6 +374,8 @@ func TestFormSchema_Validate_AllowsRepeatedEmptyTarget(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AllowsDistinctLegacyDepartureTargets(t *testing.T) {
+	t.Parallel()
+
 	// The legacy split — Buskind and Abholregelung — are DIFFERENT targets and
 	// legitimately coexist; only the same target twice is rejected.
 	s := validSchema()
@@ -347,6 +387,8 @@ func TestFormSchema_Validate_AllowsDistinctLegacyDepartureTargets(t *testing.T) 
 }
 
 func TestFormSchema_Validate_PropagatesFieldErrorWithIndex(t *testing.T) {
+	t.Parallel()
+
 	// One bad field should fail validation with the offending index in
 	// the error so the admin can find it in the editor list.
 	s := validSchema()
@@ -360,6 +402,8 @@ func TestFormSchema_Validate_PropagatesFieldErrorWithIndex(t *testing.T) {
 }
 
 func TestFormSchema_Validate_AcceptsMultipleDistinctFields(t *testing.T) {
+	t.Parallel()
+
 	s := validSchema()
 	s.Fields = []FormField{
 		{Key: "allergies", Label: "Allergien", Type: FormFieldText, SortOrder: 0},
@@ -381,12 +425,16 @@ func singleModeField() FormField {
 }
 
 func TestFormField_Validate_SingleModeGradesHappyPath(t *testing.T) {
+	t.Parallel()
+
 	f := singleModeField()
 	assert.NoError(t, f.Validate())
 	assert.Equal(t, []int{1}, f.SingleModeGrades)
 }
 
 func TestFormField_Validate_SingleModeGradesWrongTarget(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{
 		Key: "pickup_times", Label: "Abholzeiten",
 		Type: FormFieldWeekdaySchedule, AppliesToCh: true,
@@ -399,6 +447,8 @@ func TestFormField_Validate_SingleModeGradesWrongTarget(t *testing.T) {
 }
 
 func TestFormField_Validate_SingleModeGradesRequiresChildField(t *testing.T) {
+	t.Parallel()
+
 	f := singleModeField()
 	f.AppliesToCh = false
 	err := f.Validate()
@@ -407,6 +457,8 @@ func TestFormField_Validate_SingleModeGradesRequiresChildField(t *testing.T) {
 }
 
 func TestFormField_Validate_SingleModeGradesOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	f := singleModeField()
 	f.SingleModeGrades = []int{0}
 	require.Error(t, f.Validate())
@@ -416,6 +468,8 @@ func TestFormField_Validate_SingleModeGradesOutOfRange(t *testing.T) {
 }
 
 func TestFormField_Validate_SingleModeGradesDeduped(t *testing.T) {
+	t.Parallel()
+
 	f := singleModeField()
 	f.SingleModeGrades = []int{1, 2, 1}
 	require.NoError(t, f.Validate())
@@ -423,6 +477,8 @@ func TestFormField_Validate_SingleModeGradesDeduped(t *testing.T) {
 }
 
 func TestFormField_Validate_InfoFieldRejectsSingleModeGrades(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{
 		Key: "hinweis", Type: FormFieldInfo, Content: "Text",
 		SingleModeGrades: []int{1},
@@ -433,6 +489,8 @@ func TestFormField_Validate_InfoFieldRejectsSingleModeGrades(t *testing.T) {
 }
 
 func TestFormField_SingleModeAppliesTo(t *testing.T) {
+	t.Parallel()
+
 	f := singleModeField()
 	one, two := int16(1), int16(2)
 	assert.True(t, f.SingleModeAppliesTo(&one))
@@ -441,6 +499,8 @@ func TestFormField_SingleModeAppliesTo(t *testing.T) {
 }
 
 func TestWeekdayMultiMode_ValidateSingleSelection(t *testing.T) {
+	t.Parallel()
+
 	ok := WeekdayMultiMode{"mon": {"bus"}, "tue": {"pickup"}}
 	assert.NoError(t, ok.ValidateSingleSelection(),
 		"one mode per day is fine, even different modes across days")

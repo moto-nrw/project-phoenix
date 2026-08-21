@@ -5,7 +5,6 @@
 package substitutions_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -60,22 +59,13 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// cleanupSubstitution cleans up a substitution by ID
-func cleanupSubstitution(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr("education.group_substitution").
-		Where("id = ?", id).
-		Exec(context.Background())
-}
-
 // =============================================================================
 // LIST TESTS
 // =============================================================================
 
 func TestListSubstitutions_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -91,8 +81,8 @@ func TestListSubstitutions_Success(t *testing.T) {
 }
 
 func TestListSubstitutions_WithPagination(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions?page=1&page_size=10", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -108,8 +98,8 @@ func TestListSubstitutions_WithPagination(t *testing.T) {
 // =============================================================================
 
 func TestListActiveSubstitutions_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -125,8 +115,8 @@ func TestListActiveSubstitutions_Success(t *testing.T) {
 }
 
 func TestListActiveSubstitutions_WithDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=2026-01-15", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -138,8 +128,8 @@ func TestListActiveSubstitutions_WithDate(t *testing.T) {
 }
 
 func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=invalid", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -155,8 +145,8 @@ func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
 // =============================================================================
 
 func TestGetSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/99999", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -168,8 +158,8 @@ func TestGetSubstitution_NotFound(t *testing.T) {
 }
 
 func TestGetSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/invalid", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -185,16 +175,14 @@ func TestGetSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestCreateSubstitution_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create a group fixture
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCreate")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	// Use future dates to avoid backdating error
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
@@ -222,14 +210,11 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup
-	if id, ok := data["id"].(float64); ok {
-		cleanupSubstitution(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"substitute_staff_id": 1,
@@ -247,8 +232,8 @@ func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"group_id":   1,
@@ -266,8 +251,8 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"group_id":            1,
@@ -286,8 +271,8 @@ func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 
@@ -308,8 +293,8 @@ func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Start date is after end date
 	startDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
@@ -332,8 +317,8 @@ func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Start date is in the past
 	startDate := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
@@ -356,8 +341,8 @@ func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create request with invalid JSON (nil body gets JSON encoded to "null")
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", nil,
@@ -376,8 +361,8 @@ func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestUpdateSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Update handler decodes directly into GroupSubstitution model
 	// which expects "YYYY-MM-DD" format for timezone.Date fields
@@ -401,8 +386,8 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 }
 
 func TestUpdateSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Update handler decodes directly into GroupSubstitution model
 	// which expects "YYYY-MM-DD" format for timezone.Date fields
@@ -430,8 +415,8 @@ func TestUpdateSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/99999", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -443,8 +428,8 @@ func TestDeleteSubstitution_NotFound(t *testing.T) {
 }
 
 func TestDeleteSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/invalid", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
@@ -460,16 +445,14 @@ func TestDeleteSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestSubstitutionCRUDWorkflow(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
 	staff := testpkg.CreateTestStaff(t, ctx.db, "CRUD", "Test")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create a group fixture
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCRUD")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	// Step 1: Create
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
@@ -493,7 +476,6 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	createData, ok := createResponse["data"].(map[string]interface{})
 	require.True(t, ok)
 	subID := int64(createData["id"].(float64))
-	defer cleanupSubstitution(t, ctx.db, subID)
 
 	// Step 2: Get
 	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,

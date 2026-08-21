@@ -35,7 +35,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	factory := repositories.NewFactory(db)
 	groupRepo := factory.ActiveGroup
 	combinedGroupRepo := factory.CombinedGroup
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
 	// Create first active group
@@ -78,41 +78,20 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	}
 }
 
-// cleanupGroupMappingTestData removes test data
-func cleanupGroupMappingTestData(t *testing.T, db *bun.DB, data *groupMappingTestData) {
-	ctx := testpkg.TenantContext(1)
-
-	// Clean up mappings first (foreign key constraints)
-	_, _ = db.NewDelete().
-		TableExpr("active.group_mappings").
-		Where("active_combined_group_id = ?", data.CombinedGroup.ID).
-		Exec(ctx)
-
-	// Clean up combined group
-	testpkg.CleanupTableRecords(t, db, "active.combined_groups", data.CombinedGroup.ID)
-
-	// Clean up active groups
-	cleanupActiveGroupRecords(t, db, data.ActiveGroup1.ID)
-	cleanupActiveGroupRecords(t, db, data.ActiveGroup2.ID)
-
-	// Clean up activity fixtures
-	testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, data.CategoryID, data.Room)
-}
-
 // ============================================================================
 // Create Tests
 // ============================================================================
 
 func TestGroupMappingRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group mapping with valid data", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		mapping := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
 			ActiveGroupID:         data.ActiveGroup1.ID,
@@ -122,7 +101,6 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, mapping.ID)
 
-		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
 	})
 
 	t.Run("returns error for nil mapping", func(t *testing.T) {
@@ -132,6 +110,7 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid mapping", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		mapping := &active.GroupMapping{
 			ActiveCombinedGroupID: 0, // Invalid
 			ActiveGroupID:         data.ActiveGroup1.ID,
@@ -147,15 +126,15 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		mappings, err := repo.FindByActiveCombinedGroupID(ctx, data.CombinedGroup.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, mappings)
@@ -163,6 +142,7 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 	})
 
 	t.Run("returns mappings for combined group", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create mappings
 		mapping1 := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -183,7 +163,6 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, mappings, 2)
 
-		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping1.ID, mapping2.ID)
 	})
 }
 
@@ -192,15 +171,15 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		mappings, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup1.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, mappings)
@@ -208,6 +187,7 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 	})
 
 	t.Run("returns mappings for active group", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create a mapping
 		mapping := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -222,7 +202,6 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 		assert.Len(t, mappings, 1)
 		assert.Equal(t, data.ActiveGroup1.ID, mappings[0].ActiveGroupID)
 
-		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
 	})
 }
 
@@ -231,15 +210,15 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		err := repo.AddGroupToCombination(ctx, data.CombinedGroup.ID, data.ActiveGroup1.ID)
 		require.NoError(t, err)
 
@@ -251,6 +230,7 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 	})
 
 	t.Run("does not create duplicate mapping", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// First addition
 		err := repo.AddGroupToCombination(ctx, data.CombinedGroup.ID, data.ActiveGroup2.ID)
 		require.NoError(t, err)
@@ -271,15 +251,15 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("removes group from combination", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create a mapping first
 		err := repo.AddGroupToCombination(ctx, data.CombinedGroup.ID, data.ActiveGroup1.ID)
 		require.NoError(t, err)
@@ -300,6 +280,7 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 	})
 
 	t.Run("does not error when mapping does not exist", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		err := repo.RemoveGroupFromCombination(ctx, data.CombinedGroup.ID, 999999)
 		require.NoError(t, err)
 	})
@@ -314,15 +295,15 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds mapping with combined group and active group relations", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create a mapping
 		mapping := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -330,7 +311,6 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 		}
 		err := repo.Create(ctx, mapping)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
 
 		// Find with relations
 		found, err := repo.FindWithRelations(ctx, mapping.ID)
@@ -354,6 +334,7 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 	})
 
 	t.Run("loads relations for multiple mappings", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create first mapping
 		mapping1 := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -361,7 +342,6 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 		}
 		err := repo.Create(ctx, mapping1)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping1.ID)
 
 		// Create second mapping with different active group
 		mapping2 := &active.GroupMapping{
@@ -370,7 +350,6 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 		}
 		err = repo.Create(ctx, mapping2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping2.ID)
 
 		// Find first mapping with relations
 		found1, err := repo.FindWithRelations(ctx, mapping1.ID)
@@ -396,15 +375,15 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupMapping
-	ctx := testpkg.TenantContext(1)
-	data := createGroupMappingTestData(t, db)
-	defer cleanupGroupMappingTestData(t, db, data)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with no results returns empty slice", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Use filter that won't match anything
 		options := modelBase.NewQueryOptions()
 		filter := modelBase.NewFilter()
@@ -418,6 +397,7 @@ func TestGroupMappingRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists all mappings without options", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create mappings
 		mapping1 := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -443,10 +423,10 @@ func TestGroupMappingRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, mappings, 2)
 
-		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping1.ID, mapping2.ID)
 	})
 
 	t.Run("lists with pagination", func(t *testing.T) {
+		data := createGroupMappingTestData(t, db)
 		// Create mappings
 		mapping1 := &active.GroupMapping{
 			ActiveCombinedGroupID: data.CombinedGroup.ID,
@@ -473,6 +453,5 @@ func TestGroupMappingRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, mappings, 1)
 
-		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping1.ID, mapping2.ID)
 	})
 }

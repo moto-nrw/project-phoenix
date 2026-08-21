@@ -10,6 +10,8 @@ import (
 )
 
 func TestGuardOperatorDirectManagedSettingWrite_BlocksAGBDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 
@@ -20,6 +22,8 @@ func TestGuardOperatorDirectManagedSettingWrite_BlocksAGBDocumentURL(t *testing.
 }
 
 func TestGuardOperatorDirectManagedSettingWrite_AllowsRegularSettings(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 

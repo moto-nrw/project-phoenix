@@ -70,8 +70,9 @@ func newTenantResolveScope(t *testing.T, db *bun.DB) (testpkg.TenantScope, strin
 // false. The registry default is false, and the resolver must not auto-
 // enable the feature for a school that has not opted in.
 func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -100,8 +101,9 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 // critical wiring that keeps the avatar UI in sync after an admin flips
 // the toggle in /settings.
 func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
@@ -134,8 +136,9 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 }
 
 func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
@@ -167,8 +170,9 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 // a different cap. The unrelated optional feature flags retain their own
 // fail-open/fail-closed behavior whenever settings resolution is available.
 func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -188,8 +192,9 @@ func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
 }
 
 func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -212,10 +217,11 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 }
 
 func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
+	t.Parallel()
+
 	for _, value := range []int{0, 14} {
 		t.Run("value_"+strconv.Itoa(value), func(t *testing.T) {
 			db, svc := testutil.SetupAPITest(t)
-			t.Cleanup(func() { _ = db.Close() })
 			_, slug := newTenantResolveScope(t, db)
 
 			schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -243,8 +249,9 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 // existing test suite doesn't exercise. The resolver requires the slug
 // query parameter and returns 400 without it.
 func TestResolveTenant_MissingSlug_400(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)

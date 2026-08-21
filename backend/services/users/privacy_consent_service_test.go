@@ -27,6 +27,8 @@ func (f fakeConsentSettings) ResolveInt(_ context.Context, _ string) (int, error
 }
 
 func TestPrivacyConsentService_Accept(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	days30 := 30
 	svc := NewPrivacyConsentService(nil, nil)
@@ -56,6 +58,8 @@ func TestPrivacyConsentService_Accept(t *testing.T) {
 }
 
 func TestPrivacyConsentService_Accept_NoDuration(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	svc := NewPrivacyConsentService(nil, nil)
 
@@ -68,6 +72,8 @@ func TestPrivacyConsentService_Accept_NoDuration(t *testing.T) {
 }
 
 func TestPrivacyConsentService_Revoke(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	svc := NewPrivacyConsentService(nil, nil)
 	consent := &userModels.PrivacyConsent{Accepted: true, AcceptedAt: &now}
@@ -79,6 +85,8 @@ func TestPrivacyConsentService_Revoke(t *testing.T) {
 }
 
 func TestPrivacyConsentService_DeriveExpiry(t *testing.T) {
+	t.Parallel()
+
 	accepted := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	days10 := 10
 	svc := NewPrivacyConsentService(nil, nil)
@@ -110,6 +118,8 @@ func TestPrivacyConsentService_DeriveExpiry(t *testing.T) {
 }
 
 func TestPrivacyConsentService_IsValid(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	future := now.AddDate(0, 0, 30)
 	past := now.AddDate(0, 0, -30)
@@ -136,6 +146,8 @@ func TestPrivacyConsentService_IsValid(t *testing.T) {
 }
 
 func TestPrivacyConsentService_IsExpired(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	future := now.AddDate(0, 0, 30)
 	past := now.AddDate(0, 0, -30)
@@ -161,6 +173,8 @@ func TestPrivacyConsentService_IsExpired(t *testing.T) {
 }
 
 func TestPrivacyConsentService_GetTimeToExpiry(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	future := now.AddDate(0, 0, 30)
 	past := now.AddDate(0, 0, -30)
@@ -188,6 +202,8 @@ func TestPrivacyConsentService_GetTimeToExpiry(t *testing.T) {
 }
 
 func TestPrivacyConsentService_ResolveDataRetentionDays(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("consent value wins when set", func(t *testing.T) {
@@ -232,6 +248,8 @@ func TestPrivacyConsentService_ResolveDataRetentionDays(t *testing.T) {
 }
 
 func TestPrivacyConsentService_KeyConstant(t *testing.T) {
+	t.Parallel()
+
 	if configModel.KeyPrivacyConsentRetentionDays != "gdpr.privacy_consent_retention_days" {
 		t.Errorf("unexpected setting key: %s", configModel.KeyPrivacyConsentRetentionDays)
 	}

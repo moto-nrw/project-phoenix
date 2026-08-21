@@ -233,12 +233,16 @@ func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentM
 // --- listAdminRequests ---------------------------------------------------
 
 func TestListAdminRequestsHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(nil)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		listResult: []*enrollmentService.RequestSummary{
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted)),
@@ -253,6 +257,8 @@ func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.T) {
+	t.Parallel()
+
 	summary := makeReqSummary(1234, 5678,
 		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
 	)
@@ -270,6 +276,8 @@ func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.
 }
 
 func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		listResult: []*enrollmentService.RequestSummary{
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
@@ -298,6 +306,8 @@ func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{listResult: []*enrollmentService.RequestSummary{}}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests?phase_id=42", nil)
@@ -307,6 +317,8 @@ func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_ChildStatusFilterParsed(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{listResult: []*enrollmentService.RequestSummary{}}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests?child_status=waitlisted", nil)
@@ -315,6 +327,8 @@ func TestListAdminRequestsHandler_ChildStatusFilterParsed(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_InvalidPhaseIDRejected(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests?phase_id=notanumber", nil)
@@ -323,6 +337,8 @@ func TestListAdminRequestsHandler_InvalidPhaseIDRejected(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_ZeroPhaseIDRejected(t *testing.T) {
+	t.Parallel()
+
 	// phase_id=0 is logically invalid (postgres ids are positive) —
 	// the handler rejects it as 400.
 	mock := &mockDecisionService{}
@@ -332,6 +348,8 @@ func TestListAdminRequestsHandler_ZeroPhaseIDRejected(t *testing.T) {
 }
 
 func TestListAdminRequestsHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{listErr: errors.New("synthetic boom")}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests", nil)
@@ -341,24 +359,32 @@ func TestListAdminRequestsHandler_ServiceErrorReturns500(t *testing.T) {
 // --- getAdminRequest -----------------------------------------------------
 
 func TestGetAdminRequestHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(nil)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestGetAdminRequestHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/notanumber", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetAdminRequestHandler_NegativeIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/-1", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetAdminRequestHandler_NotFoundMapped(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{getErr: enrollmentService.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
@@ -366,6 +392,8 @@ func TestGetAdminRequestHandler_NotFoundMapped(t *testing.T) {
 }
 
 func TestGetAdminRequestHandler_GenericErrorMappedAs500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{getErr: errors.New("synthetic boom")}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
@@ -373,6 +401,8 @@ func TestGetAdminRequestHandler_GenericErrorMappedAs500(t *testing.T) {
 }
 
 func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
+	t.Parallel()
+
 	summary := makeReqSummary(1234, 5678,
 		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
 	)
@@ -391,6 +421,8 @@ func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
 }
 
 func TestGetAdminRequestHandler_ReportsLateInviteEmailMismatch(t *testing.T) {
+	t.Parallel()
+
 	summary := makeReqSummary(1234, 5678,
 		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
 	)
@@ -407,6 +439,8 @@ func TestGetAdminRequestHandler_ReportsLateInviteEmailMismatch(t *testing.T) {
 }
 
 func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
@@ -441,6 +475,8 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 // the shape api/parent/care_offerings_handlers.go has always used. One JSON
 // name must not mean two different days depending on which endpoint answered.
 func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
+	t.Parallel()
+
 	exclusiveEnd := timezone.NewDate(2027, 8, 1)
 	mock := &mockDecisionService{
 		getResult: makeReqSummary(1234, 5678,
@@ -472,6 +508,8 @@ func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 // so a stale browser tab cannot pre-check a future booking and apply it
 // months early on an untouched save.
 func TestGetAdminRequestHandler_SeparatesUpcomingOfferings(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
@@ -517,6 +555,8 @@ func TestGetAdminRequestHandler_SeparatesUpcomingOfferings(t *testing.T) {
 // nothing": the client refuses to save a correction on top of the empty
 // state, which would otherwise delete the family's real bookings.
 func TestGetAdminRequestHandler_FlagsUnavailableOfferings(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
@@ -535,6 +575,8 @@ func TestGetAdminRequestHandler_FlagsUnavailableOfferings(t *testing.T) {
 // admin retry and apply the replacement twice, with a second audit entry
 // blaming them for it.
 func TestUpdateAdminChildOfferingsHandler_SucceedsWhenRereadFails(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		updateChildOffResult: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		listChildOffErr:      errors.New("synthetic re-read error"),
@@ -554,6 +596,8 @@ func TestUpdateAdminChildOfferingsHandler_SucceedsWhenRereadFails(t *testing.T) 
 }
 
 func TestGetAdminRequestHandler_TolerantOfMissingChildOfferings(t *testing.T) {
+	t.Parallel()
+
 	// ListChildOfferings is best-effort — failure must NOT kill the
 	// detail response, the admin just sees no Betreuungsangebote
 	// section.
@@ -574,6 +618,8 @@ func TestGetAdminRequestHandler_TolerantOfMissingChildOfferings(t *testing.T) {
 // --- decideAdminChild ----------------------------------------------------
 
 func TestDecideAdminChildHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(nil)
 	body := map[string]any{"status": "approved"}
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -582,6 +628,8 @@ func TestDecideAdminChildHandler_NilServiceReturns500(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_InvalidRequestIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/notanumber/children/99/decide",
@@ -590,6 +638,8 @@ func TestDecideAdminChildHandler_InvalidRequestIDRejected(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_InvalidChildIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/notanumber/decide",
@@ -598,6 +648,8 @@ func TestDecideAdminChildHandler_InvalidChildIDRejected(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_HappyPathReturns200(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		decideResult: &enrollmentService.DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
@@ -616,6 +668,8 @@ func TestDecideAdminChildHandler_HappyPathReturns200(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_RetriesTransientDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		decideResult: &enrollmentService.DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
@@ -637,6 +691,8 @@ func TestDecideAdminChildHandler_RetriesTransientDatabaseError(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		decideResult: &enrollmentService.DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
@@ -665,6 +721,8 @@ func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testi
 }
 
 func TestDecideAdminChildHandler_DoesNotRetryCanceledRequestContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		setupCtx   func(context.Context) (context.Context, context.CancelFunc)
@@ -713,6 +771,8 @@ func TestDecideAdminChildHandler_DoesNotRetryCanceledRequestContext(t *testing.T
 }
 
 func TestDecideAdminChildHandler_TransientDatabaseErrorMapsTo503AfterRetry(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		decideErrs: []error{
 			fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn),
@@ -730,6 +790,8 @@ func TestDecideAdminChildHandler_TransientDatabaseErrorMapsTo503AfterRetry(t *te
 }
 
 func TestDecideAdminChildHandler_ChildNotFoundMapsTo404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionChildNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -739,6 +801,8 @@ func TestDecideAdminChildHandler_ChildNotFoundMapsTo404(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_RequestNotFoundMapsTo404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -748,6 +812,8 @@ func TestDecideAdminChildHandler_RequestNotFoundMapsTo404(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_InvalidStatusMapsTo400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionInvalidStatus}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -757,6 +823,8 @@ func TestDecideAdminChildHandler_InvalidStatusMapsTo400(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_AlreadyTerminalMapsTo400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionAlreadyTerminal}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -766,6 +834,8 @@ func TestDecideAdminChildHandler_AlreadyTerminalMapsTo400(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_InvalidDataMapsTo400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionInvalidData}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -775,6 +845,8 @@ func TestDecideAdminChildHandler_InvalidDataMapsTo400(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_GenericErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{decideErr: errors.New("synthetic boom")}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -784,6 +856,8 @@ func TestDecideAdminChildHandler_GenericErrorMapsTo500(t *testing.T) {
 }
 
 func TestDecideAdminChildHandler_MalformedJSONReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	req := httptest.NewRequest(http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -797,6 +871,8 @@ func TestDecideAdminChildHandler_MalformedJSONReturns400(t *testing.T) {
 // --- restoreAdminRequest -------------------------------------------------
 
 func TestRestoreAdminRequestHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(nil)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/restore", nil)
@@ -804,6 +880,8 @@ func TestRestoreAdminRequestHandler_NilServiceReturns500(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_InvalidRequestIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildAdminDecisionRouter(&mockDecisionService{})
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/notanumber/restore", nil)
@@ -811,6 +889,8 @@ func TestRestoreAdminRequestHandler_InvalidRequestIDRejected(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_HappyPathReturns200(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{
 		restoreResult: &enrollmentService.RestoreOutcome{RestoredChildIDs: []int64{7, 8}},
 	}
@@ -824,6 +904,8 @@ func TestRestoreAdminRequestHandler_HappyPathReturns200(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_RequestNotFoundMapsTo404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{restoreErr: enrollmentService.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -832,6 +914,8 @@ func TestRestoreAdminRequestHandler_RequestNotFoundMapsTo404(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_NothingWithdrawnMapsTo400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreNothingWithdrawn}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -840,6 +924,8 @@ func TestRestoreAdminRequestHandler_NothingWithdrawnMapsTo400(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_PhaseInactiveMapsTo409(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestorePhaseInactive}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -849,6 +935,8 @@ func TestRestoreAdminRequestHandler_PhaseInactiveMapsTo409(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_DuplicateMapsTo409(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreDuplicateActive}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -858,6 +946,8 @@ func TestRestoreAdminRequestHandler_DuplicateMapsTo409(t *testing.T) {
 }
 
 func TestRestoreAdminRequestHandler_GenericErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{restoreErr: errors.New("synthetic boom")}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,

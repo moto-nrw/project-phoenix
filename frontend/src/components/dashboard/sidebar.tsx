@@ -33,6 +33,7 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -418,7 +419,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
     mode === "teacher",
   );
-  // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
+  // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
+  // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
+  // Mitarbeiter-Eintrag trägt kein eigenes Badge mehr.
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
@@ -429,8 +432,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
+  // Offene Anmeldungsänderungen (config:manage, #2435). Sie zählen seit dem
+  // Umzug ins Anfragen-Modul auf dasselbe Badge ein.
+  const { unreadCount: enrollmentRequestsPendingCount } =
+    useEnrollmentRequestsPending();
   const requestsPendingCount =
-    changeRequestsPendingCount + staffAbsencesPendingCount;
+    changeRequestsPendingCount +
+    staffAbsencesPendingCount +
+    enrollmentRequestsPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -800,14 +809,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 count={requestsPendingCount}
                 tone="staff"
                 ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
-                className="ml-2"
-              />
-            )}
-            {item.href === "/staff" && (
-              <NotificationBadge
-                count={staffAbsencesPendingCount}
-                tone="staff"
-                ariaLabel={`${staffAbsencesPendingCount} ${staffAbsencesPendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
                 className="ml-2"
               />
             )}

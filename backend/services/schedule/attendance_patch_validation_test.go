@@ -13,6 +13,8 @@ import (
 )
 
 func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
+	t.Parallel()
+
 	excused := scheduleModel.AttendanceSubstatusExcused
 	tests := []struct {
 		name         string
@@ -88,6 +90,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 }
 
 func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	cur := &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent}
 
 	t.Run("invalid status", func(t *testing.T) {

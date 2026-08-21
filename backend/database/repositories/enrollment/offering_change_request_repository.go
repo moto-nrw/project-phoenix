@@ -80,10 +80,13 @@ func (r *OfferingChangeRequestRepository) ListByStudent(
 	return rows, nil
 }
 
-// ListPendingForTenant returns the tenant's open requests, soonest effective
-// date first — that is the order the office has to work them in.
+// ListPendingForTenant returns the tenant's open requests, newest submission
+// first, narrowed and paged by filters. The working list orders every queue by
+// its submission instant so the aggregated request list can merge them on one
+// key (#2432); the effective date is a column of the card, not the sort.
 func (r *OfferingChangeRequestRepository) ListPendingForTenant(
 	ctx context.Context,
+	filters modelBase.RequestQueueFilters,
 ) ([]*enrollment.OfferingChangeRequest, error) {
 	rows := make([]*enrollment.OfferingChangeRequest, 0)
 	query := base.GetDB(ctx, r.DB).NewSelect().
@@ -92,10 +95,7 @@ func (r *OfferingChangeRequestRepository) ListPendingForTenant(
 		Where(`"offering_change_request".status = ?`, enrollment.OfferingChangeStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "offering_change_request")
-	query = query.
-		OrderExpr(`"offering_change_request".effective_from ASC`).
-		OrderExpr(`"offering_change_request".created_at DESC`).
-		OrderExpr(`"offering_change_request".id DESC`)
+	query = base.ApplyRequestQueueFilters(query, "offering_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending offering change requests", Err: err}
@@ -107,12 +107,10 @@ func (r *OfferingChangeRequestRepository) ListPendingForTenant(
 // rejected, withdrawn) newest-decision-first via keyset pagination on
 // (updated_at, id). Every Decide stamps updated_at (UpdateDecisionSnapshot runs
 // in the same transaction) and decided rows are terminal, so it is the decision
-// instant. A zero beforeUpdatedAt returns the first page.
+// instant. A zero BeforeInstant returns the first page.
 func (r *OfferingChangeRequestRepository) ListDecidedForTenant(
 	ctx context.Context,
-	beforeUpdatedAt time.Time,
-	beforeID int64,
-	limit int,
+	filters modelBase.RequestQueueFilters,
 ) ([]*enrollment.OfferingChangeRequest, error) {
 	rows := make([]*enrollment.OfferingChangeRequest, 0)
 	query := base.GetDB(ctx, r.DB).NewSelect().
@@ -123,15 +121,9 @@ func (r *OfferingChangeRequestRepository) ListDecidedForTenant(
 			enrollment.OfferingChangeStatusRejected,
 			enrollment.OfferingChangeStatusWithdrawn,
 		}))
-	if !beforeUpdatedAt.IsZero() {
-		query = query.Where(`("offering_change_request".updated_at, "offering_change_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
-	}
 
 	query = base.WithTenantFilter(ctx, query, "offering_change_request")
-	query = query.
-		OrderExpr(`"offering_change_request".updated_at DESC`).
-		OrderExpr(`"offering_change_request".id DESC`).
-		Limit(limit)
+	query = base.ApplyRequestQueueFilters(query, "offering_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list decided offering change requests", Err: err}

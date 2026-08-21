@@ -8,6 +8,8 @@ import (
 )
 
 func TestRoom_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		room    *Room
@@ -100,6 +102,8 @@ func TestRoom_Validate(t *testing.T) {
 }
 
 func TestRoom_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	t.Run("trims name whitespace", func(t *testing.T) {
 		room := &Room{Name: "  Room 101  "}
 		err := room.Validate()
@@ -127,6 +131,8 @@ func TestRoom_Validate_Normalization(t *testing.T) {
 }
 
 func TestRoomIsAvailableWithNilCapacity(t *testing.T) {
+	t.Parallel()
+
 	room := &Room{Capacity: nil}
 
 	if !room.IsAvailable(0) {
@@ -139,6 +145,8 @@ func TestRoomIsAvailableWithNilCapacity(t *testing.T) {
 }
 
 func TestRoomIsAvailableWithLegacyZeroCapacity(t *testing.T) {
+	t.Parallel()
+
 	capacity := 0
 	room := &Room{Capacity: &capacity}
 
@@ -148,6 +156,8 @@ func TestRoomIsAvailableWithLegacyZeroCapacity(t *testing.T) {
 }
 
 func TestRoomIsAvailableWithCapacityValue(t *testing.T) {
+	t.Parallel()
+
 	capacity := 10
 	room := &Room{Capacity: &capacity}
 
@@ -169,6 +179,8 @@ func TestRoomIsAvailableWithCapacityValue(t *testing.T) {
 }
 
 func TestRoom_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		room     *Room
@@ -203,6 +215,8 @@ func TestRoom_GetFullName(t *testing.T) {
 }
 
 func TestRoom_GetID(t *testing.T) {
+	t.Parallel()
+
 	room := &Room{
 		Model: base.Model{ID: 42},
 		Name:  "Test Room",
@@ -215,6 +229,8 @@ func TestRoom_GetID(t *testing.T) {
 }
 
 func TestRoom_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	room := &Room{
 		Model: base.Model{CreatedAt: now},
@@ -227,6 +243,8 @@ func TestRoom_GetCreatedAt(t *testing.T) {
 }
 
 func TestRoom_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	room := &Room{
 		Model: base.Model{UpdatedAt: now},

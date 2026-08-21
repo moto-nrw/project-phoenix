@@ -97,6 +97,7 @@ describe("structured logger redaction", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const request = fetchMock.mock.calls[0]?.[1];
+    expect(request).toMatchObject({ keepalive: true });
     const body = JSON.parse(String(request?.body)) as {
       entries: Array<Record<string, unknown>>;
     };
@@ -139,5 +140,23 @@ describe("structured logger redaction", () => {
       `request failed password="${REDACTED_LOG_VALUE}"`,
       expect.any(String),
     );
+  });
+
+  it("omits keepalive for batches larger than the browser quota", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock;
+    const logger = createLogger({
+      component: "LargeClientProbe",
+      level: "debug",
+    });
+
+    logger.info("large_client_log", { detail: "x".repeat(60 * 1024) });
+    await logger.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ keepalive: false });
   });
 });

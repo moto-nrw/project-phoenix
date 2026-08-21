@@ -8,6 +8,8 @@ import (
 )
 
 func TestAccountParent_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		account *AccountParent
@@ -64,6 +66,8 @@ func TestAccountParent_Validate(t *testing.T) {
 }
 
 func TestAccountParent_IsActive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		active   bool
@@ -96,6 +100,8 @@ func TestAccountParent_IsActive(t *testing.T) {
 }
 
 func TestAccountParent_SetLastLogin(t *testing.T) {
+	t.Parallel()
+
 	account := &AccountParent{
 		Email: "parent@example.com",
 	}
@@ -117,6 +123,8 @@ func TestAccountParent_SetLastLogin(t *testing.T) {
 }
 
 func TestAccountParent_GetID(t *testing.T) {
+	t.Parallel()
+
 	ap := &AccountParent{
 		Model: base.Model{ID: 42},
 		Email: "parent@example.com",
@@ -129,6 +137,8 @@ func TestAccountParent_GetID(t *testing.T) {
 }
 
 func TestAccountParent_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ap := &AccountParent{
 		Model: base.Model{CreatedAt: now},
@@ -141,6 +151,8 @@ func TestAccountParent_GetCreatedAt(t *testing.T) {
 }
 
 func TestAccountParent_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ap := &AccountParent{
 		Model: base.Model{UpdatedAt: now},

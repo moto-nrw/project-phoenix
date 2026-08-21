@@ -35,6 +35,8 @@ func helperAppointment() *calModels.Appointment {
 }
 
 func TestCalendarOverviewVisibilityHelpers(t *testing.T) {
+	t.Parallel()
+
 	appointment := helperAppointment()
 
 	assert.False(t, canStaffViewOverview(nil, 7, true))
@@ -52,6 +54,8 @@ func TestCalendarOverviewVisibilityHelpers(t *testing.T) {
 }
 
 func TestAppointmentEventAndOverride(t *testing.T) {
+	t.Parallel()
+
 	appointment := helperAppointment()
 	appointment.OverviewVisibility = calModels.OverviewVisibilityAll
 	status := calModels.ResponseStatusPending
@@ -99,6 +103,8 @@ func TestAppointmentEventAndOverride(t *testing.T) {
 }
 
 func TestAppointmentEventCanRespond(t *testing.T) {
+	t.Parallel()
+
 	appointment := helperAppointment()
 	recipientID := int64(99)
 	day := timezone.NewDate(2026, 1, 6)
@@ -126,6 +132,8 @@ func TestAppointmentEventCanRespond(t *testing.T) {
 }
 
 func TestMatchesRuleWeeklyIntervalAnchorsToCalendarWeeks(t *testing.T) {
+	t.Parallel()
+
 	// Wednesday start, biweekly, on Mondays and Wednesdays. Intervals must be
 	// counted in calendar weeks (Mon–Sun), not 7-day blocks from the Wed start.
 	start := timezone.NewDate(2026, 1, 7) // Wednesday (Jan 5 is the Monday)
@@ -147,6 +155,8 @@ func TestMatchesRuleWeeklyIntervalAnchorsToCalendarWeeks(t *testing.T) {
 }
 
 func TestCalendarRecipientStatusHelpers(t *testing.T) {
+	t.Parallel()
+
 	staffID := int64(10)
 	guardianID := int64(20)
 	recipients := []*calModels.AppointmentRecipient{
@@ -172,6 +182,8 @@ func TestCalendarRecipientStatusHelpers(t *testing.T) {
 }
 
 func TestCalendarRecurrenceExpansion(t *testing.T) {
+	t.Parallel()
+
 	appointment := helperAppointment()
 	endsOn := timezone.NewDate(2026, 1, 31)
 	count := 3
@@ -216,6 +228,8 @@ func TestCalendarRecurrenceExpansion(t *testing.T) {
 }
 
 func TestFirstRecurrenceOccurrence(t *testing.T) {
+	t.Parallel()
+
 	appt := func(d timezone.Date) *calModels.Appointment {
 		return &calModels.Appointment{StartDate: d, EndDate: d}
 	}
@@ -308,6 +322,8 @@ func TestFirstRecurrenceOccurrence(t *testing.T) {
 }
 
 func TestOccurrenceExists(t *testing.T) {
+	t.Parallel()
+
 	start := timezone.NewDate(2026, 1, 5) // Monday
 	appt := &calModels.Appointment{StartDate: start, EndDate: start}
 	weeklyMonday := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}}
@@ -336,6 +352,8 @@ func TestOccurrenceExists(t *testing.T) {
 }
 
 func TestHasOccurrenceInWindow(t *testing.T) {
+	t.Parallel()
+
 	oldStart := timezone.NewDate(2020, 1, 6) // an old Monday
 	appt := &calModels.Appointment{StartDate: oldStart, EndDate: oldStart}
 	weeklyMonday := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}}
@@ -364,6 +382,8 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 }
 
 func TestBoundedRecurrenceDates(t *testing.T) {
+	t.Parallel()
+
 	appt := func(start, end timezone.Date) *calModels.Appointment {
 		return &calModels.Appointment{StartDate: start, EndDate: end}
 	}
@@ -449,6 +469,8 @@ func TestBoundedRecurrenceDates(t *testing.T) {
 }
 
 func TestBoundedRecurrenceDatesDeduplicates(t *testing.T) {
+	t.Parallel()
+
 	start := timezone.NewDate(2026, 1, 5) // Monday
 	appt := &calModels.Appointment{StartDate: start, EndDate: start}
 
@@ -477,6 +499,8 @@ func TestBoundedRecurrenceDatesDeduplicates(t *testing.T) {
 }
 
 func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
+	t.Parallel()
+
 	// A count-bounded monthly "day 31" series: the reachable occurrences are the
 	// first N months that actually have a 31st. Membership must be exact without
 	// scanning every day since the (possibly old) start.
@@ -496,6 +520,8 @@ func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
 }
 
 func TestHasOccurrenceInWindowSparseCountBounded(t *testing.T) {
+	t.Parallel()
+
 	// A very old count-bounded yearly Feb-29 series: hasOccurrenceInWindow must
 	// decide overlap by enumerating the (few) occurrences per period, never by
 	// walking the ~decades of days between the start and the feed window.
@@ -515,6 +541,8 @@ func TestHasOccurrenceInWindowSparseCountBounded(t *testing.T) {
 }
 
 func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
+	t.Parallel()
+
 	// The parent feed aggregates appointments across schools, so the UID must be
 	// globally unique — appointment IDs repeat per tenant.
 	appt := &calModels.Appointment{
@@ -529,6 +557,8 @@ func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
 }
 
 func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
+	t.Parallel()
+
 	// A subscription feed is stateless and re-rendered on every poll, so the
 	// exported RRULE must carry the series' REAL horizon (open-ended here), never
 	// a moving "today + N" UNTIL: advancing that window without bumping SEQUENCE
@@ -571,6 +601,8 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 }
 
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
+	t.Parallel()
+
 	children := []*parentModels.ChildSummary{
 		{TenantID: 2, GuardianProfileID: 20},
 		{TenantID: 1, GuardianProfileID: 10},
@@ -602,6 +634,8 @@ func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 }
 
 func TestCalendarSortEvents(t *testing.T) {
+	t.Parallel()
+
 	events := []Event{
 		{ID: "c", StartDate: "2026-01-02", StartTime: "08:00"},
 		{ID: "b", StartDate: "2026-01-01", StartTime: "10:00"},
@@ -615,6 +649,8 @@ func TestCalendarSortEvents(t *testing.T) {
 }
 
 func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 	start := timezone.NewDate(2026, 1, 5)
 	ctx := context.TODO()
@@ -650,6 +686,8 @@ func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 }
 
 func TestTimetableRoomIDPrefersAssignmentOverride(t *testing.T) {
+	t.Parallel()
+
 	instance := &scheduleModels.ActivityInstance{RoomID: 70}
 	override := int64(90)
 

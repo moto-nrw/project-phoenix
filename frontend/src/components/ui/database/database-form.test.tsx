@@ -1526,11 +1526,10 @@ describe("DatabaseForm", () => {
         expect(
           screen.getByText("Test Field ist erforderlich."),
         ).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
 

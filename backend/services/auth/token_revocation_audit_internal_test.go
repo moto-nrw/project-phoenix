@@ -10,6 +10,8 @@ import (
 )
 
 func TestPersistedPortalScope(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]string{
 		"":                     authModels.PortalScopeTenant,
 		tenant.ScopeOrg:        authModels.PortalScopeOrg,
@@ -26,6 +28,8 @@ func TestPersistedPortalScope(t *testing.T) {
 }
 
 func TestPushPortalsForScope(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, []string{iotModels.PushPortalParent}, pushPortalsForScope(authModels.PortalScopeParent))
 	assert.Equal(t, []string{iotModels.PushPortalStaff}, pushPortalsForScope(authModels.PortalScopeTenant))
 	assert.Equal(t, []string{iotModels.PushPortalStaff}, pushPortalsForScope(authModels.PortalScopeOrg))

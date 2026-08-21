@@ -9,6 +9,8 @@ import (
 )
 
 func TestStudentEnrolledOn(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 8, 20)
 	before := date.AddDays(-1)
 	after := date.AddDays(1)

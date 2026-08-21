@@ -79,7 +79,6 @@ func (o *recordingMessageOutbox) Clear() {
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
@@ -99,11 +98,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }
@@ -142,11 +137,12 @@ func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
 // TestStartThread_SendsGuardianEmail is the reported gap: the OGS writes, and the
 // guardian learns about it even without push.
 func TestStartThread_SendsGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID,
+	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID,
 		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
@@ -167,9 +163,10 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 }
 
 func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("portal_locale = ?", "en").
@@ -177,7 +174,7 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
+	_, err = f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
 	rows := f.outbox.Rows()
 	require.Len(t, rows, 1)
@@ -193,8 +190,10 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 }
 
 func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
-	ctx := adminCtx(f.staff)
+	ctx := adminCtx(t, f.staff)
 
 	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
@@ -213,10 +212,12 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 // TestStartThread_RespectsGuardianOptOut: who switched the notification off is
 // not written to by e-mail either.
 func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
+	t.Parallel()
+
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 
-	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
+	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
 	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")

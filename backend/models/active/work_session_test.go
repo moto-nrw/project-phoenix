@@ -9,6 +9,8 @@ import (
 )
 
 func TestWorkSession_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	validSession := func() *WorkSession {
 		return &WorkSession{
@@ -88,6 +90,8 @@ func TestWorkSession_Validate(t *testing.T) {
 }
 
 func TestWorkSession_IsActive(t *testing.T) {
+	t.Parallel()
+
 	t.Run("active when no checkout", func(t *testing.T) {
 		ws := &WorkSession{CheckOutTime: nil}
 		assert.True(t, ws.IsActive())
@@ -101,6 +105,8 @@ func TestWorkSession_IsActive(t *testing.T) {
 }
 
 func TestWorkSession_Getters(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ws := &WorkSession{}
 	ws.ID = 42

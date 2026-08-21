@@ -19,6 +19,8 @@ import (
 // account_id only, so the (account, hash) lookup returned the tenant-A
 // row regardless of which tenant the verify came from.
 func TestMFAService_VerifyTrustedDevice_RejectsCrossTenantCookie(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -60,6 +62,8 @@ func TestMFAService_VerifyTrustedDevice_RejectsCrossTenantCookie(t *testing.T) {
 // scoping a user logged into tenant A would see (and could revoke) devices
 // they trusted in tenant B.
 func TestMFAService_ListTrustedDevices_ScopedToTenant(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -94,6 +98,8 @@ func TestMFAService_ListTrustedDevices_ScopedToTenant(t *testing.T) {
 // it to revoke a device that account A trusted in tenant T2 — the IDOR
 // guard rejects the cross-tenant id-guess.
 func TestMFAService_RevokeTrustedDevice_RejectsCrossTenantRevoke(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 

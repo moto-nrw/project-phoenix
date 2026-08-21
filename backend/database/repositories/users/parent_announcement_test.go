@@ -40,7 +40,9 @@ func publishedAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
-	now := time.Now()
+	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
+	// VM, and published_at <= NOW() guards must not see a future timestamp.
+	now := time.Now().Add(-2 * time.Second)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
@@ -52,13 +54,13 @@ func publishedAnnouncement(
 // guardian; a non-matching class does not; drafts stay out of the feed; and
 // read state flows through the feed + unread count.
 func TestParentAnnouncementAudience(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx() // tenant 1
+	ctx := tenantCtx(t) // tenant 1
 	tenantIDs := []int64{chain.TenantID}
 
 	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -149,13 +151,13 @@ func TestParentAnnouncementAudience(t *testing.T) {
 // read/acknowledged as the read row is stamped, and a non-matching target
 // yields no recipients.
 func TestParentAnnouncementAudienceRecipients(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("portal_locale = ?", "en").
@@ -221,13 +223,13 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 // publish can never be silently reverted), and editing a draft clears any
 // read/ack state left over from a previous publication (the correction path).
 func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -240,7 +242,10 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish, then the guardian reads + acknowledges.
-	now := time.Now()
+	// The version guard compares against PostgreSQL's clock. Keep this safely
+	// in the past so host/container clock skew cannot make a fresh row appear
+	// scheduled for the future.
+	now := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)
@@ -283,13 +288,13 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 // targets) could race a target edit and desynchronize the e-mailed audience
 // from the live feed/stats audience.
 func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -302,7 +307,9 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish it, then attempt to swap the audience to a single student.
-	now := time.Now()
+	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
+	// VM, and published_at <= NOW() guards must not see a future timestamp.
+	now := time.Now().Add(-2 * time.Second)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	studentID := chain.StudentID
 	err := repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
@@ -324,13 +331,13 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 // survives (a bare-table override would produce a WHERE referencing a missing
 // alias and fail). Targets + reads cascade in the DB.
 func TestParentAnnouncementDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
 		Title: "Zu löschen", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
@@ -354,13 +361,13 @@ func TestParentAnnouncementDelete(t *testing.T) {
 // must record nothing against the corrected wording — the guard closes the
 // window between the service's authorize phase and the write.
 func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	a := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Versioniert", []*usersModels.ParentAnnouncementTarget{
@@ -397,13 +404,13 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 // rows (with parent_portal.access) still exist. Membership, not just the
 // relationship, is what grants parent-portal access.
 func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
 	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -415,9 +422,9 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
 	require.NoError(t, err)
 	require.True(t, matched, "sanity: an active guardian is reached")
-	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	countBefore, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, count, 1)
+	require.GreaterOrEqual(t, countBefore, 1)
 
 	// Revoke school access: flip the mapping to inactive.
 	_, err = db.NewUpdate().
@@ -432,9 +439,9 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, matched, "an inactive membership must not be reached")
 
-	count, err = repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "inactive membership excluded from CountAudience")
+	assert.Equal(t, countBefore-1, count, "inactive membership excluded from CountAudience")
 
 	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
 	require.NoError(t, err)
@@ -447,13 +454,13 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 // ListSchoolClasses (TRIM) feeds the selector with — so staff can never pick a
 // visible class that then reaches no guardian.
 func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	// Uppercase + padded target text against a lowercase "1a" student class.
 	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
@@ -471,13 +478,13 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 // started: a future valid_from is not yet in the audience, and the guardian
 // enters it once the enrollment becomes current.
 func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Regression")
 
@@ -525,13 +532,13 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 }
 
 func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Wochentag")
 	today := timezone.TodayDate()
 	todayWeekday := int(today.Weekday())
@@ -617,14 +624,14 @@ func announcementIDs(items []*usersModels.AnnouncementFeedItem) []int64 {
 // no announcement, while staff stats + e-mail counted them symmetrically. All
 // four surfaces (feed/unread, count, recipients, e-mail, stats) must agree.
 func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	bg := context.Background()
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
 	// A phase to anchor the enrollment request FK.
@@ -696,7 +703,6 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	// A different account (no matching request e-mail) must NOT be reached — the
 	// fallback resolves the real account, it does not match everyone.
 	other := testpkg.CreateTestAccount(t, db, "other-parent")
-	defer testpkg.CleanupAccount(t, db, other.ID)
 	otherMatched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, other.ID)
 	require.NoError(t, err)
 	assert.False(t, otherMatched, "an account with no matching enrollment request must NOT be reached")

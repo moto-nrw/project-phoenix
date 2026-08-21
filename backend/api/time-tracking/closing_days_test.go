@@ -16,6 +16,8 @@ import (
 )
 
 func TestGetClosingDays(t *testing.T) {
+	t.Parallel()
+
 	days := []*schedule.ClosingDay{{
 		StartDate: timezone.NewDate(2026, 12, 24),
 		EndDate:   timezone.NewDate(2026, 12, 31),
@@ -47,6 +49,8 @@ func TestGetClosingDays(t *testing.T) {
 }
 
 func TestGetClosingDaysInvalidRange(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{}}
 
 	w := httptest.NewRecorder()
@@ -59,6 +63,8 @@ func TestGetClosingDaysInvalidRange(t *testing.T) {
 }
 
 func TestGetClosingDaysServiceError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{
 		ClosingDaysInRangeFn: func(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
 			return nil, errors.New("boom")
