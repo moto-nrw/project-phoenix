@@ -20,8 +20,7 @@ const (
 	//
 	// Deliberately NOT stamped on the Schulhof room since #2405: the room's
 	// color is admin-configurable, and leaving it unset is what makes the
-	// orange Schulhof default apply. Migration 1.15.305 cleared the value
-	// from rooms that were auto-provisioned with it.
+	// orange Schulhof default apply.
 	SchulhofColor = "#7ED321"
 
 	// SchulhofRoomName is the name of the Schulhof room/outdoor area.
