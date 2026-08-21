@@ -51,6 +51,7 @@ export const LOCATION_STATUSES = {
   EXCUSED: "Entschuldigt",
   CLASS_TRIP: "Klassenfahrt",
   NOT_ARRIVAL: "Kommt heute nicht",
+  UNPLANNED_PRESENT: "Ungeplant anwesend",
 } as const;
 
 /** Shared brand palette. Red follows Phoenix notifications and hours accounts. */

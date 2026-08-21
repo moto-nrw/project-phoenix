@@ -39,11 +39,9 @@ type DayPlanningDecision struct {
 	ExceptionNotes string
 }
 
-// ResolveDayPlanning applies the day-planning precedence: actual attendance
-// beats a reported absence (sick, class trip, excused), which beats a
-// same-day cancellation, which beats a planned arrival, which beats a planned
-// pickup, which beats a timetable booking. Everything else falls through to
-// "no plan".
+// ResolveDayPlanning resolves the plan first. Actual attendance changes an
+// absent/no-plan decision to unplanned attendance, but it does not erase a
+// valid arrival, pickup, or timetable plan.
 //
 // A timeless exception on either leg is the "Kommt heute nicht" marker and
 // cancels the whole care day — it must not fall through to the other leg's
@@ -59,9 +57,15 @@ type DayPlanningDecision struct {
 // precedence independently; both paths must keep resolving through this
 // function so they never disagree.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
-	switch {
-	case in.HasActualAttendance:
+	planned := resolvePlannedDay(in)
+	if in.HasActualAttendance && !planned.ComesToday {
 		return DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonUnplanned}
+	}
+	return planned
+}
+
+func resolvePlannedDay(in DayPlanningInputs) DayPlanningDecision {
+	switch {
 	case in.Sick:
 		return DayPlanningDecision{Reason: DayPlanningReasonSick}
 	case in.ClassTrip:

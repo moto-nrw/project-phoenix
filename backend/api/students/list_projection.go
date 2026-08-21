@@ -61,9 +61,10 @@ type SlimStudentResponse struct {
 	ClassTrip      bool       `json:"class_trip"`
 	ClassTripSince *time.Time `json:"class_trip_since,omitempty"`
 
-	// Day planning. day_planning_reason is deliberately absent: the page
-	// renders day_planning_label and derives everything else from status.
+	// Day planning. The reason distinguishes actual unplanned attendance from
+	// ordinary planned presence; status and label alone cannot express that.
 	DayPlanningStatus  string  `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string  `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string  `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 
@@ -117,6 +118,7 @@ func slimStudentResponses(responses []StudentResponse, planningDate timezone.Dat
 			ClassTrip:           r.ClassTrip,
 			ClassTripSince:      r.ClassTripSince,
 			DayPlanningStatus:   r.DayPlanningStatus,
+			DayPlanningReason:   r.DayPlanningReason,
 			DayPlanningLabel:    r.DayPlanningLabel,
 			PendingExcusedNote:  r.PendingExcusedNote,
 			DepartureModes:      departure.Modes,
