@@ -114,6 +114,26 @@ describe("StaffAbsenceRequestList", () => {
     expect(screen.queryByRole("button", { name: "Genehmigen" })).toBeNull();
   });
 
+  it("zeigt die eigene Abwesenheitsart in der Historie", async () => {
+    listRequests.mockResolvedValue([
+      {
+        ...decidedRow(),
+        absence_type: "other",
+        absence_type_label: "Regenerationstag",
+      },
+    ]);
+
+    render(
+      <StaffAbsenceRequestList
+        view="history"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+
+    expect(await screen.findByText(/Regenerationstag/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sonstige/)).toBeNull();
+  });
+
   it("genehmigt einen Antrag und lädt die Liste neu", async () => {
     listRequests.mockResolvedValueOnce([openRow()]).mockResolvedValueOnce([]);
     approve.mockResolvedValue(undefined);

@@ -29,7 +29,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import {
-  ABSENCE_TYPE_LABEL,
+  absenceRowLabel,
   dispatchAbsencesRefresh,
   formatAbsenceRange,
 } from "~/lib/absence-helpers";
@@ -205,7 +205,7 @@ export function StaffAbsenceRequestList({
           <RequestReviewCard
             key={row.id}
             type="absence"
-            typeLabel={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            typeLabel={absenceRowLabel(row)}
             childName={staffLabel(row)}
             summary={formatAbsenceRange(row.date_start, row.date_end)}
             submittedAt={row.requested_at}

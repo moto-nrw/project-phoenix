@@ -26,6 +26,11 @@ const (
 	PresenceModeBinary   = "binary"
 )
 
+// YardLocationLabel is the binary-mode label for a student on the schoolyard.
+// Named so the yard-color stamping below matches on a constant instead of a
+// second copy of the string literal.
+const YardLocationLabel = "Schulhof"
+
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.
 // Callers can reuse the snapshot to resolve location strings without triggering N+1 queries.
 //
@@ -38,6 +43,13 @@ type StudentLocationSnapshot struct {
 	Attendances map[int64]*AttendanceStatus
 	Visits      map[int64]*activeModels.Visit
 	Groups      map[int64]*activeModels.Group
+
+	// YardRoomColor is the tenant's configured Schulhof room color, used to
+	// tint the binary-mode "Schulhof" state (#2405). Only binary mode needs
+	// it: in detailed mode the yard is an ordinary room visit whose color
+	// already travels with the active group's room. Nil means "no color
+	// configured" — the frontend then renders the orange Schulhof default.
+	YardRoomColor *string
 }
 
 // ResolveStudentLocation converts the cached data into the user-facing location string.
@@ -63,7 +75,8 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	// label the resolver produces in this mode, and only when a yard timestamp
 	// is actually set on the attendance row.
 	if s.Mode == PresenceModeBinary {
-		return ResolveBinaryLocation(status, hasFullAccess)
+		info := ResolveBinaryLocation(status, hasFullAccess)
+		return withYardRoomColor(info, s.YardRoomColor)
 	}
 
 	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
@@ -117,7 +130,7 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 func ResolveBinaryLocation(status *AttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	switch status.Status {
 	case "on_yard":
-		info := StudentLocationInfo{Location: "Schulhof"}
+		info := StudentLocationInfo{Location: YardLocationLabel}
 		if hasFullAccess {
 			info.Since = status.YardSince
 		}
@@ -137,4 +150,16 @@ func ResolveBinaryLocation(status *AttendanceStatus, hasFullAccess bool) Student
 	default:
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
+}
+
+// withYardRoomColor stamps the Schulhof room color onto a binary-mode
+// location, but only when the resolved label actually IS the yard. Every
+// other binary label (Anwesend / Abwesend) has no room behind it, so
+// attaching a room color there would tint an unrelated badge.
+func withYardRoomColor(info StudentLocationInfo, yardColor *string) StudentLocationInfo {
+	if yardColor == nil || info.Location != YardLocationLabel {
+		return info
+	}
+	info.RoomColor = yardColor
+	return info
 }

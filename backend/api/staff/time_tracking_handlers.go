@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,7 +51,12 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Intersecting, not date-based: a block that started the evening before
+	// `from` reaches into the range, and the table splits its minutes onto the
+	// Berlin days they fall on (#2402). Reading by stored date would drop that
+	// first sliver of the range and the row would disagree with the server-side
+	// Saldo, which counts the same interval.
+	historyResp, err := rs.WorkSessionService.GetHistoryIntersecting(r.Context(), staffID, from, to)
 	if err != nil {
 		rs.getLogger().Error("failed to get staff history",
 			"staff_id", staffID,
@@ -235,6 +241,12 @@ func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
 
 // questionAbsenceErrorRules classifies QuestionAbsence service errors (#1419).
 var questionAbsenceErrorRules = []common.ErrorRule{
+	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
+	// bad selection, not a server fault.
+	{Target: activeSvc.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+	}},
+	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("question note is required"), Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("only requested absences can be questioned"), Render: common.ErrorInvalidRequest},
@@ -383,7 +395,7 @@ func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Session updated")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Session updated")
 }
 
 // adminCreateStaffSession handles POST /api/staff/{id}/time-tracking/sessions
@@ -418,7 +430,7 @@ func (rs *Resource) adminCreateStaffSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, session, "Session created")
+	common.Respond(w, r, http.StatusCreated, activeModels.WorkSessionWire{WorkSession: session}, "Session created")
 }
 
 // classifyAdminEditError maps service errors to HTTP responses. Validation
@@ -435,6 +447,10 @@ func classifyAdminEditError(err error) render.Renderer {
 	case strings.Contains(msg, "session not found"),
 		strings.Contains(msg, "does not belong"):
 		return common.ErrorNotFound(err)
+	case strings.Contains(msg, "work session overlaps an existing block"):
+		// Same stable code as the self-service route: the message carries the
+		// dynamic conflicting interval and is unusable as a mapping key.
+		return common.ErrorConflictWithCode(err, "work_session_overlap")
 	default:
 		return common.ErrorInternalServer(err)
 	}
@@ -535,6 +551,12 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrCompTimeExceedsBalance, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
 	}},
+	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
+	// bad selection, not a server fault.
+	{Target: activeSvc.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+	}},
+	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},

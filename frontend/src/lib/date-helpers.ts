@@ -106,6 +106,21 @@ export function berlinTodayISO(at: Date = new Date()): string {
 }
 
 /**
+ * Midnight (00:00:00) of the Berlin calendar day an instant falls on, as the
+ * actual instant — the boundary a running work block has to be clamped to so
+ * its minutes before midnight stay booked on the previous day.
+ *
+ * Derived from the previous day's 23:59:59 plus a second rather than by
+ * subtracting 24h, so the DST nights (23h and 25h long) land on the real
+ * midnight instead of one hour beside it.
+ */
+export function berlinDayStart(at: Date = new Date()): Date {
+  const dayBefore = parseISODate(berlinTodayISO(at));
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return new Date(new Date(endOfBerlinDayISO(dayBefore)).getTime() + 1_000);
+}
+
+/**
  * The Berlin calendar day an instant falls on, as a Date at LOCAL midnight —
  * the shape the date pickers render and `endOfBerlinDayISO` reads back.
  *

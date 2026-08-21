@@ -313,9 +313,6 @@ type WorkSessionRepository interface {
 	// LockStaffBalanceWrites serializes all work-session and break mutations
 	// with absence and adjustment mutations for the same staff member.
 	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
-	// GetByStaffAndDate returns the work session for a staff member on a given date
-	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
-
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
@@ -335,11 +332,22 @@ type WorkSessionRepository interface {
 	// LockOpenByIDForUpdate returns and locks an open session row by ID.
 	LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error)
 
+	// ListOverlappingByStaffID returns the blocks of a staff member whose
+	// [check-in, check-out) interval intersects [from, to). A nil "to" means
+	// the interval is open-ended. Timestamp-based on purpose: a block can
+	// reach past the day it is filed on (#2402).
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
+	// ListOverlappingByStaffIDs is the batched counterpart used by the
+	// cross-staff Stundenkonto overview. It keeps interval readers separate
+	// from history and export readers, whose contract is the stored date.
+	ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*WorkSession, error)
+
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
 
 	// GetHistoryByStaffIDs is GetHistoryByStaffID batched over many staff
-	// members, keyed by staff ID, for the cross-staff Stundenkonto overview.
+	// members, keyed by staff ID. Its contract follows the stored session date,
+	// matching history and export date ranges.
 	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*WorkSession, error)
 
 	// GetOpenSessions returns all sessions without check-out before a given date
@@ -387,6 +395,11 @@ type StaffAbsenceRepository interface {
 	// sick > training > vacation > comp_time > other.
 	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
 
+	// GetAbsenceTypeIDMapForDate returns staff ID -> school-defined
+	// Abwesenheitsart ID for the same winning absence GetAbsenceMapForDate
+	// picks (#2403). Only staff whose winner carries one appear.
+	GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error)
+
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
@@ -414,6 +427,26 @@ type StaffAbsenceRepository interface {
 
 type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
+}
+
+// StaffAbsenceTypeRepository is the data-access boundary for school-defined
+// absence names (#2403). CRUD comes from the generic repository; ListAll
+// returns every entry of the current tenant (active and inactive) so a
+// retired art still resolves to its name on historical absences.
+//
+// There is deliberately no Delete: a name that was used must stay readable,
+// so retirement is is_active = false.
+type StaffAbsenceTypeRepository interface {
+	base.Repository[*StaffAbsenceType]
+
+	// ListAll returns all absence types for the current tenant, ordered by name.
+	ListAll(ctx context.Context) ([]*StaffAbsenceType, error)
+	// LockByID returns one art with a transaction-scoped row lock. Lifecycle
+	// changes and new references use it to serialize their invariants.
+	LockByID(ctx context.Context, id int64) (*StaffAbsenceType, error)
+	// IsInUse reports whether an absence still references the art. Used to keep
+	// historical display names stable when an administrator edits the list.
+	IsInUse(ctx context.Context, id int64) (bool, error)
 }
 
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto
@@ -496,13 +529,13 @@ type WorkSessionBreakRepository interface {
 
 	// GetBySessionID returns all breaks for a given session ordered by started_at
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
+	// GetBySessionIDs returns all breaks for multiple sessions, keyed by session
+	// ID. It is used by the time-tracking overview to preserve the same
+	// interval arithmetic as the single-staff Monatskarte without N+1 queries.
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
 
 	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
 	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
-
-	// GetActiveBySessionIDs is GetActiveBySessionID batched over many
-	// sessions, keyed by session ID. Sessions without an open break are absent.
-	GetActiveBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]*WorkSessionBreak, error)
 
 	// EndBreak sets ended_at and duration_minutes on a break
 	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error

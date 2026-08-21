@@ -2341,6 +2341,39 @@ describe("staff-api", () => {
         staffSessionService.createSession("1", payload),
       ).rejects.toThrow("Failed to create session: Bad Request");
     });
+
+    // #2402: the overlap 409 carries a stable code; its message holds the
+    // dynamic conflicting interval and is not presentable to a user.
+    it("maps the work_session_overlap code to a German message", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const overlapBody = JSON.stringify({
+        status: "error",
+        error: "work session overlaps an existing block (08:00-12:00)",
+        code: "work_session_overlap",
+      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Conflict",
+          text: () => Promise.resolve(overlapBody),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Conflict",
+          text: () => Promise.resolve(overlapBody),
+        } as Response);
+
+      await expect(
+        staffSessionService.updateSession("1", "4", payload),
+      ).rejects.toThrow(
+        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+      );
+      await expect(
+        staffSessionService.createSession("1", payload),
+      ).rejects.toThrow(
+        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+      );
+    });
   });
 
   describe("staffBalanceAdjustmentService", () => {

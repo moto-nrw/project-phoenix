@@ -120,7 +120,7 @@ export function AdminSessionEditModal({
       const checkInISO = combineDateAndTime(date, checkIn);
       const checkOutISO = combineDateAndTime(date, checkOut);
       if (mode === "edit" && session?.id != null) {
-        await staffSessionService.updateSession(staffId, String(session.id), {
+        await staffSessionService.updateSession(staffId, session.id, {
           date: dateISO,
           check_in_time: checkInISO,
           check_out_time: checkOutISO,
@@ -148,6 +148,9 @@ export function AdminSessionEditModal({
         session_id: session?.id ?? null,
         error: msg,
       });
+      // The overlap 409 carries a stable code (#2402); staffSessionService
+      // already maps it to its German message, the raw backend text (with the
+      // dynamic conflicting interval) never reaches here.
       setError(msg || "Speichern fehlgeschlagen.");
     } finally {
       setIsSaving(false);

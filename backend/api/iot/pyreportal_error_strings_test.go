@@ -128,7 +128,10 @@ var pyreportalErrorCodes = []string{
 	"rfid_tag_not_found",
 	"rfid_tag_inactive",
 	"rfid_tag_not_staff",
-	"reopen_status_conflict",
+	// "reopen_status_conflict" was retired with #2402: a repeated check-in
+	// now starts a new work block instead of reopening the closed one, so
+	// the backend never emits the code again. PyrePortal's handler for it is
+	// dead code and can be removed there independently.
 	"planned_start_not_reached",
 	"deviation_reason_required",
 	"invalid_staff_clock_state",

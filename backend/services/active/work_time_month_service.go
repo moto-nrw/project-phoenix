@@ -172,12 +172,13 @@ type monthShiftReader interface {
 
 // monthSessionReader is implemented by active.WorkSessionRepository.
 type monthSessionReader interface {
-	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
 }
 
 // monthBreakReader is implemented by active.WorkSessionBreakRepository.
 type monthBreakReader interface {
-	GetActiveBySessionID(ctx context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error)
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error)
 }
 
 // monthAbsenceReader is implemented by active.StaffAbsenceRepository.
@@ -563,85 +564,94 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 	return nil
 }
 
-// addActualMinutes sums the net worked minutes per month, skipping sessions
-// dated after today. Targets and absence credits are both clamped at today, so
-// counting a future-dated session (the admin correction service accepts them)
-// would credit Ist against a Soll that is deliberately not there yet and show
-// a phantom plus in the current month — and, via the carry chain, in every
-// later one.
+// addActualMinutes assigns each session's time to every Berlin calendar day it
+// intersects. A work session is filed under its check-in date, but may validly
+// run past midnight; counting it only in that filing month would lose the
+// after-midnight part from the following day's balance.
 func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, first, last)
+	end := last.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, first.BerlinMidnight(), &end)
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
 	now := time.Now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return err
+	}
 	for _, session := range sessions {
-		if session.Date.After(today) {
+		end := balanceSessionEnd(session, now, today)
+		if !end.After(session.CheckInTime) {
 			continue
 		}
-		agg, ok := aggregates[monthOf(session.Date)]
-		if !ok {
-			continue
+
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
+			if agg, ok := aggregates[monthOf(day)]; ok {
+				agg.actual += minutes
+			}
 		}
-		minutes := workedMinutesUpTo(session, now)
-		running, err := s.runningBreakMinutes(ctx, session, now)
-		if err != nil {
-			return err
-		}
-		if minutes -= running; minutes < 0 {
-			minutes = 0
-		}
-		agg.actual += minutes
 	}
 	return nil
 }
 
-// workedMinutesUpTo is netMinutes with the session end clamped at both the
-// session's own calendar day and now. netMinutes otherwise measures gross work
-// time up to the check-out (or, for an open session, up to now), so two kinds
-// of bad data inflate Ist without bound and both pass the date guard in
-// addActualMinutes:
-//
-//   - a session left open on a PAST day bills every minute since check-in
-//     through now — potentially days or months of fictitious presence, and via
-//     the carry chain every later balance; and
-//   - a historical session an admin corrected with a check-out later than its
-//     day (the correction API accepts a future check_out_time) bills the whole
-//     span the moment it is saved.
-//
-// The day cap bounds those past cases; the now cap additionally keeps a future
-// check-out on TODAY's session from counting past the current instant, against
-// a target that is deliberately only accrued up to today. A consistent, closed
-// past session is unaffected: its check-out already precedes both caps.
-func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
+func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions []*activeModels.WorkSession) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	ids := make([]int64, 0, len(sessions))
+	for _, session := range sessions {
+		ids = append(ids, session.ID)
+	}
+	if len(ids) == 0 {
+		return map[int64][]*activeModels.WorkSessionBreak{}, nil
+	}
+	breaks, err := s.breakRepo.GetBySessionIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load work session breaks: %w", err)
+	}
+	return breaks, nil
+}
+
+// sessionEndUpTo clamps a session end at now. This prevents a future
+// check-out from being credited before it happens while preserving valid work
+// across Berlin midnight.
+func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time {
 	end := now
 	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
 		end = *session.CheckOutTime
 	}
-	if dayEnd := session.Date.EndOfDay(); dayEnd.Before(end) {
-		end = dayEnd
-	}
-	capped := *session
-	capped.CheckOutTime = &end // netMinutes measures gross up to the capped end
-	return netMinutes(&capped, end)
+	return end
 }
 
-// runningBreakMinutes is the elapsed duration of a break that has started but
-// not ended yet. WorkSession.BreakMinutes caches ENDED breaks only — StartBreak
-// records no duration and the cache is refreshed when the break ends or is
-// auto-ended — so netMinutes counts every minute of a running break as worked
-// time. Without this correction the polled Monatskarte inflates Ist and Saldo
-// for as long as the staff member is on break. The elapsed math is shared with
-// /history (runningBreakElapsedMinutes) so card and day rows agree.
-func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session *activeModels.WorkSession, now time.Time) (int, error) {
-	if s.breakRepo == nil || session.CheckOutTime != nil {
-		return 0, nil
+// maxOpenWorkSessionDuration is the shared live limit. The presence lookup in
+// database/repositories/active reads the same constant, so a block that stops
+// counting toward the balance stops marking its owner present as well.
+const maxOpenWorkSessionDuration = activeModels.MaxOpenWorkSessionDuration
+
+// BalanceSessionEnd applies the live balance limit using the Berlin day of
+// now. Readers outside this package (notably the kiosk) use it so a running
+// block cannot produce a different total from the monthly balance.
+func BalanceSessionEnd(session *activeModels.WorkSession, now time.Time) time.Time {
+	return balanceSessionEnd(session, now, timezone.DateFromTime(now))
+}
+
+func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
+	end := sessionEndUpTo(session, now)
+	// A completed block is historical fact. Only still-open blocks (or a
+	// malformed future check-out) need a live safety limit.
+	if session.CheckOutTime != nil && !session.CheckOutTime.After(now) {
+		return end
 	}
-	brk, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load active break: %w", err)
+	maxEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration)
+	if !end.After(maxEnd) {
+		return end
 	}
-	return runningBreakElapsedMinutes(brk, now), nil
+	if session.Date.Before(today.AddDays(-1)) {
+		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+			return staleEnd
+		}
+	}
+	if !session.Date.Before(today.AddDays(-1)) && session.Date.Before(today) {
+		return maxEnd
+	}
+	return end
 }
 
 // addAbsenceCredits credits sick/vacation/training days with the day's
@@ -1269,22 +1279,21 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	staffID int64,
 	from, to timezone.Date,
 ) (map[timezone.Date]int, error) {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, from, to)
+	end := to.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
 	actualByDate := make(map[timezone.Date]int)
 	now := time.Now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return nil, err
+	}
 	for _, session := range sessions {
-		if session.Date.Before(from) || session.Date.After(to) {
-			continue
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], balanceSessionEnd(session, now, timezone.TodayDate()), from, to) {
+			actualByDate[day] += minutes
 		}
-		minutes := workedMinutesUpTo(session, now)
-		running, err := s.runningBreakMinutes(ctx, session, now)
-		if err != nil {
-			return nil, err
-		}
-		actualByDate[session.Date] += max(0, minutes-running)
 	}
 	return actualByDate, nil
 }

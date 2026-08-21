@@ -36,13 +36,6 @@ interface ApiResponse<T> {
   data: T;
 }
 
-/**
- * Stable error code surfaced by the backend when a CheckIn would silently
- * change the status of an existing checked-out session. The page handles
- * this by prompting for a reason and routing the change through
- * UpdateSession (Issue #1368).
- */
-export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
 /**
  * Stable error code surfaced when a check-in/check-out deviates from the
@@ -69,6 +62,11 @@ export interface UpdateSessionRequest {
  */
 export interface CreateAbsenceRequest {
   absence_type: string;
+  /**
+   * School-defined Abwesenheitsart (#2403). When set, the backend takes the
+   * canonical absence_type from the art itself, so the pair can never disagree.
+   */
+  absence_type_id?: string | null;
   date_start: string;
   date_end: string;
   half_day?: boolean;
@@ -80,6 +78,8 @@ export interface CreateAbsenceRequest {
  */
 export interface UpdateAbsenceRequest {
   absence_type?: string;
+  /** Re-points the school-defined Abwesenheitsart; `null` clears it (#2403). */
+  absence_type_id?: string | null;
   date_start?: string;
   date_end?: string;
   half_day?: boolean;

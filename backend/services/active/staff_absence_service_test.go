@@ -2,8 +2,10 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"testing"
 	"time"
 
@@ -19,6 +21,217 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
+	t.Parallel()
+
+	const id = "9007199254740993"
+
+	var create CreateAbsenceRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"absence_type":"other","absence_type_id":"`+id+`"}`), &create))
+	require.NotNil(t, create.AbsenceTypeID)
+	assert.Equal(t, int64(9007199254740993), *create.AbsenceTypeID)
+
+	var update UpdateAbsenceRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"absence_type":"sick","absence_type_id":null}`), &update))
+	assert.True(t, update.AbsenceTypeIDSet)
+	assert.Nil(t, update.AbsenceTypeID)
+}
+
+func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
+	t.Parallel()
+
+	id := int64(9007199254740993)
+	value := strconv.FormatInt(id, 10)
+	payload, err := json.Marshal(StaffAbsenceResponse{
+		StaffAbsence:  &activeModels.StaffAbsence{AbsenceTypeID: &id},
+		AbsenceTypeID: &value,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"absence_type_id":"9007199254740993"`)
+}
+
+func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceTypeTraining, got.AbsenceType)
+		assert.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	standard := activeModels.AbsenceTypeTraining
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType:      &standard,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+}
+
+func TestAbsUpdateAbsenceAppliesStandardTypeChangeWithExplicitNull(t *testing.T) {
+	t.Parallel()
+
+	// The client sends absence_type_id: null with every standard selection, so
+	// a plain Fortbildung → Sonstige edit lands here with both IDs nil. The
+	// canonical type must still change.
+	svc, repo, _ := absSetupService()
+	existing := &activeModels.StaffAbsence{
+		Model:       base.Model{ID: 100},
+		StaffID:     7,
+		AbsenceType: activeModels.AbsenceTypeTraining,
+		DateStart:   timezone.NewDate(2026, 8, 20),
+		DateEnd:     timezone.NewDate(2026, 8, 20),
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	updated := false
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		updated = true
+		assert.Equal(t, activeModels.AbsenceTypeOther, got.AbsenceType)
+		assert.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	standard := activeModels.AbsenceTypeOther
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType:      &standard,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+	require.True(t, updated, "the update must reach the repository")
+}
+
+func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		require.Equal(t, activeModels.AbsenceTypeOther, got.AbsenceType)
+		require.Equal(t, customID, *got.AbsenceTypeID)
+		return nil
+	}
+
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceTypeID:    &customID,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+}
+
+func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:         base.Model{ID: 100},
+		StaffID:       7,
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+		DateStart:     timezone.NewDate(2026, 8, 20),
+		DateEnd:       timezone.NewDate(2026, 8, 20),
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		require.Equal(t, activeModels.AbsenceTypeTraining, got.AbsenceType)
+		require.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	canonical := activeModels.AbsenceTypeTraining
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType: &canonical,
+	})
+	require.NoError(t, err)
+}
+
+func TestAbsUpdateAbsenceRejectsSickToCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	existing := &activeModels.StaffAbsence{
+		Model:       base.Model{ID: 100},
+		StaffID:     7,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 8, 20),
+		DateEnd:     timezone.NewDate(2026, 8, 20),
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error {
+		t.Fatal("a sick absence must not be converted to a custom type")
+		return nil
+	}
+
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceTypeID:    &customID,
+		AbsenceTypeIDSet: true,
+	})
+	require.ErrorContains(t, err, "sick absences must be deleted and re-created")
+}
+
+func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Model:    base.Model{ID: customID},
+		Name:     "Regenerationstag",
+		BaseType: activeModels.AbsenceTypeOther,
+		IsActive: true,
+	}}}, nil)
+	repo.listRequestsFunc = func(context.Context, activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+		return []*activeModels.AbsenceRequestRow{{
+			StaffAbsence: &activeModels.StaffAbsence{
+				Model:         base.Model{ID: 100},
+				StaffID:       7,
+				AbsenceType:   activeModels.AbsenceTypeOther,
+				AbsenceTypeID: &customID,
+				DateStart:     timezone.NewDate(2026, 8, 20),
+				DateEnd:       timezone.NewDate(2026, 8, 20),
+				Status:        activeModels.AbsenceStatusRequested,
+				CreatedBy:     7,
+			},
+			StaffName: "Mila Muster",
+		}}, nil
+	}
+
+	items, err := svc.ListAbsenceRequests(context.Background(), AbsenceRequestListQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Regenerationstag", items[0].AbsenceTypeLabel)
+}
 
 // ============================================================================
 // Mocks for StaffAbsenceRepository (prefixed with abs)
@@ -105,6 +318,10 @@ func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to t
 	if m.getByDateRangeFunc != nil {
 		return m.getByDateRangeFunc(ctx, from, to)
 	}
+	return nil, nil
+}
+
+func (m *absStaffAbsenceRepoMock) GetAbsenceTypeIDMapForDate(_ context.Context, _ timezone.Date) (map[int64]int64, error) {
 	return nil, nil
 }
 
@@ -201,7 +418,6 @@ type absWorkSessionRepoMock struct {
 	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
 	deleteFunc              func(ctx context.Context, id any) error
 	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
@@ -249,13 +465,6 @@ func (m *absWorkSessionRepoMock) List(ctx context.Context, options *base.QueryOp
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
-	if m.getByStaffAndDateFunc != nil {
-		return m.getByStaffAndDateFunc(ctx, staffID, date)
-	}
-	return nil, nil
-}
-
 func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
 	if m.getCurrentByStaffIDFunc != nil {
 		return m.getCurrentByStaffIDFunc(ctx, staffID)
@@ -291,10 +500,20 @@ func (m *absWorkSessionRepoMock) GetHistoryByStaffIDs(context.Context, []int64, 
 	return nil, nil
 }
 
+func (m *absWorkSessionRepoMock) ListOverlappingByStaffIDs(context.Context, []int64, time.Time, *time.Time) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
+}
+
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
 	}
+	return nil, nil
+}
+
+// ListOverlappingByStaffID satisfies the interface; the absence service never
+// creates work blocks, so nothing here overlaps anything.
+func (m *absWorkSessionRepoMock) ListOverlappingByStaffID(context.Context, int64, time.Time, *time.Time) ([]*activeModels.WorkSession, error) {
 	return nil, nil
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
@@ -110,6 +111,7 @@ type API struct {
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
+	AbsenceTypes     *absencetypesAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Display          *displayAPI.Resource
@@ -566,6 +568,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
+	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
@@ -863,6 +866,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
 		r.Mount("/staff-shifts", a.StaffShifts.Router())
 		r.Mount("/shift-types", a.ShiftTypes.Router())
+		r.Mount("/absence-types", a.AbsenceTypes.Router())
 
 		// Mount personal calendar resources
 		r.Mount("/calendar", a.Calendar.Router())

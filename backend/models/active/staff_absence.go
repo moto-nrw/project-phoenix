@@ -64,8 +64,20 @@ var ValidAbsenceStatuses = []string{
 type StaffAbsence struct {
 	base.Model `bun:"schema:active,table:staff_absences"`
 	base.TenantModel
-	StaffID           int64         `bun:"staff_id,notnull" json:"staff_id"`
-	AbsenceType       string        `bun:"absence_type,notnull" json:"absence_type"`
+	StaffID     int64  `bun:"staff_id,notnull" json:"staff_id"`
+	AbsenceType string `bun:"absence_type,notnull" json:"absence_type"`
+	// AbsenceTypeID optionally names this absence with a school-defined
+	// Abwesenheitsart (#2403). It never changes the arithmetic: the row still
+	// carries the canonical AbsenceType (always AbsenceTypeOther while a custom
+	// art is attached, enforced by chk_sa_custom_type_is_other) and every
+	// calculation keeps reading that column. NULL = one of the five standard
+	// types.
+	AbsenceTypeID *int64 `bun:"absence_type_id" json:"absence_type_id,omitempty"`
+	// AbsenceTypeLabel is the resolved display name — the custom art's name
+	// when AbsenceTypeID is set, otherwise empty so clients fall back to their
+	// own label for the standard type. Not a column; filled by the service
+	// layer on read paths.
+	AbsenceTypeLabel  string        `bun:"-" json:"absence_type_label,omitempty"`
 	DateStart         timezone.Date `bun:"date_start,notnull,type:date" json:"date_start"`
 	DateEnd           timezone.Date `bun:"date_end,notnull,type:date" json:"date_end"`
 	HalfDay           bool          `bun:"half_day,notnull,default:false" json:"half_day"`

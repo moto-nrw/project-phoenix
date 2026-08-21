@@ -269,21 +269,21 @@ func (s *staffOverviewService) buildPrefetch(
 		settings: memo,
 	}
 
-	if prefetch.sessions, err = s.sessionRepo.GetHistoryByStaffIDs(ctx, staffIDs, from, to); err != nil {
+	end := to.AddDays(1).BerlinMidnight()
+	if prefetch.sessions, err = s.sessionRepo.ListOverlappingByStaffIDs(ctx, staffIDs, from.BerlinMidnight(), &end); err != nil {
 		return nil, fmt.Errorf("failed to prefetch work sessions: %w", err)
 	}
 	// Breaks are keyed by session ID, so they can only be loaded once the
-	// sessions are known — and only for the ones still running.
-	openSessionIDs := make([]int64, 0)
+	// sessions are known. The interval math needs both completed and running
+	// breaks to assign a night block's pause to the correct calendar day.
+	sessionIDs := make([]int64, 0)
 	for _, sessions := range prefetch.sessions {
 		for _, session := range sessions {
-			if session.CheckOutTime == nil {
-				openSessionIDs = append(openSessionIDs, session.ID)
-			}
+			sessionIDs = append(sessionIDs, session.ID)
 		}
 	}
-	if prefetch.breaks, err = s.breakRepo.GetActiveBySessionIDs(ctx, openSessionIDs); err != nil {
-		return nil, fmt.Errorf("failed to prefetch running breaks: %w", err)
+	if prefetch.breaks, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs); err != nil {
+		return nil, fmt.Errorf("failed to prefetch work-session breaks: %w", err)
 	}
 	if prefetch.absences, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
 		return nil, fmt.Errorf("failed to prefetch absences: %w", err)

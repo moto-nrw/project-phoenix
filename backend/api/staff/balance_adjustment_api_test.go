@@ -224,17 +224,16 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 
 	t.Run("delete removes the adjustment", func(t *testing.T) {
 		// The session must fund the comp-time booking below, so its window has
-		// to be OVER when the test runs AND must lie entirely inside its own
-		// calendar day. The month math caps a session both at "now"
-		// (workedMinutesUpTo) and at the end of session.Date, so the previous
-		// fixed 08:00-09:00 UTC window contributed nothing on any run before
-		// 09:00 UTC: the balance stayed 0 after the reset and the booking was
-		// rejected for lack of capacity.
+		// to be OVER when the test runs. The month math caps a session at
+		// "now" (balanceSessionEnd), so the previous fixed 08:00-09:00 UTC
+		// window contributed nothing on any run before 09:00 UTC: the balance
+		// stayed 0 after the reset and the booking was rejected for lack of
+		// capacity.
 		//
-		// Four hours ending a minute ago satisfies both caps for any run from
-		// 04:01 local onwards; earlier than that the window would reach back
-		// past midnight and the day-end cap would trim most of it, so it moves
-		// to the previous day instead (which is past, hence uncapped).
+		// Four hours ending a minute ago satisfies that cap on any run. A
+		// window reaching back past midnight is counted in full since
+		// netMinutesByDate spreads it over both days, but it moves to the
+		// previous day anyway to keep the funding window inside one day.
 		sessionDate := today
 		checkOut := timezone.Now().Add(-time.Minute)
 		checkIn := checkOut.Add(-4 * time.Hour)

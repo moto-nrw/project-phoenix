@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -89,6 +91,49 @@ type SessionResponse struct {
 	AuditCount       int                              `json:"audit_count"`
 }
 
+// MarshalJSON emits the session id as a decimal STRING instead of the model's
+// int64 number. A day can carry several blocks (#2402) and the frontend picks
+// the block to edit by id, so the id has to survive the wire intact:
+// JSON.parse() turns a number into a float64-backed JS number and rounds
+// anything past 2^53 BEFORE any .toString() in the client can run. Quoting it
+// here matches the project-wide int64→string convention (root CLAUDE.md,
+// Type Mapping) and keeps the comparison exact for any id PostgreSQL can hand
+// out. Marshaling (rather than a field set at each construction site) is what
+// makes a future third construction site impossible to get wrong.
+func (sr SessionResponse) MarshalJSON() ([]byte, error) {
+	// The alias drops the methods, so json does not recurse back in here.
+	type alias SessionResponse
+	if sr.WorkSession == nil {
+		// Nothing to quote — json omits the fields of a nil embedded pointer,
+		// which is exactly what an unwrapped response serialized to before.
+		return json.Marshal(alias(sr))
+	}
+	return json.Marshal(struct {
+		alias
+		// Shallower than the embedded WorkSession.ID, so this wins the "id" tag.
+		ID        string  `json:"id"`
+		TenantID  string  `json:"tenant_id"`
+		StaffID   string  `json:"staff_id"`
+		CreatedBy string  `json:"created_by"`
+		UpdatedBy *string `json:"updated_by,omitempty"`
+	}{
+		alias:     alias(sr),
+		ID:        strconv.FormatInt(sr.ID, 10),
+		TenantID:  strconv.FormatInt(sr.TenantID, 10),
+		StaffID:   strconv.FormatInt(sr.StaffID, 10),
+		CreatedBy: strconv.FormatInt(sr.CreatedBy, 10),
+		UpdatedBy: optionalIDString(sr.UpdatedBy),
+	})
+}
+
+func optionalIDString(id *int64) *string {
+	if id == nil {
+		return nil
+	}
+	value := strconv.FormatInt(*id, 10)
+	return &value
+}
+
 // WeeklySummary aggregates work session data per ISO week
 type WeeklySummary struct {
 	WeekNumber      int  `json:"week_number"`
@@ -120,25 +165,6 @@ type WorkSessionEditView struct {
 	*auditModels.WorkSessionEdit
 	EditorName string `json:"editor_name"`
 	IsSelfEdit bool   `json:"is_self_edit"`
-}
-
-// ReopenStatusConflictError is returned by CheckIn when the staff member
-// already has a checked-out session for today and the requested status
-// differs from the existing one. Reopening would silently change the status
-// without an audit edit; the caller (App UI) must instead reopen with the
-// existing status and then go through UpdateSession (which requires a
-// notes reason and emits a FieldStatus edit).
-//
-// The frontend disambiguates this from other 409s via the typed code
-// "reopen_status_conflict" produced by api/time-tracking/errors.go.
-type ReopenStatusConflictError struct {
-	SessionID       int64
-	ExistingStatus  string
-	RequestedStatus string
-}
-
-func (e *ReopenStatusConflictError) Error() string {
-	return "reopen status conflict"
 }
 
 // PlannedStartNotReachedError is returned by CheckIn when the optional
@@ -181,17 +207,18 @@ type settingsResolver interface {
 
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
-	// CheckIn opens or reopens today's session for staffID. `source` records
-	// the channel that triggered the check-in (app/nfc) so the export can
-	// label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
-	// status alone (Issue #1368).
+	// CheckIn opens a new work block for staffID. `source` records the
+	// channel that triggered the check-in (app/nfc) so the export can label
+	// "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from status
+	// alone (Issue #1368).
 	//
-	// Reopen rules: the originating Source AND Status are both preserved.
-	// The channel is an audit-relevant fact with no audit edit to capture
-	// a change; status changes carry audit weight and must go through
-	// UpdateSession (which gates on a notes reason). If `status` differs
-	// from the existing session's status, CheckIn returns
-	// *ReopenStatusConflictError instead of silently overwriting.
+	// Since #2402 a day can carry several blocks: checking in again after a
+	// checkout creates a NEW session with its own check-in, checkout and
+	// status instead of reopening the closed one. At most one block may be
+	// open at a time ("already checked in" otherwise) — the guard spans every
+	// day, so a block that crossed Berlin midnight blocks a new one until it
+	// is closed. The database constraint also rejects concurrent inserts that
+	// bypass this service-level guard.
 	//
 	// `reason` is the F9 deviation reason. It is only consulted when the
 	// tenant setting operations.time_tracking_require_deviation_reason is
@@ -208,8 +235,9 @@ type WorkSessionService interface {
 	// instead of re-deriving "today" from the server clock. A caller whose
 	// request straddles Berlin midnight (a kiosk stamp at 23:59:59) would
 	// otherwise look up a day the session was never written on and fail with
-	// "no active session found". The day-less forms above delegate here with
-	// the current day and keep their behaviour.
+	// "no active session found". The break variants above delegate here with
+	// the current day and keep their behaviour; CheckIn and CheckOut resolve
+	// the running block across days and ignore the pin.
 	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
 	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
 	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
@@ -227,12 +255,24 @@ type WorkSessionService interface {
 	// staff member, typically because that staff member forgot to stamp.
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
+	// GetCurrentSession only sees a session that is open AND dated today. Use
+	// it only where "today" is the actual question — asking it whether the
+	// person is clocked in gives the wrong answer for a block that crossed
+	// Berlin midnight; GetLatestOpenSession answers that one.
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	// GetLatestOpenSession is GetCurrentSession without the "today" filter: it
 	// finds a session that is still running even when it was opened on an
 	// earlier calendar day.
 	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// GetHistory reads by the stored session date: one block is one row, filed
+	// under the day it started. That is the export contract, where a night
+	// block must appear in exactly one period, never in two.
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
+	// GetHistoryIntersecting reads by interval and is what every reader needs
+	// that splits minutes onto Berlin calendar days: the history tables, the
+	// kiosk day state and the balances all have to see the block that started
+	// the evening before `from` and reaches into the range (#2402).
+	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
@@ -339,10 +379,13 @@ type ScheduleUpdateInput struct {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo           activeModels.WorkSessionRepository
-	breakRepo      activeModels.WorkSessionBreakRepository
-	auditRepo      auditModels.WorkSessionEditRepository
-	absenceRepo    activeModels.StaffAbsenceRepository
+	repo        activeModels.WorkSessionRepository
+	breakRepo   activeModels.WorkSessionBreakRepository
+	auditRepo   auditModels.WorkSessionEditRepository
+	absenceRepo activeModels.StaffAbsenceRepository
+	// absenceTypes resolves school-defined Abwesenheitsarten for exports
+	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
+	absenceTypes   StaffAbsenceTypeService
 	supervisorRepo activeModels.GroupSupervisorRepository
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
@@ -409,6 +452,11 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 }
 
 // NewWorkSessionService creates a new work session service
+// SetAbsenceTypeService wires the school-defined absence names (#2403).
+func (s *workSessionService) SetAbsenceTypeService(svc StaffAbsenceTypeService) {
+	s.absenceTypes = svc
+}
+
 func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
 }
@@ -420,22 +468,36 @@ func (s *workSessionService) now() time.Time {
 	return time.Now()
 }
 
+// listSessionsByStaffAndDate applies the ordinary repository filter path for
+// the two equality conditions used by check-in and auto-check-in. Keeping the
+// lookup here avoids a per-field repository method while retaining the
+// chronological block order required by the caller.
+func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("staff_id", staffID).Equal("date", date)
+	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
+
+	sessions, err := s.repo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list work sessions by staff and date: %w", err)
+	}
+	return sessions, nil
+}
+
 // CheckIn creates a new work session for the staff member.
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
-	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
+	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
-// CheckInOn resolves the existing session of an explicit calendar day instead
-// of deriving that day from the server clock: a kiosk that pinned its day
-// before stamping must reopen the row it saw, and its day-pinned reads have to
-// keep seeing it.
-//
-// The pin covers the lookup only. A session that is newly created is filed on
-// the day its own stamp falls on — see checkIn.
-func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
-	return s.checkIn(ctx, staffID, day, status, source, reason, true)
+// CheckInOn is the day-pinned entry point of the kiosk, kept symmetric with
+// CheckOutOn. The pinned day no longer selects anything: the open-block guard
+// in checkIn scans every day (a block opened before Berlin midnight is still
+// open after it), and a session that is created fresh is filed on the day its
+// own stamp falls on — see checkIn.
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
 // checkIn is the shared body behind CheckIn and EnsureCheckedIn.
@@ -445,13 +507,11 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day t
 // way to collect a reason, and refusing the stamp would leave a supervisor
 // row without a matching work session.
 //
-// `lookupDay` selects the session this call acts on; it may have been resolved
-// by the caller before the request reached here. A session that is created
-// fresh is filed on the day of its own check_in_time instead: storing a
+// A session is always filed on the day of its own check_in_time: storing a
 // pre-midnight day next to a post-midnight stamp would misfile the session in
 // the daily history, in shift and deviation lookups, and in every total built
 // from the date column.
-func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupDay timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -465,66 +525,76 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	now := s.now()
 	stampDay := timezone.DateFromTime(now)
 
-	// Check if there's already a session on the day this call acts on
-	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	// Every block that reaches into the present, in one read: the open ones
+	// (they run to infinity, so the query returns them whatever day they were
+	// filed on) and the closed ones that still end after "now". The same rows
+	// answer both questions below — whether somebody is clocked in, and
+	// whether the new block would overlap an existing one.
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, now, nil)
+	if err != nil {
 		return nil, fmt.Errorf("failed to check existing session: %w", err)
 	}
 
-	// A pinned day that no longer matches the stamp may only carry a session
-	// that is still running: that is a night shift the caller is right to act
-	// on. A closed row on that day is finished business from a day this stamp
-	// does not belong to, and reopening it would move yesterday's arrival and
-	// erase yesterday's departure. Act on the stamp's own day instead.
-	if existingSession != nil && !existingSession.IsActive() && lookupDay != stampDay {
-		lookupDay = stampDay
-		existingSession, err = s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("failed to check existing session: %w", err)
+	// An open block anywhere means the person is clocked in — the check is
+	// deliberately NOT limited to the stamp's day. A block opened before
+	// Berlin midnight is still running after it; starting a second one there
+	// would leave two open blocks, and the checkout (which closes exactly
+	// one) would then report a different day's work than the totals do.
+	// The still-open block has to be closed first.
+	//
+	// A block whose live limit has passed is the exception, and it has to be
+	// CLOSED here, not merely skipped: the database permits a single open
+	// block per staff member (uq_work_sessions_staff_date_open), so a
+	// forgotten checkout that is only ignored lets this guard pass and then
+	// fails the INSERT — locking the person out of the clock entirely, which
+	// is exactly what #2402 set out to fix. It is closed at the instant it
+	// stopped counting as work everywhere else (BalanceSessionEnd), so no
+	// total, balance or history row changes value; the row merely stops
+	// hanging open and disappears from the kiosk's running block.
+	for _, sibling := range siblings {
+		if sibling.CheckOutTime != nil {
+			continue
 		}
-	}
-
-	if existingSession != nil {
-		if existingSession.IsActive() {
+		expired, stale := ExpireStaleOpenBlock(sibling, now)
+		if !stale {
 			return nil, fmt.Errorf("already checked in")
 		}
-		if err := s.ensurePlannedStartReached(ctx, staffID, lookupDay, now); err != nil {
+		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
 			return nil, err
 		}
-		// A status mismatch on reopen would silently rewrite an audit-relevant
-		// field with no FieldStatus edit emitted. Force the caller to reopen
-		// with the existing status, then change it via UpdateSession (which
-		// gates on a notes reason and produces the audit edit).
-		if existingSession.Status != status {
-			return nil, &ReopenStatusConflictError{
-				SessionID:       existingSession.ID,
-				ExistingStatus:  existingSession.Status,
-				RequestedStatus: status,
-			}
-		}
-		// Re-open the checked-out session (accidental checkout recovery).
-		// Source and Status are both preserved (see reopenSession comment).
-		reopened, err := s.reopenSession(ctx, existingSession, staffID)
-		if err != nil {
-			return nil, err
-		}
-		s.broadcastTimeTrackingChanged(ctx)
-		return reopened, nil
 	}
 
-	// From here the session is created, so it belongs to the day of its own
-	// stamp: the schedule and deviation checks below have to be read on that
-	// same day, or a stamp taken just after midnight is measured against the
-	// previous day's shift.
+	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
+	// new check-in — checking in again after a checkout starts a new block
+	// with its own status.
+	existingBlocks, err := s.listSessionsByStaffAndDate(ctx, staffID, stampDay)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing sessions: %w", err)
+	}
+
+	// A closed block can still reach past "now" (an admin Nachtrag for the
+	// afternoon, an edited checkout in the future, a night block from
+	// yesterday that ran into this morning). A new block starting inside that
+	// interval would double-count the overlap in every sum built from the
+	// day's rows, so it is rejected like any other overlap. The blocks just
+	// closed above end before "now" and no longer reach it.
+	if err := assertNoBlockOverlapIn(expireStaleOpenBlocks(siblings, now), 0, now, nil); err != nil {
+		return nil, err
+	}
+
+	// The session is created on the day of its own stamp: the schedule and
+	// deviation checks below have to be read on that same day, or a stamp
+	// taken just after midnight is measured against the previous day's shift.
 	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
 		return nil, err
 	}
 
 	// F9: checking in more than the tolerance before the planned shift start
-	// needs a reason ("früher kommen"). The reopen path above is exempt —
-	// resuming after an accidental checkout is not a new arrival.
+	// needs a reason ("früher kommen"). Only the day's FIRST block is gated —
+	// a later block resumes an already-started work day, exactly like the
+	// pre-#2402 reopen path, which was exempt for the same reason.
 	var deviation *plannedDeviation
-	if enforceDeviationGate {
+	if enforceDeviationGate && len(existingBlocks) == 0 {
 		var err error
 		deviation, err = s.detectPlannedDeviation(ctx, staffID, stampDay, now, deviationActionCheckIn)
 		if err != nil {
@@ -613,35 +683,40 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	return nil
 }
 
-// reopenSession clears checkout on an existing session so the staff member
-// can continue working. Both Source and Status are intentionally preserved:
-// the originating channel and the previously-chosen work mode are
-// audit-relevant facts, and overwriting either on reopen would silently
-// drop the signal with no audit edit. CheckIn rejects the call with
-// ReopenStatusConflictError before this point if the requested status
-// differs from the existing one. The caller is expected to follow up
-// with UpdateSession (which gates on a notes reason).
-func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
-	now := time.Now()
-	session.CheckOutTime = nil
-	session.AutoCheckedOut = false
-	session.ReopenedAt = &now
-	session.UpdatedBy = &staffID
-
-	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf(errInvalidSessionData, err)
+// CheckOut ends the running work session of the staff member, whichever day it
+// was opened on. Resolving the day from the clock instead would strand a block
+// that crossed Berlin midnight: check-in refuses while it is open, so a
+// today-only checkout would leave no way to close it.
+func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
 	}
-
-	if err := s.repo.Update(ctx, session); err != nil {
-		return nil, fmt.Errorf("failed to reopen session: %w", err)
-	}
-
-	return session, nil
+	return s.CheckOutOn(ctx, staffID, day, reason)
 }
 
-// CheckOut ends the current work session for the staff member
-func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
-	return s.CheckOutOn(ctx, staffID, timezone.TodayDate(), reason)
+// openBlockDay resolves the calendar day the currently running block is filed
+// on, for the web endpoints that stamp without carrying a day themselves. It
+// is the service-side twin of the kiosk's clockDay: the running block's own
+// day, or today when nobody is clocked in.
+//
+// Asking the clock unconditionally would strand every block that crossed
+// Berlin midnight: it stays open and is still dated yesterday, so a today-only
+// lookup reports "no active session found" for somebody who is demonstrably
+// clocked in — leaving no way to check out or end the running break at all.
+//
+// Finding nothing open is not decided here: the day-scoped lookup each caller
+// performs next says "no active session found" on its own, and keeping that
+// one authority avoids two lookups disagreeing about whether a stamp exists.
+func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (timezone.Date, error) {
+	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return timezone.Date{}, fmt.Errorf(errGetCurrentSession, err)
+	}
+	if open != nil {
+		return open.Date, nil
+	}
+	return timezone.DateFromTime(s.now()), nil
 }
 
 // CheckOutOn ends the open session of an explicit calendar day.
@@ -877,10 +952,15 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 	}
 }
 
-// StartBreak starts a new break for the current session
+// StartBreak starts a new break on the running block, whichever day it was
+// opened on (see openBlockDay).
 // If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
-	return s.StartBreakOn(ctx, staffID, timezone.TodayDate(), plannedDurationMinutes)
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return s.StartBreakOn(ctx, staffID, day, plannedDurationMinutes)
 }
 
 // StartBreakOn starts a break on the open session of an explicit calendar day.
@@ -941,9 +1021,14 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	return brk, nil
 }
 
-// EndBreak ends the current active break for the staff member's session
+// EndBreak ends the active break on the running block, whichever day it was
+// opened on (see openBlockDay).
 func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	return s.EndBreakOn(ctx, staffID, timezone.TodayDate())
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return s.EndBreakOn(ctx, staffID, day)
 }
 
 // EndBreakOn ends the active break on the open session of an explicit calendar day.
@@ -1178,11 +1263,6 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	}
 
 	s.applyTimeFieldUpdates(uc, updates)
-
-	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
-		return nil, err
-	}
-
 	s.applySimpleFieldUpdates(uc, updates)
 
 	session.UpdatedBy = &editorStaffID
@@ -1190,6 +1270,18 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
+	}
+
+	// Edited times must not slide into a sibling block.
+	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
+		return nil, err
+	}
+
+	// Individual break edits write their rows immediately. Do that only after
+	// validation and the sibling-block check, so callers without an enclosing
+	// transaction cannot retain a partial break update after a rejected edit.
+	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.Update(ctx, session); err != nil {
@@ -1240,6 +1332,11 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 
 	checkOut := req.CheckOutTime
 	date := timezone.DateFromTime(req.Date)
+	// A day can carry several blocks since #2402, so the Nachtrag no longer
+	// collides with an existing session per se — but it must not overlap one.
+	if err := s.assertNoBlockOverlap(ctx, targetStaffID, 0, req.CheckInTime, &checkOut); err != nil {
+		return nil, err
+	}
 	session := &activeModels.WorkSession{
 		StaffID:      targetStaffID,
 		Date:         date,
@@ -1295,6 +1392,120 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 
 	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
+}
+
+// assertNoBlockOverlap rejects a block whose [check-in, check-out) interval
+// overlaps another block of the same staff member (#2402). Overlapping blocks
+// would double-count work time in every sum built from the day's rows.
+// Touching boundaries (one block ends exactly when the next starts) are
+// allowed; an open sibling block occupies [check-in, ∞) — including one whose
+// live limit has passed. Only live stamping softens that, see
+// assertNoRunningBlockOverlap.
+//
+// The siblings are selected by their timestamps, not by the date column: a
+// block is filed on the day of its check-in but may reach into later days (a
+// night block, an auto-checkout that never ran, an admin Nachtrag reaching
+// into tomorrow). Any date window — even a generous one — would miss a block
+// that started days earlier and is still running, so the query asks the
+// database for exactly the intersecting rows instead.
+func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, checkIn, checkOut)
+	if err != nil {
+		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
+	}
+	return assertNoBlockOverlapIn(siblings, excludeID, checkIn, checkOut)
+}
+
+// closeStaleOpenBlock ends a forgotten checkout at the instant it stopped
+// counting as work (BalanceSessionEnd) and marks it as auto-checked-out, the
+// same repair the nightly cleanup performs (CleanupOpenSessions). Live
+// stamping does it inline because the open-block guard in the database is
+// stricter than the arithmetic: the balance simply stops crediting a stale
+// block, but uq_work_sessions_staff_date_open keeps rejecting a second open
+// row until this one is closed.
+//
+// The asymmetry against the administrative writes is deliberate. A stamping
+// staff member has no way to repair the row and would be locked out of the
+// clock entirely (#2402); an admin IS the person who repairs it, so there a
+// Nachtrag keeps being refused while an open block is unresolved.
+func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *activeModels.WorkSession, at time.Time) error {
+	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
+		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
+		// keep the block open — that would leave the staff member unable to
+		// stamp, which is the very lockout this repair exists to prevent.
+		s.getLogger().WarnContext(ctx, "failed to end active break of a stale work session",
+			slog.Int64("session_id", session.ID),
+			slog.String("error", err.Error()))
+	}
+	if _, err := s.repo.CloseSession(ctx, session.ID, at, true); err != nil {
+		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
+	}
+	s.getLogger().InfoContext(ctx, "closed stale open work session before new check-in",
+		slog.Int64("session_id", session.ID),
+		slog.Time("closed_at", at))
+	return nil
+}
+
+// ExpireStaleOpenBlock decides whether an open block is still running. A
+// forgotten checkout stops counting as work at its live limit
+// (BalanceSessionEnd): the balance no longer credits it, the presence map no
+// longer reports its owner as present, and the open-session lookup no longer
+// returns it. It therefore reports `true` together with a COPY closed at that
+// limit, so every reader that has to answer "is this person clocked in right
+// now" — the check-in guard, the overlap arithmetic, the kiosk state — cuts at
+// the same instant instead of each inventing its own. A block that is closed,
+// or open and still inside its window, is returned unchanged with `false`.
+//
+// The original row is never modified; closing it for real is the check-in's
+// job (closeStaleOpenBlock) or the nightly auto-checkout's.
+func ExpireStaleOpenBlock(session *activeModels.WorkSession, now time.Time) (*activeModels.WorkSession, bool) {
+	if session == nil || session.CheckOutTime != nil {
+		return session, false
+	}
+	end := BalanceSessionEnd(session, now)
+	if !end.Before(now) {
+		return session, false // still running
+	}
+	clamped := *session
+	clamped.CheckOutTime = &end
+	return &clamped, true
+}
+
+// expireStaleOpenBlocks applies ExpireStaleOpenBlock to a whole list, leaving
+// closed and still-running blocks untouched.
+func expireStaleOpenBlocks(siblings []*activeModels.WorkSession, now time.Time) []*activeModels.WorkSession {
+	expired := make([]*activeModels.WorkSession, len(siblings))
+	for i, sibling := range siblings {
+		expired[i], _ = ExpireStaleOpenBlock(sibling, now)
+	}
+	return expired
+}
+
+// assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, kept
+// separate so the interval arithmetic can be exercised without a database.
+func assertNoBlockOverlapIn(siblings []*activeModels.WorkSession, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
+	for _, sibling := range siblings {
+		if sibling.ID == excludeID {
+			continue
+		}
+		if checkOut != nil && !checkOut.After(sibling.CheckInTime) {
+			continue // new block ends before (or exactly when) the sibling starts
+		}
+		if sibling.CheckOutTime != nil && !sibling.CheckOutTime.After(checkIn) {
+			continue // sibling ends before (or exactly when) the new block starts
+		}
+		return fmt.Errorf("work session overlaps an existing block (%s–%s)",
+			sibling.CheckInTime.In(timezone.Berlin).Format("15:04"),
+			formatBlockEnd(sibling.CheckOutTime))
+	}
+	return nil
+}
+
+func formatBlockEnd(checkOut *time.Time) string {
+	if checkOut == nil {
+		return "offen"
+	}
+	return checkOut.In(timezone.Berlin).Format("15:04")
 }
 
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
@@ -1382,10 +1593,13 @@ func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, 
 		return fmt.Errorf("failed to recalculate break minutes: %w", err)
 	}
 
-	// Re-fetch session to get updated break_minutes
-	uc.session, err = s.repo.FindByID(ctx, uc.sessionID)
-	if err != nil {
-		return fmt.Errorf("failed to re-fetch session: %w", err)
+	// Keep the in-memory session consistent without reloading it. Reloading
+	// would discard time and status edits already validated above.
+	uc.session.BreakMinutes = 0
+	for _, brk := range sessionBreaks {
+		if brk.EndedAt != nil {
+			uc.session.BreakMinutes += brk.DurationMinutes
+		}
 	}
 	return nil
 }
@@ -1407,12 +1621,14 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 		return nil
 	}
 
+	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
 	if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
 		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
 	}
+	brk.DurationMinutes = bu.DurationMinutes
+	brk.EndedAt = &newEndedAt
 
-	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newVal := strconv.Itoa(bu.DurationMinutes)
 	uc.addAuditEdit(auditModels.FieldBreakDuration, strPtr(oldVal), strPtr(newVal))
 	return nil
@@ -1467,6 +1683,27 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
+	return s.historyResponse(ctx, staffID, sessions, from, to)
+}
+
+// GetHistoryIntersecting returns blocks that overlap a calendar range. Every
+// consumer that lays minutes out on calendar days uses it: the history tables,
+// the kiosk day state, the balances. GetHistory keeps the stored-date contract
+// for the export, where a block is a single row under its start day.
+func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
+	end := to.AddDays(1).BerlinMidnight()
+	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get intersecting session history: %w", err)
+	}
+	return s.historyResponse(ctx, staffID, sessions, from, to)
+}
+
+// historyResponse builds the wire response for the blocks of [from, to]. The
+// range is carried through because the weekly summaries are aggregated per
+// calendar day: a block that reaches beyond the requested range (a night block
+// at either border) must not contribute the minutes it spends outside it.
+func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*activeModels.WorkSession, from, to timezone.Date) (*HistoryResponse, error) {
 
 	// Collect session IDs for batch edit count query
 	sessionIDs := make([]int64, len(sessions))
@@ -1495,6 +1732,14 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			return nil, fmt.Errorf("failed to get breaks for session %d: %w", session.ID, err)
 		}
 
+		// The as-of clock of a block is its own end, not the wall clock: an
+		// open block that has passed its live limit stopped counting there
+		// (BalanceSessionEnd), and work AND break time have to be measured
+		// against that same instant. Pinning a fake check-out on a copy
+		// instead would silence totalBreakMinutes — it treats a checked-out
+		// block's cache as complete — and a break still running across the
+		// limit would be booked as work (#2402).
+		asOf := BalanceSessionEnd(session, now)
 		responses[i] = &SessionResponse{
 			WorkSession: session,
 			// A running break is NOT in the BreakMinutes cache, so netMinutes
@@ -1502,10 +1747,10 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			// would climb while the Monatskarte and the week KPI (which both
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
-			BreakMinutes:     totalBreakMinutes(session, breaks, now),
-			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
-			IsOvertime:       isOvertime(session, breaks, now),
-			IsBreakCompliant: isBreakCompliant(session, breaks, now),
+			BreakMinutes:     totalBreakMinutes(session, breaks, asOf),
+			NetMinutes:       netMinutesWithBreaks(session, breaks, asOf),
+			IsOvertime:       isOvertime(session, breaks, asOf),
+			IsBreakCompliant: isBreakCompliant(session, breaks, asOf),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
@@ -1515,7 +1760,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	targetsByWeek := s.getWeeklyTargetsForSummaries(ctx, staffID, responses)
 
 	// Build weekly summaries
-	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek)
+	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek, from, to)
 
 	return &HistoryResponse{
 		Sessions:        responses,
@@ -1523,33 +1768,61 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	}, nil
 }
 
-// buildWeeklySummaries aggregates session data by ISO week
-func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int) []WeeklySummary {
+// buildWeeklySummaries aggregates session data by ISO week, restricted to the
+// requested [from, to] range.
+//
+// A block is laid out on the Berlin days its minutes actually fall on, and it
+// may reach past either border of the range: the intersecting query returns a
+// night block that began before `from`, and a block started on `to` runs into
+// the next morning. Aggregating it whole would credit weeks the caller never
+// asked about — including ISO weeks with no visible row to explain them — so
+// only the days inside the range are counted (#2402).
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to timezone.Date) []WeeklySummary {
 	weekMap := make(map[summaryWeekKey]*WeeklySummary)
 	var weekOrder []summaryWeekKey
+	now := time.Now()
 
 	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
-
-		summary, exists := weekMap[key]
-		if !exists {
-			var targetMinutes *int
-			if target, ok := targetsByWeek[key]; ok {
-				targetCopy := target
-				targetMinutes = &targetCopy
-			}
-			summary = &WeeklySummary{
-				WeekNumber:    week,
-				Year:          year,
-				TargetMinutes: targetMinutes,
-			}
-			weekMap[key] = summary
-			weekOrder = append(weekOrder, key)
+		end := BalanceSessionEnd(session.WorkSession, now)
+		countedWeeks := make(map[summaryWeekKey]struct{})
+		// The first day is derived from the check-in instant, never from the
+		// stored date: an admin Nachtrag files a block under a date it may
+		// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and
+		// filed on the following day would lose its pre-midnight minutes here
+		// while the balance — which starts at the check-in — still counts them.
+		firstDay, lastDay := timezone.DateFromTime(session.CheckInTime), timezone.DateFromTime(end)
+		if firstDay.Before(from) {
+			firstDay = from
 		}
+		if lastDay.After(to) {
+			lastDay = to
+		}
+		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
+			year, week := day.UTCMidnight().ISOWeek()
+			key := summaryWeekKey{Year: year, Week: week}
 
-		summary.TotalNetMinutes += session.NetMinutes
-		summary.SessionCount++
+			summary, exists := weekMap[key]
+			if !exists {
+				var targetMinutes *int
+				if target, ok := targetsByWeek[key]; ok {
+					targetCopy := target
+					targetMinutes = &targetCopy
+				}
+				summary = &WeeklySummary{
+					WeekNumber:    week,
+					Year:          year,
+					TargetMinutes: targetMinutes,
+				}
+				weekMap[key] = summary
+				weekOrder = append(weekOrder, key)
+			}
+
+			summary.TotalNetMinutes += minutes
+			if _, counted := countedWeeks[key]; !counted {
+				summary.SessionCount++
+				countedWeeks[key] = struct{}{}
+			}
+		}
 	}
 
 	// Convert to sorted slice and compute derived fields
@@ -1728,13 +2001,17 @@ func staffAnchorOf(staff *userModels.Staff) *timezone.Date {
 func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
 	weekStarts := make([]timezone.Date, 0)
 	seen := make(map[timezone.Date]struct{})
+	now := time.Now()
 	for _, session := range sessions {
-		weekStart := configModels.MondayOf(session.Date)
-		if _, ok := seen[weekStart]; ok {
-			continue
+		end := BalanceSessionEnd(session.WorkSession, now)
+		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+			weekStart := configModels.MondayOf(day)
+			if _, ok := seen[weekStart]; ok {
+				continue
+			}
+			seen[weekStart] = struct{}{}
+			weekStarts = append(weekStarts, weekStart)
 		}
-		seen[weekStart] = struct{}{}
-		weekStarts = append(weekStarts, weekStart)
 	}
 	return weekStarts
 }
@@ -1852,13 +2129,16 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 	return presenceMap, nil
 }
 
-// CleanupOpenSessions closes all sessions that are still open before today
+// CleanupOpenSessions closes sessions still open from before yesterday. This
+// leaves a full following calendar day for legitimate night blocks to be
+// checked out normally before they become stale.
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
 	today := timezone.DateFromTime(s.now())
 
-	// Get all open sessions before today
-	openSessions, err := s.repo.GetOpenSessions(ctx, today)
+	// Keep sessions opened yesterday available through today. A night block
+	// may cross midnight and must not be closed by the first cleanup run.
+	openSessions, err := s.repo.GetOpenSessions(ctx, today.AddDays(-1))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
@@ -2105,8 +2385,10 @@ func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
 // `source` is forwarded to CheckIn so the channel is recorded faithfully.
 func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
-	// Check if already checked in
-	currentSession, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	// Check if already checked in. Across all days, like the check-in guard:
+	// a block that crossed Berlin midnight is still running, and starting a
+	// supervision must return it instead of running into "already checked in".
+	currentSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check current session: %w", err)
 	}
@@ -2115,14 +2397,17 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 		return currentSession, nil
 	}
 
-	// Check if there's already a checked-out session today
+	// Check if there's already a checked-out block today. Deliberately no
+	// auto-created second block (#2402): whoever stamped out made a
+	// conscious decision, and a supervision start must not silently begin a
+	// new work block behind their back.
 	today := timezone.DateFromTime(s.now())
-	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	todaySessions, err := s.listSessionsByStaffAndDate(ctx, staffID, today)
+	if err != nil {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
 	}
 
-	if todaySession != nil {
+	if len(todaySessions) > 0 {
 		// Already checked out today, don't re-check-in
 		return nil, nil
 	}
@@ -2131,7 +2416,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// The F9 deviation gate is bypassed: this auto-stamp fires because the
 	// staff member started a supervision, and that flow cannot collect a
 	// reason (see checkIn).
-	return s.checkIn(ctx, staffID, today, activeModels.WorkSessionStatusPresent, source, "", false)
+	return s.checkIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export
@@ -2149,7 +2434,10 @@ var germanAbsenceTypeLabels = map[string]string{
 // exportRow represents a single row in the export (either a work session or an absence day)
 type exportRow struct {
 	Date timezone.Date
-	Row  []string
+	// Start orders multiple blocks of the same day chronologically (#2402).
+	// Absence rows carry the zero value and sort before the day's sessions.
+	Start time.Time
+	Row   []string
 }
 
 // timeTrackingConfidentialityNote matches the wording of the other
@@ -2185,6 +2473,11 @@ func timeTrackingHeaders() []string {
 // absences. CSV and XLSX stay plain data files (shared writers below);
 // PDF renders through the listexport design (#1568) as the print artifact.
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error) {
+	// Deliberately the stored-date read, not the intersecting one: an export
+	// row is a whole block, and a night block that reaches into the next month
+	// must be listed once, under the month it started in. Reading by interval
+	// would put it into both months' files and double it in any sum drawn from
+	// them. The absences below are clamped to the same range for that reason.
 	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
@@ -2197,6 +2490,9 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
+		// Resolve the school's own Abwesenheitsarten so the export prints the
+		// wording the school entered, not the generic "Sonstige" (#2403).
+		StampAbsenceTypeLabels(ctx, s.absenceTypes, absences)
 	}
 
 	// Build merged rows sorted by date
@@ -2314,11 +2610,12 @@ func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezo
 func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absences []*activeModels.StaffAbsence) []exportRow {
 	var rows []exportRow
 
-	// Add session rows
+	// Add session rows (a day can carry several blocks since #2402)
 	for _, sr := range sessions {
 		rows = append(rows, exportRow{
-			Date: sr.Date,
-			Row:  s.sessionToRow(sr),
+			Date:  sr.Date,
+			Start: sr.CheckInTime,
+			Row:   s.sessionToRow(sr),
 		})
 	}
 
@@ -2328,7 +2625,13 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 			absence.Status != activeModels.AbsenceStatusApproved {
 			continue
 		}
-		label := germanAbsenceTypeLabels[absence.AbsenceType]
+		// The school's own wording wins when the absence carries one (#2403);
+		// the standard German label is the fallback, the raw type the last
+		// resort for a value this map has not caught up with.
+		label := absence.AbsenceTypeLabel
+		if label == "" {
+			label = germanAbsenceTypeLabels[absence.AbsenceType]
+		}
 		if label == "" {
 			label = absence.AbsenceType
 		}
@@ -2351,9 +2654,12 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 		}
 	}
 
-	// Sort by date
+	// Sort by date, blocks of the same day by check-in time
 	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].Date.Before(rows[j].Date)
+		if rows[i].Date != rows[j].Date {
+			return rows[i].Date.Before(rows[j].Date)
+		}
+		return rows[i].Start.Before(rows[j].Start)
 	})
 
 	return rows

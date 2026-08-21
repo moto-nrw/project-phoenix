@@ -29,14 +29,6 @@ func classifyError(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
 	}
 
-	var reopenConflict *activeSvc.ReopenStatusConflictError
-	if errors.As(err, &reopenConflict) {
-		return common.ErrorConflictWithDetails(err, "reopen_status_conflict", map[string]any{
-			"session_id":       strconv.FormatInt(reopenConflict.SessionID, 10),
-			"existing_status":  reopenConflict.ExistingStatus,
-			"requested_status": reopenConflict.RequestedStatus,
-		})
-	}
 	var plannedStart *activeSvc.PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{
@@ -57,6 +49,12 @@ func classifyError(err error) render.Renderer {
 	switch err.Error() {
 	case "already checked in", "already checked out today", "break already active",
 		"no active session found", "no session found for today", "no active break found":
+		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
+	}
+	if strings.HasPrefix(err.Error(), "work session overlaps an existing block") {
+		// The shared check-in body rejects a stamp that falls inside a closed
+		// block (e.g. an admin Nachtrag reaching past "now") — a state
+		// conflict the kiosk already knows how to recover from.
 		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
 	}
 	if strings.HasPrefix(err.Error(), "planned_duration_minutes must be") {

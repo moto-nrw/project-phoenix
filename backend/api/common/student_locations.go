@@ -31,6 +31,14 @@ const (
 // label for binary-mode tenants.
 var ResolveBinaryLocation = activeService.ResolveBinaryLocation
 
+// ResolveYardRoomColor returns the tenant's Schulhof room color, nil when none
+// is configured. Only binary mode needs it — see the doc comment on the
+// services/active original.
+var ResolveYardRoomColor = activeService.ResolveYardRoomColor
+
+// YardLocationLabel is the binary-mode label for a student on the schoolyard.
+const YardLocationLabel = activeService.YardLocationLabel
+
 // LoadStudentLocationSnapshot batches all data needed to resolve student locations.
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.
@@ -50,8 +58,12 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	}
 	snapshot.Attendances = coalesce(attendances, snapshot.Attendances)
 
-	// Binary mode ignores room/group data entirely — stop here.
+	// Binary mode ignores room/group data entirely. One extra lookup though:
+	// the yard state has no visit behind it, so the Schulhof room's colour has
+	// to come from the room itself for the badge to follow the school's colour
+	// scheme (#2405).
 	if mode == PresenceModeBinary {
+		snapshot.YardRoomColor = activeService.ResolveYardRoomColor(ctx, svc)
 		return snapshot, nil
 	}
 

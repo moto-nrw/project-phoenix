@@ -79,6 +79,7 @@ type Factory struct {
 	Holidays                 schedule.HolidayService
 	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
+	StaffAbsenceType         active.StaffAbsenceTypeService
 	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
 	StaffMonthClose          active.StaffMonthCloseService
 	StaffOverview            active.StaffOverviewService
@@ -520,8 +521,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		holidayAware.SetHolidayReader(nonWorkingDayService)
 	}
 
+	// School-defined Abwesenheitsarten (#2403). Constructed before the absence
+	// service so it can be injected there and resolve custom names on both the
+	// write path (which base type an art inherits) and the read paths.
+	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if typeAware, ok := workSessionService.(interface {
+		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+	}); ok {
+		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
+	}
+
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	if typeAware, ok := staffAbsenceService.(interface {
+		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+	}); ok {
+		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
+	}
 	if broadcastAware, ok := staffAbsenceService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
@@ -2243,6 +2259,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Holidays:                 holidayService,
 		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
+		StaffAbsenceType:         staffAbsenceTypeService,
 		StaffBalanceAdjust:       staffBalanceAdjustService,
 		StaffMonthClose:          staffMonthCloseService,
 		StaffOverview:            staffOverviewService,

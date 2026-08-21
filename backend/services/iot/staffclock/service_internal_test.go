@@ -82,21 +82,23 @@ type stubWorkSessions struct {
 	// historyByDay mirrors the date-scoped read: only the day the session was
 	// stamped on returns it.
 	historyByDay map[string]*activeSvc.SessionResponse
+	// intersecting mirrors the interval read: an open block has no upper bound
+	// and therefore comes back for EVERY day after its check-in, no matter how
+	// long ago it was stamped. Set it where that difference is the point.
+	intersecting []*activeSvc.SessionResponse
 }
 
 func (s *stubWorkSessions) CheckInOn(_ context.Context, staffID int64, day timezone.Date, status, source, _ string) (*activeModels.WorkSession, error) {
 	s.checkInCall++
 	s.checkInDays = append(s.checkInDays, day)
-	// Only the first attempt fails: the reopen retry that follows a status
-	// conflict has to be able to succeed.
 	if s.checkInErr != nil && s.checkInCall == 1 {
 		return nil, s.checkInErr
 	}
 	if existing, ok := s.openSessionByDay[day.String()]; ok {
 		return existing, nil
 	}
-	// Mirrors the work session service: the pinned day selects the session to
-	// reopen, but a session created fresh carries the day of its own stamp.
+	// Mirrors the work session service: the pinned day selects the open block
+	// to act on, but a session created fresh carries the day of its own stamp.
 	stampedAt := s.now()
 	return &activeModels.WorkSession{
 		StaffID:     staffID,
@@ -136,15 +138,18 @@ func (s *stubWorkSessions) EndBreakOn(_ context.Context, _ int64, day timezone.D
 	return s.openOn(day)
 }
 
-func (s *stubWorkSessions) UpdateSession(context.Context, int64, int64, activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-
 func (s *stubWorkSessions) GetHistory(_ context.Context, _ int64, from, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
 	if session, ok := s.historyByDay[from.String()]; ok {
 		return &activeSvc.HistoryResponse{Sessions: []*activeSvc.SessionResponse{session}}, nil
 	}
 	return &activeSvc.HistoryResponse{}, nil
+}
+
+func (s *stubWorkSessions) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+	if s.intersecting != nil {
+		return &activeSvc.HistoryResponse{Sessions: s.intersecting}, nil
+	}
+	return s.GetHistory(ctx, staffID, from, to)
 }
 
 func newRacedService(checkInErr error) (*Service, *stubWorkSessions) {
@@ -182,9 +187,8 @@ func checkInCommand() Command {
 // server broke.
 func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 	t.Parallel()
-
 	service, sessions := newRacedService(
-		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation(workSessionDateConstraint)},
+		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation(workSessionOpenConstraint)},
 	)
 	ctx := tenant.WithRollbackMarker(context.Background())
 
@@ -205,7 +209,6 @@ func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 // time and leaves the first session open overnight.
 func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
 	t.Parallel()
-
 	service, sessions := newRacedService(nil)
 
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
@@ -252,7 +255,6 @@ func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
 // stamp with "no active session found".
 func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
 	t.Parallel()
-
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
 	requestDay := timezone.DateFromTime(requestedAt)
 
@@ -313,7 +315,6 @@ func nightSession(openedAt time.Time) *activeModels.WorkSession {
 // closed from the kiosk at all.
 func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
 	t.Parallel()
-
 	service, sessions := newRacedService(nil)
 
 	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
@@ -333,12 +334,33 @@ func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
 	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
 }
 
+func TestGetState_OpenNightSessionCountsThroughMidnight(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 21, 23, 45, 0, 0, timezone.Berlin)
+	now := openedAt.Add(45 * time.Minute)
+	open := nightSession(openedAt)
+	breakStart := openedAt.Add(20 * time.Minute)
+	sessions.latestOpen = open
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		open.Date.String(): {WorkSession: open, Breaks: []*activeModels.WorkSessionBreak{{StartedAt: breakStart}}},
+	}
+	setClock(service, sessions, func() time.Time { return now })
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	assert.Equal(t, 20, state.NetMinutes, "the running break after midnight is deducted")
+	assert.Equal(t, 25, state.BreakMinutes)
+}
+
 // The stamp that ends such a night session must be dispatched on the day the
 // session carries. Pinning it to the new day looks up a day the session was
 // never written on and refuses a valid scan with "no active session found".
 func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
 	t.Parallel()
-
 	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
 	open := nightSession(openedAt)
 	afterMidnight := openedAt.Add(3 * time.Hour)
@@ -363,49 +385,27 @@ func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
 	}
 }
 
-// The reopen retry after a status conflict has to stay on the day that produced
-// the conflict. Letting it re-derive the day opens a fresh session on the new
-// day while the paired status update rewrites the previous day's closed row.
-func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
+// A check-in with a DIFFERENT status after a same-day checkout simply starts a
+// new block carrying that status (#2402) — one stamp, no conflict retry, no
+// reason required.
+func TestExecute_SecondBlockWithDifferentStatusStampsOnce(t *testing.T) {
 	t.Parallel()
-
-	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
-	requestDay := timezone.DateFromTime(requestedAt)
-
-	service, sessions := newRacedService(&activeSvc.ReopenStatusConflictError{
-		SessionID:       91,
-		ExistingStatus:  activeModels.WorkSessionStatusHomeOffice,
-		RequestedStatus: activeModels.WorkSessionStatusPresent,
-	})
-	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
-		requestDay.String(): {WorkSession: nightSession(requestedAt.Add(-8 * time.Hour))},
-	}
-
-	// The clock crosses midnight between the conflicting stamp and the retry.
-	calls := 0
-	setClock(service, sessions, func() time.Time {
-		calls++
-		if calls == 1 {
-			return requestedAt
-		}
-		return requestedAt.Add(2 * time.Second)
-	})
+	service, sessions := newRacedService(nil)
 
 	command := checkInCommand()
-	command.Reason = "Statuswechsel nach Rücksprache"
+	command.Status = activeModels.WorkSessionStatusHomeOffice
 
 	state, err := service.Execute(context.Background(), command)
 
 	require.NoError(t, err)
 	require.NotNil(t, state)
-	assert.Equal(t, []timezone.Date{requestDay, requestDay}, sessions.checkInDays)
+	assert.Equal(t, 1, sessions.checkInCall, "a status switch needs exactly one stamp")
 }
 
 // A unique violation on another constraint is a genuine fault and must keep
 // its 500 classification instead of being dressed up as a state conflict.
 func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
 	t.Parallel()
-
 	service, _ := newRacedService(
 		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation("uq_something_else")},
 	)
@@ -423,7 +423,6 @@ func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
 // gets — dereferencing the missing person turned an unassigned card into a 500.
 func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
 	t.Parallel()
-
 	card := &userModels.RFIDCard{Active: true}
 	card.ID = "A1654BEEF"
 	service := NewService(&stubPeople{}, &stubCards{card: card}, &stubWorkSessions{})
@@ -440,7 +439,6 @@ func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
 // break requirement computed for the wrong point in the shift.
 func TestExecute_LaborTimeIsEvaluatedAfterTheStamp(t *testing.T) {
 	t.Parallel()
-
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
 	stampedAt := requestedAt.Add(2 * time.Second) // the write lands after midnight
 	evaluatedAt := stampedAt.Add(10 * time.Minute)
@@ -475,4 +473,60 @@ func TestExecute_LaborTimeIsEvaluatedAfterTheStamp(t *testing.T) {
 	require.NotNil(t, state.Session)
 	assert.Equal(t, StateCheckedIn, state.State)
 	assert.Equal(t, 10, state.NetMinutes, "elapsed work is measured against the clock after the write")
+}
+
+// A forgotten checkout stops counting as work at its live limit, and the
+// open-session lookup drops it there. The interval read does not — an open
+// block has no end, so it keeps intersecting every later day. The kiosk must
+// not take that row for a running shift: it would report a shift that ended
+// days ago as active and offer a check-out that is written against today,
+// which the day-pinned lookup then refuses ("no active session found"),
+// leaving the terminal stuck with no action that works.
+func TestGetState_ExpiredOpenBlockIsNotOfferedForCheckout(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 18, 9, 0, 0, 0, timezone.Berlin)
+	forgotten := nightSession(openedAt)
+	// The day resolution no longer sees it (GetLatestOpenByStaffID applies the
+	// same cut-off), so the kiosk works on today.
+	sessions.latestOpen = nil
+	sessions.intersecting = []*activeSvc.SessionResponse{{WorkSession: forgotten}}
+	setClock(service, sessions, func() time.Time {
+		return time.Date(2026, 7, 21, 9, 0, 0, 0, timezone.Berlin)
+	})
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	assert.Nil(t, state.Session, "a block that ended days ago is not this day's block")
+	assert.Equal(t, StateCheckedOut, state.State)
+	assert.Equal(t, []string{ActionCheckIn}, state.AllowedActions)
+	assert.Equal(t, 0, state.NetMinutes)
+}
+
+// The same block, but its live limit falls INTO the day the kiosk is showing:
+// it belongs there as the closed block it effectively is (its minutes are part
+// of that morning), only never as a running one.
+func TestGetState_ExpiredOpenBlockReachingIntoTheDayIsClosed(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 20, 20, 0, 0, 0, timezone.Berlin)
+	forgotten := nightSession(openedAt)
+	sessions.latestOpen = nil
+	sessions.intersecting = []*activeSvc.SessionResponse{{WorkSession: forgotten}}
+	setClock(service, sessions, func() time.Time {
+		return time.Date(2026, 7, 21, 10, 0, 0, 0, timezone.Berlin)
+	})
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	require.NotNil(t, state.Session.CheckOutTime, "the row hangs open, the kiosk state does not")
+	assert.Equal(t, time.Date(2026, 7, 21, 8, 0, 0, 0, timezone.Berlin), state.Session.CheckOutTime.In(timezone.Berlin))
+	assert.Equal(t, StateCheckedOut, state.State)
+	assert.Equal(t, []string{ActionCheckIn}, state.AllowedActions)
+	assert.Nil(t, forgotten.CheckOutTime, "the stored row is repaired on the next check-in, not by a read")
 }

@@ -25,6 +25,8 @@ export interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
+  /** The school's own Abwesenheitsart wording for today's absence (#2403). */
+  absence_type_label?: string;
 }
 
 interface ActiveSupervisionResponse {
@@ -77,6 +79,8 @@ export interface Staff {
   // Time-tracking
   workStatus?: string;
   absenceType?: string;
+  /** The school's own Abwesenheitsart wording, "" for a standard type (#2403). */
+  absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
 }
@@ -318,6 +322,7 @@ function mapStaffMember(
     wasPresentToday: staff.was_present_today,
     workStatus: staff.work_status,
     absenceType: staff.absence_type,
+    absenceTypeLabel: staff.absence_type_label,
   };
 }
 
@@ -447,6 +452,7 @@ class StaffService {
       wasPresentToday: staff.was_present_today,
       workStatus: staff.work_status,
       absenceType: staff.absence_type,
+      absenceTypeLabel: staff.absence_type_label,
     };
   }
 
@@ -727,7 +733,11 @@ interface StaffSessionBreak {
 }
 
 export interface StaffHistorySession {
-  id?: number;
+  // Backend int64, quoted as a decimal string ON THE WIRE already
+  // (SessionResponse.MarshalJSON) and carried through unchanged: parsing it as
+  // a JSON number would round anything past 2^53 before any client-side
+  // .toString() could run, and the block-edit lookup matches on this id.
+  id?: string;
   date: string;
   status?: "present" | "home_office";
   // Channel the row was created on. `app` = self-service Web/App,
@@ -760,6 +770,8 @@ class StaffHistoryService {
     if (!response.ok) {
       throw new Error(`Failed to fetch staff history: ${response.statusText}`);
     }
+    // The wire row IS StaffHistorySession — the id arrives quoted, so there is
+    // nothing to convert and no number to round.
     const json = (await response.json()) as {
       data: { sessions: StaffHistorySession[] };
     };
@@ -773,6 +785,10 @@ export interface StaffAbsenceRow {
   id: number;
   staff_id: number;
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
+  absence_type_id?: string | null;
+  /** The school's own wording; empty for the standard types. */
+  absence_type_label?: string;
   date_start: string;
   date_end: string;
   half_day: boolean;
@@ -1341,9 +1357,9 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to update session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to update session: ${response.statusText}`,
       );
     }
   }
@@ -1363,12 +1379,29 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to create session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to create session: ${response.statusText}`,
       );
     }
   }
+}
+
+// Admin session writes fail with a stable code; the accompanying message
+// carries dynamic content (the conflicting interval) and is not presentable
+// as-is, so the mapping happens here instead of by sniffing the raw body in
+// the modal.
+async function throwSessionWriteError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  const error = await readStaffAPIError(response, fallback);
+  if (error.code === "work_session_overlap") {
+    throw new Error(
+      "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+    );
+  }
+  throw new Error(error.message);
 }
 
 interface StaffAPIError {

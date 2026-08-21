@@ -106,18 +106,22 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, session)
 		require.NoError(t, err)
-
-		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("staff_id", staff.ID).Equal("date", today)
+		found, err := repo.List(ctx, options)
 		require.NoError(t, err)
-		assert.Equal(t, session.ID, found.ID)
-		assert.Equal(t, staff.ID, found.StaffID)
+		require.Len(t, found, 1)
+		assert.Equal(t, session.ID, found[0].ID)
 	})
 
 	t.Run("returns error for non-existent session", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
-		_, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
-		require.Error(t, err)
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("staff_id", staff.ID).Equal("date", today)
+		found, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		assert.Empty(t, found)
 	})
 }
 
@@ -189,19 +193,23 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 		twoDaysAgo := today.AddDays(-2)
 
 		// Create sessions across multiple days
+		session1Out := twoDaysAgo.BerlinMidnight().Add(16 * time.Hour)
 		session1 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        twoDaysAgo,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -2),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         twoDaysAgo,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  twoDaysAgo.BerlinMidnight().Add(8 * time.Hour),
+			CheckOutTime: &session1Out,
+			CreatedBy:    staff.ID,
 		}
+		session2Out := yesterday.BerlinMidnight().Add(16 * time.Hour)
 		session2 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        yesterday,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now().AddDate(0, 0, -1),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         yesterday,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  yesterday.BerlinMidnight().Add(8 * time.Hour),
+			CheckOutTime: &session2Out,
+			CreatedBy:    staff.ID,
 		}
 
 		err := repo.Create(ctx, session1)
@@ -352,6 +360,42 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[staff1.ID])
 		assert.Equal(t, "checked_out", presenceMap[staff2.ID])
+	})
+
+	t.Run("open blocks past the live limit stop reporting presence", func(t *testing.T) {
+		running := testpkg.CreateTestStaff(t, db, "Night", "Block")
+		forgotten := testpkg.CreateTestStaff(t, db, "Forgotten", "Checkout")
+		now := time.Now()
+		today := timezone.DateFromTime(now)
+
+		// Filed yesterday, checked in two hours ago: a block that ran across
+		// Berlin midnight. Its owner is at work right now.
+		nightBlock := &active.WorkSession{
+			StaffID:     running.ID,
+			Date:        today.AddDays(-1),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: now.Add(-2 * time.Hour),
+			CreatedBy:   running.ID,
+		}
+		// A checkout that never happened three days ago. The balance stopped
+		// crediting it at the end of its own day (BalanceSessionEnd); presence
+		// has to stop with it instead of reporting the person present forever.
+		staleBlock := &active.WorkSession{
+			StaffID:     forgotten.ID,
+			Date:        today.AddDays(-3),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: now.Add(-72 * time.Hour),
+			CreatedBy:   forgotten.ID,
+		}
+
+		require.NoError(t, repo.Create(ctx, nightBlock))
+		require.NoError(t, repo.Create(ctx, staleBlock))
+
+		presenceMap, err := repo.GetTodayPresenceMap(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[running.ID])
+		_, listed := presenceMap[forgotten.ID]
+		assert.False(t, listed, "a stale open block must not report presence")
 	})
 }
 
@@ -583,4 +627,120 @@ func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
 	_, err := repo.CloseSession(testpkg.Ctx(t), 1, time.Now(), false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close session")
+}
+
+// GetLatestOpenByStaffID answers "is this person clocked in right now", so it
+// applies the same live limit as the balance (#2402): a block that crossed
+// Berlin midnight is still running, a checkout that never happened is not.
+// Without the cutoff a single forgotten checkout would be reported as the
+// current session forever and reject every later check-in.
+func TestWorkSessionRepository_GetLatestOpenByStaffID_LiveWindow(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).WorkSession
+	ctx := testpkg.Ctx(t)
+
+	t.Run("returns a block that crossed midnight", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Night", "Staff")
+		yesterday := timezone.TodayDate().AddDays(-1)
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        yesterday,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now().Add(-3 * time.Hour),
+			CreatedBy:   staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, session))
+
+		found, err := repo.GetLatestOpenByStaffID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, session.ID, found.ID)
+	})
+
+	t.Run("ignores a block past the live limit", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Forgot", "Staff")
+		threeDaysAgo := timezone.TodayDate().AddDays(-3)
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        threeDaysAgo,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: threeDaysAgo.BerlinMidnight().Add(8 * time.Hour),
+			CreatedBy:   staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, session))
+
+		_, err := repo.GetLatestOpenByStaffID(ctx, staff.ID)
+		require.Error(t, err, "an expired block is not a running one")
+	})
+
+	t.Run("keeps a long block filed on today", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Long", "Staff")
+		today := timezone.TodayDate()
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: today.BerlinMidnight(),
+			CreatedBy:   staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, session))
+
+		found, err := repo.GetLatestOpenByStaffID(ctx, staff.ID)
+		require.NoError(t, err, "a long shift on today is not a mistake")
+		assert.Equal(t, session.ID, found.ID)
+	})
+}
+
+// The history range bounds `from` against check_out_time, never against the
+// stored date or the check-in: a block that began days earlier and ends inside
+// the range is part of the answer. This is the contract the history tables rely
+// on — it is why they can ask for the visible range without knowing how far
+// back a block might start (#2402).
+func TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).WorkSession
+	ctx := testpkg.Ctx(t)
+
+	staff := testpkg.CreateTestStaff(t, db, "Early", "Staff")
+	from := timezone.TodayDate()
+	to := from.AddDays(6)
+
+	start := from.AddDays(-5)
+	checkOut := from.BerlinMidnight().Add(10 * time.Hour)
+	reaching := &active.WorkSession{
+		StaffID:      staff.ID,
+		Date:         start,
+		Status:       active.WorkSessionStatusPresent,
+		CheckInTime:  start.BerlinMidnight().Add(8 * time.Hour),
+		CheckOutTime: &checkOut,
+		CreatedBy:    staff.ID,
+	}
+	require.NoError(t, repo.Create(ctx, reaching))
+
+	endedBefore := start.BerlinMidnight().Add(12 * time.Hour)
+	past := &active.WorkSession{
+		StaffID:      staff.ID,
+		Date:         start,
+		Status:       active.WorkSessionStatusPresent,
+		CheckInTime:  start.BerlinMidnight().Add(9 * time.Hour),
+		CheckOutTime: &endedBefore,
+		CreatedBy:    staff.ID,
+	}
+	require.NoError(t, repo.Create(ctx, past))
+
+	rangeEnd := to.AddDays(1).BerlinMidnight()
+	found, err := repo.ListOverlappingByStaffID(ctx, staff.ID, from.BerlinMidnight(), &rangeEnd)
+	require.NoError(t, err)
+
+	ids := make([]int64, 0, len(found))
+	for _, session := range found {
+		ids = append(ids, session.ID)
+	}
+	assert.Contains(t, ids, reaching.ID, "a block ending inside the range belongs to it, however early it started")
+	assert.NotContains(t, ids, past.ID, "a block that ended before the range does not")
 }

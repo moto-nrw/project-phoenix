@@ -388,6 +388,7 @@ func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activ
 		result.Attendances = attendances
 	}
 	if mode == activeService.PresenceModeBinary {
+		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
 		return result, nil
 	}
 	return s.loadDetailedLocations(ctx, result)

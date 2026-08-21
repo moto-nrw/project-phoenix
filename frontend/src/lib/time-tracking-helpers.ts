@@ -1,10 +1,20 @@
 // Helper functions for time tracking data transformation and calculations
 
 import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
+import {
+  berlinTodayISO,
+  endOfBerlinDayISO,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 
 // Backend response types (snake_case, numbers for IDs)
 export interface BackendWorkSession {
-  id: number;
+  // The history endpoints quote the int64 id (SessionResponse.MarshalJSON) so
+  // the block-edit lookup compares exact decimals; the single-session
+  // endpoints still serialize the raw model and send a number. `.toString()`
+  // below normalizes both to the canonical decimal string.
+  id: number | string;
   staff_id: number;
   date: string;
   status: "present" | "home_office";
@@ -80,6 +90,10 @@ export interface BackendStaffAbsence {
   id: number;
   staff_id: number;
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
+  absence_type_id?: string | null;
+  /** The school's own wording; empty for the standard types. */
+  absence_type_label?: string;
   date_start: string;
   date_end: string;
   half_day: boolean;
@@ -107,6 +121,17 @@ export interface StaffAbsence {
   id: string;
   staffId: string;
   absenceType: AbsenceType;
+  /**
+   * School-defined Abwesenheitsart (#2403); null for the standard types.
+   * Optional so a row shape built before this field existed still type-checks.
+   */
+  absenceTypeId?: string | null;
+  /**
+   * The school's own wording, or "" for a standard type — in which case the
+   * caller falls back to its own label for `absenceType`. Resolve both through
+   * {@link absenceDisplayLabel} rather than reading the fields separately.
+   */
+  absenceTypeLabel?: string;
   dateStart: string;
   dateEnd: string;
   halfDay: boolean;
@@ -134,6 +159,22 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   comp_time: "Freizeitausgleich",
 };
 
+/**
+ * absenceDisplayLabel is what a person should read for an absence: the school's
+ * own Abwesenheitsart when the row carries one (#2403), otherwise the standard
+ * German label. Every renderer of an absence type goes through here, so a
+ * school's wording cannot appear in one view and "Sonstige" in the next.
+ */
+export function absenceDisplayLabel(absence: {
+  readonly absenceType: string;
+  readonly absenceTypeLabel?: string;
+}): string {
+  if (absence.absenceTypeLabel) return absence.absenceTypeLabel;
+  return (
+    absenceTypeLabels[absence.absenceType as AbsenceType] ?? absence.absenceType
+  );
+}
+
 export function mapStaffAbsenceResponse(
   data: BackendStaffAbsence,
 ): StaffAbsence {
@@ -141,6 +182,8 @@ export function mapStaffAbsenceResponse(
     id: data.id.toString(),
     staffId: data.staff_id.toString(),
     absenceType: data.absence_type as AbsenceType,
+    absenceTypeId: data.absence_type_id ?? null,
+    absenceTypeLabel: data.absence_type_label ?? "",
     dateStart: data.date_start.split("T")[0] ?? data.date_start,
     dateEnd: data.date_end.split("T")[0] ?? data.date_end,
     halfDay: data.half_day,
@@ -196,6 +239,166 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+}
+
+export interface WorkSessionDayMinutes {
+  netMinutes: number;
+  breakMinutes: number;
+}
+
+const MAX_OPEN_WORK_SESSION_MS = 12 * 60 * 60 * 1_000;
+
+/**
+ * The instant a block stops counting — mirror of the backend's
+ * `BalanceSessionEnd` (services/active/work_time_month_service.go).
+ *
+ * A closed block is historical fact and ends at its check-out. A block that is
+ * still open would otherwise run through `now` forever, so it carries a live
+ * limit of {@link MAX_OPEN_WORK_SESSION_MS}: a block filed on today keeps
+ * counting (a long shift is not a mistake), one filed yesterday is capped at
+ * check-in plus the limit, and an older one — a checkout that never happened —
+ * is cut at the end of its own Berlin day.
+ *
+ * Callers that split minutes across calendar days MUST use this instead of
+ * `now`: the server already caps the block's `netMinutes` the same way, so
+ * splitting an uncapped window would hand those capped minutes to the wrong
+ * Berlin day.
+ */
+export function balanceSessionEnd(
+  session: { date: string; checkIn: Date; checkOut: Date | null },
+  now: Date,
+): Date {
+  const nowMs = now.getTime();
+  const checkOutMs = session.checkOut?.getTime() ?? null;
+
+  let end = nowMs;
+  if (checkOutMs !== null && checkOutMs < end) end = checkOutMs;
+  // Only a still-open block (or a malformed check-out in the future) needs the
+  // live limit; a completed one already ended when it ended.
+  if (checkOutMs !== null && checkOutMs <= nowMs) return new Date(end);
+
+  const maxEnd = session.checkIn.getTime() + MAX_OPEN_WORK_SESSION_MS;
+  if (end <= maxEnd) return new Date(end);
+
+  const today = berlinTodayISO(now);
+  const yesterdayDate = parseISODate(today);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = toISODate(yesterdayDate);
+  const date = session.date.slice(0, 10);
+
+  if (date < yesterday) {
+    const staleEnd = new Date(endOfBerlinDayISO(parseISODate(date))).getTime();
+    if (staleEnd < end) return new Date(staleEnd);
+  }
+  if (date >= yesterday && date < today) return new Date(maxEnd);
+  return new Date(end);
+}
+
+// Splits the values shown on charts at Berlin calendar boundaries. The backend
+// uses the same rule for the monthly balance; keeping it here avoids filing a
+// complete night block under its check-in date in the client.
+export function indexWorkSessionMinutesByBerlinDate(
+  sessions: readonly WorkSessionHistory[],
+  now: Date = new Date(),
+): Map<string, WorkSessionDayMinutes> {
+  const result = new Map<string, WorkSessionDayMinutes>();
+
+  for (const session of sessions) {
+    const start = new Date(session.checkInTime);
+    const checkOut = session.checkOutTime
+      ? new Date(session.checkOutTime)
+      : null;
+    if (checkOut !== null && Number.isNaN(checkOut.getTime())) continue;
+    const end = balanceSessionEnd(
+      { date: session.date, checkIn: start, checkOut },
+      now,
+    );
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
+      continue;
+    }
+
+    const grossByDate = new Map<string, number>();
+    for (let cursor = start; cursor < end;) {
+      const date = berlinTodayISO(cursor);
+      const nextMidnight =
+        new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+      const segmentEnd = Math.min(end.getTime(), nextMidnight);
+      const minutes = Math.floor((segmentEnd - cursor.getTime()) / 60_000);
+      if (minutes > 0) grossByDate.set(date, minutes);
+      cursor = new Date(segmentEnd);
+    }
+
+    if (grossByDate.size === 0) continue;
+
+    const breakByDate = new Map<string, number>();
+    for (const workBreak of session.breaks) {
+      const breakStart = new Date(workBreak.startedAt);
+      const breakEnd = new Date(workBreak.endedAt ?? now);
+      const clippedStart = Math.max(start.getTime(), breakStart.getTime());
+      const clippedEnd = Math.min(end.getTime(), breakEnd.getTime());
+      for (let cursor = clippedStart; cursor < clippedEnd;) {
+        const date = berlinTodayISO(new Date(cursor));
+        const nextMidnight =
+          new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+        const segmentEnd = Math.min(clippedEnd, nextMidnight);
+        const minutes = Math.floor((segmentEnd - cursor) / 60_000);
+        if (minutes > 0) {
+          breakByDate.set(date, (breakByDate.get(date) ?? 0) + minutes);
+        }
+        cursor = segmentEnd;
+      }
+    }
+
+    // Legacy rows only retain the total. The server assigns it to the earliest
+    // Berlin-day segment before distributing the remaining net time.
+    if (session.breaks.length === 0 && session.breakMinutes > 0) {
+      let remaining = session.breakMinutes;
+      for (const [date, gross] of grossByDate) {
+        const deducted = Math.min(gross, remaining);
+        breakByDate.set(date, deducted);
+        remaining -= deducted;
+        if (remaining === 0) break;
+      }
+    }
+
+    // The server's live net_minutes already deducts a currently running
+    // break. Recomputing it from the ended-break cache would make the chart
+    // continue to count work during that break.
+    const netTotal = session.netMinutes;
+    const grossTotal = [...grossByDate.values()].reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    let allocated = 0;
+    const portions = [...grossByDate.entries()].map(([date, gross]) => {
+      const net = Math.floor(
+        (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
+          Math.max(
+            1,
+            grossTotal -
+              [...breakByDate.values()].reduce((sum, value) => sum + value, 0),
+          ),
+      );
+      allocated += net;
+      return { date, net, gross };
+    });
+    // Keep integer totals exact; the final minute belongs to the latest segment.
+    if (portions.length > 0)
+      portions[portions.length - 1]!.net += netTotal - allocated;
+
+    for (const { date, net } of portions) {
+      const existing = result.get(date) ?? { netMinutes: 0, breakMinutes: 0 };
+      existing.netMinutes += net;
+      existing.breakMinutes += breakByDate.get(date) ?? 0;
+      result.set(date, existing);
+    }
+  }
+
+  return result;
 }
 
 export interface WeeklySummary {

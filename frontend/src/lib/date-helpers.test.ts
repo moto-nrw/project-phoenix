@@ -12,6 +12,7 @@ import {
   isValidISODate,
   todayISO,
   berlinTodayISO,
+  berlinDayStart,
   endOfBerlinDayISO,
   formatChatTime,
   formatChatDateTime,
@@ -111,6 +112,34 @@ describe("endOfBerlinDayISO", () => {
   it("uses the CET end of day for a selected winter date", () => {
     expect(endOfBerlinDayISO(new Date(2026, 0, 20))).toBe(
       "2026-01-20T22:59:59.000Z",
+    );
+  });
+});
+
+describe("berlinDayStart", () => {
+  it("returns Berlin midnight for a winter instant", () => {
+    expect(berlinDayStart(new Date("2026-01-15T01:30:00Z")).toISOString()).toBe(
+      "2026-01-14T23:00:00.000Z",
+    );
+  });
+
+  it("returns Berlin midnight for a summer instant", () => {
+    expect(berlinDayStart(new Date("2026-07-20T10:00:00Z")).toISOString()).toBe(
+      "2026-07-19T22:00:00.000Z",
+    );
+  });
+
+  // The night the clocks go forward is 23h long; subtracting 24h from the
+  // following midnight would land an hour beside the real day boundary.
+  it("hits the real midnight on the night DST starts", () => {
+    expect(berlinDayStart(new Date("2026-03-29T12:00:00Z")).toISOString()).toBe(
+      "2026-03-28T23:00:00.000Z",
+    );
+  });
+
+  it("hits the real midnight on the night DST ends", () => {
+    expect(berlinDayStart(new Date("2026-10-25T12:00:00Z")).toISOString()).toBe(
+      "2026-10-24T22:00:00.000Z",
     );
   });
 });

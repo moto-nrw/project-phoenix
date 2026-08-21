@@ -135,13 +135,18 @@ export function ZeiterfassungTab({
 
   const visibleFromKey = toDateKey(visibleFrom);
   const visibleToKey = toDateKey(visibleTo);
+  const historyFrom = useMemo(() => {
+    const previousDay = new Date(visibleFrom);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [visibleFrom]);
   // Keyed by range only (no "visible" qualifier): usePeriodMetrics asks for the
   // current week under the same scheme, so while the table shows that week SWR
   // dedupes both into one request instead of fetching it twice.
   const { data: visibleSessions, isLoading: visibleLoading } = useSWRAuth<
     readonly StaffHistorySession[]
-  >(`staff-history-${staffId}-${visibleFromKey}-${visibleToKey}`, () =>
-    staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
+  >(`staff-history-${staffId}-${historyFrom}-${visibleToKey}`, () =>
+    staffHistoryService.getHistory(staffId, historyFrom, visibleToKey),
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).

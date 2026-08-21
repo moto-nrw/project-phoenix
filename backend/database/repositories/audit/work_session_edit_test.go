@@ -406,19 +406,23 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		// Create two work sessions
 		today := timezone.TodayDate()
+		session1Out := time.Now().Add(8 * time.Hour)
+		session2Out := time.Now().Add(32 * time.Hour)
 		session1 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now(),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         today,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  time.Now(),
+			CheckOutTime: &session1Out,
+			CreatedBy:    staff.ID,
 		}
 		session2 := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        today.AddDays(1),
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now(),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         today.AddDays(1),
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  time.Now(),
+			CheckOutTime: &session2Out,
+			CreatedBy:    staff.ID,
 		}
 
 		err := sessionRepo.Create(ctx, session1)
@@ -467,12 +471,14 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 	t.Run("returns zero counts for sessions with no edits", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
+		checkOut := time.Now().Add(8 * time.Hour)
 		session := &active.WorkSession{
-			StaffID:     staff.ID,
-			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now(),
-			CreatedBy:   staff.ID,
+			StaffID:      staff.ID,
+			Date:         today,
+			Status:       active.WorkSessionStatusPresent,
+			CheckInTime:  time.Now(),
+			CheckOutTime: &checkOut,
+			CreatedBy:    staff.ID,
 		}
 		err := sessionRepo.Create(ctx, session)
 		require.NoError(t, err)

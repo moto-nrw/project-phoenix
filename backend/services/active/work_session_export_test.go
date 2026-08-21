@@ -3,7 +3,6 @@ package active
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"errors"
 	"slices"
@@ -367,6 +366,47 @@ func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
 	assert.Equal(t, 1, absenceLoads)
 	assert.Equal(t, 1, breakLoads)
 	assert.Equal(t, 1, manualAuditLoads)
+}
+
+func TestDayExportRowsByStaffIDsStampsCustomAbsenceLabels(t *testing.T) {
+	t.Parallel()
+
+	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
+	ctx := context.Background()
+	staffID := int64(100)
+	date := timezone.NewDate(2026, 8, 20)
+	customID := int64(42)
+
+	svc.SetAbsenceTypeService(NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Model:    base.Model{ID: customID},
+		Name:     "Regenerationstag",
+		BaseType: activeModels.AbsenceTypeOther,
+		IsActive: false,
+	}}}, nil))
+	sessionRepo.getHistoryByStaffIDsFunc = func(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+		return map[int64][]*activeModels.WorkSession{}, nil
+	}
+	absenceRepo.getByStaffIDsAndDateRangeFunc = func(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+		return map[int64][]*activeModels.StaffAbsence{staffID: []*activeModels.StaffAbsence{{
+			StaffID:       staffID,
+			AbsenceType:   activeModels.AbsenceTypeOther,
+			AbsenceTypeID: &customID,
+			DateStart:     date,
+			DateEnd:       date,
+			Status:        activeModels.AbsenceStatusApproved,
+		}}}, nil
+	}
+	breakRepo.listFunc = func(context.Context, *base.QueryOptions) ([]*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+
+	rowsByStaff, err := svc.DayExportRowsByStaffIDs(ctx, []int64{staffID}, date, date)
+	require.NoError(t, err)
+	require.Len(t, rowsByStaff[staffID], 1)
+	assert.Contains(t, rowsByStaff[staffID][0].Cells[6], "Regenerationstag")
 }
 
 func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
@@ -1719,8 +1759,8 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {

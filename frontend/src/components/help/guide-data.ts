@@ -337,6 +337,11 @@ export const setupChapters: readonly GuideChapter[] = [
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
         ],
+        callout: {
+          title: "Systemräume: Schulhof und WC",
+          body: "`Schulhof` und `WC` legt moto selbst an. Sie lassen sich weder umbenennen noch löschen. Die `Farbe` des Schulhofs kann jedoch frei gewählt werden, damit er zum Farbschema Ihrer Räume und Tablets passt. Ohne eigene Farbe erscheint der Schulhof weiterhin in Orange. Das WC hat kein eigenes Farbfeld, weil es nirgends farbig angezeigt wird.",
+          tone: "blue",
+        },
         screenshot:
           "Räume-Liste in der Datenverwaltung mit Beispiel-Einträgen.",
         image: "/help/screens/raeume-anlegen.webp",
@@ -962,6 +967,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Beim Umstieg auf moto den Resturlaub über die `Urlaubs-Übernahme` erfassen: Stichtag und Resturlaub zum Stichtag eintragen; moto errechnet daraus die vor der Einführung bereits genommenen Tage. Der Jahresanspruch bleibt unverändert, spätere Anspruchskorrekturen wirken sich weiterhin korrekt auf den Rest aus. Auch ein überzogenes Konto (negativer Rest) lässt sich abbilden.",
           "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
+          'Eigene Bezeichnungen für Abwesenheiten legt die Leitung direkt im Feld `Art der Abwesenheit` an: den gewünschten Namen eintippen und `„…" hinzufügen` wählen. Die Bezeichnung ist danach sofort ausgewählt und steht für alle weiteren Abwesenheiten dieser Einrichtung zur Verfügung. Über die Symbole neben einem eigenen Eintrag lässt er sich umbenennen oder deaktivieren; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.',
+          "Eine eigene Bezeichnung ist eine benannte Unterart von `Sonstige` und wird genauso berechnet: Sie verändert weder den Urlaubsanspruch noch die Sollzeit oder das Stundenkonto. Für Urlaubstage bleibt also `Urlaub` die richtige Wahl.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -1293,6 +1300,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Zeiterfassung` öffnen.",
           "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
+          "Wer am selben Tag erneut einstempelt, startet einen neuen Arbeitsblock — auch mit anderem Arbeitsort (z. B. vormittags `Homeoffice`, nachmittags `In der OGS`). Die Zeit zwischen den Blöcken zählt nicht als Arbeitszeit; in der Tabelle erscheinen die Blöcke einzeln unter der Tageszeile.",
           "Wenn die Einrichtung Einstempeln erst ab geplanter Startzeit aktiviert hat, wird ein zu früher Versuch mit Hinweis auf die Startzeit abgewiesen.",
           "Ist im Dienstplan eine Schicht geplant, zeigt die Stempeluhr sie als `Geplant: 08:00–16:00`, bei hinterlegter Schichtart mit farbigem Kürzel (z. B. `Betreuung`). Eine Schicht als Vertretung ist mit `Vertretung` gekennzeichnet, eine ausgefallene Schicht als `Entfällt`. Vergessene Ausstempelungen kann die Einrichtung automatisch zum geplanten Dienstende beenden lassen (Einstellung `Automatische Ausstempelung`); solche Einträge sind mit `Auto-Checkout` markiert und lassen sich korrigieren.",
           "Wer früher als geplant kommt oder später als geplant geht, wird beim Stempeln nach einem kurzen Grund gefragt (z. B. `Bus verspätet`). Der Grund wird zur Nachvollziehbarkeit gespeichert. Die Einrichtung kann diese Abfrage in den Einstellungen abschalten.",
@@ -1300,6 +1308,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Pausen starten und bei Bedarf eine individuelle Dauer wählen. Nach Ablauf der gewählten Dauer läuft die Arbeitszeit automatisch weiter; über `Pause beenden` kann die Pause früher beendet werden.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern. Freizeitausgleich trägt ausschließlich die Leitung ein; der Eintrag ist hier sichtbar, kann aber nicht selbst geändert oder gelöscht werden.",
+          "Im Feld `Art der Abwesenheit` lässt sich nach der passenden Bezeichnung suchen. Neben `Urlaub`, `Krank`, `Fortbildung` und `Sonstige` stehen dort auch die Bezeichnungen, die die Einrichtung selbst angelegt hat (zum Beispiel `Regenerationstag` oder `Ferienzeit`).",
         ],
         callout: {
           title: "Arbeitsort bewusst wählen",

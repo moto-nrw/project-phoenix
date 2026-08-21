@@ -68,17 +68,24 @@ type staffResponseBuilder struct {
 	wasPresentToday bool
 	workStatus      string
 	absenceType     string
-	accountRole     string
-	email           string
-	avatar          string
+	// absenceTypeLabel is the school's own wording, set after construction so
+	// the response constructors keep their signature (#2403).
+	absenceTypeLabel string
+	accountRole      string
+	email            string
+	avatar           string
 }
 
 // buildResponse returns the appropriate response type based on teacher status
 func (b *staffResponseBuilder) buildResponse() interface{} {
 	if b.isTeacher && b.teacher != nil {
-		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+		response := newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+		response.AbsenceTypeLabel = b.absenceTypeLabel
+		return response
 	}
-	return newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+	response := newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+	response.AbsenceTypeLabel = b.absenceTypeLabel
+	return response
 }
 
 // processStaffForListOptimized processes a single staff member using pre-loaded data
@@ -91,6 +98,7 @@ func (rs *Resource) processStaffForListOptimized(
 	presentMap map[int64]bool,
 	workStatusMap map[int64]string,
 	absenceMap map[int64]string,
+	absenceLabelMap map[int64]string,
 	accountRoleMap map[int64]string,
 	accountEmailMap map[int64]string,
 	accountAvatarMap map[int64]string,
@@ -134,15 +142,16 @@ func (rs *Resource) processStaffForListOptimized(
 	}
 
 	builder := &staffResponseBuilder{
-		staff:           staff,
-		teacher:         teacher,
-		isTeacher:       isTeacher,
-		wasPresentToday: wasPresentToday,
-		workStatus:      workStatusMap[staff.ID],
-		absenceType:     absenceMap[staff.ID],
-		accountRole:     accountRole,
-		email:           email,
-		avatar:          avatar,
+		staff:            staff,
+		teacher:          teacher,
+		isTeacher:        isTeacher,
+		wasPresentToday:  wasPresentToday,
+		workStatus:       workStatusMap[staff.ID],
+		absenceType:      absenceMap[staff.ID],
+		absenceTypeLabel: absenceLabelMap[staff.ID],
+		accountRole:      accountRole,
+		email:            email,
+		avatar:           avatar,
 	}
 
 	return builder.buildResponse(), true
