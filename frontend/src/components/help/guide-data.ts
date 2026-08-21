@@ -18,6 +18,7 @@ import {
   KeyRound,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Megaphone,
   MessageSquare,
   MonitorPlay,
@@ -1399,15 +1400,39 @@ export const appChapters: readonly GuideChapter[] = [
           "Verwaltung der Klassenlisteneinträge mit Tabelle nach Klassen, Kennzeichnung Keine Betreuung und Hinweis auf mögliche Dubletten.",
       },
       {
+        id: "betreuung-beenden",
+        title: "Betreuung beenden (Kind verlässt die OGS)",
+        icon: LogOut,
+        summary:
+          "Für Kinder, die außerhalb des Jahrgangswechsels gehen — zum Beispiel nach einem Umzug oder wenn keine Betreuung mehr gebraucht wird. Sie legen einen letzten Betreuungstag fest; die Daten des Kindes bleiben erhalten.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
+          "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
+          "Letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil, ab dem Folgetag ist seine Betreuung beendet. Ein Tag in der Vergangenheit ist nicht möglich.",
+          "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
+          "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert — wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
+          "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück.",
+          "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort können Sie die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
+          "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein — Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
+        ],
+        callout: {
+          title: "Beenden ist kein Löschen",
+          body: "Beim Beenden bleibt alles erhalten: vergangene Anwesenheiten, Nachrichten, Einwilligungen und die Kontakte der Erziehungsberechtigten. Das Kind steht nur in keiner normalen Liste und in keinem Export mehr, kann sich nicht mehr an- und abmelden und die Familie kann im Elternportal nichts Neues mehr melden. Vergangenes können die Eltern weiter lesen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dialog Betreuung beenden mit letztem Betreuungstag, Grund und der Vorschau, die jedes Kind namentlich mit seinen Auswirkungen zeigt.",
+      },
+      {
         id: "kind-dauerhaft-loeschen",
         title: "Kind dauerhaft löschen",
         summary:
           "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen.",
+          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen. Kinder, deren Betreuung schon beendet ist, stehen unter `Beendete Betreuungen` im Menü oben rechts.",
           "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
           "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
-          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen.",
+          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen. Bei Kindern, deren Betreuung beendet ist, steht zusätzlich `Aufbewahrungsfrist abgelaufen` zur Wahl.",
           "Den Namen des Kindes exakt wie angezeigt erneut eingeben und erst dann `Kind endgültig löschen` wählen.",
         ],
         callout: {
@@ -1435,7 +1460,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Abgänge sind kein Löschen",
-          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel. Danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen.",
+          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel. Danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen. Geht ein Kind mitten im Schuljahr, ist das kein Abgang: dafür gibt es `Betreuung beenden`, und diese Kinder stehen unter `Beendete Betreuungen`.",
           tone: "orange",
         },
         screenshot:
