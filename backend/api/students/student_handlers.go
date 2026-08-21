@@ -2035,6 +2035,7 @@ var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
 	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {

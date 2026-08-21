@@ -100,6 +100,11 @@ var (
 	// ErrExcusedRequestOverlap means a different pending absence request already
 	// covers one of the submitted dates. An identical resubmit is idempotent.
 	ErrExcusedRequestOverlap = errors.New("parent: excused absence request overlaps an existing pending request")
+	// ErrChildCareEnded means the child's care at this school has ended (#2487).
+	// Every parent WRITE for that child is refused from the day after the last
+	// care day; reading what happened before stays open, which is why this is
+	// checked per write path and not in resolvePermittedChild itself.
+	ErrChildCareEnded = errors.New("parent: care for this child has ended")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student
@@ -136,6 +141,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
+			careEnded:           child.CareEnded(timezone.TodayDate()),
 		}
 		return nil
 	})
@@ -163,6 +169,21 @@ type parentChild struct {
 	// + child label); resolved once here from the cross-tenant child lookup.
 	studentName string
 	schoolName  string
+	// careEnded mirrors the child's enrollment interval as of today (#2487).
+	careEnded bool
+}
+
+// requireCareRunning refuses a write for a child whose care has ended. Reads
+// deliberately do not call it: a family keeps access to what happened while
+// their child was here.
+func (c *parentChild) requireCareRunning() error {
+	if c == nil {
+		return ErrChildNotLinked
+	}
+	if c.careEnded {
+		return ErrChildCareEnded
+	}
+	return nil
 }
 
 func (c *parentChild) hasPermission(permission string) bool {
@@ -201,6 +222,11 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 
@@ -799,6 +825,11 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
@@ -944,6 +975,11 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 
@@ -1241,6 +1277,11 @@ func (s *service) ListCareExceptions(ctx context.Context, accountID, studentID i
 func (s *service) DeleteCareException(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
+		return err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return err
 	}
 

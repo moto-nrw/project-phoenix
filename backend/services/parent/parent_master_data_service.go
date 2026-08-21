@@ -136,6 +136,16 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {

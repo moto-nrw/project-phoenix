@@ -139,6 +139,16 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
 	if err != nil {
 		return nil, err

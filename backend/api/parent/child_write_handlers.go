@@ -426,6 +426,11 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "child_not_linked"))
 	case errors.Is(err, parentService.ErrGuardianPermissionDenied):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_permission_denied"))
+	case errors.Is(err, parentService.ErrChildCareEnded):
+		// The child left the OGS. Reading stays open; every submit is refused
+		// with its own code so the portal can say why instead of showing a
+		// generic "keine Berechtigung" (#2487).
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "child_care_ended"))
 	case errors.Is(err, parentService.ErrSickNoteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):

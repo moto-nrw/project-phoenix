@@ -68,8 +68,11 @@ type ResourceConfig struct {
 	// ClassListEntryService supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband. Optional: nil
 	// exports without entries (bare test Resources).
-	ClassListEntryService   userService.ClassListEntryService
-	StudentDeletionService  userService.StudentDeletionService
+	ClassListEntryService  userService.ClassListEntryService
+	StudentDeletionService userService.StudentDeletionService
+	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
+	// exit, which is deliberately NOT a deletion.
+	CareLifecycleService    userService.CareLifecycleService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
@@ -225,6 +228,18 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
+
+		// "Betreuung beenden" (#2487). Behind users:delete like the permanent
+		// deletion — ending a care relationship and reading why it ended are
+		// the two halves of one sensitive decision — but a deliberately
+		// separate surface: a regular exit is not a data deletion.
+		// Static paths are registered before /{id} so chi never routes
+		// "care-end" into the id parameter.
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/preview", rs.previewCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end", rs.confirmCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/cancel", rs.cancelCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/care-end/resume", rs.resumeCare)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/ended-care", rs.listEndedCare)
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)

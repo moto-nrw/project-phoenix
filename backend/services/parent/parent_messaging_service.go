@@ -296,6 +296,16 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
 	// blip does not 500 a guardian's reply while the badge and thread list keep
 	// rendering unread — the write side agrees with the read side. A genuine

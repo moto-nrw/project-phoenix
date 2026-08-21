@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -25,6 +26,12 @@ const (
 	StudentDeletionReasonDuplicate      = "duplicate"
 	StudentDeletionReasonPrivacyRequest = "privacy_request"
 	StudentDeletionReasonGraduatePurge  = "graduate_purge"
+	// StudentDeletionReasonRetentionExpired is the one deletion reason that
+	// describes a NORMAL end of a record's life: the child left the OGS
+	// regularly and the school's retention period for their data has run out
+	// (#2487). It is only offered for a child whose care has ended — for a
+	// child still in care there is no retention period running yet.
+	StudentDeletionReasonRetentionExpired = "retention_expired"
 )
 
 type StudentDeletionPreview struct {
@@ -175,6 +182,10 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		}
 		if student.IsAlumnus() {
 			return ErrStudentDeletionAlumnus
+		}
+		if input.Reason == StudentDeletionReasonRetentionExpired &&
+			!student.CareEndedOn(timezone.TodayDate()) {
+			return ErrStudentDeletionRetentionNotEnded
 		}
 
 		preview, err := buildStudentDeletionPreview(student, person, counts)
@@ -401,9 +412,17 @@ func isValidStudentDeletionReason(reason string) bool {
 	case StudentDeletionReasonTestData,
 		StudentDeletionReasonIncorrectEntry,
 		StudentDeletionReasonDuplicate,
-		StudentDeletionReasonPrivacyRequest:
+		StudentDeletionReasonPrivacyRequest,
+		StudentDeletionReasonRetentionExpired:
 		return true
 	default:
 		return false
 	}
 }
+
+// ErrStudentDeletionRetentionNotEnded refuses the retention reason for a child
+// who is still in care: nothing has started running out yet, and picking it
+// would put a false statement into the deletion audit (#2487).
+//
+//nolint:staticcheck // ST1005: user-facing German message
+var ErrStudentDeletionRetentionNotEnded = errors.New("Der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist.")

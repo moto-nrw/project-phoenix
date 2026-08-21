@@ -196,6 +196,16 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
 		return nil, err
 	}
@@ -379,6 +389,16 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	}
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
@@ -581,6 +601,16 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	// what lets a pickup.manage-only caller flip the flags.
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
