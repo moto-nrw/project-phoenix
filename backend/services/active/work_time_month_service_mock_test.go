@@ -618,7 +618,7 @@ func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
 		},
 	}
 
-	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.June, 29), timezone.NewDate(2026, time.July, 6))
 	require.NoError(t, err)
 	require.Len(t, targets, 8)

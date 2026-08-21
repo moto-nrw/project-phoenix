@@ -117,6 +117,9 @@ type WorkTimeMonthService interface {
 	// GetDailyProjection returns Soll, Gutschrift, Ist and Saldo per calendar
 	// day for the daily table — the same arithmetic the Monatskarte sums.
 	GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error)
+	// GetDailyTargets resolves only the date-valid Soll for callers that do not
+	// need absence, session, or balance data.
+	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// GetRangeAggregate sums Soll, Ist and balance over an arbitrary closed
 	// range with the same daily arithmetic as the Monatskarte, WITHOUT a carry
 	// (a range is not an account). The week view of the Leitungs-Dashboard
@@ -171,6 +174,13 @@ type DailyProjection struct {
 	CreditMinutes  int           `json:"credit_minutes"`
 	ActualMinutes  int           `json:"actual_minutes"`
 	BalanceMinutes int           `json:"balance_minutes"`
+}
+
+// DailyTarget is the contractual Soll of one calendar day, resolved against
+// the schedule version that was valid ON that day (#1842).
+type DailyTarget struct {
+	Date          timezone.Date `json:"date"`
+	TargetMinutes int           `json:"target_minutes"`
 }
 
 // The narrow dependency surfaces below are exactly what the month math
@@ -1740,6 +1750,35 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 		projection = append(projection, day)
 	}
 	return projection, nil
+}
+
+// GetDailyTargets resolves the contractual Soll for every day in [from, to]
+// without loading absence or work-session data. It is the lightweight variant
+// for overview consumers that only chart targets.
+func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
+	if from.IsZero() || to.IsZero() {
+		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
+	}
+	if to.Before(from) {
+		return nil, fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
+	}
+	if from.DaysUntil(to) > maxDailyTargetRangeDays {
+		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
+	}
+
+	resolver, anchor, err := s.accountAwareTargets(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]DailyTarget, 0, from.DaysUntil(to)+1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		target := resolver.targetFor(d)
+		if excludedByAccountStart(d, anchor) {
+			target = 0
+		}
+		targets = append(targets, DailyTarget{Date: d, TargetMinutes: target})
+	}
+	return targets, nil
 }
 
 func (s *workTimeMonthService) getLogger() *slog.Logger {

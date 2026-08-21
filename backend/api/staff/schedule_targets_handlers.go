@@ -10,7 +10,7 @@ import (
 )
 
 // getStaffScheduleTargets handles
-// GET /api/staff/{id}/time-tracking/schedule-targets?from=&to= — the admin-side
+// GET /api/staff/{id}/time-tracking/schedule-targets?from=&to=&target_only=true — the admin-side
 // twin of the own endpoint, feeding the daily table the same per-day Soll,
 // Gutschrift, Ist and Saldo the Monatskarte is computed from (#1842, #2443).
 // The path keeps its name: it is the same resolution, now returning the whole
@@ -30,18 +30,32 @@ func (rs *Resource) getStaffScheduleTargets(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	projection, err := rs.WorkTimeMonthService.GetDailyProjection(r.Context(), staffID, from, to)
-	if err != nil {
-		if errors.Is(err, activeSvc.ErrInvalidTargetRange) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	if r.URL.Query().Get("target_only") == "true" {
+		targets, err := rs.WorkTimeMonthService.GetDailyTargets(r.Context(), staffID, from, to)
+		if err != nil {
+			rs.renderScheduleTargetsError(w, r, staffID, err)
 			return
 		}
-		rs.getLogger().Error("failed to get staff schedule targets",
-			"staff_id", staffID,
-			"error", err.Error(),
-		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.Respond(w, r, http.StatusOK, targets, "Schedule targets retrieved successfully")
+		return
+	}
+
+	projection, err := rs.WorkTimeMonthService.GetDailyProjection(r.Context(), staffID, from, to)
+	if err != nil {
+		rs.renderScheduleTargetsError(w, r, staffID, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, projection, "Daily projection retrieved successfully")
+}
+
+func (rs *Resource) renderScheduleTargetsError(w http.ResponseWriter, r *http.Request, staffID int64, err error) {
+	if errors.Is(err, activeSvc.ErrInvalidTargetRange) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	rs.getLogger().Error("failed to get staff schedule targets",
+		"staff_id", staffID,
+		"error", err.Error(),
+	)
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }

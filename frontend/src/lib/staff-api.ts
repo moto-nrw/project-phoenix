@@ -1266,7 +1266,7 @@ class StaffMonthSummaryService {
     from: string,
     to: string,
   ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to });
+    const params = new URLSearchParams({ from, to, target_only: "true" });
     const response = await sessionFetch(
       `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
     );
