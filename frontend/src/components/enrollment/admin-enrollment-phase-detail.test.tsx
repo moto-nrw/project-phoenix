@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   listPhases: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  useCareOfferingsEnabled: vi.fn(),
   useSetBreadcrumb: vi.fn(),
 }));
 
@@ -57,6 +58,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
+  useCareOfferingsEnabled: mocks.useCareOfferingsEnabled,
   useTenantSlugSafe: () => "demo",
 }));
 
@@ -232,6 +234,7 @@ beforeEach(() => {
   mocks.exportPhaseClassRoster.mockResolvedValue(undefined);
   mocks.exportPhaseRegistrations.mockResolvedValue(undefined);
   mocks.decideAdminChild.mockResolvedValue({ id: "20", status: "approved" });
+  mocks.useCareOfferingsEnabled.mockReturnValue(true);
 });
 
 describe("AdminEnrollmentPhaseDetail", () => {
@@ -578,5 +581,35 @@ describe("AdminEnrollmentPhaseDetail", () => {
         "approved",
       );
     });
+  });
+
+  it("approves directly when care offerings are disabled", async () => {
+    mocks.useCareOfferingsEnabled.mockReturnValue(false);
+    mocks.getCareUsageReport.mockResolvedValue(
+      report({
+        rows: [
+          {
+            ...report().rows[0],
+            offerings: [],
+            effective_days: [],
+            day_count: 0,
+          },
+        ],
+      }),
+    );
+    await renderPhase();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "10",
+        "20",
+        "approved",
+      );
+    });
+    expect(
+      screen.queryByRole("button", { name: "Trotzdem bestätigen" }),
+    ).not.toBeInTheDocument();
   });
 });

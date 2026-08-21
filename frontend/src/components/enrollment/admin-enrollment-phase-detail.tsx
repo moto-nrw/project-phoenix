@@ -58,7 +58,10 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import {
+  useCareOfferingsEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
@@ -126,6 +129,7 @@ const DAY_LABELS: Record<string, string> = {
 const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -412,6 +416,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     (row: CareUsageRow, status: DecisionStatus) => {
       if (
         status === "approved" &&
+        careOfferingsEnabled &&
         phase?.care_offering_selection_mode === "optional" &&
         row.offerings.length === 0
       ) {
@@ -420,7 +425,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       }
       void handleQuickDecision(row, status);
     },
-    [handleQuickDecision, phase?.care_offering_selection_mode],
+    [
+      careOfferingsEnabled,
+      handleQuickDecision,
+      phase?.care_offering_selection_mode,
+    ],
   );
 
   const columns = useMemo<DataTableColumn<CareUsageRow>[]>(

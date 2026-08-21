@@ -45,6 +45,7 @@ WHERE rc.status = 'approved'
           ON offering.tenant_id = link.tenant_id
           AND offering.id = link.care_offering_id
           AND offering.phase_id = phase.id
+          AND offering.is_required = FALSE
       WHERE link.tenant_id = rc.tenant_id
         AND link.request_child_id = rc.id
         AND (link.valid_from IS NULL OR link.valid_from <= phase.service_end_date)

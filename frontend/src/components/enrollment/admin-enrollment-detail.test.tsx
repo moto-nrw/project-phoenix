@@ -193,6 +193,51 @@ describe("AdminEnrollmentDetail approval without an offering", () => {
     });
   });
 
+  it("approves directly when care offerings are disabled", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: "optional",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [],
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+    expect(
+      screen.queryByRole("button", { name: "Trotzdem bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each([
     {
       name: "the phase requires an offering",

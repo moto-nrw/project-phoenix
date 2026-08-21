@@ -102,6 +102,7 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
@@ -226,6 +227,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   ) => {
     if (
       status === "approved" &&
+      careOfferingsEnabled &&
       data.care_offering_selection_mode === "optional" &&
       child.offerings_unavailable !== true &&
       (child.offerings?.length ?? 0) === 0

@@ -31,7 +31,7 @@ type approvedWithoutOfferingRow struct {
 }
 
 type auditScenario struct {
-	booked, missing, outOfPeriod int64
+	booked, missing, outOfPeriod, requiredOnly int64
 }
 
 func TestApprovedChildrenWithoutCareOfferingsAudit(t *testing.T) {
@@ -41,6 +41,8 @@ func TestApprovedChildrenWithoutCareOfferingsAudit(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, repos.Phase.Update(ctx, phase))
 	primary := seedAuditScenario(t, repos, ctx, phase)
 
 	other := testpkg.NewTenantScope(t, db)
@@ -59,6 +61,7 @@ func seedAuditScenario(t *testing.T, repos *repositories.Factory, ctx context.Co
 	booked := createApprovedAuditChild(t, repos, ctx, request.ID, "Gebucht")
 	missing := createApprovedAuditChild(t, repos, ctx, request.ID, "Fehlend")
 	outOfPeriod := createApprovedAuditChild(t, repos, ctx, request.ID, "Ausserhalb")
+	requiredOnly := createApprovedAuditChild(t, repos, ctx, request.ID, "Nur Pflichtangebot")
 	offering := &enrollmentModels.CareOffering{
 		PhaseID: phase.ID, Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true, CountsAsCare: true,
@@ -69,7 +72,15 @@ func seedAuditScenario(t *testing.T, repos *repositories.Factory, ctx context.Co
 	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
 		RequestChildID: outOfPeriod.ID, CareOfferingID: offering.ID, ValidFrom: &afterPhase, ValidUntil: &afterPhaseUntil,
 	}))
-	return auditScenario{booked.ID, missing.ID, outOfPeriod.ID}
+	required := &enrollmentModels.CareOffering{
+		PhaseID: phase.ID, Name: "Verpflichtende Betreuung", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true, IsRequired: true, CountsAsCare: true,
+	}
+	require.NoError(t, repos.CareOffering.Create(ctx, required))
+	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID: requiredOnly.ID, CareOfferingID: required.ID,
+	}))
+	return auditScenario{booked.ID, missing.ID, outOfPeriod.ID, requiredOnly.ID}
 }
 
 func createAuditPhase(t *testing.T, repos *repositories.Factory, ctx context.Context, tenantID int64) *enrollmentModels.Phase {
@@ -139,8 +150,8 @@ func assertAuditTenantRows(t *testing.T, rows []approvedWithoutOfferingRow, tena
 	childIDs := make([]int64, 0, len(tenantRows))
 	for _, row := range tenantRows {
 		childIDs = append(childIDs, row.RequestChildID)
-		assert.Equal(t, "review_optional", row.Finding)
+		assert.Equal(t, "missing_required", row.Finding)
 	}
-	assert.ElementsMatch(t, []int64{scenario.missing, scenario.outOfPeriod}, childIDs)
+	assert.ElementsMatch(t, []int64{scenario.missing, scenario.outOfPeriod, scenario.requiredOnly}, childIDs)
 	assert.NotContains(t, childIDs, scenario.booked)
 }
