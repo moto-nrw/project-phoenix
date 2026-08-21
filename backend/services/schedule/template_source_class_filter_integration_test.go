@@ -8,6 +8,7 @@
 package schedule_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -57,22 +59,27 @@ func createClassSourcedTemplate(
 	return result
 }
 
-// sourcedStudentIDs returns the students the template's offering-derived
-// roster still plans from today onward. A child that no longer matches is
-// either deleted (row never took effect) or capped at the resync boundary —
+// sourcedStudentIDsOn returns the students the template's offering-derived
+// roster plans ON the given day. Dated, because a child that no longer matches
+// is either deleted (row never took effect) or capped at the boundary —
 // "entfernen ODER begrenzen" — so a plain row count would report a child the
-// plan no longer holds. Rows that only cover past days are attendance
-// history and must survive; see the ClassChange test's explicit assertion.
-func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64 {
+// plan no longer holds, and a count taken today says nothing about a change
+// that takes effect next week.
+func sourcedStudentIDsOn(
+	t *testing.T,
+	s *scenarioSetup,
+	templateID int64,
+	date timezone.Date,
+) []int64 {
 	t.Helper()
-	today := timezone.TodayDate()
 	var rows []activitiesModels.StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
 		Where(`"student_enrollment".activity_group_id = ?`, templateID).
 		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
-		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, today).
+		Where(`"student_enrollment".valid_from <= ?`, date).
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, date).
 		OrderExpr(`"student_enrollment".student_id ASC`).
 		Scan(s.ctx))
 	ids := make([]int64, 0, len(rows))
@@ -82,10 +89,53 @@ func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64
 	return ids
 }
 
+// sourcedStudentIDs is the "as planned today" shorthand.
+func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64 {
+	t.Helper()
+	return sourcedStudentIDsOn(t, s, templateID, timezone.TodayDate())
+}
+
+// selectedWeekdaysOn returns the weekday set the child's roster row carries on
+// the given day. The resync caps a changed row and writes a successor rather
+// than mutating in place, so "which weekdays apply" is only answerable per
+// date.
+func selectedWeekdaysOn(
+	t *testing.T,
+	s *scenarioSetup,
+	templateID, studentID int64,
+	date timezone.Date,
+) []int {
+	t.Helper()
+	var rows []activitiesModels.StudentEnrollment
+	require.NoError(t, s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".activity_group_id = ?`, templateID).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
+		Where(`"student_enrollment".valid_from <= ?`, date).
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, date).
+		Scan(s.ctx))
+	require.Len(t, rows, 1, "exactly one roster row may apply on a given day")
+	return rows[0].SelectedWeekdays
+}
+
 func offeringSourceResyncer(t *testing.T, s *scenarioSetup) education.OfferingSourceResyncer {
 	t.Helper()
 	resyncer, ok := s.factory.EnrollmentDecision.(education.OfferingSourceResyncer)
 	require.True(t, ok, "the decision service must implement the offering-source resyncer")
+	return resyncer
+}
+
+// offeringScopedResyncer is the per-offering counterpart the care-offering
+// edit paths use — an Angebotsänderung resyncs only the templates fed by it.
+func offeringScopedResyncer(
+	t *testing.T,
+	s *scenarioSetup,
+) enrollment.CareOfferingSourcedTemplateResyncer {
+	t.Helper()
+	resyncer, ok := s.factory.EnrollmentDecision.(enrollment.CareOfferingSourcedTemplateResyncer)
+	require.True(t, ok, "the decision service must implement the per-offering resyncer")
 	return resyncer
 }
 
@@ -368,4 +418,219 @@ func instanceStudentIDs(t *testing.T, s *scenarioSetup, instanceID int64) []int6
 		ids = append(ids, row.StudentID)
 	}
 	return ids
+}
+
+// createMultiDayCareOffering is createSourceCareOffering with a wider fixed
+// weekday set, so a class-filtered Termin can run on more than one day.
+func createMultiDayCareOffering(
+	t *testing.T,
+	s *scenarioSetup,
+	availableDays []string,
+) *enrollmentModels.CareOffering {
+	t.Helper()
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	_, err := s.db.NewRaw(
+		`UPDATE enrollment.care_offerings SET available_days = ?::jsonb WHERE id = ?`,
+		mustJSON(t, availableDays), offering.ID,
+	).Exec(s.ctx)
+	require.NoError(t, err)
+	offering.AvailableDays = availableDays
+	return offering
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+// setLinkSelectedDays pins the weekdays a child actually booked, the per-child
+// override of the offering's own day set.
+func setLinkSelectedDays(t *testing.T, s *scenarioSetup, studentID int64, days []string) {
+	t.Helper()
+	_, err := s.db.NewRaw(`
+		UPDATE enrollment.request_child_offerings AS rco
+		SET selected_days = ?::jsonb
+		FROM enrollment.request_children AS rc
+		WHERE rc.id = rco.request_child_id
+		  AND COALESCE(rc.created_student_id, rc.matched_student_id) = ?`,
+		mustJSON(t, days), studentID,
+	).Exec(s.ctx)
+	require.NoError(t, err)
+}
+
+// endLinkAt is an Abmeldung: the child's offering link stops being valid on
+// the given day (exclusive), the shape a dated deregistration writes.
+func endLinkAt(t *testing.T, s *scenarioSetup, studentID int64, until timezone.Date) {
+	t.Helper()
+	_, err := s.db.NewRaw(`
+		UPDATE enrollment.request_child_offerings AS rco
+		SET valid_until = ?
+		FROM enrollment.request_children AS rc
+		WHERE rc.id = rco.request_child_id
+		  AND COALESCE(rc.created_student_id, rc.matched_student_id) = ?`,
+		until, studentID,
+	).Exec(s.ctx)
+	require.NoError(t, err)
+}
+
+// Class filter AND booked weekdays hold together: a Termin on Montag und
+// Freitag plans a 1b child only on the days it actually booked the Angebot.
+// This is the combination the Randstunden case turns on — the manual class
+// lists at Berg carried the same children on every weekday of the series.
+func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
+	t.Parallel()
+
+	monday := futureMonday(1)
+	friday := monday.AddDays(4)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
+	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
+	// Beide in 1b, aber nur eines der Kinder hat den Freitag gebucht.
+	setLinkSelectedDays(t, s, s.students[0], []string{"mon", "fri"})
+	setLinkSelectedDays(t, s, s.students[1], []string{"mon"})
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                  fmt.Sprintf("Randstunde-MoFr-%d", time.Now().UnixNano()),
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceSchoolClasses:   []string{"1b"},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	mat, err := s.factory.Materialization.MaterializeForTenant(
+		s.ctx, monday, friday, scheduleSvc.MaterializationSourceManual,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, mat)
+	registerInstanceCleanup(t, s)
+
+	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]},
+		instanceStudentIDs(t, s, singleInstanceID(t, s, result.TemplateID, monday)),
+		"beide 1b-Kinder haben Montag gebucht")
+	assert.Equal(t, []int64{s.students[0]},
+		instanceStudentIDs(t, s, singleInstanceID(t, s, result.TemplateID, friday)),
+		"nur das Kind mit gebuchtem Freitag darf am Freitag eingeplant sein")
+}
+
+// Abmeldung: a dated end on the child's offering link must limit the
+// assignment from its Wirksamkeitsdatum, not erase the days before it.
+func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.T) {
+	t.Parallel()
+
+	monday := futureMonday(2)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
+	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
+
+	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
+	require.ElementsMatch(t, []int64{s.students[0], s.students[1]},
+		sourcedStudentIDs(t, s, result.TemplateID))
+
+	// Abmeldung zum Montag in zwei Wochen: bis dahin bleibt das Kind geplant.
+	leavingOn := monday
+	endLinkAt(t, s, s.students[1], leavingOn)
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+
+	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]},
+		sourcedStudentIDsOn(t, s, result.TemplateID, leavingOn.AddDays(-1)),
+		"vor dem Abmeldedatum bleibt das Kind geplant")
+	assert.Equal(t, []int64{s.students[0]},
+		sourcedStudentIDsOn(t, s, result.TemplateID, leavingOn),
+		"ab dem Abmeldedatum ist das Kind nicht mehr geplant")
+}
+
+// Angebotsänderung: dropping a weekday from the Angebot must reshape the
+// class-filtered Termin's roster through ResyncTemplatesSourcedFromOffering,
+// without waiting for an unrelated template save.
+func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing.T) {
+	t.Parallel()
+
+	monday := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
+
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                  fmt.Sprintf("Randstunde-Angebotswechsel-%d", time.Now().UnixNano()),
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		SourceSchoolClasses:   []string{"1b"},
+		RosterValidFrom:       monday.AddDays(-30),
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	today := timezone.TodayDate()
+	require.ElementsMatch(t,
+		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today))
+
+	// Das Angebot bietet den Freitag nicht mehr an.
+	_, err = s.db.NewRaw(
+		`UPDATE enrollment.care_offerings SET available_days = ?::jsonb WHERE id = ?`,
+		mustJSON(t, []string{"mon"}), offering.ID,
+	).Exec(s.ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, offeringScopedResyncer(t, s).ResyncTemplatesSourcedFromOffering(
+		s.ctx, offering.ID, timezone.TodayDate(),
+	))
+
+	// Der Freitag verschwindet ab heute; die bereits verplanten Tage davor
+	// behalten ihre Besetzung — die Zuordnung wird begrenzt, nicht umgeschrieben.
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday},
+		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], monday),
+		"der Freitag muss aus der zukünftigen Zuordnung verschwinden, sobald das Angebot ihn nicht mehr anbietet")
+	assert.ElementsMatch(t,
+		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today.AddDays(-1)),
+		"die Historie vor der Änderung bleibt unangetastet")
+}
+
+// registerInstanceCleanup tears down the tenant's materialized occurrences —
+// MaterializeForTenant is tenant-wide and also fills the scenario baseline.
+func registerInstanceCleanup(t *testing.T, s *scenarioSetup) {
+	t.Helper()
+	s.extraCleanups = append([]func(){func() {
+		_, _ = s.db.NewRaw(`
+			DELETE FROM schedule.instance_students
+			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
+			s.tenantID).Exec(s.ctx)
+		_, _ = s.db.NewRaw(`
+			DELETE FROM schedule.instance_staff
+			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
+			s.tenantID).Exec(s.ctx)
+		_, _ = s.db.NewRaw(
+			`DELETE FROM schedule.activity_instances WHERE tenant_id = ?`, s.tenantID).Exec(s.ctx)
+	}}, s.extraCleanups...)
 }

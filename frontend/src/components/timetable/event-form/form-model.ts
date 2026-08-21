@@ -51,6 +51,25 @@ export function rosterForWeekday(
   return form.weekdayRosters[weekday] ?? sharedRoster(form);
 }
 
+/**
+ * Alle Kinder, die der manuell gepflegte Plan aktuell vorsieht — die
+ * gemeinsame Liste, oder im Modus "Pro Wochentag" die Vereinigung aller
+ * Wochentagslisten.
+ *
+ * Der Umstiegs-Abgleich (#2482) braucht genau diese Menge: die OGS am Berg
+ * pflegte ihre Randstunden-Klassenlisten pro Wochentag, und ein Abgleich nur
+ * gegen die gemeinsame Liste haette dort "es faellt niemand weg" gemeldet,
+ * waehrend beim Speichern echte Kinder verschwinden.
+ */
+export function plannedStudentIds(form: EventFormState): string[] {
+  if (!form.perWeekdayRoster) return form.studentIds;
+  const seen = new Set<string>(form.studentIds);
+  for (const roster of Object.values(form.weekdayRosters)) {
+    for (const studentId of roster.studentIds) seen.add(studentId);
+  }
+  return [...seen];
+}
+
 export function sharedRoster(form: EventFormState): WeekdayRosterState {
   return {
     staffIds: form.staffIds,

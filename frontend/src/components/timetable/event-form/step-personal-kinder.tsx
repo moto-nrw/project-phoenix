@@ -24,6 +24,7 @@ import type {
   ShiftCoverageWarningItem,
   TargetGroupType,
 } from "~/lib/timetable-types";
+import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 
 /** Zielgruppe (target group) tab options, issue #1838. */
 const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
@@ -558,8 +559,8 @@ export function StepPersonalKinder({
                             <Checkbox
                               checked={form.sourceSchoolClasses.some(
                                 (item) =>
-                                  item.trim().toLocaleLowerCase("de") ===
-                                  schoolClass.toLocaleLowerCase("de"),
+                                  normalizeSchoolClass(item) ===
+                                  normalizeSchoolClass(schoolClass),
                               )}
                               onChange={() =>
                                 toggleSourceSchoolClass(schoolClass)
@@ -567,7 +568,7 @@ export function StepPersonalKinder({
                             />
                             Klasse {schoolClass} (
                             {sourceClassCounts[
-                              schoolClass.toLocaleLowerCase("de")
+                              normalizeSchoolClass(schoolClass)
                             ] ?? 0}
                             )
                           </label>

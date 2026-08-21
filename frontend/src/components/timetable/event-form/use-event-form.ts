@@ -39,6 +39,7 @@ import {
   getGermanWeekdayLong,
   latestISODate,
   materializedRecurrenceDates,
+  normalizeSchoolClass,
   offeringPhaseStartWarning,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
@@ -58,6 +59,7 @@ import {
   isoWeekday,
   parseMaxParticipants,
   parseRequiredStaffOverride,
+  plannedStudentIds,
   rosterForWeekday,
   rosterSeedForWeekday,
   schoolClassLabel,
@@ -3180,13 +3182,13 @@ export function useEventForm({
     for (const student of combinedSourceCounts?.students ?? []) {
       const label = student.schoolClass.trim();
       if (label === "") continue;
-      const key = label.toLocaleLowerCase("de");
+      const key = normalizeSchoolClass(label);
       if (!byKey.has(key)) byKey.set(key, label);
     }
     for (const selected of form.sourceSchoolClasses) {
       const label = selected.trim();
       if (label === "") continue;
-      const key = label.toLocaleLowerCase("de");
+      const key = normalizeSchoolClass(label);
       if (!byKey.has(key)) byKey.set(key, label);
     }
     return [...byKey.values()].sort((a, b) => a.localeCompare(b, "de"));
@@ -3195,7 +3197,7 @@ export function useEventForm({
   const sourceClassCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const student of combinedSourceCounts?.students ?? []) {
-      const key = student.schoolClass.trim().toLocaleLowerCase("de");
+      const key = normalizeSchoolClass(student.schoolClass);
       if (key === "") continue;
       counts[key] = (counts[key] ?? 0) + 1;
     }
@@ -3209,14 +3211,12 @@ export function useEventForm({
     if (students.length === 0) return [] as string[];
     if (form.sourceFilterMode === "klasse") {
       const selected = new Set(
-        form.sourceSchoolClasses.map((value) =>
-          value.trim().toLocaleLowerCase("de"),
-        ),
+        form.sourceSchoolClasses.map(normalizeSchoolClass),
       );
       if (selected.size === 0) return students.map((s) => s.studentId);
       return students
         .filter((student) =>
-          selected.has(student.schoolClass.trim().toLocaleLowerCase("de")),
+          selected.has(normalizeSchoolClass(student.schoolClass)),
         )
         .map((student) => student.studentId);
     }
@@ -3333,9 +3333,7 @@ export function useEventForm({
       form.sourceFilterMode === "jahrgang" ? form.sourceGradeLevels : [];
     const selectedClasses =
       form.sourceFilterMode === "klasse"
-        ? form.sourceSchoolClasses.map((value) =>
-            value.trim().toLocaleLowerCase("de"),
-          )
+        ? form.sourceSchoolClasses.map(normalizeSchoolClass)
         : [];
     const seen = new Set<string>();
     const warnings: string[] = [];
@@ -3344,9 +3342,7 @@ export function useEventForm({
         if (template.id === currentTemplateId || seen.has(template.id)) {
           continue;
         }
-        const otherClasses = template.schoolClasses.map((value) =>
-          value.trim().toLocaleLowerCase("de"),
-        );
+        const otherClasses = template.schoolClasses.map(normalizeSchoolClass);
         if (
           !sourceScopesOverlap(
             selectedGrades,
@@ -3385,8 +3381,13 @@ export function useEventForm({
     // on save (#2147 review). The ref is touched here, outside the updater,
     // so the updater stays pure.
     if (nextIds.length > 0 && form.sourceCareOfferingIds.length === 0) {
+      // The ref feeds the RESTORE path, so it keeps the shared list verbatim:
+      // clearing the last source puts exactly that list back. The diff state
+      // instead takes every child the manual plan held, per-weekday lists
+      // included — otherwise the Umstiegs-Vorschau reports "nothing falls
+      // away" for a plan whose children live per weekday (#2482).
       preSourceStudentIdsRef.current = form.studentIds;
-      setPreSourceStudentIds(form.studentIds);
+      setPreSourceStudentIds(plannedStudentIds(form));
     }
     if (nextIds.length > 0 && form.perWeekdayRoster) {
       staffRosterTouched.current = true;
@@ -3491,14 +3492,14 @@ export function useEventForm({
   };
 
   const toggleSourceSchoolClass = (schoolClass: string) => {
-    const key = schoolClass.trim().toLocaleLowerCase("de");
+    const key = normalizeSchoolClass(schoolClass);
     setForm((current) => ({
       ...current,
       sourceSchoolClasses: current.sourceSchoolClasses.some(
-        (item) => item.trim().toLocaleLowerCase("de") === key,
+        (item) => normalizeSchoolClass(item) === key,
       )
         ? current.sourceSchoolClasses.filter(
-            (item) => item.trim().toLocaleLowerCase("de") !== key,
+            (item) => normalizeSchoolClass(item) !== key,
           )
         : [...current.sourceSchoolClasses, schoolClass.trim()].sort((a, b) =>
             a.localeCompare(b, "de"),

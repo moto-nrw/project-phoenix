@@ -1096,6 +1096,21 @@ export function mapOfferingSourceOptions(
 }
 
 /**
+ * Bringt einen Klassennamen auf die Form, in der verglichen wird: getrimmt
+ * und kleingeschrieben.
+ *
+ * Muss mit `internal/schoolclass.Normalize` im Backend übereinstimmen, denn
+ * beide Seiten entscheiden über dieselben Kinder: der Editor zeigt an, wen
+ * ein Klassenfilter erfasst, der Resync plant sie tatsächlich ein. Go
+ * verwendet `strings.ToLower` (ohne Locale), deshalb hier `toLowerCase()` und
+ * NICHT `toLocaleLowerCase("de")` — sonst können die beiden Seiten bei
+ * ungewöhnlichen Zeichen unterschiedlich urteilen (#2482).
+ */
+export function normalizeSchoolClass(schoolClass: string): string {
+  return schoolClass.trim().toLowerCase();
+}
+
+/**
  * Resolves the calendar-period pin that governs a template's first schedule.
  * A schedule pin is more specific than the template-level fallback, matching
  * the backend materialization rule in schedulePinnedPeriodID.

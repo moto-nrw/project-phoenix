@@ -154,9 +154,14 @@ func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id i
 				return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_grade_levels: %w", err)}
 			}
 			gradeLevelsValue = string(encodedLevels)
-		} else if len(schoolClasses) > 0 {
-			// Mutually exclusive per chk_activities_groups_offering_source: a
-			// class filter is only written when no grade filter survives.
+		}
+		if len(schoolClasses) > 0 {
+			// Both filters are written through as given. Grade and class are
+			// mutually exclusive, but enforcing that HERE by dropping one
+			// would lose a filter silently; the DB CHECK
+			// chk_activities_groups_offering_source rejects the pair loudly
+			// instead, which is what a caller that skipped validation needs
+			// to see (#2482).
 			encodedClasses, err := json.Marshal(schoolClasses)
 			if err != nil {
 				return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_school_classes: %w", err)}
@@ -1386,8 +1391,12 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		}
 		sourceGradeLevels = string(encoded)
 	}
+	// Written through as given, like the grade filter above: the two are
+	// mutually exclusive, but silently dropping one here would hide a caller
+	// that skipped validation. chk_activities_groups_offering_source rejects
+	// the pair (#2482).
 	var sourceSchoolClasses any
-	if len(fields.SourceCareOfferingIDs) > 0 && len(fields.SourceSchoolClasses) > 0 && sourceGradeLevels == nil {
+	if len(fields.SourceCareOfferingIDs) > 0 && len(fields.SourceSchoolClasses) > 0 {
 		encoded, err := json.Marshal(fields.SourceSchoolClasses)
 		if err != nil {
 			return 0, fmt.Errorf("marshal source_school_classes: %w", err)

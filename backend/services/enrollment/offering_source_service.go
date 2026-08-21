@@ -721,7 +721,7 @@ func (s *decisionService) wantedSourcedRosterTargets(
 		}
 		// The two filters are mutually exclusive by validation, so at most one
 		// of the two guards is ever active (#2482).
-		if !classFilterMatches(in.SchoolClasses, child.SchoolClass) {
+		if !activities.SourceClassFilterMatches(in.SchoolClasses, child.SchoolClass) {
 			continue
 		}
 		validFrom, validUntil, ok := sourcedRosterWindow(child.Link, phase, in.EffectiveFrom, envelopeFrom, envelopeUntil)
@@ -1321,26 +1321,6 @@ func gradeLevelFromSchoolClass(schoolClass string) *int16 {
 	}
 	grade := int16(parsed)
 	return &grade
-}
-
-// classFilterMatches mirrors activities.Group.MatchesSourceClassFilter for a
-// raw filter slice (#2482): an empty filter admits everyone, a set filter
-// matches case- and whitespace-insensitively and never admits a child without
-// a school class.
-func classFilterMatches(classes []string, schoolClass string) bool {
-	if len(classes) == 0 {
-		return true
-	}
-	wanted := schoolclass.Normalize(schoolClass)
-	if wanted == "" {
-		return false
-	}
-	for _, class := range classes {
-		if schoolclass.Normalize(class) == wanted {
-			return true
-		}
-	}
-	return false
 }
 
 // gradeFilterMatches mirrors activities.Group.MatchesSourceGradeFilter for a

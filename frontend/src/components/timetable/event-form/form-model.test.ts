@@ -7,6 +7,7 @@ import {
   formFromSeries,
   hasPerWeekdayStaffDeviation,
   parseMaxParticipants,
+  plannedStudentIds,
   sourceScopesOverlap,
 } from "./form-model";
 
@@ -208,5 +209,25 @@ describe("sourceScopesOverlap (#2482)", () => {
   it("compares Jahrgang filters directly", () => {
     expect(sourceScopesOverlap([1, 2], [], [2], [])).toBe(true);
     expect(sourceScopesOverlap([1], [], [3], [])).toBe(false);
+  });
+});
+
+describe("plannedStudentIds (#2482)", () => {
+  it("returns the shared list outside the per-weekday mode", () => {
+    const form = { ...emptyForm("2026-08-03"), studentIds: ["1", "2"] };
+    expect(plannedStudentIds(form)).toEqual(["1", "2"]);
+  });
+
+  it("unions every weekday list in the per-weekday mode", () => {
+    const form = {
+      ...emptyForm("2026-08-03"),
+      perWeekdayRoster: true,
+      studentIds: [],
+      weekdayRosters: {
+        1: { staffIds: [], primaryStaffId: "", studentIds: ["1", "2"] },
+        5: { staffIds: [], primaryStaffId: "", studentIds: ["2", "3"] },
+      },
+    };
+    expect(plannedStudentIds(form).sort()).toEqual(["1", "2", "3"]);
   });
 });

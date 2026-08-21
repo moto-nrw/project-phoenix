@@ -334,26 +334,19 @@ func TestGroupValidateSourceSchoolClassesNormalizes(t *testing.T) {
 	}
 }
 
-func TestGroupMatchesSourceClassFilter(t *testing.T) {
+func TestSourceClassFilterMatches(t *testing.T) {
 	t.Parallel()
 
-	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
-	if !unfiltered.MatchesSourceClassFilter("") || !unfiltered.MatchesSourceClassFilter("3a") {
+	if !SourceClassFilterMatches(nil, "") || !SourceClassFilterMatches(nil, "3a") {
 		t.Fatal("empty filter must admit every child")
 	}
-
-	filtered := Group{
-		TargetGroupType:       TargetGroupTypeAngebot,
-		SourceCareOfferingIDs: []int64{5},
-		SourceSchoolClasses:   []string{"1b"},
-	}
-	if !filtered.MatchesSourceClassFilter(" 1B ") {
+	if !SourceClassFilterMatches([]string{"1b"}, " 1B ") {
 		t.Fatal("class matching must ignore case and padding")
 	}
-	if filtered.MatchesSourceClassFilter("1a") {
+	if SourceClassFilterMatches([]string{"1b"}, "1a") {
 		t.Fatal("class 1a must not match filter [1b]")
 	}
-	if filtered.MatchesSourceClassFilter("") {
+	if SourceClassFilterMatches([]string{"1b"}, "") {
 		t.Fatal("a child without a school class must not match a set filter")
 	}
 }
