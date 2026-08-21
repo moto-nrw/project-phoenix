@@ -429,6 +429,12 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	// The filter follows the source: a kept or carried source keeps the stored
 	// filter; a source cleared by explicit null takes the filter down with it.
 	if len(req.SourceCareOfferingIDs.Value) == 0 {
+		// Preserve an explicitly submitted filter so model validation rejects it
+		// instead of returning success after silently discarding client input.
+		if (req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0) ||
+			(req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0) {
+			return
+		}
 		req.SourceGradeLevels.Value = nil
 		req.SourceSchoolClasses.Value = nil
 		return

@@ -213,4 +213,14 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 		assert.Empty(t, req.SourceSchoolClasses.Value)
 		assert.Empty(t, req.SourceGradeLevels.Value)
 	})
+
+	t.Run("submitted class filter without a source remains for validation", func(t *testing.T) {
+		req := &updateTemplateRequest{
+			TargetGroupType:     activitiesModel.TargetGroupTypeAngebot,
+			SourceSchoolClasses: nullableStringSlice{Set: true, Value: []string{"1b"}},
+		}
+		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
+		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value,
+			"the model must reject a submitted class filter without an offering source")
+	})
 }

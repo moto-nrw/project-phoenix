@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
@@ -130,7 +132,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 			AND "instance_student".student_id = enrollment.student_id
 			AND "group".source_school_classes IS NOT NULL
 			AND enrollment.enrollment_request_child_id IS NOT NULL
-			AND "instance".date >= CURRENT_DATE
+			AND "instance".date >= ?
 			AND "instance".status = 'planned'
 			AND "instance".calendar_period_id IS NOT NULL
 			AND "instance".is_spontaneous = FALSE
@@ -170,7 +172,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 					AND target_group_type = 'angebot'
 				)
 			);
-	`).Exec(ctx)
+	`, timezone.TodayDate()).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping source_school_classes from activities.groups: %w", err)
 	}
