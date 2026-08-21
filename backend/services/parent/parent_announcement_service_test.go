@@ -86,6 +86,7 @@ func seedPublishedAnnouncement(
 // this asserts on is the whole clone's, so an announcement another test
 // publishes shows up in it.
 func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -133,6 +134,7 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 // this asserts on is the whole clone's, so an announcement another test
 // publishes shows up in it.
 func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -151,6 +153,7 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 // this asserts on is the whole clone's, so an announcement another test
 // publishes shows up in it.
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -165,6 +168,7 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, _ := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -178,6 +182,7 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 // this asserts on is the whole clone's, so an announcement another test
 // publishes shows up in it.
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, false) // feature OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
