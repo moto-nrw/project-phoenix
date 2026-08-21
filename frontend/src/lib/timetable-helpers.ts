@@ -990,6 +990,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           ? template.source_care_offering_ids.map(String)
           : undefined,
       sourceGradeLevels: template.source_grade_levels ?? undefined,
+      sourceSchoolClasses: template.source_school_classes ?? undefined,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
@@ -1055,7 +1056,11 @@ export function mapCombinedOfferingCounts(
     const parsed = Number(grade);
     if (!Number.isNaN(parsed)) gradeCounts[parsed] = count;
   }
-  return { totalCount: raw.total_count ?? 0, gradeCounts };
+  const students = (raw.students ?? []).map((student) => ({
+    studentId: String(student.student_id),
+    schoolClass: student.school_class ?? "",
+  }));
+  return { totalCount: raw.total_count ?? 0, gradeCounts, students };
 }
 
 export function mapOfferingSourceOptions(
@@ -1079,6 +1084,7 @@ export function mapOfferingSourceOptions(
         id: String(template.id),
         name: template.name,
         gradeLevels: template.grade_levels ?? [],
+        schoolClasses: template.school_classes ?? [],
       })),
       legacyLinkedTemplateId:
         offering.legacy_linked_template_id !== undefined &&

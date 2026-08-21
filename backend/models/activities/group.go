@@ -130,6 +130,15 @@ type Group struct {
 	SourceCareOfferingIDs []int64 `bun:"source_care_offering_ids,type:jsonb,nullzero" json:"source_care_offering_ids,omitempty"`
 	SourceGradeLevels     []int   `bun:"source_grade_levels,type:jsonb,nullzero" json:"source_grade_levels,omitempty"`
 
+	// SourceSchoolClasses narrows the same source to concrete Schulklassen
+	// (#2482): one shared "Randstunde" offering feeding six Regeltermine, one
+	// per Klasse, each on its own weekdays. Free text matched via
+	// schoolclass.Normalize, like activities.groups.target_school_class.
+	// MUTUALLY EXCLUSIVE with SourceGradeLevels — a class already implies its
+	// Jahrgang, so combining the two is either redundant ("1b" + Jahrgang 1)
+	// or empty ("1b" + Jahrgang 2). The DB CHECK enforces the same.
+	SourceSchoolClasses []string `bun:"source_school_classes,type:jsonb,nullzero" json:"source_school_classes,omitempty"`
+
 	// Notes is the durable Wochennotiz for a recurring template (issue #1837
 	// follow-up). NULL means no series note. It is joined onto every
 	// materialized instance at read time (the instance table has no such
@@ -232,7 +241,11 @@ func (g *Group) validateOfferingSource() error {
 		if len(g.SourceGradeLevels) > 0 {
 			return errors.New("source_grade_levels requires source_care_offering_ids")
 		}
+		if len(g.SourceSchoolClasses) > 0 {
+			return errors.New("source_school_classes requires source_care_offering_ids")
+		}
 		g.SourceGradeLevels = nil
+		g.SourceSchoolClasses = nil
 		return nil
 	}
 	if g.TargetGroupType != TargetGroupTypeAngebot {
@@ -261,7 +274,63 @@ func (g *Group) validateOfferingSource() error {
 	if len(g.SourceGradeLevels) == 0 {
 		g.SourceGradeLevels = nil
 	}
+	classes, err := NormalizeSourceSchoolClasses(g.SourceSchoolClasses)
+	if err != nil {
+		return err
+	}
+	g.SourceSchoolClasses = classes
+	if len(g.SourceGradeLevels) > 0 && len(g.SourceSchoolClasses) > 0 {
+		return errors.New("source_school_classes and source_grade_levels cannot be combined")
+	}
 	return nil
+}
+
+// NormalizeSourceSchoolClasses trims the class filter entries, rejects blanks
+// and case-insensitive duplicates, and returns nil for an empty filter (which
+// the DB CHECK requires to be NULL, not an empty array). The stored spelling
+// is the admin's own — matching normalizes at compare time instead, so the
+// editor reads back what the school typed. Exported so the service layer can
+// apply the identical rule to request payloads that never build a Group.
+func NormalizeSourceSchoolClasses(classes []string) ([]string, error) {
+	if len(classes) == 0 {
+		return nil, nil
+	}
+	normalized := make([]string, 0, len(classes))
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		trimmed := strings.TrimSpace(class)
+		if trimmed == "" {
+			return nil, errors.New("source_school_classes entries must not be empty")
+		}
+		key := schoolclass.Normalize(trimmed)
+		if seen[key] {
+			return nil, errors.New("source_school_classes must not contain duplicates")
+		}
+		seen[key] = true
+		normalized = append(normalized, trimmed)
+	}
+	return normalized, nil
+}
+
+// MatchesSourceClassFilter reports whether a child in the given school class
+// passes this template's class filter. An empty filter admits every child; a
+// set filter never admits a child without a class — silently planning a child
+// with no class data into a Klassen-Termin would hide data problems, the same
+// rule MatchesSourceGradeFilter applies to a missing Jahrgang.
+func (g *Group) MatchesSourceClassFilter(schoolClass string) bool {
+	if len(g.SourceSchoolClasses) == 0 {
+		return true
+	}
+	wanted := schoolclass.Normalize(schoolClass)
+	if wanted == "" {
+		return false
+	}
+	for _, class := range g.SourceSchoolClasses {
+		if schoolclass.Normalize(class) == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // MatchesSourceGradeFilter reports whether a child with the given grade level

@@ -43,6 +43,11 @@ type updateTemplateRequest struct {
 	// template's dynamic Angebots-Belegung by simply not knowing them.
 	SourceCareOfferingIDs nullableInt64Slice `json:"source_care_offering_ids"`
 	SourceGradeLevels     nullableIntSlice   `json:"source_grade_levels"`
+	// SourceSchoolClasses is the Klassenfilter (#2482), same presence
+	// contract. Mutually exclusive with source_grade_levels: submitting one
+	// non-empty filter drops a carried-over other one, submitting both
+	// non-empty is a 400.
+	SourceSchoolClasses nullableStringSlice `json:"source_school_classes"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -112,21 +117,38 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	// The offering-source pair is presence-aware: an omitted source id merges
-	// the STORED source in after bind (applyOfferingSourcePresence / the split
-	// service). Validating a submitted Jahrgangsfilter against the
-	// not-yet-merged nil source here would reject a legitimate filter-only
-	// edit of a sourced template (#2147 review round 14), so the pair enters
-	// the bind-time validation only when the source id itself was submitted.
-	// The merged state is always re-validated service-side
-	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
+	if err := req.normalizeTargetAndSourceFields(); err != nil {
+		return err
+	}
+	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if err != nil {
+		return err
+	}
+	req.ListKind = listKind
+	return nil
+}
+
+// normalizeTargetAndSourceFields canonicalizes the Zielgruppe and the
+// offering-source rule on the request in place.
+//
+// The offering-source pair is presence-aware: an omitted source id merges the
+// STORED source in after bind (applyOfferingSourcePresence / the split
+// service). Validating a submitted Jahrgangsfilter against the not-yet-merged
+// nil source here would reject a legitimate filter-only edit of a sourced
+// template (#2147 review round 14), so the pair enters the bind-time
+// validation only when the source id itself was submitted. The merged state is
+// always re-validated service-side (validateOfferingSourceInput →
+// ErrOfferingSourceInvalid → 400).
+func (req *updateTemplateRequest) normalizeTargetAndSourceFields() error {
 	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
+	sourceSchoolClassesForBind := req.SourceSchoolClasses.Value
 	if !req.SourceCareOfferingIDs.Set {
 		sourceGradeLevelsForBind = nil
+		sourceSchoolClassesForBind = nil
 	}
-	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
+	targetType, schoolClass, sourceGradeLevels, sourceSchoolClasses, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, req.Targets,
+		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, sourceSchoolClassesForBind, req.Targets,
 	)
 	if err != nil {
 		return err
@@ -135,12 +157,21 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	req.TargetSchoolClass = schoolClass
 	if req.SourceCareOfferingIDs.Set {
 		req.SourceGradeLevels.Value = sourceGradeLevels
+		req.SourceSchoolClasses.Value = sourceSchoolClasses
+		return nil
 	}
-	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if !req.SourceSchoolClasses.Set {
+		return nil
+	}
+	// A filter-only edit of a sourced template skips the merged validation
+	// above (the source is merged in later), so the class list is trimmed and
+	// duplicate-checked here — otherwise " 1b " would be stored with its
+	// padding and shown back to the school that way (#2482).
+	normalized, err := activitiesModel.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
 	if err != nil {
 		return err
 	}
-	req.ListKind = listKind
+	req.SourceSchoolClasses.Value = normalized
 	return nil
 }
 
@@ -395,15 +426,33 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
 		req.SourceCareOfferingIDs.Value = slices.Clone(existing.SourceCareOfferingIDs)
 	}
-	if req.SourceGradeLevels.Set {
-		return
-	}
 	// The filter follows the source: a kept or carried source keeps the stored
 	// filter; a source cleared by explicit null takes the filter down with it.
-	if len(req.SourceCareOfferingIDs.Value) > 0 {
-		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
-	} else {
+	if len(req.SourceCareOfferingIDs.Value) == 0 {
 		req.SourceGradeLevels.Value = nil
+		req.SourceSchoolClasses.Value = nil
+		return
+	}
+	// Grade and class filter are mutually exclusive (#2482), so an explicitly
+	// submitted non-empty filter also DROPS the other one instead of letting
+	// it be carried in from storage — switching a Regeltermin from Jahrgang
+	// to Klasse would otherwise fail with "cannot be combined" on a filter
+	// the client never sent.
+	submittedGrades := req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0
+	submittedClasses := req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0
+	if !req.SourceGradeLevels.Set {
+		if submittedClasses {
+			req.SourceGradeLevels.Value = nil
+		} else {
+			req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
+		}
+	}
+	if !req.SourceSchoolClasses.Set {
+		if submittedGrades || len(req.SourceGradeLevels.Value) > 0 {
+			req.SourceSchoolClasses.Value = nil
+		} else {
+			req.SourceSchoolClasses.Value = slices.Clone(existing.SourceSchoolClasses)
+		}
 	}
 }
 
@@ -465,6 +514,7 @@ func buildUpdateTemplateInput(
 			TargetSchoolClass:       req.TargetSchoolClass,
 			SourceCareOfferingIDs:   req.SourceCareOfferingIDs.Value,
 			SourceGradeLevels:       req.SourceGradeLevels.Value,
+			SourceSchoolClasses:     req.SourceSchoolClasses.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
 		},

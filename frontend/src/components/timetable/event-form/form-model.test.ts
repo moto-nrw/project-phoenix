@@ -7,6 +7,7 @@ import {
   formFromSeries,
   hasPerWeekdayStaffDeviation,
   parseMaxParticipants,
+  sourceScopesOverlap,
 } from "./form-model";
 
 function template(
@@ -149,5 +150,63 @@ describe("hasPerWeekdayStaffDeviation", () => {
       studentIds: [],
     };
     expect(hasPerWeekdayStaffDeviation(form)).toBe(true);
+  });
+});
+
+describe("formFromSeries — Quellenfilter-Modus (#2482)", () => {
+  it("opens in Klasse mode when a class filter is stored", () => {
+    const form = formFromSeries(
+      template({
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["7"],
+        sourceSchoolClasses: ["1b"],
+      }),
+      "2026-08-03",
+    );
+    expect(form.sourceFilterMode).toBe("klasse");
+    expect(form.sourceSchoolClasses).toEqual(["1b"]);
+    expect(form.sourceGradeLevels).toEqual([]);
+  });
+
+  it("opens in Jahrgang mode when a grade filter is stored", () => {
+    const form = formFromSeries(
+      template({
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["7"],
+        sourceGradeLevels: [1],
+      }),
+      "2026-08-03",
+    );
+    expect(form.sourceFilterMode).toBe("jahrgang");
+  });
+
+  it("opens unfiltered when the source has no filter at all", () => {
+    const form = formFromSeries(
+      template({ targetGroupType: "angebot", sourceCareOfferingIds: ["7"] }),
+      "2026-08-03",
+    );
+    expect(form.sourceFilterMode).toBe("alle");
+  });
+});
+
+describe("sourceScopesOverlap (#2482)", () => {
+  it("treats an empty filter as all children", () => {
+    expect(sourceScopesOverlap([], [], [1], [])).toBe(true);
+    expect(sourceScopesOverlap([2], [], [], [])).toBe(true);
+  });
+
+  it("finds no overlap between two different classes of one Jahrgang", () => {
+    expect(sourceScopesOverlap([], ["1a"], [], ["1b"])).toBe(false);
+    expect(sourceScopesOverlap([], ["1a"], [], ["1a", "1b"])).toBe(true);
+  });
+
+  it("finds the overlap between a class and its Jahrgang", () => {
+    expect(sourceScopesOverlap([], ["1b"], [1], [])).toBe(true);
+    expect(sourceScopesOverlap([], ["1b"], [2], [])).toBe(false);
+  });
+
+  it("compares Jahrgang filters directly", () => {
+    expect(sourceScopesOverlap([1, 2], [], [2], [])).toBe(true);
+    expect(sourceScopesOverlap([1], [], [3], [])).toBe(false);
   });
 });

@@ -139,9 +139,9 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 // one template — see the interface doc for why the detach flow needs this
 // (jsonb array carries no FK; both columns must change atomically under
 // chk_activities_groups_offering_source).
-func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int) error {
+func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int, schoolClasses []string) error {
 	tenantID := tenant.FromContext(ctx)
-	var offeringIDsValue, gradeLevelsValue any
+	var offeringIDsValue, gradeLevelsValue, schoolClassesValue any
 	if len(offeringIDs) > 0 {
 		encoded, err := json.Marshal(offeringIDs)
 		if err != nil {
@@ -154,12 +154,21 @@ func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id i
 				return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_grade_levels: %w", err)}
 			}
 			gradeLevelsValue = string(encodedLevels)
+		} else if len(schoolClasses) > 0 {
+			// Mutually exclusive per chk_activities_groups_offering_source: a
+			// class filter is only written when no grade filter survives.
+			encodedClasses, err := json.Marshal(schoolClasses)
+			if err != nil {
+				return &modelBase.DatabaseError{Op: "update template offering source", Err: fmt.Errorf("marshal source_school_classes: %w", err)}
+			}
+			schoolClassesValue = string(encodedClasses)
 		}
 	}
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
 		Set("source_care_offering_ids = ?", offeringIDsValue).
 		Set("source_grade_levels = ?", gradeLevelsValue).
+		Set("source_school_classes = ?", schoolClassesValue).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).
@@ -692,6 +701,7 @@ const templateListSelect = `
 			g.target_school_class,
 			COALESCE(g.source_care_offering_ids::text, '') AS source_care_offering_ids_json,
 			COALESCE(g.source_grade_levels::text, '') AS source_grade_levels_json,
+			COALESCE(g.source_school_classes::text, '') AS source_school_classes_json,
 			g.list_kind,
 			g.notes,
 			COALESCE(st.name, '') AS shift_type_name,
@@ -1376,6 +1386,14 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		}
 		sourceGradeLevels = string(encoded)
 	}
+	var sourceSchoolClasses any
+	if len(fields.SourceCareOfferingIDs) > 0 && len(fields.SourceSchoolClasses) > 0 && sourceGradeLevels == nil {
+		encoded, err := json.Marshal(fields.SourceSchoolClasses)
+		if err != nil {
+			return 0, fmt.Errorf("marshal source_school_classes: %w", err)
+		}
+		sourceSchoolClasses = string(encoded)
+	}
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
@@ -1391,6 +1409,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_school_class = ?", fields.TargetSchoolClass).
 		Set("source_care_offering_ids = ?", sourceCareOfferingIDs).
 		Set("source_grade_levels = ?", sourceGradeLevels).
+		Set("source_school_classes = ?", sourceSchoolClasses).
 		Set("list_kind = ?", fields.ListKind).
 		Set("notes = ?", fields.Notes).
 		Set("updated_at = ?", time.Now()).

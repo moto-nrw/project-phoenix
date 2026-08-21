@@ -229,3 +229,170 @@ func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
 		})
 	}
 }
+
+// #2482: an offering-sourced Regeltermin may additionally be narrowed to
+// concrete Schulklassen. Class and Jahrgang filter are mutually exclusive —
+// a class already implies its grade, so the combination is either redundant
+// or empty.
+func TestGroupValidateSourceSchoolClasses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		group   Group
+		wantErr string
+	}{
+		{
+			name: "angebot with source and class filter is valid",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceSchoolClasses:   []string{"1a", "1b"},
+			},
+		},
+		{
+			name: "class filter without source is rejected",
+			group: Group{
+				TargetGroupType:     TargetGroupTypeAngebot,
+				SourceSchoolClasses: []string{"1a"},
+			},
+			wantErr: "source_school_classes requires source_care_offering_ids",
+		},
+		{
+			name: "class and grade filter together are rejected",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceGradeLevels:     []int{1},
+				SourceSchoolClasses:   []string{"1a"},
+			},
+			wantErr: "source_school_classes and source_grade_levels cannot be combined",
+		},
+		{
+			name: "blank class entry is rejected",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceSchoolClasses:   []string{"  "},
+			},
+			wantErr: "source_school_classes entries must not be empty",
+		},
+		{
+			name: "classes differing only in case or padding are duplicates",
+			group: Group{
+				TargetGroupType:       TargetGroupTypeAngebot,
+				SourceCareOfferingIDs: []int64{5},
+				SourceSchoolClasses:   []string{"1a", " 1A "},
+			},
+			wantErr: "source_school_classes must not contain duplicates",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.group.ValidateTargetGroup()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("expected valid, got %v", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("expected error %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestGroupValidateSourceSchoolClassesNormalizes(t *testing.T) {
+	t.Parallel()
+
+	group := Group{
+		TargetGroupType:       TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{5},
+		SourceSchoolClasses:   []string{" 1b ", "2A"},
+	}
+	if err := group.ValidateTargetGroup(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Stored trimmed but case-preserving: the school reads its own spelling
+	// back in the editor; matching is case-insensitive at compare time.
+	if len(group.SourceSchoolClasses) != 2 ||
+		group.SourceSchoolClasses[0] != "1b" || group.SourceSchoolClasses[1] != "2A" {
+		t.Fatalf("expected trimmed classes, got %#v", group.SourceSchoolClasses)
+	}
+
+	empty := Group{
+		TargetGroupType:       TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{5},
+		SourceSchoolClasses:   []string{},
+	}
+	if err := empty.ValidateTargetGroup(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if empty.SourceSchoolClasses != nil {
+		t.Fatalf("empty filter must normalize to nil, got %v", empty.SourceSchoolClasses)
+	}
+}
+
+func TestGroupMatchesSourceClassFilter(t *testing.T) {
+	t.Parallel()
+
+	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
+	if !unfiltered.MatchesSourceClassFilter("") || !unfiltered.MatchesSourceClassFilter("3a") {
+		t.Fatal("empty filter must admit every child")
+	}
+
+	filtered := Group{
+		TargetGroupType:       TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{5},
+		SourceSchoolClasses:   []string{"1b"},
+	}
+	if !filtered.MatchesSourceClassFilter(" 1B ") {
+		t.Fatal("class matching must ignore case and padding")
+	}
+	if filtered.MatchesSourceClassFilter("1a") {
+		t.Fatal("class 1a must not match filter [1b]")
+	}
+	if filtered.MatchesSourceClassFilter("") {
+		t.Fatal("a child without a school class must not match a set filter")
+	}
+}
+
+func TestTemplateListRowParseSourceSchoolClasses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		want    []string
+		wantErr bool
+	}{
+		{name: "NULL column yields no filter", raw: ""},
+		{name: "empty array yields no filter", raw: "[]"},
+		{name: "class list is decoded", raw: `["1a","1b"]`, want: []string{"1a", "1b"}},
+		{name: "malformed json is reported", raw: "{oops", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			classes, err := TemplateListRow{SourceSchoolClassesJSON: tc.raw}.ParseSourceSchoolClasses()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected a parse error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(classes) != len(tc.want) {
+				t.Fatalf("got %v, want %v", classes, tc.want)
+			}
+			for i, class := range classes {
+				if class != tc.want[i] {
+					t.Fatalf("got %v, want %v", classes, tc.want)
+				}
+			}
+		})
+	}
+}

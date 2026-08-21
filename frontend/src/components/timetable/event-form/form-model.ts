@@ -1,4 +1,5 @@
 import { fetchStudents } from "~/lib/student-api";
+import { getSchoolYear } from "~/lib/student-helpers";
 import { resolveTemplateCalendarPeriodId } from "~/lib/timetable-helpers";
 import type {
   ActivityType,
@@ -349,9 +350,53 @@ export interface EventFormState {
    * Jahrgang filter (empty = alle Kinder des Angebots). With a source set the
    * manual student picker is hidden and studentIds stays empty — the roster
    * is server-managed.
+   *
+   * sourceSchoolClasses (#2482) ist der alternative Klassenfilter. Jahrgang
+   * und Klasse schließen sich aus: höchstens eine der beiden Listen ist
+   * gefüllt, sourceFilterMode sagt, welche der Editor gerade anbietet.
    */
   sourceCareOfferingIds: string[];
   sourceGradeLevels: number[];
+  sourceSchoolClasses: string[];
+  sourceFilterMode: SourceFilterMode;
+}
+
+/** Welcher Quellenfilter im Editor aktiv ist (#2482). */
+export type SourceFilterMode = "alle" | "jahrgang" | "klasse";
+
+/**
+ * Greifen zwei Regeltermine desselben Angebots auf dieselben Kinder zu?
+ * Leere Listen heißen „alle Kinder des Angebots“ und überschneiden sich
+ * deshalb immer. Ein Klassenfilter wird gegen einen Jahrgangsfilter über die
+ * Jahrgangszahl der Klasse verglichen: „1b“ und „Jahrgang 1“ treffen
+ * dieselben Kinder, obwohl die Listen nichts gemeinsam haben (#2482).
+ * Klassennamen kommen bereits normalisiert (getrimmt, klein) herein.
+ */
+export function sourceScopesOverlap(
+  gradesA: number[],
+  classesA: string[],
+  gradesB: number[],
+  classesB: string[],
+): boolean {
+  const gradesOf = (grades: number[], classes: string[]): number[] | null => {
+    if (classes.length > 0) {
+      return classes.flatMap((schoolClass) => {
+        const grade = getSchoolYear(schoolClass);
+        return grade === null ? [] : [Number(grade)];
+      });
+    }
+    if (grades.length > 0) return grades;
+    return null; // kein Filter = alle Kinder
+  };
+  const a = gradesOf(gradesA, classesA);
+  const b = gradesOf(gradesB, classesB);
+  if (a === null || b === null) return true;
+  // Beide Seiten grenzen auf Klassen ein: dann entscheiden die Klassennamen,
+  // nicht der gemeinsame Jahrgang — „1a“ und „1b“ teilen kein einziges Kind.
+  if (classesA.length > 0 && classesB.length > 0) {
+    return classesA.some((schoolClass) => classesB.includes(schoolClass));
+  }
+  return a.some((grade) => b.includes(grade));
 }
 
 export interface PersonOption {
@@ -411,6 +456,8 @@ export function emptyForm(
     educationGroupIds: [],
     sourceCareOfferingIds: [],
     sourceGradeLevels: [],
+    sourceSchoolClasses: [],
+    sourceFilterMode: "alle",
   };
 }
 
@@ -464,6 +511,8 @@ export function formFromInstance(
     educationGroupIds: [],
     sourceCareOfferingIds: [],
     sourceGradeLevels: [],
+    sourceSchoolClasses: [],
+    sourceFilterMode: "alle",
   };
 }
 
@@ -531,6 +580,13 @@ export function formFromSeries(
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
     sourceCareOfferingIds: series.sourceCareOfferingIds ?? [],
     sourceGradeLevels: series.sourceGradeLevels ?? [],
+    sourceSchoolClasses: series.sourceSchoolClasses ?? [],
+    sourceFilterMode:
+      (series.sourceSchoolClasses ?? []).length > 0
+        ? "klasse"
+        : (series.sourceGradeLevels ?? []).length > 0
+          ? "jahrgang"
+          : "alle",
     targetGradeLevels:
       targets.length > 0
         ? targets.flatMap((target) =>

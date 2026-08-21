@@ -355,13 +355,16 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 		}
 		remaining := removeOfferingID(tmpl.SourceCareOfferingIDs, offeringID)
 		gradeLevels := tmpl.SourceGradeLevels
+		schoolClasses := tmpl.SourceSchoolClasses
 		if len(remaining) == 0 {
 			gradeLevels = nil
+			schoolClasses = nil
 		}
 		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 			TemplateID:       tmpl.ID,
 			OfferingIDs:      remaining,
 			GradeLevels:      gradeLevels,
+			SchoolClasses:    schoolClasses,
 			CalendarPeriodID: tmpl.CalendarPeriodID,
 			EffectiveFrom:    effectiveFrom,
 		})
@@ -382,14 +385,14 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 					slog.Int64("care_offering_id", offeringID),
 					slog.String("error", err.Error()),
 				)
-				if err := s.retireDepartingSourcedRows(ctx, tmpl, offeringID, remaining, gradeLevels, effectiveFrom); err != nil {
+				if err := s.retireDepartingSourcedRows(ctx, tmpl, offeringID, remaining, gradeLevels, schoolClasses, effectiveFrom); err != nil {
 					return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
 				}
 			} else {
 				return fmt.Errorf("offering roster detach: template %d: %w", tmpl.ID, err)
 			}
 		}
-		if err := s.ActivityGroupRepo.UpdateTemplateOfferingSource(ctx, tmpl.ID, remaining, gradeLevels); err != nil {
+		if err := s.ActivityGroupRepo.UpdateTemplateOfferingSource(ctx, tmpl.ID, remaining, gradeLevels, schoolClasses); err != nil {
 			return fmt.Errorf("offering roster detach: rewrite source columns of template %d: %w", tmpl.ID, err)
 		}
 	}
@@ -415,6 +418,7 @@ func (s *decisionService) retireDepartingSourcedRows(
 	offeringID int64,
 	remaining []int64,
 	gradeLevels []int,
+	schoolClasses []string,
 	effectiveFrom timezone.Date,
 ) error {
 	departing, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offeringID}, effectiveFrom)
@@ -438,6 +442,7 @@ func (s *decisionService) retireDepartingSourcedRows(
 		TemplateID:             tmpl.ID,
 		OfferingIDs:            remaining,
 		GradeLevels:            gradeLevels,
+		SchoolClasses:          schoolClasses,
 		CalendarPeriodID:       tmpl.CalendarPeriodID,
 		EffectiveFrom:          effectiveFrom,
 		ScopeRequestChildIDs:   scope,
@@ -474,6 +479,7 @@ func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templat
 			TemplateID:       tmpl.ID,
 			OfferingIDs:      tmpl.SourceCareOfferingIDs,
 			GradeLevels:      tmpl.SourceGradeLevels,
+			SchoolClasses:    tmpl.SourceSchoolClasses,
 			CalendarPeriodID: tmpl.CalendarPeriodID,
 			EffectiveFrom:    effectiveFrom,
 		})
@@ -711,6 +717,11 @@ func (s *decisionService) wantedSourcedRosterTargets(
 	for _, child := range children {
 		grade := gradeLevelFromSchoolClass(child.SchoolClass)
 		if !gradeFilterMatches(in.GradeLevels, grade) {
+			continue
+		}
+		// The two filters are mutually exclusive by validation, so at most one
+		// of the two guards is ever active (#2482).
+		if !classFilterMatches(in.SchoolClasses, child.SchoolClass) {
 			continue
 		}
 		validFrom, validUntil, ok := sourcedRosterWindow(child.Link, phase, in.EffectiveFrom, envelopeFrom, envelopeUntil)
@@ -1312,6 +1323,26 @@ func gradeLevelFromSchoolClass(schoolClass string) *int16 {
 	return &grade
 }
 
+// classFilterMatches mirrors activities.Group.MatchesSourceClassFilter for a
+// raw filter slice (#2482): an empty filter admits everyone, a set filter
+// matches case- and whitespace-insensitively and never admits a child without
+// a school class.
+func classFilterMatches(classes []string, schoolClass string) bool {
+	if len(classes) == 0 {
+		return true
+	}
+	wanted := schoolclass.Normalize(schoolClass)
+	if wanted == "" {
+		return false
+	}
+	for _, class := range classes {
+		if schoolclass.Normalize(class) == wanted {
+			return true
+		}
+	}
+	return false
+}
+
 // gradeFilterMatches mirrors activities.Group.MatchesSourceGradeFilter for a
 // raw filter slice.
 func gradeFilterMatches(levels []int, grade *int16) bool {
@@ -1351,6 +1382,9 @@ type OfferingSourcedTemplate struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	GradeLevels []int  `json:"grade_levels,omitempty"`
+	// SchoolClasses is the template's Klassenfilter (#2482); mutually
+	// exclusive with GradeLevels.
+	SchoolClasses []string `json:"school_classes,omitempty"`
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot in the Regeltermin
@@ -1386,6 +1420,22 @@ type OfferingSourceCombinedCounts struct {
 	// GradeCounts maps Jahrgang → distinct approved children; key 0 collects
 	// children whose school class carries no derivable grade number.
 	GradeCounts map[int]int `json:"grade_counts"`
+	// Students is the deduplicated child list behind the counts (#2482), each
+	// with the school class the filters match on. The editor derives the
+	// Klassen options and, when an admin converts a manually curated
+	// Regeltermin into a sourced one, the named diff against the previous
+	// roster — "keine stille Übernahme falscher Kinderlisten". Names are NOT
+	// carried here: the editor already holds the tenant's student list for its
+	// roster picker and resolves them locally, so this payload stays free of
+	// child identities beyond the ids it may already show.
+	Students []OfferingSourceStudent `json:"students"`
+}
+
+// OfferingSourceStudent is one deduplicated child of a source selection with
+// the school class the Jahrgang/Klassen filters are evaluated against.
+type OfferingSourceStudent struct {
+	StudentID   int64  `json:"student_id"`
+	SchoolClass string `json:"school_class,omitempty"`
 }
 
 const (
@@ -1460,7 +1510,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 		countedIDs = append(countedIDs, offering.ID)
 	}
 	if len(countedIDs) == 0 {
-		return &OfferingSourceCombinedCounts{GradeCounts: map[int]int{}}, nil
+		return &OfferingSourceCombinedCounts{GradeCounts: map[int]int{}, Students: []OfferingSourceStudent{}}, nil
 	}
 	// Same boundary rule as ListOfferingSourceOptions: mirror what a resync
 	// for the selected period would seed.
@@ -1481,7 +1531,10 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 	if err != nil {
 		return nil, fmt.Errorf("offering source counts: list approved children: %w", err)
 	}
-	counts := &OfferingSourceCombinedCounts{GradeCounts: map[int]int{}}
+	counts := &OfferingSourceCombinedCounts{
+		GradeCounts: map[int]int{},
+		Students:    make([]OfferingSourceStudent, 0, len(children)),
+	}
 	seen := make(map[int64]bool, len(children))
 	for _, child := range children {
 		if child == nil || child.Link == nil || seen[child.Link.RequestChildID] {
@@ -1494,6 +1547,10 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 			bucket = int(*grade)
 		}
 		counts.GradeCounts[bucket]++
+		counts.Students = append(counts.Students, OfferingSourceStudent{
+			StudentID:   child.StudentID,
+			SchoolClass: child.SchoolClass,
+		})
 	}
 	return counts, nil
 }
@@ -1569,9 +1626,10 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 				continue
 			}
 			option.SourcedTemplates = append(option.SourcedTemplates, OfferingSourcedTemplate{
-				ID:          tmpl.ID,
-				Name:        tmpl.Name,
-				GradeLevels: tmpl.SourceGradeLevels,
+				ID:            tmpl.ID,
+				Name:          tmpl.Name,
+				GradeLevels:   tmpl.SourceGradeLevels,
+				SchoolClasses: tmpl.SourceSchoolClasses,
 			})
 		}
 		options = append(options, option)
