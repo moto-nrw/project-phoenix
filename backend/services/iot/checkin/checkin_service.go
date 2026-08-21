@@ -365,8 +365,10 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		// 404 "not a student" the pre-resolution path already returns for an
 		// alumnus, instead of letting the generic wrapper below turn it into a 500
 		// that tells the kiosk to retry (#405).
-		if errors.Is(err, activeSvc.ErrStudentGraduated) {
-			s.getLogger().InfoContext(ctx, "check-in rejected: student graduated mid-scan",
+		// Same for a care exit that took effect in that window (#2487).
+		if errors.Is(err, activeSvc.ErrStudentGraduated) ||
+			errors.Is(err, activeSvc.ErrStudentCareEnded) {
+			s.getLogger().InfoContext(ctx, "check-in rejected: student not in care",
 				slog.Int64("student_id", student.ID),
 			)
 			return nil, nil, newNotFoundError(checkinErrPersonNotStudent)

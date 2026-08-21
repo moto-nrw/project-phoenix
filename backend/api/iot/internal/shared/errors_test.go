@@ -185,3 +185,28 @@ func TestErrorRenderer_StudentGraduatedUsesContractString(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "graduated",
 		"the kiosk contract string must not leak the internal graduation wording")
 }
+
+// TestErrorRenderer_StudentCareEndedUsesContractString is the #2487 sibling of
+// the test above: a care exit that takes effect between the kiosk's lookup and
+// the write must reach PyrePortal as the SAME documented 404 string. The kiosk
+// maps one message for "this tag belongs to nobody we care for"; a second
+// English sentence would arrive unmapped and show as a generic error, telling
+// the person at the tablet to retry a scan that can never succeed.
+func TestErrorRenderer_StudentCareEndedUsesContractString(t *testing.T) {
+	t.Parallel()
+
+	renderer := shared.ErrorRenderer(&activeSvc.ActiveError{
+		Op:  "create visit",
+		Err: activeSvc.ErrStudentCareEnded,
+	})
+	require.NotNil(t, renderer)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/checkin", nil)
+	require.NoError(t, render.Render(rec, req, renderer))
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), shared.ErrMsgPersonNotStudent)
+	assert.NotContains(t, rec.Body.String(), "care has ended",
+		"the kiosk contract string must not leak the internal care-exit wording")
+}
