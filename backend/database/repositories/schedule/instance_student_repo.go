@@ -870,6 +870,37 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 	return int(n), nil
 }
 
+// FindPartialAbsenceBlocks needs a custom query because the generic repository
+// cannot join activity_instances or project its title and wall-clock window.
+// It previews the actionable blocks that a partial absence would excuse.
+func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
+	ctx context.Context, studentID int64, date timezone.Date, from time.Time,
+) ([]schedule.PartialAbsenceBlock, error) {
+	rows := make([]schedule.PartialAbsenceBlock, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(modelTblInstanceStudent).
+		ColumnExpr(`"activity_instance".id`).
+		ColumnExpr(`"activity_instance".title`).
+		ColumnExpr(`"activity_instance".start_time`).
+		ColumnExpr(`"activity_instance".end_time`).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"instance_student".student_id = ?`, studentID).
+		Where(`"instance_student".manual_status_at IS NULL`).
+		Where(`NOT "instance_student".not_scheduled`).
+		Where(`"instance_student".status IN (?, ?)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent).
+		Where(`"instance_student".student_status_day_id IS NULL`).
+		Where(`"activity_instance".date = ?`, date).
+		Where(`"activity_instance".start_time >= ?`, timezone.WallClock(from)).
+		Where(`"activity_instance".status NOT IN (?, ?)`, schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).
+		OrderExpr(`"activity_instance".start_time ASC, "activity_instance".id ASC`).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find partial absence blocks", Err: err}
+	}
+	return rows, nil
+}
+
 // ReleasePartialAbsence restores only rows still owned by this pickup
 // exception. A broad active day status takes ownership; otherwise actionable
 // blocks return to expected. Completed instances are excluded entirely — they
