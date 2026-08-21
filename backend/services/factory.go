@@ -166,6 +166,7 @@ type Factory struct {
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
+	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
@@ -1816,6 +1817,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
 
+	// "Betreuung beenden" (#2487): the ONE care-lifecycle contract. Manual
+	// single and batch exits, the archive view, cancellation, resumption and
+	// the effect-day housekeeping all go through it — there must not be a
+	// second way for a child to leave the OGS.
+	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+		StudentRepo:  repos.Student,
+		PersonRepo:   repos.Person,
+		CareExitRepo: repos.CareExit,
+		CleanupRepo:  repos.CareExitCleanup,
+		RosterRepo:   repos.InstanceStudent,
+		BookingRepo:  repos.StudentEnrollment,
+		TagReleaser:  repos.GradeTransition,
+		AuditService: studentAuditService,
+		DB:           db,
+		Logger:       logger.With("service", "care_lifecycle"),
+	})
+
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "does this caller supervise this child", so it is wired after it.
@@ -2386,6 +2404,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Students:                studentService,
 		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:         studentDeletionService,
+		CareLifecycle:           careLifecycleService,
 		StudentAudit:            studentAuditService,
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:            careRequestService,

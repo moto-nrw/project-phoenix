@@ -295,6 +295,18 @@ type StudentEnrollmentRepository interface {
 	// SetValidUntilByID closes exactly one enrollment without writing the
 	// rest of a potentially partial read model back to the database.
 	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
+
+	// CountRunningByStudentIDsAfter counts, per student, the enrollments that
+	// would still be running on or after validUntil (exclusive upper bound).
+	// Drives the "Betreuung beenden" preview (#2487).
+	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
+
+	// CapByStudentIDs ends every enrollment of the given children at
+	// validUntil (exclusive). Rows that would have no interval left are
+	// deleted, running rows are shortened. Unlike CapActiveByGroup this
+	// deliberately ignores provenance: the child leaves the school, so an
+	// enrollment materialized from an approved request must end too (#2487).
+	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
 }
 
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.

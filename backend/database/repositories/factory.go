@@ -72,6 +72,8 @@ type Factory struct {
 	Student             userModels.StudentRepository
 	ClassListEntry      userModels.ClassListEntryRepository
 	StudentDeletion     userModels.StudentDeletionRepository
+	CareExit            userModels.CareExitRepository
+	CareExitCleanup     userModels.CareExitCleanupRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
@@ -292,6 +294,8 @@ func NewFactory(db *bun.DB) *Factory {
 		Student:             users.NewStudentRepository(db),
 		ClassListEntry:      users.NewClassListEntryRepository(db),
 		StudentDeletion:     users.NewStudentDeletionRepository(db),
+		CareExit:            users.NewCareExitRepository(db),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),

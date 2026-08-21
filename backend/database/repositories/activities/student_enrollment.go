@@ -451,3 +451,72 @@ func (r *StudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Cont
 	_, err := update.Exec(ctx)
 	return err
 }
+
+// CountRunningByStudentIDsAfter counts the enrollments CapByStudentIDs would
+// touch, per student, for the "Betreuung beenden" preview (#2487).
+func (r *StudentEnrollmentRepository) CountRunningByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return counts, nil
+	}
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		ColumnExpr(`"student_enrollment".student_id AS student_id`).
+		ColumnExpr(`COUNT(*)::int AS total`).
+		Where(`"student_enrollment".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, validUntil).
+		GroupExpr(`"student_enrollment".student_id`)
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "count running enrollments after care end", Err: err}
+	}
+	for _, row := range rows {
+		counts[row.StudentID] = row.Total
+	}
+	return counts, nil
+}
+
+// CapByStudentIDs ends every enrollment of the given children at validUntil
+// (exclusive upper bound), deleting the ones that would be left with no
+// interval at all (#2487).
+func (r *StudentEnrollmentRepository) CapByStudentIDs(
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	deleteQuery := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Where(`"student_enrollment".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_enrollment".valid_from >= ?`, validUntil)
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "student_enrollment")
+	deletedResult, err := deleteQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete future enrollments after care end", Err: err}
+	}
+	deleted, _ := deletedResult.RowsAffected() // nil-driver-safe: fall through with 0
+
+	updateQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Set(setStudentEnrollmentValidUntil, validUntil).
+		Where(`"student_enrollment".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_enrollment".valid_from < ?`, validUntil).
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, validUntil)
+	updateQuery = base.WithTenantFilter(ctx, updateQuery, "student_enrollment")
+	res, err := updateQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "cap enrollments after care end", Err: err}
+	}
+	capped, _ := res.RowsAffected()
+	return deleted + capped, nil
+}

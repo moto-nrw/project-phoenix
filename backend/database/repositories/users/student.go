@@ -1925,3 +1925,52 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 
 	return students, nil
 }
+
+// SetEnrolledUntilByIDs writes the enrollment interval's inclusive upper bound
+// for a batch of children in one statement (#2487).
+func (r *StudentRepository) SetEnrolledUntilByIDs(
+	ctx context.Context, ids []int64, until *timezone.Date,
+) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Set("enrolled_until = ?", until).
+		Set("updated_at = NOW()").
+		Where(`"student".id IN (?)`, bun.In(ids))
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+	}
+	return affected, nil
+}
+
+// SetEnrollmentWindowByID reopens one child's care: a new start day, no end
+// day, and the lifecycle status the caller derived for today (#2487).
+func (r *StudentRepository) SetEnrollmentWindowByID(
+	ctx context.Context, id int64, from timezone.Date, status users.StudentStatus,
+) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Set("enrolled_from = ?", from).
+		Set("enrolled_until = NULL").
+		Set("status = ?", string(status)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, id)
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set enrollment window", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "set enrollment window")
+}

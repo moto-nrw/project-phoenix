@@ -1732,3 +1732,88 @@ func (r *InstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Co
 	}
 	return rows, nil
 }
+
+// carePlannedRosterPredicate is the shared WHERE tail for the two care-exit
+// roster methods below. "Still planned" means the row records no event: no
+// check-in stamp, no checkout stamp. Every affected instance is dated strictly
+// after the child's last care day and therefore lies in the future, so a status
+// somebody set by hand there is a plan too and goes with it — leaving it would
+// keep the departed child on future slot lists, staffing ratios and exports,
+// which is exactly what ending the care has to stop.
+//
+// Cancelled and completed instances are skipped: a cancelled block plans
+// nothing, and a completed one is history.
+const carePlannedRosterPredicate = `
+	  AND s.checked_in_at IS NULL
+	  AND s.checked_out_at IS NULL
+	  AND ai.date > ?
+	  AND ai.status NOT IN (?, ?)
+	  AND s.tenant_id = ?`
+
+// CountPlannedByStudentIDsAfter counts the rows DeletePlannedByStudentIDsAfter
+// would remove, per student, for the "Betreuung beenden" preview (#2487).
+func (r *InstanceStudentRepository) CountPlannedByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return counts, nil
+	}
+
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	sql := `
+		SELECT s.student_id AS student_id, COUNT(*)::int AS total
+		FROM schedule.instance_students AS s
+		JOIN schedule.activity_instances AS ai ON ai.id = s.instance_id
+		WHERE s.student_id IN (?)` + carePlannedRosterPredicate + `
+		GROUP BY s.student_id`
+
+	if err := base.GetDB(ctx, r.db).NewRaw(sql,
+		bun.In(studentIDs),
+		after,
+		schedule.InstanceStatusCompleted,
+		schedule.InstanceStatusCancelled,
+		tenant.FromContext(ctx),
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: err}
+	}
+	for _, row := range rows {
+		counts[row.StudentID] = row.Total
+	}
+	return counts, nil
+}
+
+// DeletePlannedByStudentIDsAfter drops the children from every roster dated
+// after their last care day (#2487).
+func (r *InstanceStudentRepository) DeletePlannedByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	sql := `
+		DELETE FROM schedule.instance_students AS s
+		USING schedule.activity_instances AS ai
+		WHERE s.instance_id = ai.id
+		  AND s.student_id IN (?)` + carePlannedRosterPredicate
+
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, sql,
+		bun.List(studentIDs),
+		after,
+		schedule.InstanceStatusCompleted,
+		schedule.InstanceStatusCancelled,
+		tenant.FromContext(ctx),
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "get rows affected", Err: err}
+	}
+	return int(affected), nil
+}

@@ -187,6 +187,11 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 		if api.Services.StudentAudit != nil {
 			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
 		}
+		// Effect day of "Betreuung beenden" (#2487): runs inside the same tick,
+		// before the status transition it shares its candidate set with.
+		if api.Services.CareLifecycle != nil {
+			sched.SetCareExitEffector(api.Services.CareLifecycle)
+		}
 	}
 }
 

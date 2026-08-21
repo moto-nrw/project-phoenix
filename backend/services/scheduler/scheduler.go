@@ -173,6 +173,7 @@ type Scheduler struct {
 	// Nil → activate-students task does not register.
 	studentLifecycleRepo  StudentLifecycleRepository
 	studentLifecycleAudit StudentLifecycleAuditor
+	careExitEffector      CareExitEffector
 
 	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
 	// Nil → outbox task does not register.
