@@ -101,8 +101,11 @@ describe("CareRequestReviewItem", () => {
 
     render(<CareRequestReviewItem row={row()} onDecided={onDecided} />);
 
-    // Collapsed summary: the distinct change kinds from the diff labels.
-    expect(screen.getByText("Abholzeit + Abholart")).toBeInTheDocument();
+    // Collapsed summary: Geltungstag vorn, dahinter die Arten aus den
+    // Diff-Labels.
+    expect(
+      screen.getByText("Montag · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
     expand();
     expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
     expect(screen.getByText("15:00")).toBeInTheDocument();
@@ -140,8 +143,59 @@ describe("CareRequestReviewItem", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: /Betreuungszeiten\. Abholzeit\./,
+        name: /Einzelner Tag\. Abholzeit\./,
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt bei einer Tages-Anfrage den Geltungstag und kennzeichnet sie als einzelnen Tag", () => {
+    render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
+
+    // Ohne Klick muss die Zeile sagen, dass die Änderung nur für diesen einen
+    // Tag gilt — sonst liest sie sich wie eine dauerhafte Änderung (#2480).
+    expect(screen.getByText("17.08.2026 · Abholzeit")).toBeInTheDocument();
+    expect(screen.getByText("Einzelner Tag")).toBeInTheDocument();
+    expect(screen.queryByText("Betreuungszeiten")).not.toBeInTheDocument();
+  });
+
+  it("fasst mehrere Wochentage einer dauerhaften Anfrage zu einer Zeile zusammen", () => {
+    render(
+      <CareRequestReviewItem
+        row={row({
+          diff: [
+            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Montag · Abholart", old: "—", new: "Geht alleine" },
+            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Montag, Dienstag · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
+  });
+
+  it("kürzt ab drei Wochentagen auf die Anzahl, damit die Änderungsart nicht abgeschnitten wird", () => {
+    render(
+      <CareRequestReviewItem
+        row={row({
+          diff: [
+            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Mittwoch · Abholzeit", old: "—", new: "15:00" },
+            { label: "Donnerstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Freitag · Abholart", old: "—", new: "Geht alleine" },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("5 Wochentage · Abholzeit + Abholart"),
     ).toBeInTheDocument();
   });
 

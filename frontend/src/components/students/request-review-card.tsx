@@ -341,9 +341,7 @@ export function RequestReviewCard({
         <span className="flex min-w-0 items-center gap-2">
           <TypePill type={type} label={typeLabel} />
           {badge}
-          <span className="hidden truncate text-sm text-gray-500 sm:block">
-            {summary}
-          </span>
+          <span className="truncate text-sm text-gray-500">{summary}</span>
         </span>
         <span className="hidden text-xs text-gray-400 sm:block">
           {waitingLabel ?? ""}
