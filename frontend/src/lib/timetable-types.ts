@@ -1180,7 +1180,7 @@ export interface CombinedOfferingCounts {
   students: OfferingSourceStudent[];
 }
 
-export interface OfferingSourceStudent {
+interface OfferingSourceStudent {
   studentId: string;
   schoolClass: string;
 }
