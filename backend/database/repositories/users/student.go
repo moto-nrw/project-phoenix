@@ -1288,6 +1288,17 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 	// and bracelet-assignment despite the documented promise (#405).
 	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
+	// A child whose care has ended disappears from the same rosters for the
+	// same reason (#2487): the tablet list, the bracelet assignment and the
+	// calendar student picker all answer "which children does this school care
+	// for", and from the day after their last care day they do not. Filtered
+	// on the enrollment interval rather than the lifecycle status, because the
+	// status only follows once the scheduler ticks.
+	query = query.Where(
+		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`,
+		timezone.TodayDate(),
+	)
+
 	return query
 }
 
@@ -1939,7 +1950,7 @@ func (r *StudentRepository) SetEnrolledUntilByIDs(
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Set("enrolled_until = ?", until).
 		Set("updated_at = NOW()").
-		Where(`"student".id IN (?)`, bun.In(ids))
+		Where(`"student".id IN (?)`, bun.List(ids))
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
@@ -1993,7 +2004,7 @@ func (r *StudentRepository) FindCareBoundsByIDs(
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"student".enrolled_until AS enrolled_until`).
-		Where(`"student".id IN (?)`, bun.In(ids)).
+		Where(`"student".id IN (?)`, bun.List(ids)).
 		Where(`"student".enrolled_until IS NOT NULL`)
 	query = base.WithTenantFilter(ctx, query, "student")
 	if err := query.Scan(ctx, &rows); err != nil {

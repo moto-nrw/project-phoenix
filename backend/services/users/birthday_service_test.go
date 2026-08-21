@@ -484,6 +484,56 @@ func assignStudentGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 	require.NoError(t, err, "assign group to test student")
 }
 
+// A child whose care has ended is off the birthday card from the day after
+// their last care day (#2487): the card is a staff-facing list of the children
+// the school currently cares for, and congratulating a child who left in
+// August is exactly the kind of thing the office has to explain afterwards.
+func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+
+	today := timezone.TodayDate()
+	staying := testpkg.CreateTestStudent(t, db, "Geburtstag", "Bleibt", "1a")
+	lastDay := testpkg.CreateTestStudent(t, db, "Geburtstag", "LetzterTag", "1a")
+	departed := testpkg.CreateTestStudent(t, db, "Geburtstag", "Weg", "1a")
+	for _, student := range []int64{staying.PersonID, lastDay.PersonID, departed.PersonID} {
+		setBirthday(t, db, student, timezone.NewDate(2018, today.Month, today.Day))
+	}
+	setEnrolledUntil(t, db, lastDay.ID, today)
+	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
+
+	entries, err := repos.Student.FindBirthdaysOn(ctx, []userModels.MonthDay{
+		{Month: today.Month, Day: today.Day},
+	})
+	require.NoError(t, err)
+
+	ids := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		ids = append(ids, entry.ID)
+	}
+	assert.Contains(t, ids, staying.ID)
+	assert.Contains(t, ids, lastDay.ID, "the last care day still counts as care")
+	assert.NotContains(t, ids, departed.ID)
+}
+
+// setEnrolledUntil stamps the enrollment interval's inclusive upper bound.
+func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until timezone.Date) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		Table("users.students").
+		Set("enrolled_until = ?", until).
+		Where("id = ?", studentID).
+		Exec(ctx)
+	require.NoError(t, err, "stamp enrolled_until on test student")
+}
+
 // The repositories refuse an empty day set instead of building a WHERE clause
 // with no values (which would degenerate into "every person of the school").
 func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
