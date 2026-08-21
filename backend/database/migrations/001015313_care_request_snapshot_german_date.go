@@ -72,7 +72,10 @@ func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("rewrite frozen pickup-change labels: %w", err)
 	}
 
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count rewritten frozen pickup-change labels: %w", err)
+	}
 	fmt.Printf("Migration 1.15.313: %d snapshot(s) rewritten\n", rows)
 	return nil
 }
