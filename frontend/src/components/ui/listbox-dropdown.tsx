@@ -786,6 +786,13 @@ export function ListboxDropdown<K extends string>({
                     {option.label}
                   </span>
                 </>
+              ) : actions ? (
+                // With row actions the label shares the row: it must be able
+                // to shrink and clip, otherwise one long custom name widens
+                // the option past the menu and the list scrolls sideways.
+                <span className="min-w-0 flex-1 truncate" title={option.label}>
+                  {option.label}
+                </span>
               ) : (
                 option.label
               )}
