@@ -789,13 +789,6 @@ func (s *careScheduleRequestService) previewPickupChangeBlocks(
 	if err != nil {
 		return nil, false
 	}
-	if err := LockCareExceptionDay(ctx, s.pickupAutoExcusal.db, req.StudentID, date); err != nil {
-		s.logger.Error("schedule: lock pickup preview care day failed",
-			slog.Int64("request_id", req.ID),
-			slog.String("error", err.Error()),
-		)
-		return nil, false
-	}
 	blocks, err := s.pickupAutoExcusal.Preview(ctx, req.StudentID, date, pickupTime)
 	if err != nil {
 		s.logger.Warn("schedule: preview pickup change blocks failed",

@@ -11,6 +11,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -2205,6 +2206,52 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, statusDay.ID, *got.StudentStatusDayID)
 	assert.Nil(t, got.PickupExceptionID)
+}
+
+func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterializedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := scheduleRepo.NewInstanceStudentRepository(db).(*scheduleRepo.InstanceStudentRepository)
+	date := timezone.NewDate(2026, 11, 10)
+
+	student := testpkg.CreateTestStudent(t, db, "Preview", fmt.Sprintf("Enrollment-%d", time.Now().UnixNano()), "3a")
+	group := testpkg.CreateTestActivityGroup(t, db, "Preview enrollment")
+	enrollment := &activitiesModels.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       date.AddDays(-1),
+	}
+	enrollment.SetTenantID(testpkg.Tenant(t))
+	_, err := db.NewInsert().Model(enrollment).Exec(ctx)
+	require.NoError(t, err)
+
+	room := testpkg.CreateTestRoom(t, db, "Preview enrollment room")
+	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &group.ID,
+		StartHHMM:       "15:00",
+		EndHHMM:         "16:00",
+		Title:           "Späte AG",
+	})
+
+	blocks, err := repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Len(t, blocks, 1)
+	assert.Equal(t, instance.ID, blocks[0].ID)
+
+	row := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
+		scheduleModels.AttendanceStatusAbsent)
+	staff := testpkg.CreateTestStaff(t, db, "Preview", fmt.Sprintf("Exception-%d", time.Now().UnixNano()))
+	otherException := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "14:30", "Termin")
+	row.PickupExceptionID = &otherException.ID
+	require.NoError(t, repo.Update(ctx, row))
+
+	blocks, err = repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	require.NoError(t, err)
+	assert.Empty(t, blocks, "a row owned by another pickup exception is not actionable")
 }
 
 // Parallel-presence lookup (#2265): only rows in OTHER instances that are

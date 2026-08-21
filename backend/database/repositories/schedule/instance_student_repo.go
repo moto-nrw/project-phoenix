@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -873,28 +874,64 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 // FindPartialAbsenceBlocks needs a custom query because the generic repository
 // cannot join activity_instances or project its title and wall-clock window.
 // It previews the actionable blocks that a partial absence would excuse.
+// Template-backed instances can precede their instance_students rows; mirror
+// materialization's enrollment predicate so those future rows are visible too.
 func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 	ctx context.Context, studentID int64, date timezone.Date, from time.Time,
 ) ([]schedule.PartialAbsenceBlock, error) {
 	rows := make([]schedule.PartialAbsenceBlock, 0)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(modelTblInstanceStudent).
-		ColumnExpr(`"activity_instance".id`).
-		ColumnExpr(`"activity_instance".title`).
-		ColumnExpr(`"activity_instance".start_time`).
-		ColumnExpr(`"activity_instance".end_time`).
-		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
-		Where(`"instance_student".tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".manual_status_at IS NULL`).
-		Where(`NOT "instance_student".not_scheduled`).
-		Where(`"instance_student".status IN (?, ?)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent).
-		Where(`"instance_student".student_status_day_id IS NULL`).
-		Where(`"activity_instance".date = ?`, date).
-		Where(`"activity_instance".start_time >= ?`, timezone.WallClock(from)).
-		Where(`"activity_instance".status NOT IN (?, ?)`, schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).
-		OrderExpr(`"activity_instance".start_time ASC, "activity_instance".id ASC`).
-		Scan(ctx, &rows)
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT instance.id, instance.title, instance.start_time, instance.end_time
+		FROM schedule.activity_instances AS instance
+		WHERE instance.tenant_id = ?
+			AND instance.date = ?
+			AND instance.start_time >= ?
+			AND instance.status NOT IN (?, ?)
+			AND (
+				EXISTS (
+					SELECT 1
+					FROM schedule.instance_students AS attendance
+					WHERE attendance.tenant_id = instance.tenant_id
+						AND attendance.instance_id = instance.id
+						AND attendance.student_id = ?
+						AND attendance.manual_status_at IS NULL
+						AND NOT attendance.not_scheduled
+						AND attendance.status IN (?, ?)
+						AND attendance.student_status_day_id IS NULL
+						AND attendance.pickup_exception_id IS NULL
+				)
+				OR (
+					NOT EXISTS (
+						SELECT 1
+						FROM schedule.instance_students AS attendance
+						WHERE attendance.tenant_id = instance.tenant_id
+							AND attendance.instance_id = instance.id
+							AND attendance.student_id = ?
+					)
+					AND EXISTS (
+						SELECT 1
+						FROM activities.student_enrollments AS enrollment
+						JOIN users.students AS student
+							ON student.tenant_id = enrollment.tenant_id
+							AND student.id = enrollment.student_id
+						WHERE enrollment.tenant_id = instance.tenant_id
+							AND enrollment.student_id = ?
+							AND enrollment.activity_group_id = instance.activity_group_id
+							AND enrollment.valid_from <= instance.date
+							AND (enrollment.valid_until IS NULL OR enrollment.valid_until > instance.date)
+							AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = instance.calendar_period_id)
+							AND (enrollment.weekday IS NULL OR enrollment.weekday = EXTRACT(ISODOW FROM instance.date))
+							AND (COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) = 0
+								OR enrollment.selected_weekdays @> to_jsonb(ARRAY[EXTRACT(ISODOW FROM instance.date)::integer]))
+							AND student.status <> ?
+					)
+				)
+			)
+		ORDER BY instance.start_time ASC, instance.id ASC
+	`, tenant.FromContext(ctx), date, timezone.WallClock(from),
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted,
+		studentID, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
+		studentID, studentID, string(users.StudentStatusAlumnus)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find partial absence blocks", Err: err}
 	}
