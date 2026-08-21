@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -234,9 +233,8 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
 		return
 	}
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || studentID <= 0 {
-		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
+	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid student ID")
+	if !ok {
 		return
 	}
 	body := new(careResumeRequest)
@@ -249,7 +247,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("new_start muss im Format JJJJ-MM-TT vorliegen"))) //nolint:staticcheck // ST1005: user-facing German message
 		return
 	}
-	err = rs.CareLifecycleService.Resume(r.Context(), userService.CareResumeInput{
+	err := rs.CareLifecycleService.Resume(r.Context(), userService.CareResumeInput{
 		StudentID:      studentID,
 		NewStart:       start,
 		ActorAccountID: int64(jwt.ClaimsFromCtx(r.Context()).ID),
