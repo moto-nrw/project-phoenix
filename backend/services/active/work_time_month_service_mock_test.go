@@ -24,12 +24,16 @@ type wtmMockSessionReader struct {
 	lastFrom timezone.Date
 }
 
-func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	m.calls++
-	m.lastFrom = from
+	m.lastFrom = timezone.DateFromTime(from)
 	var result []*activeModels.WorkSession
 	for _, s := range m.sessions {
-		if !s.Date.Before(from) && !s.Date.After(to) {
+		end := time.Now()
+		if s.CheckOutTime != nil {
+			end = *s.CheckOutTime
+		}
+		if end.After(from) && (to == nil || s.CheckInTime.Before(*to)) {
 			result = append(result, s)
 		}
 	}
@@ -37,11 +41,17 @@ func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, f
 }
 
 type wtmMockBreakReader struct {
-	activeBreaks map[int64]*activeModels.WorkSessionBreak
+	breaks     map[int64][]*activeModels.WorkSessionBreak
+	batchCalls int
 }
 
-func (m *wtmMockBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
-	return m.activeBreaks[sessionID], nil
+func (m *wtmMockBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+	return m.breaks[sessionID], nil
+}
+
+func (m *wtmMockBreakReader) GetBySessionIDs(_ context.Context, _ []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	m.batchCalls++
+	return m.breaks, nil
 }
 
 type wtmMockAbsenceReader struct {
@@ -137,7 +147,7 @@ type wtmFixture struct {
 func newWTMFixture() *wtmFixture {
 	f := &wtmFixture{
 		sessions: &wtmMockSessionReader{},
-		breaks:   &wtmMockBreakReader{activeBreaks: map[int64]*activeModels.WorkSessionBreak{}},
+		breaks:   &wtmMockBreakReader{breaks: map[int64][]*activeModels.WorkSessionBreak{}},
 		absences: &wtmMockAbsenceReader{},
 		shifts:   &wtmMockShiftReader{},
 		schedules: &wtmMockScheduleReader{entries: []*configModels.StaffWorkSchedule{
@@ -501,6 +511,57 @@ func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
 	assert.Equal(t, -960, summary.CarryInMinutes, "future session must not inflate the carry")
 }
 
+func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
+	t.Parallel()
+	f := newWTMFixture()
+	start := timezone.NewDate(2026, time.June, 30).BerlinMidnight().Add(22 * time.Hour)
+	end := start.Add(4 * time.Hour)
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		StaffID:      wtmStaffID,
+		Date:         timezone.NewDate(2026, time.June, 30),
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  start,
+		CheckOutTime: &end,
+	}}
+
+	june, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	assert.Equal(t, 120, june.ActualMinutes)
+
+	july, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 120, july.ActualMinutes)
+}
+
+func TestBalanceSessionEnd_AllowsOpenNightBlockButCapsStaleBlock(t *testing.T) {
+	t.Parallel()
+	yesterday := timezone.NewDate(2026, time.July, 21)
+	now := yesterday.AddDays(1).BerlinMidnight().Add(6 * time.Hour)
+	night := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(22 * time.Hour)}
+	assert.Equal(t, now, balanceSessionEnd(night, now, timezone.DateFromTime(now)))
+
+	stale := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour)}
+	assert.Equal(t, stale.CheckInTime.Add(maxOpenWorkSessionDuration), balanceSessionEnd(stale, now, timezone.DateFromTime(now)))
+
+	lateCheckout := now
+	stale.CheckOutTime = &lateCheckout
+	assert.Equal(t, lateCheckout, balanceSessionEnd(stale, now, timezone.DateFromTime(now)), "a completed block must retain its recorded check-out")
+}
+
+func TestBalanceSessionEnd_PreservesCompletedLongNightBlock(t *testing.T) {
+	t.Parallel()
+	day := timezone.NewDate(2026, time.July, 21)
+	start := day.BerlinMidnight().Add(18 * time.Hour)
+	checkOut := start.Add(13 * time.Hour)
+	session := &activeModels.WorkSession{
+		Date:         day,
+		CheckInTime:  start,
+		CheckOutTime: &checkOut,
+	}
+
+	assert.Equal(t, checkOut, balanceSessionEnd(session, checkOut.Add(time.Hour), timezone.DateFromTime(checkOut.Add(time.Hour))))
+}
+
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical
 // version carrying its own anchor must keep the parity it was written with,
 // instead of being re-parityed by the current anchor (#1842).
@@ -842,11 +903,11 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 		BreakMinutes: 0, // break still running → not in the cache yet
 	}
 	f.sessions.sessions = []*activeModels.WorkSession{session}
-	f.breaks.activeBreaks[session.ID] = &activeModels.WorkSessionBreak{
+	f.breaks.breaks[session.ID] = []*activeModels.WorkSessionBreak{{
 		Model:     base.Model{ID: 5},
 		SessionID: session.ID,
 		StartedAt: now.Add(-30 * time.Minute),
-	}
+	}}
 
 	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year, int(today.Month))
 	require.NoError(t, err)

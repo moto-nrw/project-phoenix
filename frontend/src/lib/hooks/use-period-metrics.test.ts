@@ -123,7 +123,9 @@ describe("usePeriodMetrics", () => {
     expect(swr.keys).toContain(
       "staff-schedule-targets-42-2026-08-03-2026-08-09",
     );
-    expect(swr.keys).toContain("staff-history-42-2026-08-03-2026-08-09");
+    // The Sunday is included so a night block's Monday share reaches the
+    // current-week metrics.
+    expect(swr.keys).toContain("staff-history-42-2026-08-02-2026-08-09");
   });
 
   it("uses own-portal keys when no staffId is passed", () => {
@@ -133,7 +135,7 @@ describe("usePeriodMetrics", () => {
 
     expect(swr.keys).toContain("time-tracking-month-summary-2026-8");
     // Same key the own Zeiterfassung table uses → SWR dedupes the overlap.
-    expect(swr.keys).toContain("time-tracking-table-2026-08-03-2026-08-09");
+    expect(swr.keys).toContain("time-tracking-table-2026-08-02-2026-08-09");
   });
 
   it("derives the month card from the server summary, credits included", () => {
@@ -210,7 +212,7 @@ describe("usePeriodMetrics", () => {
     renderHook(() => usePeriodMetrics("42"));
 
     const refresh = swr.configs.get(
-      "staff-history-42-2026-08-03-2026-08-09",
+      "staff-history-42-2026-08-02-2026-08-09",
     )?.refreshInterval;
     expect(refresh?.([{ check_out_time: null }])).toBe(60_000);
     expect(refresh?.([{ check_out_time: "2026-08-03T16:00:00Z" }])).toBe(0);
@@ -223,7 +225,7 @@ describe("usePeriodMetrics", () => {
     renderHook(() => usePeriodMetrics());
 
     const refresh = swr.configs.get(
-      "time-tracking-table-2026-08-03-2026-08-09",
+      "time-tracking-table-2026-08-02-2026-08-09",
     )?.refreshInterval;
     // camelCase, as the own /history endpoint returns it.
     expect(refresh?.({ sessions: [{ checkOutTime: null }] })).toBe(60_000);

@@ -41,6 +41,7 @@ import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -65,13 +66,14 @@ import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  berlinDayStart,
   berlinTodayISO,
   formatDate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
 import {
   usePeriodMetrics,
@@ -89,7 +91,6 @@ import {
 import {
   DEVIATION_REASON_REQUIRED_CODE,
   PLANNED_START_NOT_REACHED_CODE,
-  REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
 import { userContextService } from "~/lib/usercontext-api";
@@ -106,7 +107,9 @@ import {
   formatTime,
   getWeekDays,
   getWeekNumber,
+  balanceSessionEnd,
   calculateNetMinutes,
+  indexWorkSessionMinutesByBerlinDate,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
 import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
@@ -130,14 +133,6 @@ function formatDateShort(date: Date): string {
   return `${day}.${month}`;
 }
 
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 // Extracts error message string from unknown error types
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -145,9 +140,28 @@ function getErrorMessage(err: unknown): string {
   return "";
 }
 
+// Reads the stable machine code of a failed request. `buildApiError` puts it on
+// `ApiError.code` and leaves `message` as the human-readable backend text, so
+// the code is never in the message; the JSON fallback covers the callers that
+// surface the raw response body as the message instead.
+function getErrorCode(err: unknown): string | undefined {
+  if (err !== null && typeof err === "object" && "code" in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code !== "") return code;
+  }
+  return /"code":"([^"]+)"/.exec(getErrorMessage(err))?.[1];
+}
+
 // Maps backend error messages to user-friendly German messages
 function friendlyError(err: unknown, fallback: string): string {
   const msg = getErrorMessage(err);
+
+  // Stable machine codes win over the human-readable message: their text can
+  // carry dynamic content (e.g. the conflicting interval of an overlap).
+  const stableCode = getErrorCode(err);
+  if (stableCode === "work_session_overlap") {
+    return "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.";
+  }
 
   // Extract backend error from nested API error format
   const match = /"error":"([^"]+)"/.exec(msg);
@@ -213,28 +227,6 @@ function extractTimeFromISO(isoString: string): string {
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
-// Schichtart chip: a color dot + label driven by the tenant-defined Schichtart
-// color the backend embeds (#1844). The color is data, not a brand hue, so the
-// inline style is intentional; falls back to neutral gray when absent.
-function ShiftTypeChip({
-  name,
-  color,
-}: {
-  readonly name: string;
-  readonly color: string | null;
-}) {
-  const dot = color ?? "#6B7280";
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: dot }}
-      />
-      {name}
-    </span>
-  );
-}
-
 // Renders today's planned Dienstplan shifts under the Stempeluhr title: each
 // active shift with its Schichtart chip, a "Vertretung" tag for replacement
 // shifts, plus a muted line for shifts that do not take place ("entfällt"),
@@ -255,9 +247,12 @@ function PlannedShiftsInfo({
         <div key={shift.id} className="flex flex-wrap items-center gap-1.5">
           <span className="text-gray-400">Geplant:</span>
           {shift.shiftTypeName && (
-            <ShiftTypeChip
-              name={shift.shiftTypeName}
-              color={shift.shiftTypeColor}
+            // Schichtart pill: the color is tenant-defined data the backend
+            // embeds (#1844), not a brand hue; without one the pill falls
+            // back to the neutral HOME gray.
+            <StatusDotBadge
+              label={shift.shiftTypeName}
+              color={shift.shiftTypeColor ?? LOCATION_COLORS.HOME}
             />
           )}
           <span className="tabular-nums">
@@ -432,14 +427,51 @@ function getTodayDisplayValue(
   return "--";
 }
 
-// Calculate gross minutes for checked-in session
+// Gross minutes of the running block that fall on TODAY. A block started
+// before midnight keeps running past it, but its earlier minutes belong to
+// the previous Berlin day — the page books them there via the Berlin-date
+// split, so counting them again here would credit a whole night to today.
+//
+// `end` is the block's live limit (balanceSessionEnd), never the raw clock: a
+// block whose check-out never happened stopped counting there, server-side as
+// well, so counting it through `now` would print a live figure the Saldo, the
+// Monatskarte and the chart all contradict.
 function calcGrossMinutes(
   isCheckedIn: boolean,
   session: WorkSession | null,
   now: Date,
+  end: Date,
 ): number {
   if (!isCheckedIn || !session) return 0;
-  return calcElapsedMinutes(session.checkInTime, now);
+  const start = new Date(session.checkInTime);
+  if (Number.isNaN(start.getTime())) return 0;
+  const dayStart = berlinDayStart(now);
+  const from = start > dayStart ? start : dayStart;
+  if (end <= from) return 0;
+  return calcElapsedMinutes(from, end);
+}
+
+// Break minutes of the running block that fall inside [from, now]. Used for a
+// block that started before midnight: its cached breakMinutes covers the whole
+// block, and deducting yesterday's pause from today's live figure would
+// understate today's work.
+function calcBreakMinutesSince(
+  breaks: readonly WorkSessionBreak[],
+  from: Date,
+  now: Date,
+): number {
+  let totalMs = 0;
+  for (const workBreak of breaks) {
+    const start = new Date(workBreak.startedAt).getTime();
+    const end = workBreak.endedAt
+      ? new Date(workBreak.endedAt).getTime()
+      : now.getTime();
+    if (Number.isNaN(start) || Number.isNaN(end)) continue;
+    const overlap =
+      Math.min(end, now.getTime()) - Math.max(start, from.getTime());
+    if (overlap > 0) totalMs += overlap;
+  }
+  return Math.floor(totalMs / 60_000);
 }
 
 // Calculate countdown remaining seconds for break timer
@@ -567,6 +599,8 @@ function ClockInCard({
   onStartBreak,
   onEndBreak,
   weeklyMinutes,
+  completedTodayMinutes,
+  completedTodayBreakMinutes,
   onAddAbsence,
   metrics,
   plannedShifts,
@@ -579,6 +613,8 @@ function ClockInCard({
   readonly onStartBreak: (durationMinutes: number) => Promise<void>;
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
+  readonly completedTodayMinutes: number;
+  readonly completedTodayBreakMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
@@ -632,12 +668,45 @@ function ClockInCard({
   const now = new Date();
 
   const breakMins = currentSession?.breakMinutes ?? 0;
+  // Same midnight boundary as calcGrossMinutes: for an overnight block the
+  // pauses are re-derived from the break rows so only today's share is
+  // deducted from today's live minutes.
+  const dayStart = berlinDayStart(now);
+  const startedBeforeToday =
+    isCheckedIn &&
+    currentSession !== null &&
+    new Date(currentSession.checkInTime).getTime() < dayStart.getTime();
+
+  // The block's own end: `now` while it is running, its live limit once it has
+  // passed it. Work AND break minutes are measured against this single instant
+  // so the live figure cannot drift away from the server-side Saldo, which
+  // caps the very same block (balanceSessionEnd).
+  const liveEnd =
+    isCheckedIn && currentSession !== null
+      ? balanceSessionEnd(
+          {
+            date: currentSession.date,
+            checkIn: new Date(currentSession.checkInTime),
+            checkOut: null,
+          },
+          now,
+        )
+      : now;
 
   // Calculate derived time values using extracted helpers
-  const liveBreakMins = calcLiveBreakMins(breakMins, activeBreak, now);
-  const grossMinutes = calcGrossMinutes(isCheckedIn, currentSession, now);
+  const liveBreakMins = startedBeforeToday
+    ? calcBreakMinutesSince(breaks, dayStart, liveEnd)
+    : calcLiveBreakMins(breakMins, activeBreak, liveEnd);
+  const grossMinutes = calcGrossMinutes(
+    isCheckedIn,
+    currentSession,
+    now,
+    liveEnd,
+  );
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
-  const displayMinutes = isCheckedIn ? netMinutes : 0;
+  const dayNetMinutes = completedTodayMinutes + netMinutes;
+  const dayBreakMinutes = completedTodayBreakMinutes + liveBreakMins;
+  const displayMinutes = isCheckedIn ? dayNetMinutes : 0;
   const activeBreakElapsedSecs = activeBreak
     ? calcElapsedSeconds(activeBreak.startedAt, now)
     : 0;
@@ -725,8 +794,8 @@ function ClockInCard({
   const breakWarning = getBreakWarningIfActive(
     isCheckedIn,
     currentSession,
-    netMinutes,
-    liveBreakMins,
+    dayNetMinutes,
+    dayBreakMinutes,
   );
 
   // Checked-out net
@@ -1587,6 +1656,16 @@ function OwnZeiterfassungSection({
 
   const visibleFromKey = toISODate(visibleFrom);
   const visibleToKey = toISODate(visibleTo);
+  // One day of head start, shared with usePeriodMetrics so SWR dedupes the two
+  // fetches into one request. It is NOT what makes a block starting before the
+  // range visible — /history bounds `from` against check_out_time, so every
+  // block reaching into the range comes back however early it started
+  // (TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts).
+  const tableHistoryFromKey = useMemo(() => {
+    const previousDay = new Date(visibleFrom);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toISODate(previousDay);
+  }, [visibleFrom]);
 
   // Dedicated table-range fetches. Independent from the WeekChart's
   // 10-workday history fetch, so navigating the table (especially in
@@ -1595,8 +1674,8 @@ function OwnZeiterfassungSection({
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
-    `time-tracking-table-${visibleFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getHistory(visibleFromKey, visibleToKey),
+    `time-tracking-table-${tableHistoryFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHistory(tableHistoryFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
@@ -1726,9 +1805,22 @@ function OwnZeiterfassungSection({
     [],
   );
 
-  const handleEdit = (date: Date) => {
+  // The table names the exact block to edit — a day can carry several
+  // (#2402), so re-deriving "the session of the day" from the date alone
+  // would open an arbitrary block. `tableSession` is the table's snake_case
+  // row; the edit modal needs the camelCase history entry, matched by id.
+  // Both ids are the SAME backend int64 kept as a string end to end
+  // (mapWorkSessionResponse / adaptHistorySessionForMetrics), so the find()
+  // compares canonical decimals with no lossy Number() round trip.
+  const handleEdit = (
+    date: Date,
+    tableSession: { id?: string } | null = null,
+  ) => {
     const dateKey = toISODate(date);
-    const session = tableHistory.find((h) => h.date === dateKey) ?? null;
+    const session =
+      tableSession?.id != null
+        ? (tableHistory.find((h) => h.id === tableSession.id) ?? null)
+        : null;
     const absence =
       tableAbsences.find(
         (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
@@ -1950,7 +2042,7 @@ function OwnZeiterfassungSection({
             }
             today={today}
             isAdminView={ownStaffId !== null}
-            onEditDay={(date) => handleEdit(date)}
+            onEditDay={(date, session) => handleEdit(date, session)}
             plannedShifts={tableShifts ?? []}
             fetchEdits={fetchOwnEdits}
           />
@@ -1972,11 +2064,9 @@ const weekChartConfig = {
 
 function WeekChart({
   history,
-  currentSession,
   weekOffset,
 }: {
   readonly history: WorkSessionHistory[];
-  readonly currentSession: WorkSession | null;
   readonly weekOffset: number;
 }) {
   const [isMobile, setIsMobile] = useState(false);
@@ -1992,7 +2082,11 @@ function WeekChart({
   const chartData = useMemo(() => {
     // Build last 10 workdays ending with today (or offset reference)
     // Today is always on the right, past days to the left
-    const referenceDate = new Date(today);
+    // Anchored on the BERLIN calendar day, not the browser's: the minutes are
+    // indexed by Berlin date below, so deriving the axis from a local date
+    // would look up the wrong key — zero or misplaced bars around midnight for
+    // anybody outside the Berlin timezone.
+    const referenceDate = parseISODate(berlinTodayISO(today));
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
 
     const allDays: Date[] = [];
@@ -2005,10 +2099,7 @@ function WeekChart({
       d.setDate(d.getDate() - 1);
     }
 
-    const sessionMap = new Map<string, WorkSessionHistory>();
-    for (const session of history) {
-      sessionMap.set(session.date, session);
-    }
+    const minutesByDate = indexWorkSessionMinutesByBerlinDate(history);
 
     return allDays.map((day) => {
       if (!day) {
@@ -2022,27 +2113,8 @@ function WeekChart({
       }
 
       const dateKey = toISODate(day);
-      const session = sessionMap.get(dateKey);
+      const dayMinutes = minutesByDate.get(dateKey);
       const dayIndex = (day.getDay() + 6) % 7; // Mon=0..Sun=6
-
-      let netMins = 0;
-      let breakMins = 0;
-
-      if (session) {
-        if (session.checkOutTime) {
-          netMins = session.netMinutes;
-        } else if (
-          isSameDay(day, today) &&
-          currentSession &&
-          !currentSession.checkOutTime
-        ) {
-          const elapsed = Math.floor(
-            (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
-          );
-          netMins = Math.max(0, elapsed - session.breakMinutes);
-        }
-        breakMins = session.breakMinutes;
-      }
 
       const dayShort = DAY_NAMES[dayIndex] ?? "";
       return {
@@ -2052,12 +2124,12 @@ function WeekChart({
         dayKey: dateKey,
         dayShort,
         label: `${dayShort} ${formatDateShort(day)}`,
-        netMinutes: netMins,
-        breakMinutes: breakMins,
+        netMinutes: dayMinutes?.netMinutes ?? 0,
+        breakMinutes: dayMinutes?.breakMinutes ?? 0,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history, currentSession, weekOffset]);
+  }, [history, weekOffset]);
 
   const tooltipLabelFormatter = useCallback(
     (
@@ -3245,34 +3317,9 @@ function TimeTrackingContent() {
     () => setPendingCheckIn(null),
     [],
   );
-  const handleClosePendingManualEditCheckIn = useCallback(
-    () => setPendingManualEditCheckIn(null),
-    [],
-  );
-
   const [pendingCheckIn, setPendingCheckIn] = useState<SessionStatus | null>(
     null,
   );
-  const [pendingManualEditCheckIn, setPendingManualEditCheckIn] =
-    useState<SessionStatus | null>(null);
-
-  // Reopen-with-status-change confirmation. Set when the backend rejects a
-  // CheckIn with REOPEN_STATUS_CONFLICT_CODE because the requested status
-  // differs from today's existing (checked-out) session. The follow-up
-  // modal collects the audit reason and routes the change through
-  // UpdateSession instead of silently flipping status on reopen.
-  const [pendingReopenStatusChange, setPendingReopenStatusChange] = useState<{
-    sessionId: string;
-    existingStatus: SessionStatus;
-    requestedStatus: SessionStatus;
-  } | null>(null);
-  const [reopenStatusChangeReason, setReopenStatusChangeReason] = useState("");
-  const [reopenStatusChangeSubmitting, setReopenStatusChangeSubmitting] =
-    useState(false);
-  const handleClosePendingReopenStatusChange = useCallback(() => {
-    setPendingReopenStatusChange(null);
-    setReopenStatusChangeReason("");
-  }, []);
 
   // F9 deviation-reason prompt. Set when the backend rejects a stamp with
   // DEVIATION_REASON_REQUIRED_CODE because it falls outside the tolerance
@@ -3445,25 +3492,44 @@ function TimeTrackingContent() {
     });
   }, [fetchBreaks]);
 
-  // Calculate weekly minutes from history (current week only, completed sessions)
-  const weeklyCompletedMinutes = history
-    .filter((s) => s.date >= weekFromDate && s.date <= toDate)
-    .reduce((sum, s) => {
-      if (s.checkOutTime) return sum + s.netMinutes;
-      return sum;
-    }, 0);
-
-  // Check if today has a checked-out session that was manually edited.
-  // After checkout, currentSession is null (backend only returns active sessions),
-  // so we look in history for today's session and its editCount.
-  const hasTodayEditedSession = useMemo(
+  // Weekly and daily minutes for the stamp card. Every block is booked on the
+  // Berlin calendar day its minutes actually fall on — a block from 22:00 to
+  // 02:00 splits across both days — which is what the week chart, the
+  // Monatskarte and the server-side balance do. Summing whole netMinutes onto
+  // the row's check-in date instead would put a whole night on the day it
+  // started and contradict all three.
+  const closedMinutesByDate = useMemo(
     () =>
-      !currentSession &&
-      history.some(
-        (s) => s.date === todayISO && s.checkOutTime && s.editCount > 0,
+      indexWorkSessionMinutesByBerlinDate(
+        history.filter((session) => session.checkOutTime !== null),
       ),
-    [currentSession, history, todayISO],
+    [history],
   );
+  const allMinutesByDate = useMemo(
+    () => indexWorkSessionMinutesByBerlinDate(history),
+    [history],
+  );
+  // Today counts only closed blocks: ClockInCard adds the running one live
+  // (clamped to today, see calcGrossMinutes). On the earlier days of the week
+  // the running block's minutes are already final, so those do count here.
+  const weeklyCompletedMinutes = useMemo(() => {
+    let sum = 0;
+    for (const [date, minutes] of allMinutesByDate) {
+      if (date < weekFromDate || date > toDate || date === todayISO) continue;
+      sum += minutes.netMinutes;
+    }
+    if (todayISO >= weekFromDate && todayISO <= toDate) {
+      sum += closedMinutesByDate.get(todayISO)?.netMinutes ?? 0;
+    }
+    return sum;
+  }, [allMinutesByDate, closedMinutesByDate, weekFromDate, toDate, todayISO]);
+  const completedToday = useMemo(() => {
+    const today = closedMinutesByDate.get(todayISO);
+    return {
+      minutes: today?.netMinutes ?? 0,
+      breaks: today?.breakMinutes ?? 0,
+    };
+  }, [closedMinutesByDate, todayISO]);
 
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
@@ -3498,53 +3564,6 @@ function TimeTrackingContent() {
           });
           return;
         }
-        if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
-          // Audit-trail gate: silent status change on reopen is forbidden.
-          // Surface the prompt; the user supplies a reason and we route
-          // the change through UpdateSession (which emits a FieldStatus
-          // edit). See work_session_service.go ReopenStatusConflictError.
-          //
-          // The conflict's identifying fields come from the API response so
-          // this works regardless of which week the user is viewing — the
-          // historyData fetch is offset-based and won't contain today's
-          // session when weekOffset < 0.
-          const details = apiErr.details;
-          const sessionId =
-            typeof details?.session_id === "string"
-              ? details.session_id
-              : undefined;
-          const existingStatus =
-            typeof details?.existing_status === "string"
-              ? (details.existing_status as SessionStatus)
-              : undefined;
-          const requestedStatus =
-            typeof details?.requested_status === "string"
-              ? (details.requested_status as SessionStatus)
-              : status;
-
-          if (sessionId && existingStatus) {
-            setReopenStatusChangeReason("");
-            setPendingReopenStatusChange({
-              sessionId,
-              existingStatus,
-              requestedStatus,
-            });
-            return;
-          }
-          // Backend returned the conflict code without the details payload —
-          // older server, schema drift, or middleware stripping fields. Log
-          // loudly so this regression is visible in Grafana and fall back to
-          // a user-facing error instead of opening an unfilled modal.
-          logger.warn("reopen_conflict_missing_details", {
-            requested_status: status,
-            has_session_id: Boolean(sessionId),
-            has_existing_status: Boolean(existingStatus),
-          });
-          toast.error(
-            "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
-          );
-          return;
-        }
         if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
           const plannedStart =
             typeof apiErr.details?.planned_start_time === "string"
@@ -3566,92 +3585,15 @@ function TimeTrackingContent() {
     [mutateCurrentSession, mutateHistory, refreshTableData, toast],
   );
 
-  // Confirm path: reopen the session at its existing status, then route
-  // the status change through UpdateSession with the user's reason. Two
-  // round-trips, but each one carries a distinct audit meaning: reopen =
-  // resume work, update = change of work mode.
-  //
-  // Partial-state handling: if the reopen succeeds but UpdateSession fails,
-  // the session is now active again at the OLD status with no audit edit.
-  // That is a consistent state — old status, no edit — but the user's
-  // intent (status flip) wasn't applied. We refresh the data so the UI
-  // reflects reality, close the modal so the now-active session is visible,
-  // and surface a specific toast pointing the user at the "edit session"
-  // path for retrying just the status change. We deliberately do NOT
-  // attempt to roll back the reopen via checkOut, because that would
-  // introduce a second failure point and leave the audit trail with two
-  // unrelated state changes for one user action.
-  const confirmReopenStatusChange = useCallback(async () => {
-    const pending = pendingReopenStatusChange;
-    if (!pending) return;
-    const reason = reopenStatusChangeReason.trim();
-    if (!reason) return;
-
-    setReopenStatusChangeSubmitting(true);
-    let reopenSucceeded = false;
-    try {
-      await timeTrackingService.checkIn(pending.existingStatus);
-      reopenSucceeded = true;
-      await timeTrackingService.updateSession(pending.sessionId, {
-        status: pending.requestedStatus,
-        notes: reason,
-      });
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-      ]);
-      toast.success("Status geändert");
-      setPendingReopenStatusChange(null);
-      setReopenStatusChangeReason("");
-    } catch (err) {
-      logger.error("reopen_status_change_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        reopen_succeeded: reopenSucceeded,
-        session_id: pending.sessionId,
-      });
-      if (reopenSucceeded) {
-        // Refresh so the UI shows the now-active session at the old status,
-        // then close the modal so the user can act on it via the edit flow.
-        await Promise.all([
-          mutateCurrentSession(),
-          mutateHistory(),
-          refreshTableData(),
-        ]);
-        toast.error(
-          "Sitzung wurde wiedereröffnet, aber der Statuswechsel ist fehlgeschlagen. Bitte den Status über „Sitzung bearbeiten“ ändern.",
-        );
-        setPendingReopenStatusChange(null);
-        setReopenStatusChangeReason("");
-      } else {
-        // Reopen itself failed — modal stays open so the user can retry.
-        toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
-      }
-    } finally {
-      setReopenStatusChangeSubmitting(false);
-    }
-  }, [
-    pendingReopenStatusChange,
-    reopenStatusChangeReason,
-    mutateCurrentSession,
-    mutateHistory,
-    refreshTableData,
-    toast,
-  ]);
-
   const handleCheckIn = useCallback(
     async (status: SessionStatus) => {
-      if (hasTodayEditedSession) {
-        setPendingManualEditCheckIn(status);
-        return;
-      }
       if (todayAbsence) {
         setPendingCheckIn(status);
         return;
       }
       await executeCheckIn(status);
     },
-    [hasTodayEditedSession, todayAbsence, executeCheckIn],
+    [todayAbsence, executeCheckIn],
   );
 
   const handleCheckOut = useCallback(async () => {
@@ -3914,16 +3856,14 @@ function TimeTrackingContent() {
           onStartBreak={handleStartBreak}
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
+          completedTodayMinutes={completedToday.minutes}
+          completedTodayBreakMinutes={completedToday.breaks}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />
-        <WeekChart
-          history={history}
-          currentSession={currentSession ?? null}
-          weekOffset={weekOffset}
-        />
+        <WeekChart history={history} weekOffset={weekOffset} />
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
@@ -3970,52 +3910,6 @@ function TimeTrackingContent() {
         canManageAbsenceTypes={canManageTimeTracking}
       />
 
-      {/* Check-in confirmation when session was manually edited */}
-      <Modal
-        isOpen={pendingManualEditCheckIn !== null}
-        onClose={handleClosePendingManualEditCheckIn}
-        title="Arbeitszeit manuell bearbeitet"
-        footer={
-          <ModalActions
-            onCancel={() => setPendingManualEditCheckIn(null)}
-            onConfirm={() => {
-              const status = pendingManualEditCheckIn;
-              setPendingManualEditCheckIn(null);
-              if (!status) return;
-              if (todayAbsence) {
-                setPendingCheckIn(status);
-              } else {
-                void executeCheckIn(status);
-              }
-            }}
-            confirmLabel="Trotzdem einstempeln"
-          />
-        }
-      >
-        <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
-            <svg
-              className="h-6 w-6 text-[#8A5600]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-              />
-            </svg>
-          </div>
-          <p className="mt-2 text-gray-600">
-            Du hast diese Arbeitszeit manuell bearbeitet. Beim erneuten
-            Einstempeln wird die Ausstempelzeit zurückgesetzt. Trotzdem
-            einstempeln?
-          </p>
-        </div>
-      </Modal>
-
       {/* Check-in confirmation when absence exists */}
       <Modal
         isOpen={pendingCheckIn !== null}
@@ -4054,65 +3948,6 @@ function TimeTrackingContent() {
             {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.
             Trotzdem einstempeln?
           </p>
-        </div>
-      </Modal>
-
-      {/* Reopen-with-status-change: collect a reason and route through
-          UpdateSession so the audit trail gets a FieldStatus edit. */}
-      <Modal
-        isOpen={pendingReopenStatusChange !== null}
-        onClose={handleClosePendingReopenStatusChange}
-        title="Status für heute ändern"
-        footer={
-          <ModalActions
-            onCancel={handleClosePendingReopenStatusChange}
-            cancelDisabled={reopenStatusChangeSubmitting}
-            onConfirm={confirmReopenStatusChange}
-            confirmDisabled={
-              reopenStatusChangeSubmitting ||
-              reopenStatusChangeReason.trim() === ""
-            }
-            confirmLabel={
-              pendingReopenStatusChange?.requestedStatus === "home_office"
-                ? "Auf Homeoffice ändern"
-                : "Auf Vor Ort ändern"
-            }
-          />
-        }
-      >
-        <div className="py-2">
-          <p className="text-sm text-gray-600">
-            Du hast heute bereits eine{" "}
-            <span className="font-medium text-gray-900">
-              {pendingReopenStatusChange?.existingStatus === "home_office"
-                ? "Homeoffice"
-                : "Vor-Ort"}
-              -Sitzung
-            </span>
-            . Möchtest du sie als{" "}
-            <span className="font-medium text-gray-900">
-              {pendingReopenStatusChange?.requestedStatus === "home_office"
-                ? "Homeoffice"
-                : "Vor Ort"}
-            </span>{" "}
-            fortsetzen? Bitte gib einen kurzen Grund an — er erscheint im
-            Audit-Trail.
-          </p>
-          <label
-            htmlFor="reopen-status-change-reason"
-            className="mt-4 block text-xs font-medium text-gray-700"
-          >
-            Grund
-          </label>
-          <Textarea
-            id="reopen-status-change-reason"
-            value={reopenStatusChangeReason}
-            onChange={(e) => setReopenStatusChangeReason(e.target.value)}
-            disabled={reopenStatusChangeSubmitting}
-            placeholder="z. B. Mittags ins Homeoffice gewechselt"
-            rows={3}
-            className="mt-1"
-          />
         </div>
       </Modal>
 

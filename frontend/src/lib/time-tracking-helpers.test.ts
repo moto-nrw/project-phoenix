@@ -19,6 +19,7 @@ import {
   getWeekNumber,
   getComplianceWarnings,
   calculateNetMinutes,
+  indexWorkSessionMinutesByBerlinDate,
   mapClosingDaysResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
@@ -897,5 +898,142 @@ describe("calculateNetMinutes", () => {
     const result = calculateNetMinutes(checkIn, checkOut, 0);
 
     expect(result).toBe(240); // 4 * 60
+  });
+});
+
+describe("indexWorkSessionMinutesByBerlinDate", () => {
+  it("splits a night block and its pause at the Berlin day boundary", () => {
+    const session: WorkSessionHistory = {
+      id: "1",
+      staffId: "1",
+      date: "2026-07-20",
+      status: "present",
+      checkInTime: "2026-07-20T20:00:00.000Z", // 22:00 CEST
+      checkOutTime: "2026-07-21T00:00:00.000Z", // 02:00 CEST
+      breakMinutes: 30,
+      notes: "",
+      autoCheckedOut: false,
+      createdBy: "1",
+      updatedBy: null,
+      createdAt: "",
+      updatedAt: "",
+      netMinutes: 210,
+      isOvertime: false,
+      isBreakCompliant: true,
+      restPeriodWarning: null,
+      breaks: [],
+      editCount: 0,
+    };
+
+    expect(indexWorkSessionMinutesByBerlinDate([session])).toEqual(
+      new Map([
+        ["2026-07-20", { netMinutes: 90, breakMinutes: 30 }],
+        ["2026-07-21", { netMinutes: 120, breakMinutes: 0 }],
+      ]),
+    );
+  });
+
+  it("uses the server net value while a break is still running", () => {
+    const session: WorkSessionHistory = {
+      id: "1",
+      staffId: "1",
+      date: "2026-07-20",
+      status: "present",
+      checkInTime: "2026-07-20T20:00:00.000Z",
+      checkOutTime: null,
+      breakMinutes: 0,
+      notes: "",
+      autoCheckedOut: false,
+      createdBy: "1",
+      updatedBy: null,
+      createdAt: "",
+      updatedAt: "",
+      netMinutes: 90,
+      isOvertime: false,
+      isBreakCompliant: true,
+      restPeriodWarning: null,
+      breaks: [
+        {
+          id: "break",
+          sessionId: "1",
+          startedAt: "2026-07-20T21:30:00.000Z",
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: null,
+        },
+      ],
+      editCount: 0,
+    };
+
+    const indexed = indexWorkSessionMinutesByBerlinDate(
+      [session],
+      new Date("2026-07-20T23:00:00.000Z"),
+    );
+    expect(
+      [...indexed.values()].reduce((sum, day) => sum + day.netMinutes, 0),
+    ).toBe(90);
+    expect(indexed.get("2026-07-20")?.breakMinutes).toBe(30);
+    expect(indexed.get("2026-07-21")?.breakMinutes).toBe(60);
+  });
+
+  const openSession = (
+    overrides: Partial<WorkSessionHistory>,
+  ): WorkSessionHistory => ({
+    id: "1",
+    staffId: "1",
+    date: "2026-07-20",
+    status: "present",
+    checkInTime: "2026-07-20T20:00:00.000Z",
+    checkOutTime: null,
+    breakMinutes: 0,
+    notes: "",
+    autoCheckedOut: false,
+    createdBy: "1",
+    updatedBy: null,
+    createdAt: "",
+    updatedAt: "",
+    netMinutes: 0,
+    isOvertime: false,
+    isBreakCompliant: true,
+    restPeriodWarning: null,
+    breaks: [],
+    editCount: 0,
+    ...overrides,
+  });
+
+  it("caps an open block from yesterday at the 12-hour live limit", () => {
+    // 22:00 CEST, never checked out, read the next evening. The server caps
+    // its net value at check-in + 12h (10:00 CEST), so the split has to stop
+    // there too — otherwise the capped minutes get spread over a stretch of
+    // the day the block never covered.
+    const session = openSession({ netMinutes: 720 });
+
+    expect(
+      indexWorkSessionMinutesByBerlinDate(
+        [session],
+        new Date("2026-07-21T18:00:00.000Z"),
+      ),
+    ).toEqual(
+      new Map([
+        ["2026-07-20", { netMinutes: 120, breakMinutes: 0 }],
+        ["2026-07-21", { netMinutes: 600, breakMinutes: 0 }],
+      ]),
+    );
+  });
+
+  it("cuts a forgotten checkout at the end of its own Berlin day", () => {
+    const session = openSession({
+      date: "2026-07-18",
+      checkInTime: "2026-07-18T06:00:00.000Z",
+      netMinutes: 959,
+    });
+
+    const indexed = indexWorkSessionMinutesByBerlinDate(
+      [session],
+      new Date("2026-07-21T18:00:00.000Z"),
+    );
+
+    expect([...indexed.keys()]).toEqual(["2026-07-18"]);
+    expect(indexed.get("2026-07-18")?.netMinutes).toBe(959);
   });
 });

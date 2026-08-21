@@ -418,7 +418,6 @@ type absWorkSessionRepoMock struct {
 	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
 	deleteFunc              func(ctx context.Context, id any) error
 	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
@@ -466,13 +465,6 @@ func (m *absWorkSessionRepoMock) List(ctx context.Context, options *base.QueryOp
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
-	if m.getByStaffAndDateFunc != nil {
-		return m.getByStaffAndDateFunc(ctx, staffID, date)
-	}
-	return nil, nil
-}
-
 func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
 	if m.getCurrentByStaffIDFunc != nil {
 		return m.getCurrentByStaffIDFunc(ctx, staffID)
@@ -508,10 +500,20 @@ func (m *absWorkSessionRepoMock) GetHistoryByStaffIDs(context.Context, []int64, 
 	return nil, nil
 }
 
+func (m *absWorkSessionRepoMock) ListOverlappingByStaffIDs(context.Context, []int64, time.Time, *time.Time) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
+}
+
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
 	}
+	return nil, nil
+}
+
+// ListOverlappingByStaffID satisfies the interface; the absence service never
+// creates work blocks, so nothing here overlaps anything.
+func (m *absWorkSessionRepoMock) ListOverlappingByStaffID(context.Context, int64, time.Time, *time.Time) ([]*activeModels.WorkSession, error) {
 	return nil, nil
 }
 

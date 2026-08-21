@@ -35,18 +35,21 @@ import (
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
-	checkOutFn           func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
-	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
-	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
-	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
-	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn         func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
-	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
-	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
-	exportSessionsFn     func(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error)
-	autoEndExpiredBreaks func(ctx context.Context) (int, error)
+	checkInFn           func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	checkOutFn          func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
+	startBreakFn        func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	endBreakFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getSessionBreaksFn  func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	updateSessionFn     func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
+	getCurrentSessionFn func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getHistoryFn        func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
+	// Set only where a test needs to tell the two history reads apart; the
+	// default keeps both returning the same fixture.
+	getHistoryIntersectingFn func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
+	getSessionEditsFn        func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
+	getTodayPresenceFn       func(ctx context.Context) (map[int64]string, error)
+	exportSessionsFn         func(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error)
+	autoEndExpiredBreaks     func(ctx context.Context) (int, error)
 }
 
 func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
@@ -114,6 +117,12 @@ func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, 
 		return m.getHistoryFn(ctx, staffID, from, to)
 	}
 	return nil, nil
+}
+func (m *mockWorkSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+	if m.getHistoryIntersectingFn != nil {
+		return m.getHistoryIntersectingFn(ctx, staffID, from, to)
+	}
+	return m.GetHistory(ctx, staffID, from, to)
 }
 func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
 	if m.getSessionEditsFn != nil {
@@ -608,60 +617,6 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
-// TestCheckIn_ReopenStatusConflict locks in the HTTP-boundary contract for
-// Issue #1368: when the service returns *ReopenStatusConflictError, the
-// handler must respond 409 with a stable {"code":"reopen_status_conflict"}
-// body so the frontend can branch into the "change status with reason" flow
-// without parsing message strings. The errors.As wiring in
-// classifyServiceError is what would silently break if someone wrapped the
-// error or moved the type — service-level tests alone don't catch that.
-func TestCheckIn_ReopenStatusConflict(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
-			return nil, &activeSvc.ReopenStatusConflictError{
-				SessionID:       42,
-				ExistingStatus:  activeModels.WorkSessionStatusPresent,
-				RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
-			}
-		},
-	}
-	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
-
-	body := bytes.NewBufferString(`{"status":"home_office"}`)
-	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
-	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims(t))
-	w := httptest.NewRecorder()
-
-	rs.checkIn(w, r)
-	require.Equal(t, http.StatusConflict, w.Code)
-
-	var resp struct {
-		Status  string         `json:"status"`
-		Code    string         `json:"code"`
-		Error   string         `json:"error"`
-		Details map[string]any `json:"details"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "reopen_status_conflict", resp.Code,
-		"frontend branches on this code via REOPEN_STATUS_CONFLICT_CODE")
-
-	// Details payload drives the reopen-with-status-change modal directly.
-	// Without it the frontend would have to look up the session in local
-	// history — which fails when the user is viewing a past week and today's
-	// session isn't in the fetched range.
-	require.NotNil(t, resp.Details, "details must carry the conflicting session id and statuses")
-	assert.Equal(t, "42", resp.Details["session_id"],
-		"session_id is an int64; serialize as string so the frontend can use it as-is")
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, resp.Details["existing_status"])
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, resp.Details["requested_status"])
-}
-
 func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	t.Parallel()
 
@@ -883,6 +838,36 @@ func TestGetHistory_Success(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		getHistoryFn: func(_ context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+			assert.Equal(t, int64(100), staffID)
+			assert.Equal(t, "2026-01-01", from.Format("2006-01-02"))
+			assert.Equal(t, "2026-01-31", to.Format("2006-01-02"))
+			return &activeSvc.HistoryResponse{
+				Sessions:        []*activeSvc.SessionResponse{},
+				WeeklySummaries: []activeSvc.WeeklySummary{},
+			}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/history?from=2026-01-01&to=2026-01-31", nil)
+	r = withClaims(r, validClaims(t))
+	w := httptest.NewRecorder()
+
+	rs.getHistory(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// The table lays a block's minutes out on the Berlin days they fall on, so a
+// block that started the evening before `from` still belongs to the range
+// (#2402). The handler therefore reads by interval, not by stored date.
+func TestGetHistory_ReadsBlocksIntersectingTheRange(t *testing.T) {
+	t.Parallel()
+
+	wsSvc := &mockWorkSessionService{
+		getHistoryFn: func(_ context.Context, _ int64, _, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
+			return nil, errors.New("history must be read by interval, not by stored date")
+		},
+		getHistoryIntersectingFn: func(_ context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "2026-01-01", from.Format("2006-01-02"))
 			assert.Equal(t, "2026-01-31", to.Format("2006-01-02"))

@@ -128,9 +128,9 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 	for i, src := range []string{"app", "nfc", "unknown"} {
 		_, err := db.ExecContext(ctx, fmt.Sprintf(`
 			INSERT INTO active.work_sessions
-			    (tenant_id, staff_id, date, status, source, check_in_time, created_by, updated_by)
-			VALUES (%d, %d, '2026-03-%02d', 'present', '%s', '2026-03-%02d 08:00:00+00', %d, %d);
-		`, tenantID, staff.ID, i+10, src, i+10, staff.ID, staff.ID))
+			    (tenant_id, staff_id, date, status, source, check_in_time, check_out_time, created_by, updated_by)
+			VALUES (%d, %d, '2026-03-%02d', 'present', '%s', '2026-03-%02d 08:00:00+00', '2026-03-%02d 16:00:00+00', %d, %d);
+		`, tenantID, staff.ID, i+10, src, i+10, i+10, staff.ID, staff.ID))
 		assert.NoError(t, err, "CHECK constraint must accept source=%q", src)
 	}
 }

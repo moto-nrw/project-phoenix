@@ -36,13 +36,6 @@ interface ApiResponse<T> {
   data: T;
 }
 
-/**
- * Stable error code surfaced by the backend when a CheckIn would silently
- * change the status of an existing checked-out session. The page handles
- * this by prompting for a reason and routing the change through
- * UpdateSession (Issue #1368).
- */
-export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
 /**
  * Stable error code surfaced when a check-in/check-out deviates from the

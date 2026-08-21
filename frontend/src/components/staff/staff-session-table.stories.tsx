@@ -31,7 +31,7 @@ const schedule: StaffSchedule = {
 
 const sessions: StaffHistorySession[] = [
   {
-    id: 1,
+    id: "1",
     date: "2026-06-08",
     status: "present",
     source: "nfc",
@@ -43,7 +43,7 @@ const sessions: StaffHistorySession[] = [
     audit_count: 0,
   },
   {
-    id: 2,
+    id: "2",
     date: "2026-06-09",
     status: "home_office",
     source: "app",
@@ -55,7 +55,7 @@ const sessions: StaffHistorySession[] = [
     audit_count: 1,
   },
   {
-    id: 3,
+    id: "3",
     date: "2026-06-10",
     status: "present",
     source: "nfc",

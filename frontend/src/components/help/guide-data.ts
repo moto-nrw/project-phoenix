@@ -1300,6 +1300,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Zeiterfassung` öffnen.",
           "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
+          "Wer am selben Tag erneut einstempelt, startet einen neuen Arbeitsblock — auch mit anderem Arbeitsort (z. B. vormittags `Homeoffice`, nachmittags `In der OGS`). Die Zeit zwischen den Blöcken zählt nicht als Arbeitszeit; in der Tabelle erscheinen die Blöcke einzeln unter der Tageszeile.",
           "Wenn die Einrichtung Einstempeln erst ab geplanter Startzeit aktiviert hat, wird ein zu früher Versuch mit Hinweis auf die Startzeit abgewiesen.",
           "Ist im Dienstplan eine Schicht geplant, zeigt die Stempeluhr sie als `Geplant: 08:00–16:00`, bei hinterlegter Schichtart mit farbigem Kürzel (z. B. `Betreuung`). Eine Schicht als Vertretung ist mit `Vertretung` gekennzeichnet, eine ausgefallene Schicht als `Entfällt`. Vergessene Ausstempelungen kann die Einrichtung automatisch zum geplanten Dienstende beenden lassen (Einstellung `Automatische Ausstempelung`); solche Einträge sind mit `Auto-Checkout` markiert und lassen sich korrigieren.",
           "Wer früher als geplant kommt oder später als geplant geht, wird beim Stempeln nach einem kurzen Grund gefragt (z. B. `Bus verspätet`). Der Grund wird zur Nachvollziehbarkeit gespeichert. Die Einrichtung kann diese Abfrage in den Einstellungen abschalten.",

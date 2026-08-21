@@ -91,6 +91,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const weekEnd = useMemo(() => endOfWeek(today), [today]);
   const weekFromKey = toDateKey(weekStart);
   const weekToKey = toDateKey(weekEnd);
+  const weekHistoryFromKey = useMemo(() => {
+    const previousDay = new Date(weekStart);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [weekStart]);
 
   const { data: weekTargets } = useSWRAuth<ReadonlyMap<string, number>>(
     staffId
@@ -127,17 +132,23 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
   const { data: adminSessions } = useSWRAuth<readonly StaffHistorySession[]>(
-    staffId ? `staff-history-${staffId}-${weekFromKey}-${weekToKey}` : null,
+    staffId
+      ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
+      : null,
     () =>
-      staffHistoryService.getHistory(staffId as string, weekFromKey, weekToKey),
+      staffHistoryService.getHistory(
+        staffId as string,
+        weekHistoryFromKey,
+        weekToKey,
+      ),
     { refreshInterval },
   );
   const { data: ownHistory } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
-    staffId ? null : `time-tracking-table-${weekFromKey}-${weekToKey}`,
-    () => timeTrackingService.getHistory(weekFromKey, weekToKey),
+    staffId ? null : `time-tracking-table-${weekHistoryFromKey}-${weekToKey}`,
+    () => timeTrackingService.getHistory(weekHistoryFromKey, weekToKey),
     {
       refreshInterval: (latest) =>
         latest?.sessions.some((s) => !s.checkOutTime)

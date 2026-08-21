@@ -27,22 +27,32 @@ import (
 // ============================================================================
 
 type wsMockWorkSessionRepository struct {
-	lockBalanceWritesFunc    func(ctx context.Context, staffID int64) error
-	createFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
-	findByIDFunc             func(ctx context.Context, id any) (*activeModels.WorkSession, error)
-	updateFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
-	deleteFunc               func(ctx context.Context, id any) error
-	listFunc                 func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	getByStaffAndDateFunc    func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
-	getCurrentByStaffIDFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getCurrentForUpdateFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	lockOpenByIDFunc         func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
-	getHistoryByStaffIDFunc  func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
-	getHistoryByStaffIDsFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
-	getOpenSessionsFunc      func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
-	getTodayPresenceMapFunc  func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc         func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
-	updateBreakMinutesFunc   func(ctx context.Context, id int64, breakMinutes int) error
+	lockBalanceWritesFunc   func(ctx context.Context, staffID int64) error
+	createFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
+	findByIDFunc            func(ctx context.Context, id any) (*activeModels.WorkSession, error)
+	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
+	deleteFunc              func(ctx context.Context, id any) error
+	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
+	listByStaffAndDateFunc  func(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error)
+	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// Only set by tests that need the two lookups to differ, i.e. an open
+	// block that lives on a day other than the one being read. Unset, the
+	// day-independent lookup answers like the today-scoped one.
+	getLatestOpenByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getOpenByStaffAndDateFunc  func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
+	// Same idea for the locking read: set it when the test asserts WHICH day
+	// the lock was taken on, otherwise getCurrentForUpdateFunc suffices.
+	getOpenByStaffAndDateForUpdateFunc func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
+	getCurrentForUpdateFunc            func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	lockOpenByIDFunc                   func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
+	getHistoryByStaffIDFunc            func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	listOverlappingByStaffIDFunc       func(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
+	listOverlappingByStaffIDsFunc      func(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*activeModels.WorkSession, error)
+	getHistoryByStaffIDsFunc           func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
+	getOpenSessionsFunc                func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
+	getTodayPresenceMapFunc            func(ctx context.Context) (map[int64]string, error)
+	closeSessionFunc                   func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
+	updateBreakMinutesFunc             func(ctx context.Context, id int64, breakMinutes int) error
 }
 
 func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -84,14 +94,10 @@ func (m *wsMockWorkSessionRepository) List(ctx context.Context, options *base.Qu
 	if m.listFunc != nil {
 		return m.listFunc(ctx, options)
 	}
-	return nil, nil
-}
-
-func (m *wsMockWorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
-	if m.getByStaffAndDateFunc != nil {
-		return m.getByStaffAndDateFunc(ctx, staffID, date)
+	if m.listByStaffAndDateFunc != nil {
+		return m.listByStaffAndDateFunc(ctx, 0, timezone.TodayDate())
 	}
-	return nil, sql.ErrNoRows
+	return nil, nil
 }
 
 func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
@@ -101,15 +107,24 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	return nil, sql.ErrNoRows
 }
 
-func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
+	if m.getOpenByStaffAndDateFunc != nil {
+		return m.getOpenByStaffAndDateFunc(ctx, staffID, date)
+	}
 	return m.GetCurrentByStaffID(ctx, staffID)
 }
 
 func (m *wsMockWorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	if m.getLatestOpenByStaffIDFunc != nil {
+		return m.getLatestOpenByStaffIDFunc(ctx, staffID)
+	}
 	return m.GetCurrentByStaffID(ctx, staffID)
 }
 
-func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
+	if m.getOpenByStaffAndDateForUpdateFunc != nil {
+		return m.getOpenByStaffAndDateForUpdateFunc(ctx, staffID, date)
+	}
 	if m.getCurrentForUpdateFunc != nil {
 		return m.getCurrentForUpdateFunc(ctx, staffID)
 	}
@@ -136,6 +151,20 @@ func (m *wsMockWorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context,
 func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
+	}
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+	if m.listOverlappingByStaffIDFunc != nil {
+		return m.listOverlappingByStaffIDFunc(ctx, staffID, from, to)
+	}
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*activeModels.WorkSession, error) {
+	if m.listOverlappingByStaffIDsFunc != nil {
+		return m.listOverlappingByStaffIDsFunc(ctx, staffIDs, from, to)
 	}
 	return nil, nil
 }
@@ -655,7 +684,6 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 
 func TestWorkSessionService_CheckInLocksBalanceBeforeLookupAndWrite(t *testing.T) {
 	t.Parallel()
-
 	service, sessionRepo, _, _, _ := wsCreateTestService()
 	events := []string{}
 	staffID := int64(71)
@@ -664,9 +692,9 @@ func TestWorkSessionService_CheckInLocksBalanceBeforeLookupAndWrite(t *testing.T
 		events = append(events, "lock")
 		return nil
 	}
-	sessionRepo.getByStaffAndDateFunc = func(context.Context, int64, timezone.Date) (*activeModels.WorkSession, error) {
+	sessionRepo.listByStaffAndDateFunc = func(context.Context, int64, timezone.Date) ([]*activeModels.WorkSession, error) {
 		events = append(events, "lookup")
-		return nil, sql.ErrNoRows
+		return nil, nil
 	}
 	sessionRepo.createFunc = func(context.Context, *activeModels.WorkSession) error {
 		events = append(events, "create")
@@ -687,13 +715,12 @@ func TestWorkSessionService_CheckInLocksBalanceBeforeLookupAndWrite(t *testing.T
 
 func TestWSCheckIn_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	ctx := context.Background()
 	staffID := int64(100)
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -712,7 +739,6 @@ func TestWSCheckIn_Success(t *testing.T) {
 
 func TestWSCheckInBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc.SetBroadcaster(broadcaster)
@@ -720,8 +746,8 @@ func TestWSCheckInBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	_, err := svc.CheckIn(
@@ -746,7 +772,6 @@ func TestWSCheckInBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 
 func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 	t.Parallel()
-
 	startAt := func(t *testing.T, hhmm string) *time.Time {
 		t.Helper()
 		parsed, err := time.Parse("15:04", hhmm)
@@ -837,8 +862,8 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				},
 			}
 
-			sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-				return nil, sql.ErrNoRows
+			sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+				return nil, nil
 			}
 			created := false
 			sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -867,7 +892,6 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 
 func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	ctx := context.Background()
 	editorStaffID := int64(10)
@@ -913,7 +937,6 @@ func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {
 
 func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
 	t.Parallel()
-
 	// Issue #1368: staff must explicitly choose Vor Ort vs Homeoffice; the
 	// service no longer silently defaults an empty status to "present".
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
@@ -932,15 +955,24 @@ func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
 
 func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
-			Model:       base.Model{ID: 1},
-			StaffID:     100,
-			CheckInTime: time.Now().Add(-2 * time.Hour),
-		}, nil
+	open := &activeModels.WorkSession{
+		Model:       base.Model{ID: 1},
+		StaffID:     100,
+		CheckInTime: time.Now().Add(-2 * time.Hour),
+	}
+	// The open block is visible in every read the service does — the day list
+	// and the intersecting lookup that answers "is anything running" — like it
+	// would be in the database.
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return open, nil
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{open}, nil
+	}
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{open}, nil
 	}
 
 	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
@@ -949,15 +981,113 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 	assert.Contains(t, err.Error(), "already checked in")
 }
 
-func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
+// A block that was opened before Berlin midnight is still running after it.
+// Opening a second one there would leave two open blocks: the checkout closes
+// exactly one, so the running block and the day totals would drift apart. The
+// guard therefore looks for an open block on ANY day, not just the stamp's.
+func TestWSCheckIn_OpenBlockOfAnEarlierDayBlocksNewOne(t *testing.T) {
 	t.Parallel()
+	yesterday := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin)
 
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	stillRunning := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        yesterday,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{stillRunning}, nil
+	}
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		t.Fatal("a block that is still inside its live window must not be closed")
+		return false, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a second block must not be created while another one is still open")
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "already checked in")
+}
+
+// The counterpart of the guard above: the check-out has to reach the block
+// that is actually running, otherwise a block that crossed midnight could
+// neither be closed nor followed by a new one.
+func TestWSCheckOut_ClosesBlockOpenedOnAnEarlierDay(t *testing.T) {
+	t.Parallel()
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin) }
+
+	open := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        yesterday,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return open, nil
+	}
+	var lookedUpDays []timezone.Date
+	sessionRepo.getOpenByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUpDays = append(lookedUpDays, day)
+		if day == yesterday {
+			return open, nil
+		}
+		return nil, sql.ErrNoRows
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	var closedID int64
+	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, _ time.Time, _ bool) (bool, error) {
+		closedID = id
+		return true, nil
+	}
+	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
+		return 0, nil
+	}
+	checkOut := time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin)
+	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:        base.Model{ID: id.(int64)},
+			StaffID:      100,
+			Date:         yesterday,
+			CheckInTime:  open.CheckInTime,
+			CheckOutTime: &checkOut,
+		}, nil
+	}
+
+	session, err := svc.CheckOut(context.Background(), 100, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, open.ID, closedID, "the running block is the one that gets closed")
+	assert.Equal(t, []timezone.Date{yesterday}, lookedUpDays, "resolved on the block's own day, not on today")
+}
+
+// TestWSCheckIn_SecondBlockAfterCheckout locks in the #2402 semantics: a
+// check-in after a same-day checkout creates a NEW work block instead of
+// reopening the closed one. The first block keeps its check-out as a real
+// interval boundary, and the gap between the blocks is not work time.
+func TestWSCheckIn_SecondBlockAfterCheckout(t *testing.T) {
+	t.Parallel()
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	checkIn := time.Now().Add(-4 * time.Hour)
 	checkOut := time.Now().Add(-1 * time.Hour)
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{{
 			Model:          base.Model{ID: 1},
 			StaffID:        100,
 			CheckInTime:    checkIn,
@@ -966,114 +1096,85 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 			Status:         activeModels.WorkSessionStatusPresent,
 			Date:           timezone.TodayDate(),
 			CreatedBy:      100,
-		}, nil
+		}}, nil
 	}
 
-	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		assert.Nil(t, entity.CheckOutTime)
-		assert.False(t, entity.AutoCheckedOut)
-		assert.Equal(t, checkIn, entity.CheckInTime)
-		require.NotNil(t, entity.ReopenedAt)
-		assert.True(t, entity.ReopenedAt.After(checkOut))
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a second check-in must not reopen (update) the closed block")
+		return nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 2
+		created = entity
 		return nil
 	}
 
 	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	require.NotNil(t, created, "second check-in must create a new block")
+	assert.Equal(t, created.ID, session.ID)
 	assert.Nil(t, session.CheckOutTime)
-	assert.Equal(t, checkIn, session.CheckInTime)
-	require.NotNil(t, session.ReopenedAt)
+	assert.True(t, session.CheckInTime.After(checkOut),
+		"the new block starts at the stamp, not at the first block's check-in")
+	assert.Nil(t, session.ReopenedAt)
 }
 
-// TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus locks in the
-// audit-trail behaviour for Issue #1368: when the staff member reopens an
-// NFC-originated session via the App with the SAME status, both Source and
-// Status are preserved. Reopen never overwrites either field — Source has
-// no audit-edit channel, and Status changes must go through UpdateSession
-// (which gates on a notes reason).
-func TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus(t *testing.T) {
+// TestWSCheckIn_SecondBlockWithDifferentStatus is the core of #2402: a
+// Homeoffice morning followed by an OGS afternoon. The second check-in with a
+// DIFFERENT status simply creates a new block carrying that status — no
+// conflict, no reason, no audit edit, and the first block's status is
+// untouched.
+func TestWSCheckIn_SecondBlockWithDifferentStatus(t *testing.T) {
 	t.Parallel()
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	checkOut := time.Now().Add(-90 * time.Minute)
 
-	svc, sessionRepo, _, _, _ := wsCreateTestService()
-	checkOut := time.Now().Add(-1 * time.Hour)
-
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
-			Model:          base.Model{ID: 1},
-			StaffID:        100,
-			CheckInTime:    time.Now().Add(-4 * time.Hour),
-			CheckOutTime:   &checkOut,
-			AutoCheckedOut: true,
-			Status:         activeModels.WorkSessionStatusPresent,
-			Source:         activeModels.WorkSessionSourceNFC,
-			Date:           timezone.TodayDate(),
-			CreatedBy:      100,
-		}, nil
+	firstBlock := &activeModels.WorkSession{
+		Model:        base.Model{ID: 42},
+		StaffID:      100,
+		CheckInTime:  time.Now().Add(-5 * time.Hour),
+		CheckOutTime: &checkOut,
+		Status:       activeModels.WorkSessionStatusHomeOffice,
+		Source:       activeModels.WorkSessionSourceApp,
+		Date:         timezone.TodayDate(),
+		CreatedBy:    100,
 	}
-
-	var capturedSource, capturedStatus string
-	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		capturedSource = entity.Source
-		capturedStatus = entity.Status
-		return nil
-	}
-
-	// Reopen via App with the SAME status — both Source and Status survive.
-	session, err := svc.CheckIn(context.Background(), 100,
-		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
-	require.NoError(t, err)
-	require.NotNil(t, session)
-	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
-		"reopen must preserve the originating Source")
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, capturedStatus,
-		"reopen must preserve the originating Status")
-}
-
-// TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict guards the audit
-// trail: a reopen that would silently flip Vor Ort ↔ Homeoffice is rejected
-// before the DB write. The frontend uses the typed code to branch into the
-// "change status with reason" flow (UpdateSession with notes).
-func TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict(t *testing.T) {
-	t.Parallel()
-
-	svc, sessionRepo, _, _, _ := wsCreateTestService()
-	checkOut := time.Now().Add(-1 * time.Hour)
-
-	existing := &activeModels.WorkSession{
-		Model:          base.Model{ID: 42},
-		StaffID:        100,
-		CheckInTime:    time.Now().Add(-4 * time.Hour),
-		CheckOutTime:   &checkOut,
-		AutoCheckedOut: true,
-		Status:         activeModels.WorkSessionStatusPresent,
-		Source:         activeModels.WorkSessionSourceNFC,
-		Date:           timezone.TodayDate(),
-		CreatedBy:      100,
-	}
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return existing, nil
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{firstBlock}, nil
 	}
 	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
-		t.Fatal("repo.Update must not be called on a status-mismatch reopen")
+		t.Fatal("the first block must stay untouched")
+		return nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("a new block with its own status needs no audit edit")
+		return nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 43
+		created = entity
 		return nil
 	}
 
 	session, err := svc.CheckIn(context.Background(), 100,
-		activeModels.WorkSessionStatusHomeOffice, activeModels.WorkSessionSourceApp, "")
-	require.Error(t, err)
-	assert.Nil(t, session)
-
-	var conflict *ReopenStatusConflictError
-	require.ErrorAs(t, err, &conflict, "must surface as the typed conflict")
-	assert.Equal(t, int64(42), conflict.SessionID)
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, conflict.ExistingStatus)
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, conflict.RequestedStatus)
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceNFC, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	require.NotNil(t, created)
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, created.Status,
+		"the new block carries the requested status")
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, created.Source,
+		"the new block carries its own channel")
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, firstBlock.Status,
+		"the first block keeps its status")
+	require.NotNil(t, firstBlock.CheckOutTime, "the first block stays closed")
 }
 
 func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 
 	session, err := svc.CheckIn(context.Background(), 100, "invalid_status", activeModels.WorkSessionSourceApp, "")
@@ -1091,7 +1192,6 @@ func TestWSCheckIn_InvalidStatus(t *testing.T) {
 // prefix to produce 400 instead of 500.
 func TestWSCheckIn_InvalidSource(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 
 	session, err := svc.CheckIn(context.Background(), 100,
@@ -1110,7 +1210,6 @@ func TestWSCheckIn_InvalidSource(t *testing.T) {
 // re-writing a fresh row with the same sentinel.
 func TestWSCheckIn_RejectsUnknownSource(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 
 	session, err := svc.CheckIn(context.Background(), 100,
@@ -1121,125 +1220,18 @@ func TestWSCheckIn_RejectsUnknownSource(t *testing.T) {
 		"'unknown' is a read-only sentinel for legacy rows and must not be writable")
 }
 
-// TestReopenStatusConflictError_Error covers the typed error's stringification.
-// Production callers use errors.As to branch on the type, which does not
-// invoke Error(), but the message still appears in slog warnings/info logs
-// when the error bubbles up — locking the string keeps log greps stable.
-func TestReopenStatusConflictError_Error(t *testing.T) {
-	t.Parallel()
-
-	err := &ReopenStatusConflictError{
-		SessionID:       7,
-		ExistingStatus:  activeModels.WorkSessionStatusPresent,
-		RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
-	}
-	assert.Equal(t, "reopen status conflict", err.Error())
-}
-
-// TestWSReopenThenUpdateSession_EmitsFieldStatusEdit exercises the realistic
-// frontend sequence end-to-end: a checked-out 'present' session is reopened
-// at the existing status (no conflict), then the requested status flip is
-// routed through UpdateSession with a notes reason. The combined behaviour
-// the audit trail relies on is:
-//
-//  1. The reopen does not create an audit edit (it preserves Status).
-//  2. The follow-up UpdateSession produces a FieldStatus edit whose old/new
-//     values match the chosen flip and whose Reason carries the user's text.
-//
-// This complements the unit tests that cover each step in isolation
-// (TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus and
-// TestWSUpdateSession_StatusChange) by locking in the cross-call behaviour.
-func TestWSReopenThenUpdateSession_EmitsFieldStatusEdit(t *testing.T) {
-	t.Parallel()
-
-	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
-	ctx := context.Background()
-	staffID := int64(100)
-	sessionID := int64(701)
-	checkOut := time.Now().Add(-1 * time.Hour)
-
-	current := &activeModels.WorkSession{
-		Model:          base.Model{ID: sessionID},
-		StaffID:        staffID,
-		CheckInTime:    time.Now().Add(-4 * time.Hour),
-		CheckOutTime:   &checkOut,
-		AutoCheckedOut: true,
-		Status:         activeModels.WorkSessionStatusPresent,
-		Source:         activeModels.WorkSessionSourceApp,
-		Date:           timezone.TodayDate(),
-		CreatedBy:      staffID,
-	}
-
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return current, nil
-	}
-	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
-		return current, nil
-	}
-	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		current = entity
-		return nil
-	}
-
-	var auditCalls int
-	var capturedEdits []*auditModels.WorkSessionEdit
-	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
-		auditCalls++
-		capturedEdits = append(capturedEdits, edits...)
-		return nil
-	}
-
-	// Step 1: reopen at existing status — no audit edit.
-	reopened, err := svc.CheckIn(ctx, staffID,
-		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
-	require.NoError(t, err)
-	require.NotNil(t, reopened)
-	require.Nil(t, reopened.CheckOutTime, "reopen must clear CheckOutTime")
-	assert.Equal(t, 0, auditCalls, "reopen alone must not emit audit edits")
-
-	// Step 2: route the actual status flip through UpdateSession with reason.
-	newStatus := activeModels.WorkSessionStatusHomeOffice
-	reason := "Mittags ins Homeoffice gewechselt"
-	updated, err := svc.UpdateSession(ctx, staffID, sessionID, SessionUpdateRequest{
-		Status: &newStatus,
-		Notes:  &reason,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, updated)
-
-	require.GreaterOrEqual(t, auditCalls, 1, "UpdateSession must emit an audit batch")
-	var statusEdit *auditModels.WorkSessionEdit
-	for _, e := range capturedEdits {
-		if e.FieldName == auditModels.FieldStatus {
-			statusEdit = e
-			break
-		}
-	}
-	require.NotNil(t, statusEdit, "audit batch must contain a FieldStatus edit")
-	require.NotNil(t, statusEdit.OldValue)
-	require.NotNil(t, statusEdit.NewValue)
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, *statusEdit.OldValue,
-		"FieldStatus old value reflects the pre-update status")
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, *statusEdit.NewValue,
-		"FieldStatus new value reflects the requested flip")
-	require.NotNil(t, statusEdit.Notes,
-		"FieldStatus edit must carry the user-supplied reason in Notes")
-	assert.Equal(t, reason, *statusEdit.Notes)
-}
-
 func TestWSCheckIn_RepoError(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, errors.New("database error")
 	}
 
 	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
-	assert.Contains(t, err.Error(), "failed to check existing session")
+	assert.Contains(t, err.Error(), "failed to check existing sessions")
 }
 
 // ============================================================================
@@ -1248,7 +1240,6 @@ func TestWSCheckIn_RepoError(t *testing.T) {
 
 func TestWSCheckOut_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -1292,7 +1283,6 @@ func TestWSCheckOut_Success(t *testing.T) {
 
 func TestWSCheckOut_NoActiveSession(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1307,7 +1297,6 @@ func TestWSCheckOut_NoActiveSession(t *testing.T) {
 
 func TestWSCheckOut_NilSession(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1322,7 +1311,6 @@ func TestWSCheckOut_NilSession(t *testing.T) {
 
 func TestWSCheckOut_WithActiveBreak(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
 	staffID := int64(100)
 
@@ -1384,7 +1372,6 @@ func TestWSCheckOut_WithActiveBreak(t *testing.T) {
 
 func TestWSStartBreak_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
@@ -1413,13 +1400,23 @@ func TestWSStartBreak_Success(t *testing.T) {
 
 func TestWSStartBreak_LocksCurrentSessionBeforeCreate(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		t.Fatal("StartBreak must lock the active session before creating a break")
 		return nil, nil
+	}
+	// Resolving which day the running block is filed on is a separate,
+	// deliberately unlocked lookup; the row the break hangs on still comes
+	// from the FOR UPDATE read below.
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     staffID,
+			Date:        timezone.TodayDate(),
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
 	}
 	locked := false
 	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1447,7 +1444,6 @@ func TestWSStartBreak_LocksCurrentSessionBeforeCreate(t *testing.T) {
 
 func TestWSStartBreak_CustomDurationSetsPlannedEnd(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	durationMinutes := 90
@@ -1481,7 +1477,6 @@ func TestWSStartBreak_CustomDurationSetsPlannedEnd(t *testing.T) {
 
 func TestWSStartBreak_RejectsCustomDurationAboveLimit(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	durationMinutes := 241
 
@@ -1505,7 +1500,6 @@ func TestWSStartBreak_RejectsCustomDurationAboveLimit(t *testing.T) {
 
 func TestWSStartBreak_NoActiveSession(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1520,7 +1514,6 @@ func TestWSStartBreak_NoActiveSession(t *testing.T) {
 
 func TestWSStartBreak_AlreadyOnBreak(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1545,9 +1538,98 @@ func TestWSStartBreak_AlreadyOnBreak(t *testing.T) {
 	assert.Contains(t, err.Error(), "break already active")
 }
 
+// A block that crossed Berlin midnight keeps its own (yesterday's) date. The
+// break actions must follow it there — resolving "today" from the clock would
+// report "no active session found" to somebody who is demonstrably clocked in.
+func TestWSStartBreak_FollowsBlockOpenedOnAnEarlierDay(t *testing.T) {
+	t.Parallel()
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 1, 0, 0, 0, timezone.Berlin) }
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows // nothing is filed on today
+	}
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 77},
+			StaffID:     100,
+			Date:        yesterday,
+			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	var lockedDay timezone.Date
+	sessionRepo.getOpenByStaffAndDateForUpdateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lockedDay = day
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 77},
+			StaffID:     100,
+			Date:        yesterday,
+			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		entity.ID = 10
+		return nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), 100, nil)
+	require.NoError(t, err)
+	require.NotNil(t, brk)
+	assert.Equal(t, int64(77), brk.SessionID)
+	assert.Equal(t, yesterday, lockedDay)
+}
+
+func TestWSEndBreak_FollowsBlockOpenedOnAnEarlierDay(t *testing.T) {
+	t.Parallel()
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 1, 0, 0, 0, timezone.Berlin) }
+
+	open := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        yesterday,
+		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows // nothing is filed on today
+	}
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return open, nil
+	}
+	var lookedUpDay timezone.Date
+	sessionRepo.getOpenByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUpDay = day
+		return open, nil
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return &activeModels.WorkSessionBreak{
+			Model:     base.Model{ID: 1},
+			SessionID: 77,
+			StartedAt: time.Date(2026, time.July, 22, 0, 30, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	breakRepo.endBreakFunc = func(_ context.Context, _ int64, _ time.Time, _ int) error { return nil }
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+	sessionRepo.updateBreakMinutesFunc = func(_ context.Context, _ int64, _ int) error { return nil }
+	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{Model: base.Model{ID: id.(int64)}, StaffID: 100, Date: yesterday}, nil
+	}
+
+	session, err := svc.EndBreak(context.Background(), 100)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, yesterday, lookedUpDay)
+}
+
 func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	startedAt := time.Now().Add(-2 * time.Hour)
 	plannedEnd := startedAt.Add(90 * time.Minute)
@@ -1600,7 +1682,6 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 
 func TestWSLockStaffBalanceWritesOrdered_SortsAndDeduplicates(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	var locked []int64
 	sessionRepo.lockBalanceWritesFunc = func(_ context.Context, staffID int64) error {
@@ -1620,7 +1701,6 @@ func TestWSLockStaffBalanceWritesOrdered_SortsAndDeduplicates(t *testing.T) {
 
 func TestWSEndBreak_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
@@ -1667,7 +1747,6 @@ func TestWSEndBreak_Success(t *testing.T) {
 
 func TestWSEndBreak_NoActiveBreak(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1690,7 +1769,6 @@ func TestWSEndBreak_NoActiveBreak(t *testing.T) {
 
 func TestWSEndBreak_NoActiveSession(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1709,7 +1787,6 @@ func TestWSEndBreak_NoActiveSession(t *testing.T) {
 
 func TestWSGetCurrentSession_Found(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
@@ -1728,7 +1805,6 @@ func TestWSGetCurrentSession_Found(t *testing.T) {
 
 func TestWSGetCurrentSession_NotFound(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1746,7 +1822,6 @@ func TestWSGetCurrentSession_NotFound(t *testing.T) {
 
 func TestWSGetHistory_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	from := timezone.TodayDate().AddDays(-7)
@@ -1791,7 +1866,6 @@ func TestWSGetHistory_Success(t *testing.T) {
 // deduct the running break server-side, stand still (#1842).
 func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
@@ -1841,13 +1915,38 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		"the displayed pause must include the running break")
 }
 
+func TestBuildWeeklySummaries_SplitsOvernightBlockAcrossISOWeeks(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         sunday,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+		// The requested range spans both days the block touches, so the
+		// range clipping (#2402) leaves this split untouched.
+	}}, nil, sunday, sunday.AddDays(1))
+
+	require.Len(t, summaries, 2)
+	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
+	assert.Equal(t, 120, summaries[1].TotalNetMinutes)
+	assert.Equal(t, 1, summaries[0].SessionCount)
+	assert.Equal(t, 1, summaries[1].SessionCount)
+	assert.NotEqual(t, summaries[0].WeekNumber, summaries[1].WeekNumber)
+}
+
 // The pause total is what the day row prints, so it has to survive JSON: the
 // response embeds *WorkSession, whose own break_minutes tag would win if the
 // shadowing field were ever removed — and the row would silently fall back to
 // the ENDED-breaks cache while NetMinutes stayed corrected (#1842).
 func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	checkIn := time.Now().Add(-2 * time.Hour)
@@ -1888,7 +1987,6 @@ func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
 // cache, so nothing may be deducted twice.
 func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	checkIn := time.Now().Add(-8 * time.Hour)
@@ -1928,13 +2026,12 @@ func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
 
 func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	wednesdayWeekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	mondayWeekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
-	checkOutWeekZero := wednesdayWeekZero.Add(20 * time.Hour)
-	checkOutWeekOne := mondayWeekOne.Add(30 * time.Hour)
+	checkOutWeekZero := wednesdayWeekZero.Add(6 * time.Hour)
+	checkOutWeekOne := mondayWeekOne.Add(7 * time.Hour)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
 		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
@@ -1948,7 +2045,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  20 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      validFrom,
 				},
 				{
@@ -1956,7 +2053,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					WeekIndex:      1,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  30 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      validFrom,
 				},
 			}, nil
@@ -2002,21 +2099,20 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
 func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	oldWeek := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	newWeek := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
-	checkOutOldWeek := oldWeek.Add(20 * time.Hour)
-	checkOutNewWeek := newWeek.Add(30 * time.Hour)
+	checkOutOldWeek := oldWeek.Add(6 * time.Hour)
+	checkOutNewWeek := newWeek.Add(7 * time.Hour)
 	changeDate := timezone.NewDate(2026, 6, 8)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
@@ -2034,7 +2130,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
-					TargetMinutes:  20 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      timezone.NewDate(2026, 1, 1),
 					ValidUntil:     &changeDate,
 				},
@@ -2043,7 +2139,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
-					TargetMinutes:  30 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      changeDate,
 				},
 			}, nil
@@ -2086,23 +2182,22 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
 func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	modelID := int64(2300)
 	anchor := timezone.NewDate(2026, 6, 1)
 	weekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	weekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
-	checkOutWeekZero := weekZero.Add(25 * time.Hour)
-	checkOutWeekOne := weekOne.Add(35 * time.Hour)
+	checkOutWeekZero := weekZero.Add(6 * time.Hour)
+	checkOutWeekOne := weekOne.Add(7 * time.Hour)
 
 	svc.staffRepo = &testpkg.StaffRepoMock{
 		FindByIDFn: func(_ context.Context, _ any) (*userModels.Staff, error) {
@@ -2126,14 +2221,14 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 					WeekIndex:      0,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  25 * 60,
+					TargetMinutes:  6 * 60,
 					ValidFrom:      anchor,
 				},
 				{
 					WeekIndex:      1,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
-					TargetMinutes:  35 * 60,
+					TargetMinutes:  7 * 60,
 					ValidFrom:      anchor,
 				},
 			}, nil
@@ -2175,15 +2270,14 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
 	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
-	assert.Equal(t, 25*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 6*60, *historyResp.WeeklySummaries[0].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
-	assert.Equal(t, 35*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 7*60, *historyResp.WeeklySummaries[1].TargetMinutes)
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
 func TestWSGetHistory_RepoError(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -2201,7 +2295,6 @@ func TestWSGetHistory_RepoError(t *testing.T) {
 
 func TestWSGetSessionBreaks_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(502)
@@ -2232,7 +2325,6 @@ func TestWSGetSessionBreaks_Success(t *testing.T) {
 
 func TestWSGetSessionEdits_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(503)
@@ -2262,7 +2354,6 @@ func TestWSGetSessionEdits_Success(t *testing.T) {
 
 func TestWSGetTodayPresenceMap_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getTodayPresenceMapFunc = func(_ context.Context) (map[int64]string, error) {
@@ -2284,14 +2375,13 @@ func TestWSGetTodayPresenceMap_Success(t *testing.T) {
 
 func TestWSCleanupOpenSessions_Success(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
-	yesterday := timezone.TodayDate().AddDays(-1)
+	staleDay := timezone.TodayDate().AddDays(-2)
 
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
-			{Model: base.Model{ID: 1}, Date: yesterday},
-			{Model: base.Model{ID: 2}, Date: yesterday},
+			{Model: base.Model{ID: 1}, Date: staleDay},
+			{Model: base.Model{ID: 2}, Date: staleDay},
 		}, nil
 	}
 
@@ -2307,7 +2397,6 @@ func TestWSCleanupOpenSessions_Success(t *testing.T) {
 
 func TestWSCleanupOpenSessions_NoOpenSessions(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -2321,7 +2410,6 @@ func TestWSCleanupOpenSessions_NoOpenSessions(t *testing.T) {
 
 func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	// Session date stored as a calendar day
@@ -2360,13 +2448,30 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 		"check-out should NOT be 23:59:59 UTC — that would be 00:59:59 CET the next day")
 }
 
+func TestWSCleanupOpenSessions_KeepsYesterdayOpenForNightBlocks(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	today := timezone.NewDate(2026, 8, 18)
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.August, 18, 8, 0, 0, 0, timezone.Berlin) }
+
+	var beforeDate timezone.Date
+	sessionRepo.getOpenSessionsFunc = func(_ context.Context, before timezone.Date) ([]*activeModels.WorkSession, error) {
+		beforeDate = before
+		return nil, nil
+	}
+
+	count, err := svc.CleanupOpenSessions(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	assert.Equal(t, today.AddDays(-1), beforeDate)
+}
+
 // ============================================================================
 // EnsureCheckedIn Tests
 // ============================================================================
 
 func TestWSEnsureCheckedIn_AlreadyActive(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
@@ -2384,9 +2489,37 @@ func TestWSEnsureCheckedIn_AlreadyActive(t *testing.T) {
 	assert.Equal(t, staffID, session.StaffID)
 }
 
+// Starting a supervision while a block from an earlier day is still running
+// must return that block. Looking only at today would let the auto-stamp run
+// into the check-in guard and fail the supervision start.
+func TestWSEnsureCheckedIn_ReturnsBlockOpenedOnAnEarlierDay(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	staffID := int64(100)
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin) }
+
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 77},
+			StaffID:     staffID,
+			Date:        yesterday,
+			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("the running block must be reused, not doubled")
+		return nil
+	}
+
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, int64(77), session.ID)
+}
+
 func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	checkOut := time.Now().Add(-1 * time.Hour)
@@ -2395,12 +2528,12 @@ func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{{
 			Model:        base.Model{ID: 1},
 			StaffID:      staffID,
 			CheckOutTime: &checkOut,
-		}, nil
+		}}, nil
 	}
 
 	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
@@ -2410,7 +2543,6 @@ func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 
 func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
@@ -2418,15 +2550,8 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 
-	callCount := 0
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		callCount++
-		if callCount == 1 {
-			// First call from EnsureCheckedIn
-			return nil, sql.ErrNoRows
-		}
-		// Second call from CheckIn
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	var capturedSource string
@@ -2448,15 +2573,14 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 // must be able to record their channel faithfully.
 func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	staffID := int64(100)
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return nil, sql.ErrNoRows
 	}
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	var capturedSource string
@@ -2477,7 +2601,6 @@ func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
 
 func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc.SetBroadcaster(broadcaster)
@@ -2525,7 +2648,6 @@ func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 
 func TestWSUpdateSession_OwnershipFails(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
@@ -2547,7 +2669,6 @@ func TestWSUpdateSession_OwnershipFails(t *testing.T) {
 
 func TestWSUpdateSession_NotFound(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
@@ -2562,7 +2683,6 @@ func TestWSUpdateSession_NotFound(t *testing.T) {
 
 func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -2607,6 +2727,10 @@ func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
 		assert.Len(t, edits, 1)
 		assert.Equal(t, auditModels.FieldBreakDuration, edits[0].FieldName)
+		require.NotNil(t, edits[0].OldValue)
+		require.NotNil(t, edits[0].NewValue)
+		assert.Equal(t, "30", *edits[0].OldValue)
+		assert.Equal(t, "45", *edits[0].NewValue)
 		return nil
 	}
 
@@ -2623,7 +2747,6 @@ func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 
 func TestWSUpdateSession_BreakNotBelongsToSession(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -2657,7 +2780,6 @@ func TestWSUpdateSession_BreakNotBelongsToSession(t *testing.T) {
 
 func TestWSUpdateSession_CannotEditActiveBreak(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -2767,7 +2889,6 @@ func wsDeviationSettings(toleranceMinutes int) *wsMockSettingsResolver {
 
 func TestWSCheckOut_DeviationGate(t *testing.T) {
 	t.Parallel()
-
 	day := timezone.NewDate(2026, 7, 6) // Monday
 	shift := shiftFor(100, day, 8, 16)  // planned 08:00-16:00
 
@@ -2918,7 +3039,6 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 
 func TestWSCheckOut_DeviationGateOffSkipsShiftLookup(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
 	svc.settings = &wsMockSettingsResolver{} // setting resolves to false
 	lookedUp := false
@@ -2963,7 +3083,6 @@ func TestWSCheckOut_DeviationGateOffSkipsShiftLookup(t *testing.T) {
 
 func TestWSCheckIn_DeviationGate(t *testing.T) {
 	t.Parallel()
-
 	day := timezone.NewDate(2026, 7, 6) // Monday
 	shift := shiftFor(100, day, 8, 16)
 
@@ -3022,8 +3141,8 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 			}
 			svc.SetStaffShiftRepo(shiftRepo)
 
-			sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-				return nil, sql.ErrNoRows
+			sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+				return nil, nil
 			}
 			created := false
 			sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -3067,11 +3186,11 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 	}
 }
 
-func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
+func TestWSCheckIn_SecondBlockSkipsDeviationGate(t *testing.T) {
 	t.Parallel()
-
-	// Reopening after an accidental checkout is not a new arrival: even far
-	// outside the tolerance window no reason is demanded.
+	// Starting a second block after a checkout resumes an already-started
+	// work day, not a new arrival: even far outside the tolerance window no
+	// reason is demanded (same exemption the pre-#2402 reopen path had).
 	now := time.Date(2026, time.July, 6, 16, 30, 0, 0, timezone.Berlin)
 	day := timezone.NewDate(2026, 7, 6)
 
@@ -3080,14 +3199,14 @@ func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
 	svc.settings = wsDeviationSettings(15)
 	shiftRepo := &wsMockStaffShiftRepository{}
 	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
-		t.Fatal("reopen must not consult the deviation gate")
+		t.Fatal("a second block must not consult the deviation gate")
 		return nil, nil
 	}
 	svc.SetStaffShiftRepo(shiftRepo)
 
 	checkOut := time.Date(2026, time.July, 6, 12, 0, 0, 0, timezone.Berlin)
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{{
 			Model:        base.Model{ID: 7},
 			StaffID:      100,
 			Date:         day,
@@ -3096,14 +3215,24 @@ func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
 			Source:       activeModels.WorkSessionSourceApp,
 			CheckInTime:  time.Date(2026, time.July, 6, 8, 0, 0, 0, timezone.Berlin),
 			CheckOutTime: &checkOut,
-		}, nil
+		}}, nil
 	}
-	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error { return nil }
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a second block must be created, never reopened")
+		return nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = entity
+		entity.ID = 8
+		return nil
+	}
 
 	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.NoError(t, err)
 	require.NotNil(t, session)
-	assert.Nil(t, session.CheckOutTime, "session must be reopened")
+	require.NotNil(t, created, "second check-in must create a new block")
+	assert.Nil(t, session.CheckOutTime)
 }
 
 // A kiosk resolves its calendar day before it stamps. When the request crosses
@@ -3114,17 +3243,16 @@ func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
 // column.
 func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	t.Parallel()
-
 	pinnedDay := timezone.NewDate(2026, 7, 21)
 	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
 
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	svc.nowFunc = func() time.Time { return stampedAt }
 
-	var lookedUp timezone.Date
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
-		lookedUp = day
-		return nil, sql.ErrNoRows
+	var listCalls int
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		listCalls++
+		return nil, nil
 	}
 	var created *activeModels.WorkSession
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -3137,7 +3265,7 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
-	assert.Equal(t, pinnedDay, lookedUp, "the pinned day still selects the session to reopen")
+	assert.Equal(t, 1, listCalls, "the new block checks its stamp day for existing blocks")
 	require.NotNil(t, created)
 	assert.Equal(t, timezone.DateFromTime(stampedAt), created.Date)
 	assert.Equal(t, timezone.DateFromTime(created.CheckInTime), created.Date)
@@ -3150,7 +3278,6 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 // must open its own day instead.
 func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 	t.Parallel()
-
 	pinnedDay := timezone.NewDate(2026, 7, 21)
 	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
 	stampDay := timezone.DateFromTime(stampedAt)
@@ -3170,13 +3297,8 @@ func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 		CheckOutTime: &checkOut,
 	}
 
-	var lookedUp []timezone.Date
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
-		lookedUp = append(lookedUp, day)
-		if day == pinnedDay {
-			return yesterday, nil
-		}
-		return nil, sql.ErrNoRows
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{yesterday}, nil
 	}
 	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a closed session of a past day must never be reopened")
@@ -3193,7 +3315,6 @@ func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
-	assert.Equal(t, []timezone.Date{pinnedDay, stampDay}, lookedUp, "the stale day is re-resolved to the stamp's own day")
 	require.NotNil(t, created)
 	assert.Equal(t, stampDay, created.Date)
 	assert.NotNil(t, yesterday.CheckOutTime, "yesterday's departure stays recorded")
@@ -3201,7 +3322,6 @@ func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 
 func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	t.Parallel()
-
 	// The supervision auto-stamp has no way to collect a reason; an early
 	// start must still produce a work session.
 	now := time.Date(2026, time.July, 6, 7, 0, 0, 0, timezone.Berlin)
@@ -3219,8 +3339,8 @@ func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return nil, sql.ErrNoRows
 	}
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 	created := false
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
@@ -3241,7 +3361,6 @@ func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 
 func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 	t.Parallel()
-
 	staffID := int64(100)
 	sessionID := int64(100)
 	oldCheckIn := time.Date(2026, time.July, 6, 8, 0, 0, 0, timezone.Berlin)
@@ -3343,7 +3462,6 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 
 func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc.SetBroadcaster(broadcaster)
@@ -3382,7 +3500,6 @@ func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 // exactly that, re-paritying these historical A/B weeks and moving the carry.
 func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 	staff := &userModels.Staff{Model: base.Model{ID: 100}}
 
@@ -3411,7 +3528,6 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 // A single-week schedule has no A/B parity, so it keeps a NULL anchor.
 func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 	staff := &userModels.Staff{Model: base.Model{ID: 100}}
 
@@ -3439,7 +3555,6 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 // with the anchor the schedule was actually being planned against.
 func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	t.Parallel()
-
 	svc, _, _, _, _ := wsCreateTestService()
 	existing := timezone.NewDate(2026, 6, 1)
 	staff := &userModels.Staff{Model: base.Model{ID: 100}, RotationAnchorDate: &existing}
@@ -3474,7 +3589,6 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 // is open: editing an ended break on a session whose second break still runs.
 func TestWSRecalcBreakMinutes_ExcludesRunningBreak(t *testing.T) {
 	t.Parallel()
-
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	ctx := context.Background()
 	sessionID := int64(42)
@@ -3517,9 +3631,7 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, 
 	return nil, nil
 }
 
-// GetActiveBySessionIDs satisfies the batched interface method (#1417); this mock
-// exercises the single-staff path only.
-func (m *wsMockWorkSessionBreakRepository) GetActiveBySessionIDs(context.Context, []int64) (map[int64]*activeModels.WorkSessionBreak, error) {
+func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(context.Context, []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
 	return nil, nil
 }
 
@@ -3536,4 +3648,499 @@ func (m *wsMockStaffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Con
 // exercises the single-staff path only.
 func (m *wsMockStaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, error) {
 	return nil, nil
+}
+
+// ============================================================================
+// Block Overlap Guard (#2402)
+// ============================================================================
+
+// wsClosedBlock builds a closed block on `day` between the given Berlin wall
+// clock hours, for overlap-guard tests.
+func wsClosedBlock(id int64, day timezone.Date, fromHour, toHour int) *activeModels.WorkSession {
+	checkIn := time.Date(day.Year, time.Month(day.Month), day.Day, fromHour, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(day.Year, time.Month(day.Month), day.Day, toHour, 0, 0, 0, timezone.Berlin)
+	return &activeModels.WorkSession{
+		Model:        base.Model{ID: id},
+		StaffID:      100,
+		Date:         day,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Source:       activeModels.WorkSessionSourceApp,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		CreatedBy:    100,
+	}
+}
+
+// wsOverlapping reproduces the SQL predicate of ListOverlappingByStaffID so a
+// mocked repository answers the overlap query the way PostgreSQL does: a
+// sibling intersects [from, to) unless it ends before it starts or starts
+// after it ends. A nil `to` means the candidate runs open-ended.
+func wsOverlapping(sessions []*activeModels.WorkSession, from time.Time, to *time.Time) []*activeModels.WorkSession {
+	var out []*activeModels.WorkSession
+	for _, s := range sessions {
+		if s.CheckOutTime != nil && !s.CheckOutTime.After(from) {
+			continue
+		}
+		if to != nil && !to.After(s.CheckInTime) {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func TestWSCreateSessionAsAdmin_RejectsOverlappingBlock(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	day := timezone.NewDate(2026, 8, 17)
+
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{wsClosedBlock(1, day, 8, 12)}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("an overlapping Nachtrag must not be created")
+		return nil
+	}
+
+	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
+		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  time.Date(2026, time.August, 17, 11, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: time.Date(2026, time.August, 17, 14, 0, 0, 0, timezone.Berlin),
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Nachtrag",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+func TestWSCreateSessionAsAdmin_AllowsTouchingBlock(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	day := timezone.NewDate(2026, 8, 17)
+
+	// The repository answers the overlap question itself, so a touching block
+	// (08:00–12:00 vs a 12:00 start) is simply not part of the result.
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, day, 8, 12)}, from, to), nil
+	}
+	created := false
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = true
+		entity.ID = 2
+		return nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		return nil
+	}
+
+	// 12:00–16:00 touches the 08:00–12:00 block exactly — allowed.
+	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
+		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  time.Date(2026, time.August, 17, 12, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: time.Date(2026, time.August, 17, 16, 0, 0, 0, timezone.Berlin),
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Nachtrag",
+	})
+	require.NoError(t, err)
+	assert.True(t, created)
+}
+
+func TestWSCheckIn_RejectsOverlapWithClosedFutureBlock(t *testing.T) {
+	t.Parallel()
+	// A closed block can reach past "now" (an admin Nachtrag for the
+	// afternoon, an edited checkout in the future). A check-in inside that
+	// interval must be rejected, or the overlap double-counts in every sum
+	// built from the day's rows.
+	now := time.Date(2026, time.August, 17, 12, 0, 0, 0, timezone.Berlin)
+	day := timezone.NewDate(2026, 8, 17)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return now }
+
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, day, 8, 16)}, from, to), nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a check-in inside a closed block must not be created")
+		return nil
+	}
+
+	_, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+// A block is filed on the day of its check-in, so a night block dated
+// yesterday runs into this morning. The lookup asks for the candidate's own
+// interval, not for a date window, so the night block is part of the answer.
+func TestWSCheckIn_RejectsOverlapWithNightBlockOfTheDayBefore(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 18, 1, 0, 0, 0, timezone.Berlin)
+	yesterday := timezone.NewDate(2026, 8, 17)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return now }
+
+	nightEnd := time.Date(2026, time.August, 18, 2, 0, 0, 0, timezone.Berlin)
+	night := wsClosedBlock(1, yesterday, 22, 23)
+	night.CheckOutTime = &nightEnd
+
+	var askedFrom time.Time
+	var askedTo *time.Time
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		askedFrom, askedTo = from, to
+		return wsOverlapping([]*activeModels.WorkSession{night}, from, to), nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a check-in inside yesterday's night block must not be created")
+		return nil
+	}
+
+	_, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+	assert.True(t, askedFrom.Equal(now), "the check-in stamp is the lower bound")
+	assert.Nil(t, askedTo, "a fresh check-in has no end yet")
+}
+
+// A block that started days earlier still overlaps: an auto-checkout that
+// never ran leaves an open block hanging, and a date window sized "one day
+// back" would not see it. The lookup is bounded by the candidate's interval,
+// not by a fixed number of days.
+func TestWSCreateSessionAsAdmin_RejectsOverlapWithBlockFromDaysBefore(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+
+	// Opened three days before the Nachtrag and never closed.
+	stale := wsClosedBlock(1, timezone.NewDate(2026, 8, 14), 8, 12)
+	stale.CheckOutTime = nil
+
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{stale}, from, to), nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a Nachtrag inside a still-open block must not be created")
+		return nil
+	}
+
+	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
+		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  time.Date(2026, time.August, 17, 9, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: time.Date(2026, time.August, 17, 12, 0, 0, 0, timezone.Berlin),
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Nachtrag",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+// The mirrored case: a Nachtrag that itself ends after midnight is compared
+// against the following day's blocks too — its own end is the upper bound.
+func TestWSCreateSessionAsAdmin_OverlapCoversTheEndDay(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	tomorrow := timezone.NewDate(2026, 8, 18)
+
+	var askedFrom time.Time
+	var askedTo *time.Time
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		askedFrom, askedTo = from, to
+		return wsOverlapping([]*activeModels.WorkSession{wsClosedBlock(1, tomorrow, 1, 6)}, from, to), nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a Nachtrag running into an existing early block must not be created")
+		return nil
+	}
+
+	checkIn := time.Date(2026, time.August, 17, 22, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2026, time.August, 18, 3, 0, 0, 0, timezone.Berlin)
+	_, err := svc.CreateSessionAsAdmin(context.Background(), 10, 100, AdminCreateSessionRequest{
+		Date:         time.Date(2026, time.August, 17, 0, 0, 0, 0, timezone.Berlin),
+		CheckInTime:  checkIn,
+		CheckOutTime: checkOut,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Nachtschicht",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+	assert.True(t, askedFrom.Equal(checkIn))
+	require.NotNil(t, askedTo)
+	assert.True(t, askedTo.Equal(checkOut), "the lookup reaches to the block's own end")
+}
+
+func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	day := timezone.NewDate(2026, 8, 17)
+
+	edited := wsClosedBlock(2, day, 13, 16)
+	sibling := wsClosedBlock(1, day, 8, 12)
+
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return edited, nil
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{sibling, edited}, from, to), nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("an update that overlaps a sibling block must not be persisted")
+		return nil
+	}
+
+	// Pull the second block's check-in back into the first block.
+	newCheckIn := time.Date(2026, time.August, 17, 11, 0, 0, 0, timezone.Berlin)
+	_, err := svc.UpdateSession(context.Background(), 100, 2, SessionUpdateRequest{
+		CheckInTime: &newCheckIn,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+func TestWSUpdateSession_RejectsOverlapBeforeWritingBreaks(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	day := timezone.NewDate(2026, 8, 17)
+	edited := wsClosedBlock(2, day, 13, 16)
+	sibling := wsClosedBlock(1, day, 8, 12)
+
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) { return edited, nil }
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+		return wsOverlapping([]*activeModels.WorkSession{sibling, edited}, from, to), nil
+	}
+	breakRepo.updateDurationFunc = func(context.Context, int64, int, time.Time) error {
+		t.Fatal("a rejected overlap must not update a break")
+		return nil
+	}
+
+	newCheckIn := time.Date(2026, time.August, 17, 11, 0, 0, 0, timezone.Berlin)
+	_, err := svc.UpdateSession(context.Background(), 100, edited.ID, SessionUpdateRequest{
+		CheckInTime: &newCheckIn,
+		Breaks:      []BreakDurationUpdate{{ID: 1, DurationMinutes: 45}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
+// The frontend picks the block to edit by id (#2402). A JSON number would be
+// parsed as a float64-backed JS number and rounded past 2^53 before the client
+// could stringify it, so the wire has to carry the id quoted.
+func TestWSSessionResponse_SerializesIDAsString(t *testing.T) {
+	t.Parallel()
+	day := timezone.NewDate(2026, 8, 17)
+	// Beyond Number.MAX_SAFE_INTEGER (9007199254740991): a numeric wire value
+	// would come back as ...992 in the browser.
+	session := wsClosedBlock(9007199254740993, day, 8, 12)
+	session.TenantID = 9007199254740994
+	session.StaffID = 9007199254740995
+	session.CreatedBy = 9007199254740996
+	updatedBy := int64(9007199254740997)
+	session.UpdatedBy = &updatedBy
+
+	raw, err := json.Marshal(&SessionResponse{WorkSession: session, NetMinutes: 240})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(raw), `"id":"9007199254740993"`)
+	assert.Contains(t, string(raw), `"staff_id":"9007199254740995"`)
+
+	var wire struct {
+		ID        string `json:"id"`
+		TenantID  string `json:"tenant_id"`
+		StaffID   string `json:"staff_id"`
+		CreatedBy string `json:"created_by"`
+		UpdatedBy string `json:"updated_by"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &wire))
+	assert.Equal(t, "9007199254740993", wire.ID)
+	assert.Equal(t, "9007199254740994", wire.TenantID)
+	assert.Equal(t, "9007199254740995", wire.StaffID)
+	assert.Equal(t, "9007199254740996", wire.CreatedBy)
+	assert.Equal(t, "9007199254740997", wire.UpdatedBy)
+}
+
+// A checkout that never happened must not occupy every following day. The
+// block stopped counting as work at its live limit (BalanceSessionEnd), so it
+// stops blocking the calendar there too — otherwise the staff member could
+// never stamp again without an admin cleaning up first (#2402).
+//
+// Ignoring the row is not enough: the database permits exactly one open block
+// per staff member, so it has to be closed before the new one is inserted, at
+// the very instant it stopped counting (no total changes value).
+func TestWSCheckIn_ExpiredOpenBlockIsClosedBeforeTheNewOne(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	stampedAt := time.Date(2026, time.July, 22, 8, 0, 0, 0, timezone.Berlin)
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	// Friday's block is still open on disk; its live limit expired days ago.
+	forgotten := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        timezone.NewDate(2026, 7, 17),
+		CheckInTime: time.Date(2026, time.July, 17, 8, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{forgotten}, nil
+	}
+	type closeCall struct {
+		id             int64
+		at             time.Time
+		autoCheckedOut bool
+	}
+	var closes []closeCall
+	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, at time.Time, autoCheckedOut bool) (bool, error) {
+		closes = append(closes, closeCall{id: id, at: at, autoCheckedOut: autoCheckedOut})
+		return true, nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		if len(closes) == 0 {
+			t.Fatal("the stale block has to be closed before the new one is inserted")
+		}
+		entity.ID = 78
+		created = entity
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.NoError(t, err, "an expired block must not reject today's check-in")
+	require.NotNil(t, session)
+	require.NotNil(t, created)
+	require.Len(t, closes, 1)
+	assert.Equal(t, int64(77), closes[0].id)
+	assert.Equal(t, BalanceSessionEnd(forgotten, stampedAt), closes[0].at,
+		"the repair ends the block where it stopped counting as work")
+	assert.True(t, closes[0].autoCheckedOut, "the repair is a system checkout, not a stamped one")
+}
+
+// The counterpart: a block that is still inside its live window keeps
+// occupying the calendar without an end, so a stamp landing inside it is still
+// rejected.
+func TestExpireStaleOpenBlocks(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.July, 22, 12, 0, 0, 0, timezone.Berlin)
+	running := &activeModels.WorkSession{
+		Model:       base.Model{ID: 1},
+		Date:        timezone.NewDate(2026, 7, 22),
+		CheckInTime: time.Date(2026, time.July, 22, 8, 0, 0, 0, timezone.Berlin),
+	}
+	expired := &activeModels.WorkSession{
+		Model:       base.Model{ID: 2},
+		Date:        timezone.NewDate(2026, 7, 17),
+		CheckInTime: time.Date(2026, time.July, 17, 8, 0, 0, 0, timezone.Berlin),
+	}
+
+	clamped := expireStaleOpenBlocks([]*activeModels.WorkSession{running, expired}, now)
+
+	require.Len(t, clamped, 2)
+	assert.Nil(t, clamped[0].CheckOutTime, "a running block still reaches into the future")
+	require.NotNil(t, clamped[1].CheckOutTime, "an expired block ends at its live limit")
+	assert.Equal(t, BalanceSessionEnd(expired, now), *clamped[1].CheckOutTime)
+	assert.Nil(t, expired.CheckOutTime, "the original row is not modified")
+
+	// The clamped copies are what the check-in overlap arithmetic sees: the
+	// running block still blocks a later stamp, the expired one no longer does.
+	// The admin paths keep the unclamped list, so a Nachtrag on top of an
+	// unresolved open block stays rejected.
+	stamp := time.Date(2026, time.July, 22, 14, 0, 0, 0, timezone.Berlin)
+	require.Error(t, assertNoBlockOverlapIn(clamped[:1], 0, stamp, nil))
+	require.NoError(t, assertNoBlockOverlapIn(clamped[1:], 0, stamp, nil))
+	require.Error(t, assertNoBlockOverlapIn([]*activeModels.WorkSession{expired}, 0, stamp, nil),
+		"unclamped, the expired block would still occupy today")
+}
+
+// A break that is still running when the block hits its live limit is break
+// time up to that limit — not work. Pinning a synthetic check-out on the block
+// silenced the running-break math (totalBreakMinutes treats a checked-out
+// block's cache as complete) and booked the whole break as worked time (#2402).
+func TestWSGetHistory_RunningBreakIsCappedAtTheLiveLimit(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	// Two days back: BalanceSessionEnd cuts the block at the end of its own
+	// Berlin day, whatever the clock says while the test runs.
+	staleDay := timezone.TodayDate().AddDays(-2)
+	checkIn := staleDay.BerlinMidnight().Add(8 * time.Hour)
+	breakStart := staleDay.BerlinMidnight().Add(12 * time.Hour)
+	staleEnd := staleDay.EndOfDay()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{Model: base.Model{ID: 1}, StaffID: staffID, Date: staleDay, CheckInTime: checkIn},
+		}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: breakStart},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+
+	resp, err := svc.GetHistory(context.Background(), staffID, staleDay, staleDay)
+	require.NoError(t, err)
+	require.Len(t, resp.Sessions, 1)
+
+	wantBreak := int(staleEnd.Sub(breakStart).Minutes())
+	wantGross := int(staleEnd.Sub(checkIn).Minutes())
+	assert.Equal(t, wantBreak, resp.Sessions[0].BreakMinutes,
+		"the running break counts up to the live limit, not through now")
+	assert.Equal(t, wantGross-wantBreak, resp.Sessions[0].NetMinutes,
+		"and those minutes are deducted from the work time")
+}
+
+// The weekly summaries are aggregated per calendar day, so a block reaching
+// past the requested range must not credit the days — and the ISO weeks —
+// outside it (#2402).
+func TestBuildWeeklySummaries_ClipsToRequestedRange(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         sunday,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+	}}, nil, sunday, sunday)
+
+	require.Len(t, summaries, 1, "the Monday half belongs to a week nobody asked for")
+	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
+}
+
+// An admin Nachtrag files a block under a date it may choose freely, so the
+// stored date can sit after the day the block actually started on. The weekly
+// summary lays the minutes out from the check-in instant — otherwise the
+// pre-midnight part silently disappears from the week while the balance, which
+// starts at the check-in, still counts it (#2402).
+func TestBuildWeeklySummaries_UsesCheckInDayNotTheStoredDate(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	monday := timezone.NewDate(2026, 8, 17)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         monday, // filed a day later than it began
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+	}}, nil, sunday, monday)
+
+	total := 0
+	for _, summary := range summaries {
+		total += summary.TotalNetMinutes
+	}
+	assert.Equal(t, 240, total, "both halves of the night block are counted")
 }

@@ -733,7 +733,11 @@ interface StaffSessionBreak {
 }
 
 export interface StaffHistorySession {
-  id?: number;
+  // Backend int64, quoted as a decimal string ON THE WIRE already
+  // (SessionResponse.MarshalJSON) and carried through unchanged: parsing it as
+  // a JSON number would round anything past 2^53 before any client-side
+  // .toString() could run, and the block-edit lookup matches on this id.
+  id?: string;
   date: string;
   status?: "present" | "home_office";
   // Channel the row was created on. `app` = self-service Web/App,
@@ -766,6 +770,8 @@ class StaffHistoryService {
     if (!response.ok) {
       throw new Error(`Failed to fetch staff history: ${response.statusText}`);
     }
+    // The wire row IS StaffHistorySession — the id arrives quoted, so there is
+    // nothing to convert and no number to round.
     const json = (await response.json()) as {
       data: { sessions: StaffHistorySession[] };
     };
@@ -1351,9 +1357,9 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to update session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to update session: ${response.statusText}`,
       );
     }
   }
@@ -1373,12 +1379,29 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to create session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to create session: ${response.statusText}`,
       );
     }
   }
+}
+
+// Admin session writes fail with a stable code; the accompanying message
+// carries dynamic content (the conflicting interval) and is not presentable
+// as-is, so the mapping happens here instead of by sniffing the raw body in
+// the modal.
+async function throwSessionWriteError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  const error = await readStaffAPIError(response, fallback);
+  if (error.code === "work_session_overlap") {
+    throw new Error(
+      "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+    );
+  }
+  throw new Error(error.message);
 }
 
 interface StaffAPIError {
