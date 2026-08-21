@@ -160,7 +160,7 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 	// connections opened after it — the shared pool below is opened lazily,
 	// so its connections all inherit this.
 	if _, err := db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`,
+		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, config, meta, audit`,
 		clone.Name)); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("set clone search_path: %w", err)
