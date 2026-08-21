@@ -16,6 +16,7 @@ import {
   customIdFromOptionValue,
   customOptionValue,
 } from "~/lib/absence-type-select";
+import { readableApiMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -49,6 +50,20 @@ interface UseAbsenceTypeOptionsResult {
  * `standardOptions` lets a caller narrow which standard types are offered (the
  * admin path may include Freizeitausgleich, self-service may not).
  */
+/**
+ * The dropdown shows the message of a failed write as it is, so it must read
+ * like a sentence to a school user, not like a status line.
+ */
+async function withReadableError<T>(operation: Promise<T>): Promise<T> {
+  try {
+    return await operation;
+  } catch (err) {
+    const message = readableApiMessage(err);
+    if (message === null) throw err;
+    throw new Error(message, { cause: err });
+  }
+}
+
 export function useAbsenceTypeOptions(
   canManage: boolean,
   standardOptions: readonly CreatableSelectOption[] = STANDARD_ABSENCE_OPTIONS,
@@ -81,7 +96,9 @@ export function useAbsenceTypeOptions(
 
   const create = useCallback(
     async (name: string) => {
-      const created = await absenceTypeService.createAbsenceType(name);
+      const created = await withReadableError(
+        absenceTypeService.createAbsenceType(name),
+      );
       await mutate((previous = []) => [...previous, created], false);
       return customOptionValue(created.id);
     },
@@ -90,9 +107,10 @@ export function useAbsenceTypeOptions(
 
   const rename = useCallback(
     async (value: string, name: string) => {
-      const updated = await absenceTypeService.updateAbsenceType(
-        customIdFromOptionValue(value),
-        { name },
+      const updated = await withReadableError(
+        absenceTypeService.updateAbsenceType(customIdFromOptionValue(value), {
+          name,
+        }),
       );
       await mutate(
         (previous = []) =>
@@ -105,9 +123,10 @@ export function useAbsenceTypeOptions(
 
   const setActive = useCallback(
     async (value: string, isActive: boolean) => {
-      const updated = await absenceTypeService.updateAbsenceType(
-        customIdFromOptionValue(value),
-        { isActive },
+      const updated = await withReadableError(
+        absenceTypeService.updateAbsenceType(customIdFromOptionValue(value), {
+          isActive,
+        }),
       );
       await mutate(
         (previous = []) =>

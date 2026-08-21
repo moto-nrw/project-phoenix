@@ -165,6 +165,23 @@ describe("CreatableSelect", () => {
     );
   });
 
+  it("keeps focus in the rename field instead of the search field", () => {
+    render(
+      <CreatableSelect
+        value="sick"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        onRename={vi.fn()}
+      />,
+    );
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
+    );
+
+    expect(screen.getByRole("textbox", { name: /Name von/ })).toHaveFocus();
+  });
+
   it("surfaces a failed add instead of closing silently", async () => {
     const onCreate = vi
       .fn()

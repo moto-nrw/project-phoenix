@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
@@ -63,6 +65,13 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	// One school-defined Abwesenheitsart (#2403), so the dropdown, the
+	// absence list and the exports show the mixed case a real school has:
+	// the five standard types plus a name of its own.
+	customAbsenceTypeID, err := seedCustomAbsenceType(rt)
+	if err != nil {
+		return err
+	}
 	vacationApproverAuth, err := loginVacationApprover(rt, staffOrder)
 	if err != nil {
 		return err
@@ -93,8 +102,20 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		if rng.Float64() < 0.25 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
 			sickDay = &day
-			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung"); err != nil {
+			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung", nil); err != nil {
 				return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
+			}
+			absenceCount++
+		}
+
+		// The second staff member carries the school's own art, on a day the
+		// sick draw cannot have taken.
+		var customDay *time.Time
+		if idx == 1 {
+			day := mostRecentWeekday(today.AddDate(0, 0, -7), time.Monday)
+			customDay = &day
+			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeOther, "Regenerationstag", &customAbsenceTypeID); err != nil {
+				return fmt.Errorf("seed custom absence for staff %d: %w", staffID, err)
 			}
 			absenceCount++
 		}
@@ -107,6 +128,9 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 				continue
 			}
 			if sickDay != nil && day.Equal(*sickDay) {
+				continue
+			}
+			if customDay != nil && day.Equal(*customDay) {
 				continue
 			}
 
@@ -242,12 +266,48 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 	return true, nil
 }
 
-func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note string) error {
+// seedCustomAbsenceType adds the school's own Abwesenheitsart as the admin and
+// returns its id. The base type is not sent: the server derives it from the
+// art, which is the whole point of the split (#2403).
+func seedCustomAbsenceType(rt *Runtime) (int64, error) {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+
+	resp, err := rt.Client.Post("/api/absence-types", map[string]any{
+		"name": "Regenerationstag",
+	})
+	if err != nil {
+		return 0, fmt.Errorf("post absence type: %w", err)
+	}
+	var payload struct {
+		Data struct {
+			ID json.RawMessage `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &payload); err != nil {
+		return 0, fmt.Errorf("parse absence type response: %w", err)
+	}
+	// The endpoint sends the id as a decimal STRING — JavaScript cannot
+	// represent every BIGINT as a number — so unquote before parsing, and
+	// accept a bare number too rather than tying the seeder to that detail.
+	raw := strings.Trim(string(payload.Data.ID), `"`)
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse absence type id %q: %w", raw, err)
+	}
+	return id, nil
+}
+
+func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note string, absenceTypeID *int64) error {
 	body := map[string]any{
 		"absence_type": absenceType,
 		"date_start":   dateStart.Format("2006-01-02"),
 		"date_end":     dateEnd.Format("2006-01-02"),
 		"note":         note,
+	}
+	if absenceTypeID != nil {
+		body["absence_type_id"] = *absenceTypeID
 	}
 	if _, err := rt.Client.Post("/api/time-tracking/absences", body); err != nil {
 		return err
