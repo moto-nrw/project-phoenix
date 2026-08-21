@@ -183,9 +183,19 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		if err != nil {
 			return nil, &ActiveError{Op: op, Err: err}
 		}
+		today := timezone.TodayDate()
 		for _, studentID := range uniqueIDs {
-			if student := lockedStudents[studentID]; student != nil && student.IsAlumnus() {
+			student := lockedStudents[studentID]
+			if student == nil {
+				continue
+			}
+			if student.IsAlumnus() {
 				return nil, &ActiveError{Op: op, Err: ErrStudentGraduated}
+			}
+			// Moving a departed child between rooms is a presence write like
+			// any other (#2487).
+			if student.CareEndedOn(today) {
+				return nil, &ActiveError{Op: op, Err: ErrStudentCareEnded}
 			}
 		}
 	}

@@ -1003,6 +1003,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		realtimeHub,
 		logger.With("service", "materialization"),
 	)
+	// Per-date care filter (#2487): a child stays on the rosters the
+	// materializer builds up to and including their last care day, and drops
+	// out of every day after it.
+	schedule.WireMaterializationCareBounds(materializationService, repos.Student)
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.

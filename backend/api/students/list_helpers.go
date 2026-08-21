@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -71,6 +72,34 @@ type studentListParams struct {
 	// marshalling choice made after filtering and pagination — see
 	// list_projection.go.
 	slimView bool
+	// careStatus decides which side of the enrollment interval the list
+	// shows (#2487). Empty or "running" — the default every operational
+	// screen uses — hides children whose care has ended; "ended" shows only
+	// those; "all" turns the boundary off for callers that manage both.
+	careStatus string
+}
+
+// Values accepted by the care_status query parameter (#2487).
+const (
+	CareStatusRunning = "running"
+	CareStatusEnded   = "ended"
+	CareStatusAll     = "all"
+)
+
+// parseCareStatus resolves the care_status query parameter. An unknown value
+// is rejected rather than silently serving the operational list: a caller
+// asking for the archive and getting the ordinary roster would look like data
+// loss.
+func parseCareStatus(value string) (string, error) {
+	switch value {
+	case "", CareStatusRunning:
+		return CareStatusRunning, nil
+	case CareStatusEnded, CareStatusAll:
+		return value, nil
+	default:
+		return "", fmt.Errorf("invalid care_status %q: must be %q, %q or %q",
+			value, CareStatusRunning, CareStatusEnded, CareStatusAll)
+	}
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -325,6 +354,12 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// Alumni (graduated via grade transition, soft-deleted) are invisible to
 	// every staff list and export.
 	filter.NotIn("status", string(users.StudentStatusAlumnus))
+	// Children whose care has ended are invisible to every operational list
+	// and export from the day after their last care day (#2487). The
+	// enrollment interval is the boundary — the lifecycle status only follows
+	// it once the scheduler ticks, and a list must not show a departed child
+	// for up to an hour because of that.
+	applyCareStatusFilter(filter, p.careStatus, timezone.TodayDate())
 	// Several classes may be selected at once (#2218); TrimIn collapses to the
 	// single-value TrimEqual when exactly one is requested.
 	if len(p.schoolClasses) > 0 {
@@ -497,4 +532,25 @@ func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
 		}
 	}
 	return fullAccessIDs
+}
+
+// applyCareStatusFilter narrows the list to one side of the enrollment
+// interval's upper bound (#2487).
+//
+// "running" is the default and covers both a child with no end date at all and
+// one whose last care day is still ahead — the planned exit stays visible so
+// the office can see "Betreuung endet am …" while the child still attends.
+func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezone.Date) {
+	switch careStatus {
+	case CareStatusEnded:
+		filter.IsNotNull("enrolled_until")
+		filter.LessThan("enrolled_until", today)
+	case CareStatusAll:
+		// No boundary: the caller manages both sides.
+	default:
+		running := base.NewFilter()
+		running.IsNull("enrolled_until")
+		running.Or(*base.NewFilter().GreaterThanOrEqual("enrolled_until", today))
+		filter.And(*running)
+	}
 }

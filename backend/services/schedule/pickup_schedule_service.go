@@ -176,7 +176,8 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 	students := make([]*users.Student, 0, len(filter.StudentIDs))
 	for _, id := range filter.StudentIDs {
 		student, ok := byID[id]
-		if !ok || student.Status == users.StudentStatusAlumnus {
+		// A departed child has no weekly plan to write any more (#2487).
+		if !ok || student.Status == users.StudentStatusAlumnus || student.CareEndedOn(timezone.TodayDate()) {
 			return nil, &ScheduleError{Op: "bulk upsert pickup schedules", Err: fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, id)}
 		}
 		students = append(students, student)
@@ -195,7 +196,7 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 			if lockErr != nil {
 				return fmt.Errorf("lock student %d: %w", selected.ID, lockErr)
 			}
-			if fresh.Status == users.StudentStatusAlumnus {
+			if fresh.Status == users.StudentStatusAlumnus || fresh.CareEndedOn(timezone.TodayDate()) {
 				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
 			}
 			if filter.Authorize != nil {

@@ -146,14 +146,18 @@ type MaterializationService interface {
 
 // materializationService is the concrete implementation.
 type materializationService struct {
-	groupRepo       activities.GroupRepository
-	scheduleRepo    activities.ScheduleRepository
-	enrollmentRepo  activities.StudentEnrollmentRepository
-	supervisorRepo  activities.SupervisorPlannedRepository
-	periodRepo      schedule.CalendarPeriodRepository
-	instanceRepo    schedule.ActivityInstanceRepository
-	staffRepo       schedule.InstanceStaffRepository
-	studentRepo     schedule.InstanceStudentRepository
+	groupRepo      activities.GroupRepository
+	scheduleRepo   activities.ScheduleRepository
+	enrollmentRepo activities.StudentEnrollmentRepository
+	supervisorRepo activities.SupervisorPlannedRepository
+	periodRepo     schedule.CalendarPeriodRepository
+	instanceRepo   schedule.ActivityInstanceRepository
+	staffRepo      schedule.InstanceStaffRepository
+	studentRepo    schedule.InstanceStudentRepository
+	// careBounds answers "until which day is this child in care" for the
+	// per-date roster filter (#2487). Optional: nil means no child has an end
+	// of care, which is what a bare unit-test service should assume.
+	careBounds      CareBoundReader
 	exceptionRepo   schedule.ActivityExceptionRepository
 	timeframeRepo   schedule.TimeframeRepository
 	calendarService CalendarPeriodService
@@ -402,6 +406,69 @@ func (s *materializationService) finishLog(tenantID int64, source Materializatio
 	)
 }
 
+// CareBoundReader projects the last care day of a set of children. Narrow on
+// purpose — the materializer needs one DATE column, not student rows (#2487).
+type CareBoundReader interface {
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+}
+
+// SetCareBoundReader wires the per-date care filter. Without it the
+// materializer behaves exactly as before, which keeps bare unit-test services
+// compiling and correct.
+func (s *materializationService) SetCareBoundReader(reader CareBoundReader) {
+	s.careBounds = reader
+}
+
+// WireMaterializationCareBounds attaches the care-bound reader to a
+// materialization service that supports it.
+func WireMaterializationCareBounds(svc any, reader CareBoundReader) {
+	if setter, ok := svc.(interface{ SetCareBoundReader(CareBoundReader) }); ok {
+		setter.SetCareBoundReader(reader)
+	}
+}
+
+// loadCareBounds resolves the last care day of every child a template could
+// place on an instance. One query per template, reused for every date of the
+// materialization window.
+func (s *materializationService) loadCareBounds(
+	ctx context.Context,
+	targetStudentIDs []int64,
+	enrollments []*activities.StudentEnrollment,
+) (map[int64]timezone.Date, error) {
+	if s.careBounds == nil {
+		return nil, nil
+	}
+	ids := make([]int64, 0, len(targetStudentIDs)+len(enrollments))
+	seen := make(map[int64]struct{}, len(targetStudentIDs)+len(enrollments))
+	appendID := func(id int64) {
+		if id <= 0 {
+			return
+		}
+		if _, dup := seen[id]; dup {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	for _, id := range targetStudentIDs {
+		appendID(id)
+	}
+	for _, enrollment := range enrollments {
+		if enrollment != nil {
+			appendID(enrollment.StudentID)
+		}
+	}
+	return s.careBounds.FindCareBoundsByIDs(ctx, ids)
+}
+
+// careEndedOnDate reports whether the child's care had already ended on the
+// given day. The interval's upper bound is inclusive, so the last care day
+// itself still gets a roster row.
+func careEndedOnDate(bounds map[int64]timezone.Date, studentID int64, date timezone.Date) bool {
+	bound, ok := bounds[studentID]
+	return ok && date.After(bound)
+}
+
 // materializeTemplate runs the inner loop for a single template. Extracted so
 // the main entry point stays readable.
 func (s *materializationService) materializeTemplate(
@@ -436,6 +503,10 @@ func (s *materializationService) materializeTemplate(
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, tmpl.ID)
 	if err != nil {
 		return &ScheduleError{Op: "materialize template: load supervisors", Err: err}
+	}
+	careBounds, err := s.loadCareBounds(ctx, targetStudentIDs, enrollments)
+	if err != nil {
+		return &ScheduleError{Op: "materialize template: load care bounds", Err: err}
 	}
 
 	for date := from; !date.After(to); date = date.AddDays(1) {
@@ -572,10 +643,10 @@ func (s *materializationService) materializeTemplate(
 			existingIdx[key] = struct{}{}
 			result.InstancesCreated++
 
-			if err := s.copyEnrollments(ctx, instance.ID, enrollments, date, period.ID, result); err != nil {
+			if err := s.copyEnrollments(ctx, instance.ID, enrollments, careBounds, date, period.ID, result); err != nil {
 				return err
 			}
-			if err := s.copyTargetStudents(ctx, instance.ID, targetStudentIDs, enrollments, date, period.ID, result); err != nil {
+			if err := s.copyTargetStudents(ctx, instance.ID, targetStudentIDs, enrollments, careBounds, date, period.ID, result); err != nil {
 				return err
 			}
 			if err := s.copySupervisors(ctx, instance.ID, supervisors, date, period.ID, result); err != nil {
@@ -592,6 +663,7 @@ func (s *materializationService) copyTargetStudents(
 	instanceID int64,
 	studentIDs []int64,
 	enrollments []*activities.StudentEnrollment,
+	careBounds map[int64]timezone.Date,
 	date timezone.Date,
 	periodID int64,
 	result *MaterializationResult,
@@ -608,6 +680,13 @@ func (s *materializationService) copyTargetStudents(
 			continue
 		}
 		if _, exists := seen[studentID]; exists {
+			continue
+		}
+		// A dynamic source answers "who belongs to this Jahrgang / class /
+		// group", which stays true right up to the child's last care day and
+		// stops being true the day after (#2487).
+		if careEndedOnDate(careBounds, studentID, date) {
+			seen[studentID] = struct{}{}
 			continue
 		}
 		seen[studentID] = struct{}{}
@@ -638,6 +717,7 @@ func (s *materializationService) copyEnrollments(
 	ctx context.Context,
 	instanceID int64,
 	enrollments []*activities.StudentEnrollment,
+	careBounds map[int64]timezone.Date,
 	date timezone.Date,
 	periodID int64,
 	result *MaterializationResult,
@@ -659,6 +739,11 @@ func (s *materializationService) copyEnrollments(
 				slog.Int64("student_id", e.StudentID),
 				slog.String("date", date.String()),
 			)
+			continue
+		}
+		// Ending a child's care already caps their enrollments, so this is the
+		// backstop for a row created afterwards by another path (#2487).
+		if careEndedOnDate(careBounds, e.StudentID, date) {
 			continue
 		}
 		if _, dup := seen[e.StudentID]; dup {

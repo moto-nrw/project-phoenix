@@ -176,6 +176,12 @@ func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID 
 	if student != nil && student.Status == users.StudentStatusAlumnus {
 		return nil, nil
 	}
+	// A child whose care has ended is off every kiosk roster from the day
+	// after their last care day (#2487). Reported as an unknown tag, exactly
+	// like a graduate, so PyrePortal needs no new error mapping.
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return nil, nil
+	}
 	return student, nil
 }
 

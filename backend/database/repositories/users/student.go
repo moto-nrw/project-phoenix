@@ -1974,3 +1974,33 @@ func (r *StudentRepository) SetEnrollmentWindowByID(
 	}
 	return base.AssertRowsAffected(result, 1, "set enrollment window")
 }
+
+// FindCareBoundsByIDs projects the enrollment interval's upper bound for the
+// given children (#2487).
+func (r *StudentRepository) FindCareBoundsByIDs(
+	ctx context.Context, ids []int64,
+) (map[int64]timezone.Date, error) {
+	bounds := make(map[int64]timezone.Date, len(ids))
+	if len(ids) == 0 {
+		return bounds, nil
+	}
+	var rows []struct {
+		ID            int64         `bun:"id"`
+		EnrolledUntil timezone.Date `bun:"enrolled_until"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		ColumnExpr(`"student".id AS id`).
+		ColumnExpr(`"student".enrolled_until AS enrolled_until`).
+		Where(`"student".id IN (?)`, bun.In(ids)).
+		Where(`"student".enrolled_until IS NOT NULL`)
+	query = base.WithTenantFilter(ctx, query, "student")
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find care bounds by ids", Err: err}
+	}
+	for _, row := range rows {
+		bounds[row.ID] = row.EnrolledUntil
+	}
+	return bounds, nil
+}

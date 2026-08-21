@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -131,9 +132,11 @@ func (rs *AttendanceResource) findStudentByRFID(w http.ResponseWriter, r *http.R
 	}
 
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
-	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus {
-		// Alumni (graduated, soft-deleted) must not check in — same wire error
-		// as an unknown student so PyrePortal needs no new mapping.
+	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus ||
+		student.CareEndedOn(timezone.TodayDate()) {
+		// Alumni (graduated, soft-deleted) and children whose care has ended
+		// (#2487) must not check in — same wire error as an unknown student so
+		// PyrePortal needs no new mapping.
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil, nil, false
 	}
@@ -184,7 +187,8 @@ func (rs *AttendanceResource) handleDailyCheckout(w http.ResponseWriter, r *http
 
 	// Get student from person
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
-	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus {
+	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus ||
+		student.CareEndedOn(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return
 	}
@@ -275,7 +279,8 @@ func (rs *AttendanceResource) lookupStudent(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}
-	if student == nil || student.Status == users.StudentStatusAlumnus {
+	if student == nil || student.Status == users.StudentStatusAlumnus ||
+		student.CareEndedOn(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}

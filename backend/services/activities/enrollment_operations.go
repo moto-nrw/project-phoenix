@@ -112,7 +112,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// the preserved set below would be computed from a stale "active" relation
 	// and would delete the very enrollment the graduation must keep for the
 	// revert and for future materialization (#405 review).
-	statuses, err := s.lockEnrollmentStudents(ctx, enrollments, added)
+	locked, err := s.lockEnrollmentStudents(ctx, enrollments, added)
 	if err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
@@ -121,7 +121,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// child's existing row is deliberately kept (see `preserved` below), so
 	// re-submitting a roster that still carries them must not fail — but a
 	// caller must not be able to ADD one either (#405 review).
-	if err := rejectAlumniFrom(statuses, added); err != nil {
+	if err := rejectAlumniFrom(locked, added); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
 
@@ -132,7 +132,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// deliberately preserved — the rows the revert and future materialization
 	// still need. A hidden row cannot be removed by an edit that could not show
 	// it (#405 review).
-	preserved := hiddenAlumnusEnrollments(enrollments, statuses)
+	preserved := hiddenAlumnusEnrollments(enrollments, locked)
 
 	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs, preserved); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
@@ -173,12 +173,12 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 // status must not silently make enrollments undeletable.
 func hiddenAlumnusEnrollments(
 	enrollments []*activities.StudentEnrollment,
-	statuses map[int64]users.StudentStatus,
+	locked map[int64]*users.Student,
 ) map[int64]bool {
 	hidden := make(map[int64]bool)
 	for _, enrollment := range enrollments {
-		if status, ok := statuses[enrollment.StudentID]; ok {
-			if status == users.StudentStatusAlumnus {
+		if student, ok := locked[enrollment.StudentID]; ok {
+			if student.Status == users.StudentStatusAlumnus {
 				hidden[enrollment.StudentID] = true
 			}
 			continue
@@ -219,20 +219,30 @@ func newEnrollmentStudentIDs(currentStudentIDs map[int64]int64, studentIDs []int
 // The status is read UNDER a FOR UPDATE lock on the student row — see
 // lockStudentStatuses for why an unlocked read is not enough.
 func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
-	statuses, err := s.lockStudentStatuses(ctx, studentIDs)
+	locked, err := s.lockStudentStatuses(ctx, studentIDs)
 	if err != nil {
 		return err
 	}
-	return rejectAlumniFrom(statuses, studentIDs)
+	return rejectAlumniFrom(locked, studentIDs)
 }
 
 // rejectAlumniFrom applies the alumni refusal to statuses already read under
 // their row locks by lockStudentStatuses. IDs with no entry are left to the
 // foreign key, which is where a non-existent student has always been rejected.
-func rejectAlumniFrom(statuses map[int64]users.StudentStatus, studentIDs []int64) error {
+func rejectAlumniFrom(locked map[int64]*users.Student, studentIDs []int64) error {
+	today := timezone.TodayDate()
 	for _, studentID := range studentIDs {
-		if statuses[studentID] == users.StudentStatusAlumnus {
+		student := locked[studentID]
+		if student == nil {
+			continue
+		}
+		if student.Status == users.StudentStatusAlumnus {
 			return ErrStudentIsAlumnus
+		}
+		// A child whose care has ended cannot be booked into an AG or care
+		// offering any more (#2487).
+		if student.CareEndedOn(today) {
+			return ErrStudentCareEnded
 		}
 	}
 	return nil
@@ -247,16 +257,16 @@ func (s *Service) lockEnrollmentStudents(
 	ctx context.Context,
 	enrollments []*activities.StudentEnrollment,
 	added []int64,
-) (map[int64]users.StudentStatus, error) {
+) (map[int64]*users.Student, error) {
 	ids := make([]int64, 0, len(enrollments)+len(added))
 	for _, enrollment := range enrollments {
 		ids = append(ids, enrollment.StudentID)
 	}
 	ids = append(ids, added...)
 
-	statuses, err := s.lockStudentStatuses(ctx, ids)
+	locked, err := s.lockStudentStatuses(ctx, ids)
 	if err == nil {
-		return statuses, nil
+		return locked, nil
 	}
 	// Without a student repository the enrolled rows simply stay unlocked and
 	// the preservation decision falls back to the loaded relation (the behaviour
@@ -269,7 +279,9 @@ func (s *Service) lockEnrollmentStudents(
 
 // lockStudentStatuses takes a FOR UPDATE lock on each given student row, in
 // ascending id order (the project-wide student lock order — see
-// users.LockStudentsForUpdate), and returns the status read UNDER that lock.
+// users.LockStudentsForUpdate), and returns the ROW read UNDER that lock. It
+// returns whole students rather than just the status because two questions are
+// decided from it now: graduated, and care ended (#2487).
 // Rows that no longer exist are absent from the result.
 //
 // An unlocked read is not enough: a grade transition apply locks exactly these
@@ -278,7 +290,7 @@ func (s *Service) lockEnrollmentStudents(
 // With the lock the two transactions serialize: either graduation commits first
 // and we observe the alumnus status, or we hold the rows and graduation waits
 // until our write is committed and visible to its own pass (#405 review).
-func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (map[int64]users.StudentStatus, error) {
+func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (map[int64]*users.Student, error) {
 	ordered := ascendingUniqueIDs(studentIDs)
 	if len(ordered) == 0 {
 		return nil, nil
@@ -290,7 +302,7 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 		return nil, errStudentRepoMissing
 	}
 
-	statuses := make(map[int64]users.StudentStatus, len(ordered))
+	locked := make(map[int64]*users.Student, len(ordered))
 	for _, studentID := range ordered {
 		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
@@ -299,9 +311,9 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 			}
 			return nil, err
 		}
-		statuses[studentID] = student.Status
+		locked[studentID] = student
 	}
-	return statuses, nil
+	return locked, nil
 }
 
 // isAlumnus reports whether a student has graduated. It backs the read-side
@@ -315,20 +327,38 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 // built the service without the dependency this decision needs, and answering
 // "no" would hand out exactly the rows the gate exists to hide.
 func (s *Service) isAlumnus(ctx context.Context, studentID int64) (bool, error) {
+	student, err := s.loadStudentForGate(ctx, studentID)
+	if err != nil || student == nil {
+		return false, err
+	}
+	return student.IsAlumnus(), nil
+}
+
+// careEnded reports whether the child has left the OGS. Same unlocked-read
+// rationale as isAlumnus (#2487).
+func (s *Service) careEnded(ctx context.Context, studentID int64) (bool, error) {
+	student, err := s.loadStudentForGate(ctx, studentID)
+	if err != nil || student == nil {
+		return false, err
+	}
+	return student.CareEndedOn(timezone.TodayDate()), nil
+}
+
+func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*users.Student, error) {
 	if studentID <= 0 {
-		return false, nil
+		return nil, nil
 	}
 	if s.studentRepo == nil {
-		return false, errStudentRepoMissing
+		return nil, errStudentRepoMissing
 	}
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
+			return nil, nil
 		}
-		return false, err
+		return nil, err
 	}
-	return student.IsAlumnus(), nil
+	return student, nil
 }
 
 // ascendingUniqueIDs normalizes a set of student ids for locking: duplicates
@@ -404,6 +434,12 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 			continue
 		}
 		if enrollment.Student.Status == users.StudentStatusAlumnus {
+			continue
+		}
+		// A departed child leaves the AG roster (#2487). Their booking was
+		// capped at their last care day; this keeps the roster read agreeing
+		// with the date-aware ones.
+		if enrollment.Student.CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
 		students = append(students, enrollment.Student)
@@ -511,6 +547,15 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 	}
 	if alumnus {
 		return nil, &ActivityError{Op: "get available groups", Err: ErrStudentNotFound}
+	}
+	// A child whose care has ended cannot be booked into anything any more, so
+	// there is nothing available to offer (#2487).
+	ended, err := s.careEnded(ctx, studentID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get available groups", Err: err}
+	}
+	if ended {
+		return nil, &ActivityError{Op: "get available groups", Err: ErrStudentCareEnded}
 	}
 
 	// Get all active groups - assuming FindOpenGroups is the correct method

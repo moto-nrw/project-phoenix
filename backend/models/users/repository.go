@@ -247,6 +247,13 @@ type StudentRepository interface {
 	// foreign ids are absent from the returned map.
 	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
 
+	// FindCareBoundsByIDs returns the last care day of each given child that
+	// has one. Deliberately a projection of a single DATE column rather than
+	// whole rows: the materializer needs it per date for hundreds of children
+	// and must not pay for departure-plan hydration to answer one question
+	// (#2487).
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+
 	// SetEnrolledUntilByIDs writes the enrollment interval's upper bound —
 	// the LAST CARE DAY, inclusive — for a whole batch in one statement, and
 	// returns how many rows changed. A nil `until` clears the bound, which is

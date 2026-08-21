@@ -478,7 +478,8 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 			students = make([]*users.Student, 0, len(filter.StudentIDs))
 			for _, id := range filter.StudentIDs {
 				student, ok := byID[id]
-				if !ok || student.Status == users.StudentStatusAlumnus {
+				// A departed child has no weekly plan to write any more (#2487).
+				if !ok || student.Status == users.StudentStatusAlumnus || student.CareEndedOn(timezone.TodayDate()) {
 					return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, id)}
 				}
 				students = append(students, student)
@@ -531,7 +532,7 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 				}
 				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
 			}
-			if fresh.Status == users.StudentStatusAlumnus {
+			if fresh.Status == users.StudentStatusAlumnus || fresh.CareEndedOn(timezone.TodayDate()) {
 				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
 			}
 			if hasSchoolClass && !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {

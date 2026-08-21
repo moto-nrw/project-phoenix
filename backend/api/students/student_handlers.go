@@ -85,6 +85,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params.slimView = slimView
+	careStatus, careErr := parseCareStatus(r.URL.Query().Get("care_status"))
+	if careErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(careErr))
+		return
+	}
+	params.careStatus = careStatus
 	// Resolved BEFORE the fetch: the room/location pre-filters below query
 	// today's live active.visits state, so a non-today planning request has to
 	// be rejected before that query runs, not after it (#1939).
