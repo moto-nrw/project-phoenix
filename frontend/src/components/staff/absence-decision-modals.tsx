@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
-import { ABSENCE_TYPE_LABEL, formatAbsenceRange } from "~/lib/absence-helpers";
+import { absenceRowLabel, formatAbsenceRange } from "~/lib/absence-helpers";
 import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
@@ -100,7 +100,7 @@ function AbsenceNoteModal({
       <div className="space-y-3">
         <p className="text-sm text-gray-700">
           Antrag {formatAbsenceRange(absence.date_start, absence.date_end)} (
-          {ABSENCE_TYPE_LABEL[absence.absence_type] ?? absence.absence_type})
+          {absenceRowLabel(absence)})
         </p>
         <label
           htmlFor="decision-note"

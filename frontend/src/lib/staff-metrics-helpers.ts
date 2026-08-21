@@ -589,6 +589,8 @@ export function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
     id: Number(absence.id),
     staff_id: Number(absence.staffId),
     absence_type: absence.absenceType,
+    absence_type_id: absence.absenceTypeId,
+    absence_type_label: absence.absenceTypeLabel,
     date_start: absence.dateStart,
     date_end: absence.dateEnd,
     half_day: absence.halfDay,

@@ -266,6 +266,10 @@ func (m *mockStaffAbsenceService) GetTodayAbsenceMap(_ context.Context) (map[int
 	return nil, nil
 }
 
+func (m *mockStaffAbsenceService) GetTodayAbsenceLabelMap(_ context.Context) (map[int64]string, error) {
+	return nil, nil
+}
+
 func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error) {
 	if m.hasAbsenceOnDateFn != nil {
 		return m.hasAbsenceOnDateFn(ctx, staffID, date)

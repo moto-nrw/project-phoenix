@@ -478,6 +478,10 @@ func (m *wsMockStaffAbsenceRepository) GetByDateRange(ctx context.Context, from,
 	return nil, nil
 }
 
+func (m *wsMockStaffAbsenceRepository) GetAbsenceTypeIDMapForDate(_ context.Context, _ timezone.Date) (map[int64]int64, error) {
+	return nil, nil
+}
+
 func (m *wsMockStaffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
 	if m.getAbsenceMapForDateFunc != nil {
 		return m.getAbsenceMapForDateFunc(ctx, date)

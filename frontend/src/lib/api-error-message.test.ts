@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getApiErrorMessage } from "./api-error-message";
+import { getApiErrorMessage, readableApiMessage } from "./api-error-message";
 
 describe("getApiErrorMessage", () => {
   const action = "erstellen";
@@ -109,5 +109,28 @@ describe("getApiErrorMessage", () => {
     expect(result).toBe(
       "Sie müssen angemeldet sein, um Gruppen zu bearbeiten.",
     );
+  });
+});
+
+describe("readableApiMessage", () => {
+  it("drops the status prefix the API client adds", () => {
+    expect(
+      readableApiMessage(
+        new Error(
+          "HTTP 409: eine verwendete Abwesenheitsart kann nicht umbenannt werden",
+        ),
+      ),
+    ).toBe("Eine verwendete Abwesenheitsart kann nicht umbenannt werden.");
+  });
+
+  it("keeps a sentence that already ends properly", () => {
+    expect(readableApiMessage(new Error("HTTP 400: Name fehlt!"))).toBe(
+      "Name fehlt!",
+    );
+  });
+
+  it("returns null when nothing readable is left", () => {
+    expect(readableApiMessage(new Error("HTTP 500: "))).toBeNull();
+    expect(readableApiMessage("not an error")).toBeNull();
   });
 });

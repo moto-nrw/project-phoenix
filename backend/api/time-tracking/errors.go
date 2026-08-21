@@ -98,6 +98,14 @@ func classifyAbsenceError(err error) render.Renderer {
 	case errors.Is(err, activeSvc.ErrCompTimeExceedsBalance):
 		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
 
+	// School-defined Abwesenheitsarten (#2403). A retired or unknown art is a
+	// bad selection, not a server fault — the client has to pick another one.
+	case errors.Is(err, activeSvc.ErrAbsenceTypeInactive):
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+
+	case errors.Is(err, activeSvc.ErrAbsenceTypeNotFound):
+		return common.ErrorInvalidRequest(err)
+
 	case msg == "absence not found":
 		return common.ErrorNotFound(err)
 

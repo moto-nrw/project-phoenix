@@ -38,6 +38,7 @@ import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -94,14 +95,13 @@ import {
 import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
-  type AbsenceType,
   type MonthSummary,
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
   type WeeklySummary,
   type WorkSessionHistory,
-  absenceTypeLabels,
+  absenceDisplayLabel,
   formatDuration,
   formatTime,
   getWeekDays,
@@ -109,6 +109,8 @@ import {
   calculateNetMinutes,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
+import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
+import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
@@ -2425,6 +2427,7 @@ function EditSessionModal({
     id: string,
     req: {
       absence_type?: string;
+      absence_type_id?: string | null;
       date_start?: string;
       date_end?: string;
       half_day?: boolean;
@@ -2444,14 +2447,20 @@ function EditSessionModal({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Absence state
-  const [absType, setAbsType] = useState<AbsenceType>("sick");
+  // Absence state. absType is an option value, not an AbsenceType: it also
+  // carries the school's own Abwesenheitsarten (#2403).
+  const [absType, setAbsType] = useState<string>("sick");
   const [absDateStart, setAbsDateStart] = useState("");
   const [absDateEnd, setAbsDateEnd] = useState("");
   const [absHalfDay, setAbsHalfDay] = useState(false);
   const [absNote, setAbsNote] = useState("");
   const [absenceSaving, setAbsenceSaving] = useState(false);
   const [absenceDeleting, setAbsenceDeleting] = useState(false);
+  const absenceTypeSelect = useAbsenceTypeSelect({
+    value: absType,
+    onChange: setAbsType,
+    canManage,
+  });
 
   const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
   const router = useTenantRouter();
@@ -2494,7 +2503,7 @@ function EditSessionModal({
   // Initialize absence state when modal opens
   useEffect(() => {
     if (absence && isOpen) {
-      setAbsType(absence.absenceType);
+      setAbsType(selectValueFor(absence.absenceType, absence.absenceTypeId));
       setAbsDateStart(absence.dateStart);
       setAbsDateEnd(absence.dateEnd);
       setAbsHalfDay(absence.halfDay);
@@ -2626,7 +2635,7 @@ function EditSessionModal({
     setAbsenceSaving(true);
     try {
       await onUpdateAbsence(absence.id, {
-        absence_type: absType,
+        ...absenceRequestFor(absType),
         date_start: absDateStart,
         date_end: absDateEnd,
         half_day: absHalfDay,
@@ -2928,12 +2937,11 @@ function EditSessionModal({
                   >
                     Art der Abwesenheit
                   </label>
-                  <CustomSelect
+                  <ListboxDropdown
+                    {...absenceTypeSelect}
                     id="edit-abs-type"
                     ariaLabelledBy="edit-abs-type-label"
-                    value={absType}
-                    onChange={(next) => setAbsType(next as AbsenceType)}
-                    options={ABSENCE_TYPE_OPTIONS}
+                    testId="edit-absence-type-select"
                   />
                 </div>
 
@@ -3031,35 +3039,39 @@ function EditSessionModal({
 
 // ─── CreateAbsenceModal ───────────────────────────────────────────────────────
 
-const ABSENCE_TYPE_OPTIONS: { value: AbsenceType; label: string }[] = [
-  { value: "sick", label: "Krank" },
-  { value: "vacation", label: "Urlaub" },
-  { value: "training", label: "Fortbildung" },
-  { value: "other", label: "Sonstige" },
-];
-
 function CreateAbsenceModal({
   isOpen,
   onClose,
   onSave,
+  canManageAbsenceTypes,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSave: (req: {
     absence_type: string;
+    absence_type_id: string | null;
     date_start: string;
     date_end: string;
     half_day?: boolean;
     note?: string;
   }) => Promise<void>;
+  /** Gates the "Name hinzufügen" affordance on time_tracking:manage (#2403). */
+  readonly canManageAbsenceTypes: boolean;
 }) {
   const todayStr = toISODate(new Date());
-  const [absenceType, setAbsenceType] = useState<AbsenceType>("sick");
+  // One option space for the standard types and the school's own names — see
+  // absence-type-select for why the value is a string, not an AbsenceType.
+  const [absenceType, setAbsenceType] = useState<string>("sick");
   const [dateStart, setDateStart] = useState(todayStr);
   const [dateEnd, setDateEnd] = useState(todayStr);
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const absenceTypeSelect = useAbsenceTypeSelect({
+    value: absenceType,
+    onChange: setAbsenceType,
+    canManage: canManageAbsenceTypes,
+  });
 
   // Reset form when modal opens
   useEffect(() => {
@@ -3084,7 +3096,7 @@ function CreateAbsenceModal({
     setSaving(true);
     try {
       await onSave({
-        absence_type: absenceType,
+        ...absenceRequestFor(absenceType),
         date_start: dateStart,
         date_end: dateEnd,
         half_day: halfDay || undefined,
@@ -3119,12 +3131,11 @@ function CreateAbsenceModal({
           >
             Art der Abwesenheit
           </label>
-          <CustomSelect
+          <ListboxDropdown
+            {...absenceTypeSelect}
             id="absence-type"
             ariaLabelledBy="absence-type-label"
-            value={absenceType}
-            onChange={(next) => setAbsenceType(next as AbsenceType)}
-            options={ABSENCE_TYPE_OPTIONS}
+            testId="absence-type-select"
           />
         </div>
 
@@ -3804,6 +3815,7 @@ function TimeTrackingContent() {
   const handleCreateAbsence = useCallback(
     async (req: {
       absence_type: string;
+      absence_type_id: string | null;
       date_start: string;
       date_end: string;
       half_day?: boolean;
@@ -3812,6 +3824,7 @@ function TimeTrackingContent() {
       try {
         await timeTrackingService.createAbsence({
           absence_type: req.absence_type,
+          absence_type_id: req.absence_type_id,
           date_start: req.date_start,
           date_end: req.date_end,
           half_day: req.half_day,
@@ -3854,6 +3867,7 @@ function TimeTrackingContent() {
       id: string,
       req: {
         absence_type?: string;
+        absence_type_id?: string | null;
         date_start?: string;
         date_end?: string;
         half_day?: boolean;
@@ -3953,6 +3967,7 @@ function TimeTrackingContent() {
         isOpen={absenceModalOpen}
         onClose={handleCloseAbsenceModal}
         onSave={handleCreateAbsence}
+        canManageAbsenceTypes={canManageTimeTracking}
       />
 
       {/* Check-in confirmation when session was manually edited */}
@@ -4036,10 +4051,8 @@ function TimeTrackingContent() {
           </div>
           <p className="mt-2 text-gray-600">
             Für heute ist eine Abwesenheit eingetragen
-            {todayAbsence
-              ? ` (${absenceTypeLabels[todayAbsence.absenceType]})`
-              : ""}
-            . Trotzdem einstempeln?
+            {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.
+            Trotzdem einstempeln?
           </p>
         </div>
       </Modal>

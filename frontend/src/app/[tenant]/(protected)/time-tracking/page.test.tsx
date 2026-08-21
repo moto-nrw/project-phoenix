@@ -351,12 +351,20 @@ vi.mock("react-dom", async (importOriginal) => {
 });
 
 vi.mock("lucide-react", () => ({
+  // Whitelist mock: every icon the page's tree renders must be listed, or the
+  // component using it throws "No export is defined". The Check/Pencil/Plus/
+  // Search/X group belongs to the Abwesenheitsart-Dropdown (#2403).
+  Check: () => <span data-testid="check-icon" />,
   ChevronDown: () => <span data-testid="chevron-down" />,
   ChevronLeft: () => <span data-testid="chevron-left" />,
   ChevronRight: () => <span data-testid="chevron-right" />,
   Download: () => <span data-testid="download-icon" />,
   MoreVertical: () => <span data-testid="more-vertical" />,
+  Pencil: () => <span data-testid="pencil-icon" />,
+  Plus: () => <span data-testid="plus-icon" />,
+  Search: () => <span data-testid="search-icon" />,
   SquarePen: () => <span data-testid="square-pen" />,
+  X: () => <span data-testid="x-icon" />,
 }));
 
 // ─── Imports after mocks ────────────────────────────────────────────────────
@@ -646,6 +654,14 @@ function setupDefaultMocks(overrides?: {
         error: undefined,
       } as never;
     } else if (key?.startsWith("time-tracking-own-absences")) {
+      return {
+        data: [],
+        isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+    } else if (key === "staff-absence-types") {
       return {
         data: [],
         isLoading: false,

@@ -146,6 +146,7 @@ type Factory struct {
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType      activeModels.StaffAbsenceTypeRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
@@ -365,6 +366,7 @@ func NewFactory(db *bun.DB) *Factory {
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffAbsenceType:      active.NewStaffAbsenceTypeRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),

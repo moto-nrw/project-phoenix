@@ -34,6 +34,20 @@ import {
 
 const log = createLogger({ component: "StaffAuditLog" });
 
+/**
+ * The absence wording an audit entry shows. A school-defined Abwesenheitsart
+ * (#2403) wins so the history reads the same name the entry was filed under —
+ * the audit trail is exactly where a renamed-away "Sonstige" would confuse.
+ */
+function absenceAuditTypeLabel(detail: Record<string, unknown>): string {
+  const custom = detail.absence_type_label;
+  if (typeof custom === "string" && custom !== "") return custom;
+  return (
+    absenceTypeLabels[detail.absence_type as AbsenceType] ??
+    String(detail.absence_type ?? "")
+  );
+}
+
 const PAGE_SIZE = 50;
 
 interface AuditLogStaffOption {
@@ -82,9 +96,7 @@ function describeEvent(event: AuditLogEvent): string {
       return `Session vom ${formatDate(day)}: ${parts.join(", ")}`;
     }
     case "absence": {
-      const type =
-        absenceTypeLabels[d.absence_type as AbsenceType] ??
-        String(d.absence_type ?? "");
+      const type = absenceAuditTypeLabel(d);
       const from =
         typeof d.date_start === "string" ? formatDate(d.date_start) : "";
       const to = typeof d.date_end === "string" ? formatDate(d.date_end) : "";
@@ -133,9 +145,7 @@ function describeEvent(event: AuditLogEvent): string {
         const year = typeof payload.year === "number" ? payload.year : "";
         return `Urlaubs-Übernahme gelöscht: ${year} (${formatOpeningDays(payload.entered_remaining_days)} Rest)`;
       }
-      const type =
-        absenceTypeLabels[payload.absence_type as AbsenceType] ??
-        String(payload.absence_type ?? "");
+      const type = absenceAuditTypeLabel(payload);
       const from =
         typeof payload.date_start === "string"
           ? formatDate(payload.date_start)
