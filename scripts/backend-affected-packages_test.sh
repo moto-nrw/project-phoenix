@@ -16,7 +16,11 @@ trap cleanup EXIT
 mkdir -p "$fixture/backend"/{core,consumer,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
-printf 'package core\n' >"$fixture/backend/core/core_test.go"
+cat >"$fixture/backend/core/core_test.go" <<'EOF'
+package core
+
+import _ "example.test/project/corex"
+EOF
 cat >"$fixture/backend/consumer/consumer.go" <<'EOF'
 package consumer
 
@@ -50,6 +54,7 @@ printf 'package exportconsumer\n' >"$fixture/backend/exportconsumer/consumer_tes
 git -C "$fixture" init -q
 git -C "$fixture" config user.email selector-test@example.invalid
 git -C "$fixture" config user.name selector-test
+git -C "$fixture" config commit.gpgSign false
 git -C "$fixture" add .
 git -C "$fixture" commit -qm baseline
 
@@ -110,6 +115,13 @@ rm "$fixture/backend/services/listexport/assets/probe.txt"
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'
 git -C "$fixture" restore backend/go.mod
+
+mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
+if select_packages >/dev/null 2>&1; then
+  echo 'deleted package imported only by tests unexpectedly passed graph validation' >&2
+  exit 1
+fi
+mv "$fixture/corex.go" "$fixture/backend/corex/corex.go"
 
 mv "$fixture/backend/core/core.go" "$fixture/core.go"
 if select_packages >/dev/null 2>&1; then

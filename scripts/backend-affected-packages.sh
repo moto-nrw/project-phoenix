@@ -74,7 +74,7 @@ done <<< "$changed_dirs"
 if [ "$deleted_production" = true ]; then
   # There is no package left to test, but surviving imports of the removed
   # package must fail instead of turning the changed-test run into a no-op.
-  (cd "$repo_root/backend" && go list -deps -export ./... >/dev/null)
+  (cd "$repo_root/backend" && go list -deps -test -export ./... >/dev/null)
 fi
 
 if [ "${#existing_dirs[@]}" -eq 0 ]; then

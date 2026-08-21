@@ -2,22 +2,16 @@ import "@testing-library/jest-dom/vitest";
 import type React from "react";
 import { beforeEach, vi } from "vitest";
 
-// Reset the module-level session cache between tests. Resolve the lazy import
-// once per isolated test file instead of once per test (~1,000 vs ~14,000
-// imports per full run). A static import would bind next-auth/react before the
-// test file's vi.mock registers. Some tests mock session-cache without the
-// clear export, and Vitest throws while accessing that missing export.
-let clearSessionCache: (() => void) | undefined;
-let sessionCacheLoaded = false;
+// Reset the module-level session cache between tests. A static import would
+// bind next-auth/react before the test file's vi.mock registers. Importing here
+// also resolves the current module after a test calls vi.resetModules(). Some
+// tests mock session-cache without the clear export, and Vitest throws while
+// accessing that missing export.
 beforeEach(async () => {
-  if (!sessionCacheLoaded) {
-    sessionCacheLoaded = true;
-    const sessionCache = await import("~/lib/session-cache");
-    if ("clearSessionCache" in sessionCache) {
-      clearSessionCache = sessionCache.clearSessionCache;
-    }
+  const sessionCache = await import("~/lib/session-cache");
+  if ("clearSessionCache" in sessionCache) {
+    sessionCache.clearSessionCache();
   }
-  clearSessionCache?.();
 });
 
 function createStorageMock(): Storage {
