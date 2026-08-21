@@ -63,6 +63,9 @@ var droppedDateColumns = map[string]string{
 	// them from care_offerings — the phase owns the service window now.
 	"enrollment.care_offerings.service_start_date": "dropped forward by 001015068 (phase owns the window)",
 	"enrollment.care_offerings.service_end_date":   "dropped forward by 001015068 (phase owns the window)",
+	// The feedback schema is dropped by 001015312 (#2326); the model that
+	// carried this column is gone with it.
+	"feedback.entries.day": "dropped forward by 001015312 (feedback schema removed, #2326)",
 }
 
 // truncate24hAllowlist holds files still containing Truncate(24 * time.Hour)
