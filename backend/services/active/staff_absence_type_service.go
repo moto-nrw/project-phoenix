@@ -77,6 +77,10 @@ type StaffAbsenceTypeService interface {
 	// LabelsByID returns id → name for the current tenant, used to stamp the
 	// display name onto absence read paths.
 	LabelsByID(ctx context.Context) (map[int64]string, error)
+	// StampLabels fills AbsenceTypeLabel on every absence carrying a
+	// school-defined art. Callers normally go through the nil-safe
+	// StampAbsenceTypeLabels wrapper.
+	StampLabels(ctx context.Context, absences []*activeModels.StaffAbsence)
 }
 
 type staffAbsenceTypeService struct {
@@ -277,6 +281,14 @@ func StampAbsenceTypeLabels(ctx context.Context, svc StaffAbsenceTypeService, ab
 	if svc == nil {
 		return
 	}
+	svc.StampLabels(ctx, absences)
+}
+
+// StampLabels carries the work of StampAbsenceTypeLabels. It sits on the
+// service rather than beside it so a failed lookup reaches the logger this
+// service was constructed with, instead of bypassing the configured handler
+// through slog.Default().
+func (s *staffAbsenceTypeService) StampLabels(ctx context.Context, absences []*activeModels.StaffAbsence) {
 	needed := false
 	for _, a := range absences {
 		if a != nil && a.AbsenceTypeID != nil {
@@ -287,9 +299,9 @@ func StampAbsenceTypeLabels(ctx context.Context, svc StaffAbsenceTypeService, ab
 	if !needed {
 		return
 	}
-	labels, err := svc.LabelsByID(ctx)
+	labels, err := s.LabelsByID(ctx)
 	if err != nil {
-		slog.Default().Warn("resolving absence type labels failed",
+		s.getLogger().WarnContext(ctx, "resolving absence type labels failed",
 			slog.String("error", err.Error()),
 		)
 		return

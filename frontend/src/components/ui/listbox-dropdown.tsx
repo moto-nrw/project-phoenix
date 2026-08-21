@@ -15,6 +15,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { cn } from "~/lib/utils";
+
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
   readonly label: string;
@@ -762,13 +764,18 @@ export function ListboxDropdown<K extends string>({
                 suppressFocusScrollRef.current = true;
                 setFocusIndex(index);
               }}
-              className={`${
+              // cn, not a template literal: the class list needs a real
+              // separator, and Prettier's Tailwind plugin strips a leading
+              // space inside the appended string — which silently glued
+              // "text-gray-700" and "min-w-0" together before.
+              className={cn(
                 option.disabled
                   ? disabledOptionClassName
                   : isActive || isFocused
                     ? activeOptionClassName
-                    : optionClassName
-              }${actions ? "min-w-0 flex-1" : ""}`}
+                    : optionClassName,
+                actions && "min-w-0 flex-1",
+              )}
             >
               {isMulti ? (
                 <>
@@ -786,15 +793,14 @@ export function ListboxDropdown<K extends string>({
                     {option.label}
                   </span>
                 </>
-              ) : actions ? (
-                // With row actions the label shares the row: it must be able
-                // to shrink and clip, otherwise one long custom name widens
-                // the option past the menu and the list scrolls sideways.
+              ) : (
+                // The label must be able to shrink and clip whether or not the
+                // row carries actions: as a bare flex child its min-width stays
+                // auto, so one long custom name widens the option past the menu
+                // and scrolls the list sideways on narrow viewports.
                 <span className="min-w-0 flex-1 truncate" title={option.label}>
                   {option.label}
                 </span>
-              ) : (
-                option.label
               )}
             </button>
             {actions}

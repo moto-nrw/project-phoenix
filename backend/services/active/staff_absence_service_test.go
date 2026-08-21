@@ -81,6 +81,40 @@ func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAbsUpdateAbsenceAppliesStandardTypeChangeWithExplicitNull(t *testing.T) {
+	t.Parallel()
+
+	// The client sends absence_type_id: null with every standard selection, so
+	// a plain Fortbildung → Sonstige edit lands here with both IDs nil. The
+	// canonical type must still change.
+	svc, repo, _ := absSetupService()
+	existing := &activeModels.StaffAbsence{
+		Model:       base.Model{ID: 100},
+		StaffID:     7,
+		AbsenceType: activeModels.AbsenceTypeTraining,
+		DateStart:   timezone.NewDate(2026, 8, 20),
+		DateEnd:     timezone.NewDate(2026, 8, 20),
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	updated := false
+	repo.updateFunc = func(_ context.Context, got *activeModels.StaffAbsence) error {
+		updated = true
+		assert.Equal(t, activeModels.AbsenceTypeOther, got.AbsenceType)
+		assert.Nil(t, got.AbsenceTypeID)
+		return nil
+	}
+
+	standard := activeModels.AbsenceTypeOther
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceType:      &standard,
+		AbsenceTypeIDSet: true,
+	})
+	require.NoError(t, err)
+	require.True(t, updated, "the update must reach the repository")
+}
+
 func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
 	t.Parallel()
 

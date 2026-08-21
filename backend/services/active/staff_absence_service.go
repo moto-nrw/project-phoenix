@@ -932,7 +932,14 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		}
 		if sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
 			absence.AbsenceTypeID = before.AbsenceTypeID
-			absence.AbsenceType = before.AbsenceType
+			// Only a kept custom art re-pins the canonical type. With no art on
+			// either side there is nothing to pin to, and restoring the old type
+			// here would swallow a plain standard-type change: the client sends
+			// absence_type_id: null alongside every standard selection, so this
+			// branch is exactly the "Fortbildung → Sonstige" case.
+			if before.AbsenceTypeID != nil {
+				absence.AbsenceType = before.AbsenceType
+			}
 		} else {
 			typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
 			if err != nil {
