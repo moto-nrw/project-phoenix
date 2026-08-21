@@ -49,17 +49,20 @@ const afternoonOgs: StaffHistorySession = {
   break_minutes: 20,
 };
 
-function renderTable(props?: {
+interface TableProps {
   sessions?: readonly StaffHistorySession[];
   from?: Date;
   to?: Date;
+  today?: Date;
   onEditDay?: (
     date: Date,
     session: StaffHistorySession | null,
     absence: unknown,
   ) => void;
-}) {
-  return render(
+}
+
+function tableElement(props?: TableProps) {
+  return (
     <StaffSessionTable
       staffId="1"
       from={props?.from ?? from}
@@ -76,11 +79,15 @@ function renderTable(props?: {
       accountStartDate=""
       accountStartDatePending={false}
       accountStartDateError={false}
-      today={today}
+      today={props?.today ?? today}
       isAdminView
       onEditDay={props?.onEditDay}
-    />,
+    />
   );
+}
+
+function renderTable(props?: TableProps) {
+  return render(tableElement(props));
 }
 
 describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
@@ -277,6 +284,31 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
       expect(secondDay).not.toHaveTextContent("23:59");
     });
 
+    // Ein Nachtblock steht an zwei Tagen, korrigiert wurde er aber einmal.
+    // Trügen beide Segmente die Historie, klappten beide Tageszeilen dieselbe
+    // Liste auf und eine Korrektur sähe aus wie zwei.
+    it("führt die Änderungshistorie eines Nachtblocks nur am Starttag", () => {
+      renderTable({
+        from: new Date(2026, 0, 5),
+        to: new Date(2026, 0, 6),
+        sessions: [
+          {
+            ...morningHomeOffice,
+            id: "night",
+            date: "2026-01-05",
+            check_in_time: "2026-01-05T22:00:00+01:00",
+            check_out_time: "2026-01-06T02:00:00+01:00",
+            net_minutes: 240,
+            audit_count: 1,
+          },
+        ],
+      });
+
+      const expandable = screen.getAllByLabelText(/Änderungshistorie öffnen/);
+      expect(expandable).toHaveLength(1);
+      expect(expandable[0]).toHaveAccessibleName(/05\.01\./);
+    });
+
     it("behält einen Block ohne volle Minute in der Tabelle", () => {
       renderTable({
         from: new Date(2026, 0, 6),
@@ -294,6 +326,49 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
       });
 
       expect(screen.getAllByText("eingestempelt").length).toBeGreaterThan(0);
+    });
+  });
+  // Die Segmentierung liest die Uhr. Bleibt die Seite über Mitternacht offen,
+  // ohne dass sich die Sessions ändern, muss der laufende Nachtblock trotzdem
+  // auf dem neuen Tag ankommen — sonst hängt er für immer am Vortag.
+  describe("Tageswechsel bei offener Seite", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("zieht einen laufenden Nachtblock nach Mitternacht auf den neuen Tag", () => {
+      const runningNight: StaffHistorySession = {
+        ...morningHomeOffice,
+        id: "running-night",
+        date: "2026-01-05",
+        check_in_time: "2026-01-05T22:00:00+01:00",
+        check_out_time: null,
+        net_minutes: 90,
+      };
+      const props: TableProps = {
+        from: new Date(2026, 0, 5),
+        to: new Date(2026, 0, 6),
+        sessions: [runningNight],
+      };
+
+      vi.setSystemTime(new Date("2026-01-05T22:30:00Z")); // 23:30 Berlin
+      const view = render(
+        tableElement({ ...props, today: new Date(2026, 0, 5) }),
+      );
+      expect(screen.getByText("06.01.").closest("tr")).not.toHaveTextContent(
+        "00:00",
+      );
+
+      vi.setSystemTime(new Date("2026-01-05T23:30:00Z")); // 00:30 Berlin, neuer Tag
+      view.rerender(tableElement({ ...props, today: new Date(2026, 0, 6) }));
+
+      expect(screen.getByText("06.01.").closest("tr")).toHaveTextContent(
+        "00:00",
+      );
     });
   });
 });

@@ -75,12 +75,17 @@ function cappedCheckOut(
   return effectiveEnd.toISOString();
 }
 
+// Zerlegt einen Block in seine Berliner Kalendertage. `now` ist der Zeitpunkt,
+// gegen den ein laufender Block gemessen wird; `todayISO` der Tag, auf den er
+// fällt — die Tabelle reicht ihn herein, statt ihn hier aus der Uhr zu ziehen,
+// damit die Zerlegung beim Tageswechsel neu läuft (siehe `todayKey`).
 function splitSessionByBerlinDate(
   session: StaffHistorySession,
   now: Date,
+  todayISO: string,
 ): StaffHistorySession[] {
   const sourceDate = session.date.slice(0, 10);
-  const yesterday = parseISODate(berlinTodayISO(now));
+  const yesterday = parseISODate(todayISO);
   yesterday.setDate(yesterday.getDate() - 1);
   // A genuinely open block can only span last night. Older open rows are
   // stale data awaiting cleanup; keep their historical table row intact
@@ -140,7 +145,7 @@ function splitSessionByBerlinDate(
     now,
   );
 
-  return [...valuesByDate.entries()].map(([date, values]) => {
+  return [...valuesByDate.entries()].map(([date, values], index) => {
     const isFirstDay = date === berlinTodayISO(start);
     const isLastDay = date === berlinTodayISO(end);
     const previousDay = parseISODate(date);
@@ -163,6 +168,13 @@ function splitSessionByBerlinDate(
       check_out_time: segmentEnd,
       net_minutes: values.netMinutes,
       break_minutes: values.breakMinutes,
+      // Die Änderungshistorie hängt am Block, nicht am Segment: ein Nachtblock
+      // steht an zwei Tagen, korrigiert wurde er aber einmal. Nur das erste
+      // Segment führt sie, sonst klappen beide Tageszeilen dieselbe Liste auf
+      // und dieselbe Korrektur sieht aus wie zwei. Die Fortsetzung behält
+      // `edit_count`, damit auch dort erkennbar bleibt, dass die gezeigten
+      // Minuten aus einem korrigierten Block stammen.
+      audit_count: index === 0 ? session.audit_count : 0,
     };
   });
 }
@@ -274,13 +286,24 @@ export function StaffSessionTable({
     sessionId: string,
   ) => Promise<WorkSessionEdit[]>;
 }) {
+  // Die Segmentierung unten liest die Uhr: ein offener Block wird an ihr
+  // gekappt, und ein Nachtblock bekommt sein zweites Segment erst, wenn der
+  // Tag gewechselt hat. Deshalb hängt das Memo auch am aktuellen Berliner Tag
+  // (`today` folgt dem Rollover, useBerlinToday) — eine Seite, die über
+  // Mitternacht offen bleibt, zeigte den laufenden Block sonst weiter
+  // ausschließlich am Vortag, solange die Sessions-Referenz dieselbe bleibt.
+  const todayKey = toISODate(today);
   // A day can carry several work blocks since #2402 (Homeoffice-Vormittag,
   // OGS-Nachmittag), including a part of an overnight block. The lookup keeps
   // a list per Berlin calendar day in check-in order.
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, StaffHistorySession[]>();
     for (const session of sessions) {
-      for (const segment of splitSessionByBerlinDate(session, new Date())) {
+      for (const segment of splitSessionByBerlinDate(
+        session,
+        new Date(),
+        todayKey,
+      )) {
         const list = map.get(segment.date);
         if (list) list.push(segment);
         else map.set(segment.date, [segment]);
@@ -292,7 +315,7 @@ export function StaffSessionTable({
       );
     }
     return map;
-  }, [sessions]);
+  }, [sessions, todayKey]);
   const originalSessionsByID = useMemo(
     () =>
       new Map(

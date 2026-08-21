@@ -82,6 +82,10 @@ type stubWorkSessions struct {
 	// historyByDay mirrors the date-scoped read: only the day the session was
 	// stamped on returns it.
 	historyByDay map[string]*activeSvc.SessionResponse
+	// intersecting mirrors the interval read: an open block has no upper bound
+	// and therefore comes back for EVERY day after its check-in, no matter how
+	// long ago it was stamped. Set it where that difference is the point.
+	intersecting []*activeSvc.SessionResponse
 }
 
 func (s *stubWorkSessions) CheckInOn(_ context.Context, staffID int64, day timezone.Date, status, source, _ string) (*activeModels.WorkSession, error) {
@@ -142,6 +146,9 @@ func (s *stubWorkSessions) GetHistory(_ context.Context, _ int64, from, _ timezo
 }
 
 func (s *stubWorkSessions) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
+	if s.intersecting != nil {
+		return &activeSvc.HistoryResponse{Sessions: s.intersecting}, nil
+	}
 	return s.GetHistory(ctx, staffID, from, to)
 }
 
@@ -466,4 +473,60 @@ func TestExecute_LaborTimeIsEvaluatedAfterTheStamp(t *testing.T) {
 	require.NotNil(t, state.Session)
 	assert.Equal(t, StateCheckedIn, state.State)
 	assert.Equal(t, 10, state.NetMinutes, "elapsed work is measured against the clock after the write")
+}
+
+// A forgotten checkout stops counting as work at its live limit, and the
+// open-session lookup drops it there. The interval read does not — an open
+// block has no end, so it keeps intersecting every later day. The kiosk must
+// not take that row for a running shift: it would report a shift that ended
+// days ago as active and offer a check-out that is written against today,
+// which the day-pinned lookup then refuses ("no active session found"),
+// leaving the terminal stuck with no action that works.
+func TestGetState_ExpiredOpenBlockIsNotOfferedForCheckout(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 18, 9, 0, 0, 0, timezone.Berlin)
+	forgotten := nightSession(openedAt)
+	// The day resolution no longer sees it (GetLatestOpenByStaffID applies the
+	// same cut-off), so the kiosk works on today.
+	sessions.latestOpen = nil
+	sessions.intersecting = []*activeSvc.SessionResponse{{WorkSession: forgotten}}
+	setClock(service, sessions, func() time.Time {
+		return time.Date(2026, 7, 21, 9, 0, 0, 0, timezone.Berlin)
+	})
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	assert.Nil(t, state.Session, "a block that ended days ago is not this day's block")
+	assert.Equal(t, StateCheckedOut, state.State)
+	assert.Equal(t, []string{ActionCheckIn}, state.AllowedActions)
+	assert.Equal(t, 0, state.NetMinutes)
+}
+
+// The same block, but its live limit falls INTO the day the kiosk is showing:
+// it belongs there as the closed block it effectively is (its minutes are part
+// of that morning), only never as a running one.
+func TestGetState_ExpiredOpenBlockReachingIntoTheDayIsClosed(t *testing.T) {
+	t.Parallel()
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 20, 20, 0, 0, 0, timezone.Berlin)
+	forgotten := nightSession(openedAt)
+	sessions.latestOpen = nil
+	sessions.intersecting = []*activeSvc.SessionResponse{{WorkSession: forgotten}}
+	setClock(service, sessions, func() time.Time {
+		return time.Date(2026, 7, 21, 10, 0, 0, 0, timezone.Berlin)
+	})
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	require.NotNil(t, state.Session.CheckOutTime, "the row hangs open, the kiosk state does not")
+	assert.Equal(t, time.Date(2026, 7, 21, 8, 0, 0, 0, timezone.Berlin), state.Session.CheckOutTime.In(timezone.Berlin))
+	assert.Equal(t, StateCheckedOut, state.State)
+	assert.Equal(t, []string{ActionCheckIn}, state.AllowedActions)
+	assert.Nil(t, forgotten.CheckOutTime, "the stored row is repaired on the next check-in, not by a read")
 }

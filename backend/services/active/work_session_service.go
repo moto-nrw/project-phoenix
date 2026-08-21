@@ -547,11 +547,11 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 		if sibling.CheckOutTime != nil {
 			continue
 		}
-		end := BalanceSessionEnd(sibling, now)
-		if !end.Before(now) {
+		expired, stale := ExpireStaleOpenBlock(sibling, now)
+		if !stale {
 			return nil, fmt.Errorf("already checked in")
 		}
-		if err := s.closeStaleOpenBlock(ctx, sibling, end); err != nil {
+		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
 			return nil, err
 		}
 	}
@@ -1438,25 +1438,37 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *a
 	return nil
 }
 
-// expireStaleOpenBlocks ends every open block that has passed its live limit
-// at exactly that limit (BalanceSessionEnd), leaving still-running blocks
-// untouched. The originals are not modified — only the copies handed to the
-// overlap arithmetic are.
+// ExpireStaleOpenBlock decides whether an open block is still running. A
+// forgotten checkout stops counting as work at its live limit
+// (BalanceSessionEnd): the balance no longer credits it, the presence map no
+// longer reports its owner as present, and the open-session lookup no longer
+// returns it. It therefore reports `true` together with a COPY closed at that
+// limit, so every reader that has to answer "is this person clocked in right
+// now" — the check-in guard, the overlap arithmetic, the kiosk state — cuts at
+// the same instant instead of each inventing its own. A block that is closed,
+// or open and still inside its window, is returned unchanged with `false`.
+//
+// The original row is never modified; closing it for real is the check-in's
+// job (closeStaleOpenBlock) or the nightly auto-checkout's.
+func ExpireStaleOpenBlock(session *activeModels.WorkSession, now time.Time) (*activeModels.WorkSession, bool) {
+	if session == nil || session.CheckOutTime != nil {
+		return session, false
+	}
+	end := BalanceSessionEnd(session, now)
+	if !end.Before(now) {
+		return session, false // still running
+	}
+	clamped := *session
+	clamped.CheckOutTime = &end
+	return &clamped, true
+}
+
+// expireStaleOpenBlocks applies ExpireStaleOpenBlock to a whole list, leaving
+// closed and still-running blocks untouched.
 func expireStaleOpenBlocks(siblings []*activeModels.WorkSession, now time.Time) []*activeModels.WorkSession {
 	expired := make([]*activeModels.WorkSession, len(siblings))
 	for i, sibling := range siblings {
-		if sibling.CheckOutTime != nil {
-			expired[i] = sibling
-			continue
-		}
-		end := BalanceSessionEnd(sibling, now)
-		if !end.Before(now) {
-			expired[i] = sibling // still running
-			continue
-		}
-		clamped := *sibling
-		clamped.CheckOutTime = &end
-		expired[i] = &clamped
+		expired[i], _ = ExpireStaleOpenBlock(sibling, now)
 	}
 	return expired
 }

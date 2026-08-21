@@ -327,7 +327,7 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		IsBreakCompliant: true,
 	}
 
-	sessions, breaksBySession, err := s.resolveDay(ctx, staff.ID, day)
+	sessions, breaksBySession, err := s.resolveDay(ctx, staff.ID, day, now)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,18 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 // empty for a session stamped seconds before midnight. This query returns the
 // rows whether they are still open or already closed, so open and closed state
 // are derived from check_out_time rather than from which read happened to hit.
-func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date) ([]*activeModels.WorkSession, map[int64][]*activeModels.WorkSessionBreak, error) {
+//
+// An open block that has passed its live limit is the one row that must not be
+// taken at face value. It reaches into every later day (no check-out means no
+// upper bound), so the intersecting query keeps returning it long after the
+// open-session lookup has dropped it — and the kiosk would report a shift that
+// ended days ago as running, offer a check-out for it, and then fail that
+// check-out because it is written against `day` while the row belongs to an
+// earlier one. Such a block is cut at the instant it stopped counting as work
+// everywhere else (ExpireStaleOpenBlock): it shows up as the closed block it
+// effectively is, and drops out entirely once that instant lies before the day
+// begins. The row itself is repaired on the next check-in, not here.
+func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date, now time.Time) ([]*activeModels.WorkSession, map[int64][]*activeModels.WorkSessionBreak, error) {
 	history, err := s.workSessions.GetHistoryIntersecting(ctx, staffID, day, day)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load work sessions of the day: %w", err)
@@ -389,10 +400,18 @@ func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Da
 	if history == nil || len(history.Sessions) == 0 {
 		return nil, nil, nil
 	}
+	dayStart := day.BerlinMidnight()
 	sessions := make([]*activeModels.WorkSession, 0, len(history.Sessions))
 	breaksBySession := make(map[int64][]*activeModels.WorkSessionBreak, len(history.Sessions))
 	for _, daySession := range history.Sessions {
-		sessions = append(sessions, daySession.WorkSession)
+		session := daySession.WorkSession
+		if expired, stale := activeSvc.ExpireStaleOpenBlock(session, now); stale {
+			if !expired.CheckOutTime.After(dayStart) {
+				continue
+			}
+			session = expired
+		}
+		sessions = append(sessions, session)
 		breaksBySession[daySession.ID] = daySession.Breaks
 	}
 	return sessions, breaksBySession, nil
