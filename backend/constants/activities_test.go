@@ -35,6 +35,8 @@ func TestIsSystemRoomName(t *testing.T) {
 // colour is admin-configurable, so callers that only care about the toilet
 // rooms need to tell the two apart.
 func TestIsSchulhofRoomName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
