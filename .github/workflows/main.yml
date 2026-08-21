@@ -31,11 +31,20 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
-      # On PRs: only run what changed.
-      # On protected branch pushes: run both suites for full SonarCloud coverage,
-      # but still skip docs-only churn.
-      run-backend: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.frontend == 'true') }}
-      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.backend == 'true') }}
+      # Test jobs cross-run after merge to produce complete Sonar coverage.
+      # Lint/build jobs stay scoped to the side that changed.
+      run-backend: ${{ steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.frontend == 'true') }}
+      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && (steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true')) }}
+      run-backend-lint: ${{ steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      # The seed smoke drives runtime API contracts. Test-only edits and
+      # frontend-only pushes cannot affect it and must not buy another runner.
+      run-seed-smoke: ${{ steps.filter.outputs.backend-production == 'true' || steps.filter.outputs.ci == 'true' }}
+      # Workflow/config changes validate the complete test commands. Ordinary
+      # PRs use changed-test selection; protected-branch pushes are always full
+      # because they produce the coverage consumed by SonarCloud.
+      full-backend-suite: ${{ steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' }}
+      full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,11 +52,45 @@ jobs:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
+          predicate-quantifier: "some-with-excludes"
           filters: |
-            backend:
-              - 'backend/**'
+            backend-tests:
+              - 'backend/**/*.go'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/**/testdata/**'
+              - 'backend/localization/locales.json'
+              - 'backend/services/listexport/assets/**'
+              - 'backend/templates/email/**'
+            backend-lint:
+              - 'backend/**/*.go'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/.golangci.yml'
+            backend-production:
+              - 'backend/**/*.go'
+              - '!backend/**/*_test.go'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/localization/locales.json'
+              - 'backend/services/listexport/assets/**'
+              - 'backend/templates/email/**'
             frontend:
               - 'frontend/**'
+              - '!frontend/**/*.md'
+            backend-test-infra:
+              - 'scripts/backend-affected-packages.sh'
+              - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/test-backend.sh'
+              - 'scripts/test-changed.sh'
+            frontend-test-infra:
+              - 'frontend/package.json'
+              - 'frontend/pnpm-lock.yaml'
+              - 'frontend/pnpm-workspace.yaml'
+              - 'frontend/tsconfig.json'
+              - 'frontend/vitest.config.ts'
+              - 'frontend/src/test/setup.ts'
+              - 'scripts/test-changed.sh'
             ci:
               - '.github/**'
               - 'sonar-project.properties'
@@ -61,8 +104,8 @@ jobs:
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:
-      run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
-      run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
+      run-backend: ${{ needs.detect-changes.outputs.run-backend-lint == 'true' }}
+      run-frontend: ${{ needs.detect-changes.outputs.run-frontend-lint == 'true' }}
 
   test:
     permissions:
@@ -73,8 +116,11 @@ jobs:
     with:
       run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
+      run-seed-smoke: ${{ needs.detect-changes.outputs.run-seed-smoke == 'true' }}
       is-pr: ${{ github.event_name == 'pull_request' }}
       base_ref: ${{ github.base_ref }}
+      full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
+      full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
 
   # Deliberately NOT a ci-gate dependency. Sonar needs the coverage artifacts,
   # so it can only start once test finishes; keeping it in the gate added its

@@ -58,8 +58,8 @@ mechanischer Sweep über alle Testdateien):
   Poolgröße kommt aus `-test.parallel` plus Reserve, nicht aus GOMAXPROCS:
   ein Test, der eine Tenant-Transaktion hält und darin eine zweite öffnet,
   braucht zwei Verbindungen gleichzeitig, und ohne Reserve blockieren sich
-  `-parallel` solcher Tests gegenseitig bis zum Timeout. Wrapper und CI
-  pinnen zusätzlich `-p 4 -parallel 8`, damit das serverseitige Budget
+  `-parallel` solcher Tests gegenseitig bis zum Timeout. Wrapper und
+  Post-Merge-CI pinnen zusätzlich `-p 6 -parallel 8`, damit das serverseitige Budget
   (p × (Pool + 1)) unter den 100 Verbindungen eines Standard-postgres:17
   bleibt.
 
@@ -129,12 +129,40 @@ mechanischer Sweep über alle Testdateien):
   datenbankweit, ein parallel laufender Nachbar wäre nicht vom eigenen Test
   zu trennen.
 
+CI-PRs verwenden dieselbe Reverse-Dependency-Auswahl wie
+`scripts/test-changed.sh` und erzeugen keine Coverage: Seit SonarCloud nur auf
+Pushes nach `development`/`main` läuft, hatte die PR-Coverage keinen Verbraucher.
+Änderungen an der Test-Infrastruktur erzwingen nur den Volllauf der betroffenen
+Suite; CI-Workflow-Änderungen erzwingen beide. Pushes fahren beide Vollläufe mit
+Coverage für SonarCloud. Reine Markdown- und nicht testrelevante
+Backend-Konfigurationsänderungen starten keine Tests.
+Lint- und Build-Jobs laufen dabei nur für den tatsächlich geänderten Stack;
+die Sonar-bedingte Gegen-Suite startet ausschließlich ihre Tests mit Coverage.
+Reine `_test.go`-Änderungen laufen nur im eigenen Package; nur geänderter
+Produktionscode zieht die transitiven Importierer nach sich. Eingebettete
+Produktions-Assets (Locales, Export-Schriften/-Logo) zählen wie Produktionscode;
+Goldens und E-Mail-Templates laufen in ihrem besitzenden Test-Package.
+
+Der lokale Changed-Loop nutzt höchstens die Hälfte der erkannten CPUs und
+maximal vier Package-Binaries. `GOMAXPROCS` pro Binary wird so berechnet, dass
+auch zusammen höchstens die halbe Maschine belegt wird; `-parallel` ist auf
+acht begrenzt. CI und der explizite Volllauf-Wrapper behalten für Post-Merge-Coverage
+`-p 6 -parallel 8`. Changed-only-PRs laufen auf dem 4-vCPU-Runner mit `-p 4`
+statt den doppelten Minutenpreis des 8-vCPU-Runners zu zahlen. Vitest nutzt
+lokal ebenfalls höchstens die Hälfte beziehungsweise vier Worker, in CI aber
+alle CPUs des isolierten Runners.
+
+Der eigenständige Seed-&-Simulate-Smoke läuft nur bei Backend-Produktionscode,
+seinen eingebetteten/runtime-geladenen Assets oder CI-Workflow-Änderungen.
+Frontend-only-Pushes und reine Backend-Teständerungen starten seinen
+4-vCPU-Runner nicht.
+
 Abgewogen: Ein ephemerer Postgres pro Lauf hätte „Start = Ende" trivial wahr
 gemacht, kostet aber pro Lauf den Template-Neubau (~25s) oder einen eigenen
 Cache dafür; der langlebige Container mit Datenbank-GC liefert dieselbe
 Garantie auf Datenbank-Ebene ohne diesen Preis. TestMain pro Package hätte
 auch nackte `go test`-Aufrufe aufräumen lassen, wurde aber gegen 62
 Boilerplate-Dateien getauscht, weil die GC den Rest erledigt. Zielwerte:
-CI test-backend unter 90 Sekunden, lokaler Volllauf ≈ 2 Minuten; die Frage
-4-vCPU- statt 8-vCPU-Runner wird erst nach dem Umbau gemessen, nicht vorab
-entschieden.
+CI test-backend unter 90 Sekunden, lokaler Volllauf ≈ 2 Minuten. Die
+Changed-only-PR-Last rechtfertigt den 4-vCPU-Runner; der instrumentierte
+Post-Merge-Volllauf bleibt auf 8 vCPUs.
