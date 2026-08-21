@@ -68,8 +68,22 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 	}
 }
 
+// populateCareEndFields carries the child's last care day onto every student
+// payload (#2487). Both list projections need it: a planned exit stays in the
+// list and is labelled "Betreuung endet am …", an effective one is only shown
+// in the archive view. The exit REASON never travels here — it is read behind
+// users:delete.
+func populateCareEndFields(response *StudentResponse, student *users.Student) {
+	if student.EnrolledUntil == nil {
+		return
+	}
+	response.CareEndsOn = student.EnrolledUntil.String()
+	response.CareEnded = student.CareEndedOn(timezone.TodayDate())
+}
+
 // populatePublicStudentFields sets fields visible to all authenticated staff
 func populatePublicStudentFields(response *StudentResponse, student *users.Student) {
+	populateCareEndFields(response, student)
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
@@ -256,6 +270,7 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
+	populateCareEndFields(response, student)
 	allowed := student.AllowedDepartureModes.Normalize()
 	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {

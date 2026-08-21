@@ -4,7 +4,15 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ClipboardList, GraduationCap, ListChecks, Trash2 } from "lucide-react";
+import {
+  ClipboardList,
+  GraduationCap,
+  ListChecks,
+  LogOut,
+  Trash2,
+  Undo2,
+  UserMinus,
+} from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -28,6 +36,9 @@ import {
   type GroupingMode,
 } from "@/components/students/students-master-detail";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
+import { CareExitModal } from "~/components/students/care-exit-modal";
+import { CareResumeModal } from "~/components/students/care-resume-modal";
+import { cancelCareExit } from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -91,6 +102,11 @@ function StudentsPageContent() {
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  // "Betreuung beenden" (#2487): entweder für das ausgewählte Kind im Detail
+  // oder für die Mehrfachauswahl. Beide Wege führen durch dieselbe Vorschau.
+  const [careExitIds, setCareExitIds] = useState<string[] | null>(null);
+  const [resumeTarget, setResumeTarget] = useState<Student | null>(null);
+  const [cancellingExit, setCancellingExit] = useState(false);
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
@@ -160,6 +176,49 @@ function StudentsPageContent() {
     setSelectionMode(false);
     setSelectedStudentIds(new Set());
   }, []);
+
+  // "Alle angezeigten auswählen" (#2487): Suche und Filter bestimmen, was
+  // angezeigt wird — die Auswahl folgt genau dem, nicht der ganzen Kartei.
+  // Storniert ein noch nicht wirksames Betreuungsende (#2487). Ein bereits
+  // wirksamer Austritt kann nur über "Wieder aufnehmen" zurückgenommen werden
+  // — mit neuem Beginn und ausdrücklicher Prüfung.
+  const cancelPlannedExit = useCallback(
+    async (student: Student) => {
+      setCancellingExit(true);
+      try {
+        await cancelCareExit([String(student.id)]);
+        toastSuccess(
+          `Das geplante Betreuungsende von ${studentsConfig.list.item.title(student)} wurde storniert`,
+        );
+        await tenantMutate("database-students-list");
+      } catch (cancelError) {
+        const message =
+          cancelError instanceof Error
+            ? cancelError.message
+            : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+        logger.error("care_exit_cancel_failed", {
+          student_id: String(student.id),
+          error: message,
+        });
+        toastError(message);
+      } finally {
+        setCancellingExit(false);
+      }
+    },
+    [tenantMutate, toastError, toastSuccess],
+  );
+
+  const selectAllVisible = useCallback(
+    (studentIds: string[]) => {
+      if (studentIds.length > 500) {
+        toastError("Maximal 500 Kinder können ausgewählt werden");
+        setSelectedStudentIds(new Set(studentIds.slice(0, 500)));
+        return;
+      }
+      setSelectedStudentIds(new Set(studentIds));
+    },
+    [toastError],
+  );
 
   const { data: allGroups = [] } = useSWRAuth<
     Array<{ value: string; label: string }>
@@ -421,16 +480,58 @@ function StudentsPageContent() {
   const canDeleteStudents = hasPermission(session, "users:delete");
   const canUpdateStudents = hasPermission(session, "users:update");
 
+  // Kopfzeilen-Aktionen des Detailbereichs. "Betreuung beenden" steht neben
+  // "Löschen", weil beides dieselbe Berechtigung braucht — aber ein regulärer
+  // Austritt löscht nichts, deshalb ist er kein roter Knopf (#2487).
   const detailActions =
     selectedStudent && canDeleteStudents ? (
-      <button
-        type="button"
-        onClick={() => setDeleteTarget(selectedStudent)}
-        className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-      >
-        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-        Löschen
-      </button>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedStudent.care_ended ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => setResumeTarget(selectedStudent)}
+          >
+            <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Wieder aufnehmen
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => setCareExitIds([String(selectedStudent.id)])}
+            >
+              <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {selectedStudent.care_ends_on
+                ? "Ende ändern"
+                : "Betreuung beenden"}
+            </Button>
+            {selectedStudent.care_ends_on ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                isLoading={cancellingExit}
+                loadingText="Wird storniert…"
+                onClick={() => void cancelPlannedExit(selectedStudent)}
+              >
+                Ende stornieren
+              </Button>
+            ) : null}
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setDeleteTarget(selectedStudent)}
+          className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          Löschen
+        </button>
+      </div>
     ) : null;
 
   return (
@@ -485,6 +586,16 @@ function StudentsPageContent() {
               href: "/database/students/class-list",
               onClick: () => undefined,
             },
+            ...(canDeleteStudents
+              ? [
+                  {
+                    label: "Beendete Betreuungen",
+                    icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                    href: "/database/students/ended-care",
+                    onClick: () => undefined,
+                  },
+                ]
+              : []),
           ]}
           actionButton={
             <div className="flex items-center gap-2">
@@ -562,6 +673,12 @@ function StudentsPageContent() {
             onToggleStudentSelection={toggleStudentSelection}
             onClearSelection={() => setSelectedStudentIds(new Set())}
             onFinishSelection={finishSelection}
+            onSelectAllVisible={selectAllVisible}
+            onEndCare={
+              canDeleteStudents
+                ? () => setCareExitIds([...selectedStudentIds])
+                : undefined
+            }
           />
         </div>
       ) : !loading ? (
@@ -598,6 +715,33 @@ function StudentsPageContent() {
         }
         groups={allGroups}
       />
+
+      {careExitIds ? (
+        <CareExitModal
+          isOpen
+          studentIds={careExitIds}
+          onClose={() => setCareExitIds(null)}
+          onFinished={async () => {
+            setCareExitIds(null);
+            finishSelection();
+            handleSelect(null);
+            await tenantMutate("database-students-list");
+          }}
+        />
+      ) : null}
+
+      {resumeTarget ? (
+        <CareResumeModal
+          isOpen
+          studentId={String(resumeTarget.id)}
+          displayName={studentsConfig.list.item.title(resumeTarget)}
+          onClose={() => setResumeTarget(null)}
+          onResumed={async () => {
+            setResumeTarget(null);
+            await tenantMutate("database-students-list");
+          }}
+        />
+      ) : null}
 
       {deleteTarget ? (
         <StudentDeletionModal

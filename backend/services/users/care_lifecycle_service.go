@@ -47,7 +47,7 @@ var (
 	//nolint:staticcheck // ST1005: user-facing German message
 	ErrCareResumeStartInPast = errors.New("Der neue Beginn darf nicht in der Vergangenheit liegen.")
 	//nolint:staticcheck // ST1005: user-facing German message
-	ErrCareResumeNotChecked = errors.New("Bitte bestätigen Sie, dass Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten geprüft wurden.")
+	ErrCareResumeNotChecked = errors.New("Bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft.")
 )
 
 // Per-child blocker sentences. They name the child's own situation, never a
@@ -55,7 +55,7 @@ var (
 // headline "Die Betreuung wurde nicht beendet".
 const (
 	careBlockerUnknown       = "Dieses Kind gibt es in Ihrer Schule nicht (mehr)."
-	careBlockerAlumnus       = "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Es steht in der Abgänge-Ansicht des Jahrgangswechsels."
+	careBlockerAlumnus       = "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge."
 	careBlockerAlreadyEnded  = "Die Betreuung dieses Kindes ist bereits beendet."
 	careBlockerBeforeStart   = "Die Betreuung dieses Kindes beginnt erst am %s. Bitte wählen Sie einen späteren letzten Betreuungstag."
 	careBlockerResumeMissing = "Für dieses Kind ist keine beendete Betreuung hinterlegt."

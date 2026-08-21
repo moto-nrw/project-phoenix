@@ -140,8 +140,7 @@ func (rs *Resource) previewCareExit(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, toCareExitPreviewResponse(preview))
+	common.Respond(w, r, http.StatusOK, toCareExitPreviewResponse(preview), "Vorschau erstellt")
 }
 
 // confirmCareExit ends the care for exactly the previewed state, or changes
@@ -167,12 +166,11 @@ func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, map[string]any{
+	common.Respond(w, r, http.StatusOK, map[string]any{
 		"students_ended":      result.StudentsEnded,
 		"roster_rows_removed": result.RosterRowsRemoved,
 		"bookings_ended":      result.BookingsEnded,
-	})
+	}, "Betreuung beendet")
 }
 
 type careExitCancelRequest struct {
@@ -212,8 +210,7 @@ func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, map[string]any{"students_cancelled": cancelled})
+	common.Respond(w, r, http.StatusOK, map[string]any{"students_cancelled": cancelled}, "Geplantes Ende storniert")
 }
 
 type careResumeRequest struct {
@@ -262,8 +259,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, map[string]any{"resumed": true, "new_start": start.String()})
+	common.Respond(w, r, http.StatusOK, map[string]any{"resumed": true, "new_start": start.String()}, "Betreuung wieder aufgenommen")
 }
 
 type endedCareResponse struct {
@@ -326,13 +322,12 @@ func (rs *Resource) listEndedCare(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, map[string]any{
-		"data":      items,
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"items":     items,
 		"total":     total,
 		"page":      filter.Page,
 		"page_size": filter.PageSize,
-	})
+	}, "Beendete Betreuungen")
 }
 
 // careExitErrorRenderer classifies the care-lifecycle sentinels. Everything
