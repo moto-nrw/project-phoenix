@@ -84,10 +84,12 @@ export function CareExitModal({
     Boolean(reason) &&
     (!noteRequired || note.trim().length > 0);
 
+  // Lädt die Vorschau neu. Eine vorhandene Fehlermeldung wird NICHT gelöscht:
+  // nach einer abgelehnten Bestätigung ist genau diese Meldung der Grund,
+  // warum gerade neu geladen wird — sie muss stehen bleiben.
   const loadPreview = useCallback(async () => {
     if (!reason) return null;
     setLoading(true);
-    setError("");
     try {
       const result = await previewCareExit({
         studentIds: ids,
@@ -115,6 +117,7 @@ export function CareExitModal({
   }, [ids, lastCareDay, note, reason]);
 
   const handleContinue = async () => {
+    setError("");
     const result = await loadPreview();
     if (result) setStep(2);
   };
@@ -268,6 +271,7 @@ export function CareExitModal({
             </div>
             {noteRequired ? (
               <Input
+                id="care-exit-note"
                 label="Kurze Erklärung"
                 value={note}
                 maxLength={CARE_EXIT_NOTE_MAX_LENGTH}
