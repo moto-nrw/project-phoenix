@@ -27,10 +27,11 @@ tatsächliche Abholung kann davon abweichen.
 
 ## Angebots-Gehzeit
 
-Die **Angebots-Gehzeit** ist eine je Wochentag am Betreuungsangebot hinterlegte
-Gehzeit. Sie ist optional und dient als Vorgabe für die Gehzeiten der Kinder,
-die das Angebot an diesem Wochentag gebucht haben. Eine für ein einzelnes Kind
-gepflegte Gehzeit geht der Angebots-Gehzeit vor.
+Die **Angebots-Gehzeit** ist die je Wochentag am Betreuungsangebot hinterlegte
+Endzeit. In der buchungsgebundenen Planung braucht jedes betreuungswirksame
+Angebot an jedem wählbaren Tag eine solche Endzeit; die späteste gebuchte
+Endzeit bestimmt das Ende des Betreuungsfensters. Eine datierte
+Kind-Überschreibung kann davon abweichen.
 
 ## Abholart
 
@@ -52,7 +53,9 @@ Angaben bleiben unangetastet, bis sie erneut eingereicht werden.
 Das **Ausrollen** überträgt die Angebots-Gehzeit eines Betreuungsangebots auf
 die Gehzeiten aller Kinder, die das Angebot am jeweiligen Wochentag gebucht
 haben. Es geschieht nach ausdrücklicher Bestätigung; danach steht die Gehzeit
-am Kind selbst und trägt ihre Herkunft aus dem Angebot.
+am Kind selbst und trägt ihre Herkunft aus dem Angebot. Die buchungsgebundene
+Planung verwendet kein Ausrollen, sondern berechnet den Wert aus den am Datum
+wirksamen Angebotsbuchungen.
 
 ## Anfrage
 
@@ -210,6 +213,89 @@ Bestätigung durch die OGS wirksam.
 Ein **Betreuungstag** ist ein Wochentag, an dem das Kind laut regelmäßigem
 Wochenplan an der OGS-Betreuung teilnimmt.
 
+## Unterrichtsschluss
+
+Der **Unterrichtsschluss** ist die Uhrzeit, zu der der Unterricht einer
+Schulklasse an einem Wochentag endet. An Schultagen beginnt damit regelmäßig
+die anschließende OGS-Betreuung; eine datierte Kind-Überschreibung kann davon
+abweichen.
+
+## Betreuungsfenster
+
+Das **Betreuungsfenster** ist der Zeitraum, in dem ein Kind an einem Datum für
+die OGS-Betreuung eingeplant ist. An Schultagen beginnt es mit dem
+Unterrichtsschluss und endet mit der spätesten Endzeit seiner an diesem Tag
+gebuchten betreuungswirksamen Angebote.
+
+## Kind-Überschreibung
+
+Eine **Kind-Überschreibung** ersetzt für einen begrenzten Datumszeitraum den
+regelmäßigen Beginn oder das regelmäßige Ende des Betreuungsfensters eines
+Kindes. Sie trägt einen Grund und endet spätestens mit dem zugehörigen
+Halbjahr; eine einzelne Tagesabweichung ist keine Kind-Überschreibung.
+
+## Teilnehmerregel
+
+Eine **Teilnehmerregel** legt fest, nach welchen fachlichen Merkmalen ein
+wiederkehrender Termin seine Kinder erhält. Sie bleibt von einmaligen
+Änderungen an einem konkreten Termin getrennt.
+
+## Teilnehmer-Sollstand
+
+Der **Teilnehmer-Sollstand** ist die für ein Datum aus der Teilnehmerregel und
+den dann wirksamen Angebotsbuchungen berechnete Kinderliste eines noch nicht
+begonnenen Termins. Änderungen an den Quellen ändern diesen Sollstand, ohne
+gespeicherte Kinderlisten für zukünftige Termine abzugleichen.
+
+## Teilnehmer-Snapshot
+
+Der **Teilnehmer-Snapshot** ist die beim Start oder beim ersten tatsächlichen
+Ereignis festgehaltene Kinderliste eines konkreten Termins. Spätere Änderungen
+an Buchungen oder Teilnehmerregeln verändern diesen operativen und historischen
+Stand nicht rückwirkend.
+
+## Teilnehmerabweichung
+
+Eine **Teilnehmerabweichung** nimmt ein Kind für genau einen konkreten Termin
+zusätzlich in den Teilnehmer-Sollstand auf oder schließt es daraus aus. Sie
+trägt ihre Herkunft und einen Grund, verändert aber weder die Teilnehmerregel
+noch spätere Termine.
+
+## Buchungsgebundene Planung
+
+Bei der **buchungsgebundenen Planung** erhalten wiederkehrende Termine ihre
+Kinder ausschließlich durch Teilnehmerregeln aus wirksamen Angebotsbuchungen.
+Einmalige ungeplante Betreuung bleibt möglich, erzeugt aber weder eine
+Angebotsbuchung noch eine wiederkehrende Zuordnung.
+
+## Vergleichsbetrieb
+
+Der **Vergleichsbetrieb** berechnet den Teilnehmer-Sollstand der
+buchungsgebundenen Planung parallel zur weiterhin wirksamen manuellen Planung.
+Er zeigt Unterschiede, verändert aber noch keine operativen Kinderlisten oder
+Zeiten.
+
+## Konsistenzprüfung und Reparatur
+
+Die **Konsistenzprüfung** vergleicht wirksame Quellen mit daraus berechenbaren
+Daten und macht jede Abweichung für die OGS sichtbar. Eine **Reparatur** darf
+nur eindeutig ableitbare, noch nicht operative Daten verändern, die dem
+Ableitungsmechanismus gehören; fachliche Quellen, erklärte Abweichungen und
+Teilnehmer-Snapshots bleiben unangetastet.
+
+## Ungeplante Betreuung
+
+Eine **ungeplante Betreuung** nimmt ein Kind mit dokumentiertem Grund in einen
+konkreten Termin auf, obwohl keine passende Planung vorliegt. Sie gilt nur für
+diesen Termin und verändert keine Dauerregel.
+
+## Betreuungsplan und Dienstplan
+
+Der **Betreuungsplan** ordnet Aktivitäten, Räume, Aufsichten und Kinder zu
+konkreten Zeiten ein. Der **Dienstplan** legt davon getrennt fest, wann ein
+Teammitglied arbeitet; Abweichungen zwischen beiden Plänen sind Konflikte und
+ändern keinen der Pläne automatisch.
+
 ## Abholänderungsanfrage
 
 Eine **Abholänderungsanfrage** ist der Wunsch einer sorgeberechtigten Person,
@@ -222,6 +308,19 @@ die OGS wirksam.
 Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
 Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
 eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.
+
+## Betreuungswirksames Angebot
+
+Ein **betreuungswirksames Angebot** begründet an seinen gebuchten Wochentagen
+einen Betreuungstag und trägt mit seiner Endzeit zum Betreuungsfenster bei.
+Zusatzangebote ohne diese Wirkung verändern das Betreuungsfenster nicht.
+
+## Angebotsbuchung
+
+Eine **Angebotsbuchung** ist die genehmigte, datierte Zuordnung eines Kindes zu
+einem Betreuungsangebot an ausgewählten Wochentagen. Sie ist von der
+Elternauswahl zu unterscheiden, die den noch nicht genehmigten Wunsch der
+Eltern festhält.
 
 ## Mitbuchungs-Regel
 

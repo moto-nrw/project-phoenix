@@ -1,5 +1,10 @@
 # Angebots-Gehzeiten werden auf Kind-Gehzeiten ausgerollt, nicht zur Lesezeit aufgelöst
 
+> **Vorgeschlagene Teilablösung:**
+> [ADR 0005](./0005-buchungsgebundene-planung-zur-lesezeit-projizieren.md)
+> schlägt vor, das Ausrollen für die buchungsgebundene Planung zu ersetzen.
+> Für die manuelle Planung bliebe diese Entscheidung gültig.
+
 Betreuungsangebote (`enrollment.care_offerings`) tragen optionale Gehzeiten pro
 Wochentag (#2290). Damit diese Zeiten "überall" erscheinen (Klassenliste,
 Kinderdetail, Kindersuche), haben wir uns entschieden, sie beim Speichern des
