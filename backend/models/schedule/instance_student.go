@@ -87,6 +87,15 @@ type InstanceStudent struct {
 	PickupExceptionID *int64 `bun:"pickup_exception_id" json:"-"`
 }
 
+// PartialAbsenceBlock names one actionable timetable block that a partial
+// absence would mark as excused.
+type PartialAbsenceBlock struct {
+	ID        int64     `bun:"id" json:"id"`
+	Title     string    `bun:"title" json:"title"`
+	StartTime time.Time `bun:"start_time" json:"start_time"`
+	EndTime   time.Time `bun:"end_time" json:"end_time"`
+}
+
 // Validate ensures the attendance row is well-formed.
 func (s *InstanceStudent) Validate() error {
 	if s.InstanceID <= 0 {

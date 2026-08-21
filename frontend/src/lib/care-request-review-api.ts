@@ -26,6 +26,16 @@ export interface StaffCareRequest {
   readonly decision_reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+  readonly affected_blocks: readonly AffectedCareBlock[];
+  readonly impact_available: boolean;
+  readonly impact_token: string;
+}
+
+interface AffectedCareBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly start_time: string;
+  readonly end_time: string;
 }
 
 interface Envelope<T> {
@@ -80,14 +90,19 @@ async function readError(
 export async function decideCareScheduleChangeRequest(
   requestId: string,
   approve: boolean,
-  reason?: string,
+  reason: string | undefined,
+  impactToken: string,
 ): Promise<StaffCareRequest> {
   const response = await fetch(
     `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        impact_token: impactToken,
+      }),
     },
   );
   if (!response.ok) {

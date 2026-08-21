@@ -1888,6 +1888,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		pickupScheduleService,
 		repos.StudentPickupException,
 		repos.Attendance,
+		pickupAutoExcusal,
 		userContextService,
 		pillEmitter,
 		realtimeHub,

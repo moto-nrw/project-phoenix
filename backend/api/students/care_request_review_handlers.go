@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -17,17 +18,27 @@ import (
 // care-schedule change request in the review queue, including the live
 // "current → requested" weekly diff.
 type CareRequestResponse struct {
-	ID             string                    `json:"id"`
-	StudentID      string                    `json:"student_id"`
-	FirstName      string                    `json:"first_name"`
-	LastName       string                    `json:"last_name"`
-	Status         string                    `json:"status"`
-	RequestKind    string                    `json:"request_kind"`
-	Diff           []CareRequestDiffResponse `json:"diff"`
-	RequestReason  *string                   `json:"request_reason,omitempty"`
-	DecisionReason *string                   `json:"decision_reason,omitempty"`
-	CreatedAt      time.Time                 `json:"created_at"`
-	ReviewedAt     *time.Time                `json:"reviewed_at,omitempty"`
+	ID              string                    `json:"id"`
+	StudentID       string                    `json:"student_id"`
+	FirstName       string                    `json:"first_name"`
+	LastName        string                    `json:"last_name"`
+	Status          string                    `json:"status"`
+	RequestKind     string                    `json:"request_kind"`
+	Diff            []CareRequestDiffResponse `json:"diff"`
+	RequestReason   *string                   `json:"request_reason,omitempty"`
+	DecisionReason  *string                   `json:"decision_reason,omitempty"`
+	CreatedAt       time.Time                 `json:"created_at"`
+	ReviewedAt      *time.Time                `json:"reviewed_at,omitempty"`
+	AffectedBlocks  []AffectedCareBlock       `json:"affected_blocks"`
+	ImpactAvailable bool                      `json:"impact_available"`
+	ImpactToken     string                    `json:"impact_token"`
+}
+
+type AffectedCareBlock struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	StartTime string `json:"start_time"`
+	EndTime   string `json:"end_time"`
 }
 
 // CareRequestDiffResponse mirrors the request-diff wire shape the messaging
@@ -65,25 +76,42 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 	r := item.Request
 	diff := toCareRequestDiffResponses(item.Diff)
 	return CareRequestResponse{
-		ID:             strconv.FormatInt(r.ID, 10),
-		StudentID:      strconv.FormatInt(r.StudentID, 10),
-		FirstName:      item.FirstName,
-		LastName:       item.LastName,
-		Status:         r.Status,
-		RequestKind:    r.RequestKind,
-		Diff:           diff,
-		RequestReason:  item.Reason,
-		DecisionReason: r.DecisionReason,
-		CreatedAt:      r.CreatedAt,
-		ReviewedAt:     r.ReviewedAt,
+		ID:              strconv.FormatInt(r.ID, 10),
+		StudentID:       strconv.FormatInt(r.StudentID, 10),
+		FirstName:       item.FirstName,
+		LastName:        item.LastName,
+		Status:          r.Status,
+		RequestKind:     r.RequestKind,
+		Diff:            diff,
+		RequestReason:   item.Reason,
+		DecisionReason:  r.DecisionReason,
+		CreatedAt:       r.CreatedAt,
+		ReviewedAt:      r.ReviewedAt,
+		AffectedBlocks:  toAffectedCareBlocks(item.AffectedBlocks),
+		ImpactAvailable: item.ImpactAvailable,
+		ImpactToken:     item.ImpactToken,
 	}
+}
+
+func toAffectedCareBlocks(blocks []scheduleModels.PartialAbsenceBlock) []AffectedCareBlock {
+	out := make([]AffectedCareBlock, 0, len(blocks))
+	for _, block := range blocks {
+		out = append(out, AffectedCareBlock{
+			ID:        strconv.FormatInt(block.ID, 10),
+			Title:     block.Title,
+			StartTime: block.StartTime.Format("15:04"),
+			EndTime:   block.EndTime.Format("15:04"),
+		})
+	}
+	return out
 }
 
 // DecideCareRequestBody is the body of POST
 // .../care-schedule-change-requests/{requestId}/decide.
 type DecideCareRequestBody struct {
-	Approve *bool  `json:"approve"`
-	Reason  string `json:"reason"`
+	Approve     *bool   `json:"approve"`
+	Reason      string  `json:"reason"`
+	ImpactToken *string `json:"impact_token"`
 }
 
 // decideCareScheduleChangeRequest approves (applies the weekly plan) or
@@ -93,58 +121,66 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
 		return
 	}
-	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	input, ok := decodeCareRequestDecision(w, r)
 	if !ok {
 		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	input.ReviewedBy = int64(claims.ID)
+	item, err := rs.CareRequestService.Decide(r.Context(), input)
+	if err != nil {
+		renderError(w, r, careRequestDecisionErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toCareRequestResponse(item), "Decision applied")
+}
+
+func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (scheduleService.CareRequestDecideInput, bool) {
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
+		return scheduleService.CareRequestDecideInput{}, false
 	}
 	var body DecideCareRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
+		return scheduleService.CareRequestDecideInput{}, false
 	}
 	if body.Approve == nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("approve is required")))
-		return
+		return scheduleService.CareRequestDecideInput{}, false
 	}
+	return scheduleService.CareRequestDecideInput{
+		RequestID: requestID, Approve: *body.Approve, Reason: body.Reason,
+		ExpectedImpactToken: body.ImpactToken, RequireImpactToken: true,
+	}, true
+}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
-	item, err := rs.CareRequestService.Decide(r.Context(), scheduleService.CareRequestDecideInput{
-		RequestID:  requestID,
-		Approve:    *body.Approve,
-		Reason:     body.Reason,
-		ReviewedBy: int64(claims.ID),
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, scheduleModels.ErrCareRequestNotFound):
-			renderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, scheduleModels.ErrCareRequestNotPending):
-			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
-		case errors.Is(err, scheduleService.ErrCareRequestGuardianAccessRevoked):
-			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
-		case errors.Is(err, scheduleService.ErrCareRequestForbidden):
-			renderError(w, r, common.ErrorForbidden(err))
-		case errors.Is(err, scheduleService.ErrPickupChangeConflict):
-			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_conflict"))
-		case errors.Is(err, scheduleService.ErrPickupChangeAlreadyCompleted):
-			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_completed"))
-		case errors.Is(err, scheduleService.ErrPickupChangeExpired):
-			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_expired"))
-		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),
-			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
-			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
-			renderError(w, r, common.ErrorInvalidRequest(err))
-		// Approving a care-schedule change rewrites the child's departure plan,
-		// so it can strand or collide with a "läuft mit" link exactly like the
-		// student PUT does. Both conditions are expected and actionable, not a
-		// server failure (#1694).
-		case companionPlanErrorRenderer(err) != nil:
-			renderError(w, r, companionPlanErrorRenderer(err))
-		default:
-			renderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
+var careRequestDecisionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
+	{Target: scheduleModels.ErrCareRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
+	{Target: scheduleService.ErrCareRequestGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
+	{Target: scheduleService.ErrCareRequestForbidden, Render: common.ErrorForbidden},
+	{Target: scheduleService.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
+	{Target: scheduleService.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
+	{Target: scheduleService.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
+	{Target: scheduleService.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
+	{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
+}, careRequestDecisionFallback)
+
+func conflictWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorConflictWithCode(err, code) }
+}
+
+func careRequestDecisionFallback(err error) render.Renderer {
+	if renderer := companionPlanErrorRenderer(err); renderer != nil {
+		return renderer
 	}
+	return common.ErrorInternalServer(err)
+}
 
-	common.Respond(w, r, http.StatusOK, toCareRequestResponse(item), "Decision applied")
+func isInvalidCareRequestDecision(err error) bool {
+	return errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired) ||
+		errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong) ||
+		errors.Is(err, scheduleService.ErrInvalidCareRequestPayload) ||
+		errors.Is(err, scheduleService.ErrPickupChangeImpactRequired)
 }

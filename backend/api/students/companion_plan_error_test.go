@@ -129,7 +129,10 @@ func (f *companionErrCareRequestService) ListPickupChangeRequests(context.Contex
 	return nil, nil
 }
 
-func (f *companionErrCareRequestService) Decide(context.Context, scheduleService.CareRequestDecideInput) (*scheduleService.CareRequestReviewItem, error) {
+func (f *companionErrCareRequestService) Decide(_ context.Context, input scheduleService.CareRequestDecideInput) (*scheduleService.CareRequestReviewItem, error) {
+	if f.decideErr == nil && input.RequireImpactToken && input.ExpectedImpactToken == nil {
+		return nil, scheduleService.ErrPickupChangeImpactRequired
+	}
 	return nil, f.decideErr
 }
 
@@ -139,12 +142,15 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 	// Approving a care-schedule change merges new per-weekday modes onto the
 	// stored plan, so it can drop the accompanied day a link depends on.
 	tests := []struct {
-		name string
-		err  error
-		want int
+		name     string
+		err      error
+		want     int
+		wantCode string
 	}{
 		{name: "stranded companion", err: userService.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
 		{name: "busy companion lock", err: userService.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stale pickup impact", err: scheduleService.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
+		{name: "missing pickup impact", want: http.StatusBadRequest},
 		{name: "unrelated error stays a server error", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 
@@ -157,6 +163,9 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 			rs.decideCareScheduleChangeRequest(w, req)
 
 			assert.Equal(t, tt.want, w.Code)
+			if tt.wantCode != "" {
+				assert.Contains(t, w.Body.String(), `"code":"`+tt.wantCode+`"`)
+			}
 		})
 	}
 }
