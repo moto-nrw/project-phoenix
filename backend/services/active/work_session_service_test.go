@@ -958,10 +958,14 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 		StaffID:     100,
 		CheckInTime: time.Now().Add(-2 * time.Hour),
 	}
-	// The open block is visible in both reads the service does — the day list
-	// and the "is anything running" lookup — like it would be in the database.
+	// The open block is visible in every read the service does — the day list
+	// and the intersecting lookup that answers "is anything running" — like it
+	// would be in the database.
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return open, nil
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{open}, nil
 	}
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{open}, nil
@@ -985,15 +989,20 @@ func TestWSCheckIn_OpenBlockOfAnEarlierDayBlocksNewOne(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	svc.nowFunc = func() time.Time { return stampedAt }
 
-	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return &activeModels.WorkSession{
-			Model:       base.Model{ID: 77},
-			StaffID:     100,
-			Date:        yesterday,
-			Status:      activeModels.WorkSessionStatusPresent,
-			Source:      activeModels.WorkSessionSourceNFC,
-			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
-		}, nil
+	stillRunning := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        yesterday,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{stillRunning}, nil
+	}
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		t.Fatal("a block that is still inside its live window must not be closed")
+		return false, nil
 	}
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
 		t.Fatal("a second block must not be created while another one is still open")
@@ -3948,29 +3957,41 @@ func TestWSSessionResponse_SerializesIDAsString(t *testing.T) {
 // block stopped counting as work at its live limit (BalanceSessionEnd), so it
 // stops blocking the calendar there too — otherwise the staff member could
 // never stamp again without an admin cleaning up first (#2402).
-func TestWSCheckIn_ExpiredOpenBlockDoesNotOccupyToday(t *testing.T) {
+//
+// Ignoring the row is not enough: the database permits exactly one open block
+// per staff member, so it has to be closed before the new one is inserted, at
+// the very instant it stopped counting (no total changes value).
+func TestWSCheckIn_ExpiredOpenBlockIsClosedBeforeTheNewOne(t *testing.T) {
 	t.Parallel()
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	stampedAt := time.Date(2026, time.July, 22, 8, 0, 0, 0, timezone.Berlin)
 	svc.nowFunc = func() time.Time { return stampedAt }
 
 	// Friday's block is still open on disk; its live limit expired days ago.
-	// The repository's live window keeps it out of the "already checked in"
-	// lookup — mirrored here by the mock returning nothing.
 	forgotten := &activeModels.WorkSession{
 		Model:       base.Model{ID: 77},
 		StaffID:     100,
 		Date:        timezone.NewDate(2026, 7, 17),
 		CheckInTime: time.Date(2026, time.July, 17, 8, 0, 0, 0, timezone.Berlin),
 	}
-	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
-	}
 	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{forgotten}, nil
 	}
+	type closeCall struct {
+		id             int64
+		at             time.Time
+		autoCheckedOut bool
+	}
+	var closes []closeCall
+	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, at time.Time, autoCheckedOut bool) (bool, error) {
+		closes = append(closes, closeCall{id: id, at: at, autoCheckedOut: autoCheckedOut})
+		return true, nil
+	}
 	var created *activeModels.WorkSession
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		if len(closes) == 0 {
+			t.Fatal("the stale block has to be closed before the new one is inserted")
+		}
 		entity.ID = 78
 		created = entity
 		return nil
@@ -3980,7 +4001,11 @@ func TestWSCheckIn_ExpiredOpenBlockDoesNotOccupyToday(t *testing.T) {
 	require.NoError(t, err, "an expired block must not reject today's check-in")
 	require.NotNil(t, session)
 	require.NotNil(t, created)
-	assert.Nil(t, forgotten.CheckOutTime, "the stored row is left untouched for the auto-checkout or an admin")
+	require.Len(t, closes, 1)
+	assert.Equal(t, int64(77), closes[0].id)
+	assert.Equal(t, BalanceSessionEnd(forgotten, stampedAt), closes[0].at,
+		"the repair ends the block where it stopped counting as work")
+	assert.True(t, closes[0].autoCheckedOut, "the repair is a system checkout, not a stamped one")
 }
 
 // The counterpart: a block that is still inside its live window keeps
@@ -4085,4 +4110,33 @@ func TestBuildWeeklySummaries_ClipsToRequestedRange(t *testing.T) {
 
 	require.Len(t, summaries, 1, "the Monday half belongs to a week nobody asked for")
 	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
+}
+
+// An admin Nachtrag files a block under a date it may choose freely, so the
+// stored date can sit after the day the block actually started on. The weekly
+// summary lays the minutes out from the check-in instant — otherwise the
+// pre-midnight part silently disappears from the week while the balance, which
+// starts at the check-in, still counts it (#2402).
+func TestBuildWeeklySummaries_UsesCheckInDayNotTheStoredDate(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	monday := timezone.NewDate(2026, 8, 17)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         monday, // filed a day later than it began
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+	}}, nil, sunday, monday)
+
+	total := 0
+	for _, summary := range summaries {
+		total += summary.TotalNetMinutes
+	}
+	assert.Equal(t, 240, total, "both halves of the night block are counted")
 }

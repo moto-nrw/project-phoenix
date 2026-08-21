@@ -777,7 +777,9 @@ function countAbsenceDays(
   return counts;
 }
 
-function countSessionDaysInRange(
+// Exported for the unit test: the counters answer "how many days was this
+// person at work", which is decided here and nowhere else.
+export function countSessionDaysInRange(
   sessions: readonly StaffHistorySession[],
   from: Date,
   to: Date,
@@ -786,22 +788,42 @@ function countSessionDaysInRange(
   const toKey = toDateKey(to);
   const minutesByDay = new Map<
     string,
-    { present: number; homeOffice: number }
+    {
+      present: number;
+      homeOffice: number;
+      hasPresentBlock: boolean;
+      hasHomeOfficeBlock: boolean;
+    }
   >();
   for (const session of sessions) {
     for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
       if (date < fromKey || date > toKey) continue;
-      const day = minutesByDay.get(date) ?? { present: 0, homeOffice: 0 };
-      if (session.status === "home_office") day.homeOffice += minutes;
-      else day.present += minutes;
+      const day = minutesByDay.get(date) ?? {
+        present: 0,
+        homeOffice: 0,
+        hasPresentBlock: false,
+        hasHomeOfficeBlock: false,
+      };
+      if (session.status === "home_office") {
+        day.homeOffice += minutes;
+        day.hasHomeOfficeBlock = true;
+      } else {
+        day.present += minutes;
+        day.hasPresentBlock = true;
+      }
       minutesByDay.set(date, day);
     }
   }
   let present = 0;
   let homeOffice = 0;
   for (const day of minutesByDay.values()) {
+    // Minutes decide WHERE a day counts, the block decides THAT it counts. A
+    // day whose blocks net nothing (a shift that was all break, a stamp that
+    // was just opened) is still a day at work and must not vanish from the
+    // counters.
     if (day.homeOffice > day.present) homeOffice += 1;
-    else if (day.present > 0) present += 1;
+    else if (day.present > 0 || day.hasPresentBlock) present += 1;
+    else if (day.hasHomeOfficeBlock) homeOffice += 1;
   }
   return { present, homeOffice };
 }
@@ -995,7 +1017,11 @@ function distributeNetMinutes(
   netMinutes: number,
 ): Map<string, number> {
   if (totalRawNet <= 0) {
-    return new Map();
+    // A block whose whole duration is break time nets nothing — but it did
+    // happen, and the day it happened on has to stay in the result: the
+    // presence counters read the days, not the minutes, so dropping it would
+    // hide a worked day from "Anwesend"/"Homeoffice" (#2402).
+    return new Map(rawNetByDate);
   }
 
   const shares = [...rawNetByDate.entries()].map(([date, rawMinutes]) => {

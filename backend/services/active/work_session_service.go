@@ -517,18 +517,43 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	now := s.now()
 	stampDay := timezone.DateFromTime(now)
 
-	// An open block anywhere means the person is clocked in — the lookup is
+	// Every block that reaches into the present, in one read: the open ones
+	// (they run to infinity, so the query returns them whatever day they were
+	// filed on) and the closed ones that still end after "now". The same rows
+	// answer both questions below — whether somebody is clocked in, and
+	// whether the new block would overlap an existing one.
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, now, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing session: %w", err)
+	}
+
+	// An open block anywhere means the person is clocked in — the check is
 	// deliberately NOT limited to the stamp's day. A block opened before
 	// Berlin midnight is still running after it; starting a second one there
 	// would leave two open blocks, and the checkout (which closes exactly
 	// one) would then report a different day's work than the totals do.
 	// The still-open block has to be closed first.
-	openSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("failed to check existing session: %w", err)
-	}
-	if openSession != nil {
-		return nil, fmt.Errorf("already checked in")
+	//
+	// A block whose live limit has passed is the exception, and it has to be
+	// CLOSED here, not merely skipped: the database permits a single open
+	// block per staff member (uq_work_sessions_staff_date_open), so a
+	// forgotten checkout that is only ignored lets this guard pass and then
+	// fails the INSERT — locking the person out of the clock entirely, which
+	// is exactly what #2402 set out to fix. It is closed at the instant it
+	// stopped counting as work everywhere else (BalanceSessionEnd), so no
+	// total, balance or history row changes value; the row merely stops
+	// hanging open and disappears from the kiosk's running block.
+	for _, sibling := range siblings {
+		if sibling.CheckOutTime != nil {
+			continue
+		}
+		end := BalanceSessionEnd(sibling, now)
+		if !end.Before(now) {
+			return nil, fmt.Errorf("already checked in")
+		}
+		if err := s.closeStaleOpenBlock(ctx, sibling, end); err != nil {
+			return nil, err
+		}
 	}
 
 	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
@@ -543,10 +568,9 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	// afternoon, an edited checkout in the future, a night block from
 	// yesterday that ran into this morning). A new block starting inside that
 	// interval would double-count the overlap in every sum built from the
-	// day's rows, so it is rejected like any other overlap. An open block whose
-	// live limit has passed is the one exception — see
-	// assertNoRunningBlockOverlap.
-	if err := s.assertNoRunningBlockOverlap(ctx, staffID, now); err != nil {
+	// day's rows, so it is rejected like any other overlap. The blocks just
+	// closed above end before "now" and no longer reach it.
+	if err := assertNoBlockOverlapIn(expireStaleOpenBlocks(siblings, now), 0, now, nil); err != nil {
 		return nil, err
 	}
 
@@ -1384,25 +1408,34 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 	return assertNoBlockOverlapIn(siblings, excludeID, checkIn, checkOut)
 }
 
-// assertNoRunningBlockOverlap is the check-in twin of assertNoBlockOverlap: it
-// rejects a stamp that lands inside another block, but lets a block whose live
-// limit has passed end there instead of reaching into today
-// (expireStaleOpenBlocks).
+// closeStaleOpenBlock ends a forgotten checkout at the instant it stopped
+// counting as work (BalanceSessionEnd) and marks it as auto-checked-out, the
+// same repair the nightly cleanup performs (CleanupOpenSessions). Live
+// stamping does it inline because the open-block guard in the database is
+// stricter than the arithmetic: the balance simply stops crediting a stale
+// block, but uq_work_sessions_staff_date_open keeps rejecting a second open
+// row until this one is closed.
 //
-// The asymmetry is deliberate. A forgotten checkout stops counting as work at
-// its limit — the balance no longer credits it, the presence map no longer
-// reports its owner as present — so it must not reject the stamp of somebody
-// who is demonstrably not at work since days: they would be locked out of the
-// clock entirely, with no way to repair the row themselves (#2402). An
-// administrative write is the opposite case: it is made by the person who CAN
-// repair the row, and a Nachtrag must not be layered on top of an unresolved
-// open block, so there the full open interval keeps blocking.
-func (s *workSessionService) assertNoRunningBlockOverlap(ctx context.Context, staffID int64, at time.Time) error {
-	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, at, nil)
-	if err != nil {
-		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
+// The asymmetry against the administrative writes is deliberate. A stamping
+// staff member has no way to repair the row and would be locked out of the
+// clock entirely (#2402); an admin IS the person who repairs it, so there a
+// Nachtrag keeps being refused while an open block is unresolved.
+func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *activeModels.WorkSession, at time.Time) error {
+	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
+		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
+		// keep the block open — that would leave the staff member unable to
+		// stamp, which is the very lockout this repair exists to prevent.
+		s.getLogger().WarnContext(ctx, "failed to end active break of a stale work session",
+			slog.Int64("session_id", session.ID),
+			slog.String("error", err.Error()))
 	}
-	return assertNoBlockOverlapIn(expireStaleOpenBlocks(siblings, at), 0, at, nil)
+	if _, err := s.repo.CloseSession(ctx, session.ID, at, true); err != nil {
+		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
+	}
+	s.getLogger().InfoContext(ctx, "closed stale open work session before new check-in",
+		slog.Int64("session_id", session.ID),
+		slog.Time("closed_at", at))
+	return nil
 }
 
 // expireStaleOpenBlocks ends every open block that has passed its live limit
@@ -1732,7 +1765,12 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
-		firstDay, lastDay := session.Date, timezone.DateFromTime(end)
+		// The first day is derived from the check-in instant, never from the
+		// stored date: an admin Nachtrag files a block under a date it may
+		// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and
+		// filed on the following day would lose its pre-midnight minutes here
+		// while the balance — which starts at the check-in — still counts them.
+		firstDay, lastDay := timezone.DateFromTime(session.CheckInTime), timezone.DateFromTime(end)
 		if firstDay.Before(from) {
 			firstDay = from
 		}
