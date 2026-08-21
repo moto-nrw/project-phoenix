@@ -41,21 +41,26 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null, fetcher: () => Promise<unknown>) => {
     if (key === null) return { data: undefined, isLoading: false, error: null };
+    // Suche und Seite stecken im Schlüssel, deshalb wird hier bei jedem
+    // Schlüsselwechsel wirklich geladen — genau wie in SWR.
+    lastSwrKey = key;
+    void fetcher();
     return {
       data: swrState.data,
       isLoading: swrState.isLoading,
       error: swrState.error,
-      // The page never calls this directly; the fetcher is exercised by the
-      // assertion below that the API client was asked at all.
       mutate: vi.fn(() => fetcher()),
     };
   },
   useTenantMutate: () => vi.fn(),
+  useTenantMutateMatching: () => vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
+
+let lastSwrKey: string | null = null;
 
 const swrState: {
   data: EndedCarePage | undefined;
@@ -63,13 +68,17 @@ const swrState: {
   error: unknown;
 } = { data: undefined, isLoading: false, error: null };
 
-function page(items: EndedCarePage["items"]): EndedCarePage {
-  return { items, total: items.length, page: 1, pageSize: 200 };
+function page(
+  items: EndedCarePage["items"],
+  overrides: Partial<EndedCarePage> = {},
+): EndedCarePage {
+  return { items, total: items.length, page: 1, pageSize: 50, ...overrides };
 }
 
 describe("Beendete Betreuungen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lastSwrKey = null;
     mockHasPermission.mockReturnValue(true);
     swrState.isLoading = false;
     swrState.error = null;
@@ -123,7 +132,9 @@ describe("Beendete Betreuungen", () => {
     ).toBeVisible();
   });
 
-  it("filters by name", async () => {
+  // Gesucht wird auf dem Server. Eine Suche, die nur die geladene Seite
+  // durchsieht, findet Kinder nicht, die weiter hinten stehen (#2487).
+  it("hands the search term to the server instead of filtering the page", async () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
 
@@ -131,8 +142,36 @@ describe("Beendete Betreuungen", () => {
       target: { value: "Wirth" },
     });
 
-    expect(screen.getByText("Wirth, Ben")).toBeVisible();
-    expect(screen.queryByText("Muster, Mia")).toBeNull();
+    await waitFor(() =>
+      expect(mockFetchEndedCare).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "Wirth", page: 1 }),
+      ),
+    );
+  });
+
+  // Ohne Blättern zeigte die Ansicht nur die erste Seite und behauptete, das
+  // seien alle (#2487).
+  it("pages through more children than fit on one page", async () => {
+    swrState.data = page(swrState.data!.items, { total: 137 });
+    mockFetchEndedCare.mockResolvedValue(swrState.data);
+
+    render(<Page />);
+    await screen.findByText("Muster, Mia");
+
+    expect(screen.getByText("137")).toBeVisible();
+    expect(screen.getByText("Seite 1 von 3")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Vorherige Seite" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nächste Seite" }));
+
+    await waitFor(() =>
+      expect(mockFetchEndedCare).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+    expect(lastSwrKey).toContain(":2:");
   });
 
   it("opens the resume dialog and demands the explicit review", async () => {

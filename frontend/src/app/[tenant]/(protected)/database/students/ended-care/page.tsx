@@ -11,7 +11,7 @@
 // Design follows the Anmeldungen/Planung surface language: calm content
 // section, uppercase kicker, gray-50 stats, no colored dashboards.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -33,9 +33,13 @@ import {
 } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useDebounce } from "~/lib/use-debounce";
 
+// Der Schlüssel-Stamm. Suche und Seite hängen daran, damit jede Kombination
+// ihren eigenen Cache-Eintrag bekommt; aktualisiert wird über den Stamm.
 const SWR_KEY = "students-ended-care";
+const PAGE_SIZE = 50;
 
 function reasonLabel(entry: EndedCareEntry): string {
   if (!entry.reason) return "Kein Grund hinterlegt";
@@ -56,35 +60,46 @@ export default function EndedCarePage() {
   const canManage = hasPermission(session, "users:delete");
 
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [resumeTarget, setResumeTarget] = useState<EndedCareEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EndedCareEntry | null>(null);
   const { success: toastSuccess } = useToast();
-  const tenantMutate = useTenantMutate();
+  const refreshEndedCare = useTenantMutateMatching([SWR_KEY]);
+
+  // Gesucht wird auf dem Server, nicht in der geladenen Seite: sonst fände die
+  // Suche nur die Kinder, die gerade zufällig sichtbar sind (#2487).
+  const debouncedSearch = useDebounce(search.trim(), 300);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const {
     data,
     isLoading,
     error: loadError,
-  } = useSWRAuth(canManage ? SWR_KEY : null, () =>
-    fetchEndedCare({ pageSize: 200 }),
+  } = useSWRAuth(
+    canManage ? `${SWR_KEY}:${page}:${debouncedSearch}` : null,
+    () =>
+      fetchEndedCare({
+        page,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+      }),
+    { keepPreviousData: true },
   );
 
   const entries = useMemo(() => data?.items ?? [], [data]);
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const firstOnPage = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const lastOnPage = Math.min(page * PAGE_SIZE, total);
 
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return entries;
-    return entries.filter((entry) =>
-      `${entry.firstName} ${entry.lastName} ${entry.schoolClass}`
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [entries, search]);
-
-  const withReason = useMemo(
-    () => entries.filter((entry) => entry.reason !== null).length,
-    [entries],
-  );
+  // Eine Seite, die es nicht mehr gibt (letztes Kind der letzten Seite wieder
+  // aufgenommen oder gelöscht), fällt auf die letzte vorhandene zurück.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const columns: DataTableColumn<EndedCareEntry>[] = [
     {
@@ -199,18 +214,18 @@ export default function EndedCarePage() {
         <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-md">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">
-              {entries.length}
+              {total}
             </span>
             <span className="block text-[11px] font-medium text-gray-500">
-              Kinder gesamt
+              {debouncedSearch ? "Treffer" : "Kinder gesamt"}
             </span>
           </div>
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">
-              {withReason}
+              {total === 0 ? "0" : `${firstOnPage}-${lastOnPage}`}
             </span>
             <span className="block text-[11px] font-medium text-gray-500">
-              Mit Grund
+              Auf dieser Seite
             </span>
           </div>
         </div>
@@ -227,22 +242,22 @@ export default function EndedCarePage() {
         <div className="mt-4">
           {isLoading ? (
             <Loading />
-          ) : filtered.length === 0 ? (
+          ) : entries.length === 0 ? (
             <EmptyState
               title={
-                search
+                debouncedSearch
                   ? "Kein Kind gefunden"
                   : "Noch keine beendeten Betreuungen"
               }
               description={
-                search
+                debouncedSearch
                   ? "Versuchen Sie einen anderen Namen oder eine andere Klasse."
                   : "Hier stehen Kinder, deren Betreuung beendet wurde."
               }
             />
           ) : (
             <DataTable
-              rows={filtered}
+              rows={entries}
               columns={columns}
               getRowKey={(entry) => entry.studentId}
               defaultSortKey="lastCareDay"
@@ -250,6 +265,38 @@ export default function EndedCarePage() {
             />
           )}
         </div>
+
+        {totalPages > 1 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
+            <p className="text-sm text-gray-600">
+              Seite {page} von {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                aria-label="Vorherige Seite"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Zurück
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                disabled={page >= totalPages}
+                aria-label="Nächste Seite"
+                onClick={() =>
+                  setPage((current) => Math.min(totalPages, current + 1))
+                }
+              >
+                Weiter
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {resumeTarget ? (
@@ -263,7 +310,7 @@ export default function EndedCarePage() {
               `Betreuung von ${resumeTarget.firstName} ${resumeTarget.lastName} wieder aufgenommen`,
             );
             setResumeTarget(null);
-            await tenantMutate(SWR_KEY);
+            await refreshEndedCare();
           }}
         />
       ) : null}
@@ -280,7 +327,7 @@ export default function EndedCarePage() {
               `${deleteTarget.firstName} ${deleteTarget.lastName} wurde gelöscht`,
             );
             setDeleteTarget(null);
-            await tenantMutate(SWR_KEY);
+            await refreshEndedCare();
           }}
         />
       ) : null}
