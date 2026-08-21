@@ -1216,6 +1216,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	if input.Status == DecisionApproved {
+		if err := s.validateApprovalOfferingSelection(ctx, target, phase); err != nil {
+			return nil, err
+		}
+	}
 
 	reason := strings.TrimSpace(input.Reason)
 	var reasonPtr *string
@@ -1305,6 +1310,36 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = target
 	return outcome, nil
+}
+
+func (s *decisionService) validateApprovalOfferingSelection(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care-offering availability: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx,
+		child.ID,
+		currentOfferingSelectionDate(phase),
+	)
+	if err != nil {
+		return fmt.Errorf("decision: validate child offerings: %w", err)
+	}
+	if len(links) == 0 {
+		return ErrCareOfferingMissing
+	}
+	return nil
 }
 
 func isParentVisibleDecision(status DecisionStatus) bool {

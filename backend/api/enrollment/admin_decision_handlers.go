@@ -33,18 +33,19 @@ import (
 // answer next to its label. Listing endpoints leave them empty to
 // keep payloads light.
 type AdminRequestSummary struct {
-	ID                string                    `json:"id"`
-	PhaseID           string                    `json:"phase_id"`
-	PhaseName         string                    `json:"phase_name"`
-	GuardianFirstName string                    `json:"guardian_first_name"`
-	GuardianLastName  string                    `json:"guardian_last_name"`
-	GuardianEmail     string                    `json:"guardian_email"`
-	GuardianPhone     *string                   `json:"guardian_phone,omitempty"`
-	SubmittedAt       time.Time                 `json:"submitted_at"`
-	WithdrawnAt       *time.Time                `json:"withdrawn_at,omitempty"`
-	CustomData        map[string]any            `json:"custom_data,omitempty"`
-	ConsentFlags      map[string]any            `json:"consent_flags,omitempty"`
-	SchemaFields      []AdminRequestSchemaField `json:"schema_fields,omitempty"`
+	ID                        string                    `json:"id"`
+	PhaseID                   string                    `json:"phase_id"`
+	PhaseName                 string                    `json:"phase_name"`
+	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
+	GuardianFirstName         string                    `json:"guardian_first_name"`
+	GuardianLastName          string                    `json:"guardian_last_name"`
+	GuardianEmail             string                    `json:"guardian_email"`
+	GuardianPhone             *string                   `json:"guardian_phone,omitempty"`
+	SubmittedAt               time.Time                 `json:"submitted_at"`
+	WithdrawnAt               *time.Time                `json:"withdrawn_at,omitempty"`
+	CustomData                map[string]any            `json:"custom_data,omitempty"`
+	ConsentFlags              map[string]any            `json:"consent_flags,omitempty"`
+	SchemaFields              []AdminRequestSchemaField `json:"schema_fields,omitempty"`
 	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
 	// legal blocks so the detail UI can label custom consent flags (e.g.
 	// "Schwimmbad") instead of rendering raw keys. Detail endpoint only.
@@ -198,6 +199,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 	}
 	if s.Phase != nil {
 		out.PhaseName = s.Phase.Name
+		out.CareOfferingSelectionMode = s.Phase.CareOfferingSelectionMode
 	}
 	out.Children = make([]AdminRequestChild, 0, len(s.Children))
 	for _, c := range s.Children {
@@ -610,6 +612,8 @@ func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
+	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentApprovalCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch"))
 	case common.IsTransientDatabaseError(err):

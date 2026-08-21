@@ -116,6 +116,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   >(null);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
+    useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -218,6 +220,22 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     );
   }
 
+  const requestDecision = (
+    child: AdminRequestChild,
+    status: DecisionStatus,
+  ) => {
+    if (
+      status === "approved" &&
+      data.care_offering_selection_mode === "optional" &&
+      child.offerings_unavailable !== true &&
+      (child.offerings?.length ?? 0) === 0
+    ) {
+      setApprovalWithoutOfferingChildId(child.id);
+      return;
+    }
+    void handleDecide(child.id, status);
+  };
+
   const submittedAt = formatDateTime(data.submitted_at, {
     day: "2-digit",
     month: "long",
@@ -315,7 +333,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   onReasonChange={(value) =>
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
-                  onDecide={(status) => void handleDecide(child.id, status)}
+                  onDecide={(status) => requestDecision(child, status)}
                   onOfferingsChanged={() => void load()}
                   onDataCorrected={handleDataCorrected}
                   onDelete={() =>
@@ -344,6 +362,22 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </aside>
         </div>
       </section>
+      <ConfirmationModal
+        isOpen={approvalWithoutOfferingChildId !== null}
+        onClose={() => setApprovalWithoutOfferingChildId(null)}
+        onConfirm={() => {
+          const childId = approvalWithoutOfferingChildId;
+          setApprovalWithoutOfferingChildId(null);
+          if (childId !== null) void handleDecide(childId, "approved");
+        }}
+        title="Anmeldung bestätigen"
+        confirmText="Trotzdem bestätigen"
+      >
+        <Alert
+          type="warning"
+          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+        />
+      </ConfirmationModal>
       <ConfirmationModal
         isOpen={restoreOpen}
         onClose={() => setRestoreOpen(false)}

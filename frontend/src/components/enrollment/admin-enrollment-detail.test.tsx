@@ -12,6 +12,7 @@ import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
   getAdminRequest: vi.fn(),
+  decideAdminChild: vi.fn(),
   correctAdminChildData: vi.fn(),
   listCareOfferings: vi.fn(),
   listAdminChildOfferingAdjustments: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   return {
     ...actual,
     getAdminRequest: mocks.getAdminRequest,
+    decideAdminChild: mocks.decideAdminChild,
     correctAdminChildData: mocks.correctAdminChildData,
     listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
     updateAdminChildOfferings: mocks.updateAdminChildOfferings,
@@ -126,6 +128,7 @@ function renderAdjustment(child: AdminRequestChild = adjustmentChild()) {
 
 beforeEach(() => {
   mocks.getAdminRequest.mockReset();
+  mocks.decideAdminChild.mockReset();
   mocks.correctAdminChildData.mockReset();
   mocks.listCareOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockReset();
@@ -135,6 +138,121 @@ beforeEach(() => {
   mocks.fetchCareOfferingBookingStats.mockReset();
   mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
+});
+
+describe("AdminEnrollmentDetail approval without an offering", () => {
+  it("requires confirmation when offerings are optional and none is booked", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: "optional",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [],
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem bestätigen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+  });
+
+  it.each([
+    {
+      name: "the phase requires an offering",
+      mode: "at_least_one",
+      offerings: [],
+    },
+    {
+      name: "an optional offering is booked",
+      mode: "optional",
+      offerings: [
+        {
+          offering_id: "offering-1",
+          offering_name: "Ganztag",
+          days_of_week_mode: "fixed",
+        },
+      ],
+    },
+  ])("approves directly when $name", async ({ mode, offerings }) => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: mode,
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings,
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+    expect(
+      screen.queryByText(/Das Kind wird trotzdem in die OGS aufgenommen/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("AdminEnrollmentDetail late-invite email warning", () => {

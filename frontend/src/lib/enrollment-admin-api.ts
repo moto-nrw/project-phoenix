@@ -1,6 +1,7 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
+  CareOfferingSelectionMode,
   PublicEnrollmentBootstrap,
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
@@ -193,6 +194,7 @@ export interface AdminRequestSummary {
   id: string;
   phase_id: string;
   phase_name: string;
+  care_offering_selection_mode: CareOfferingSelectionMode;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;

@@ -31,6 +31,17 @@ describe("enrollment-error-messages", () => {
     ).toContain("bereits voll");
   });
 
+  it("explains who must add a missing offering before approval", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "care offering selection is required for every child",
+        "enrollment.approval_care_offering_missing",
+      ),
+    ).toBe(
+      "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+    );
+  });
+
   it("maps an incompatible Regeltermin period to a German explanation", () => {
     expect(
       translateEnrollmentErrorMessage(

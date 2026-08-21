@@ -101,6 +101,7 @@ const baseChangeRequest: AdminEnrollmentChangeRequest = {
     id: "7",
     phase_id: "5",
     phase_name: "Schuljahr 2026/27",
+    care_offering_selection_mode: "optional",
     guardian_first_name: "Mara",
     guardian_last_name: "Muster",
     guardian_email: "mara@example.test",
