@@ -69,7 +69,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		repos.Attendance,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			repos.StudentPickupSchedule,
+			scheduleSvc.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),

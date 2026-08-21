@@ -13,6 +13,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 		PhaseRepo:                repoFactory.Phase,
 		Logger:                   slog.Default(),
 	})
+	bindTestPickupResyncer(t, svc)
 
 	phase := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
@@ -129,10 +131,75 @@ func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentM
 		Name:            "Linked Template",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
+		PickupTimes:     map[string]string{"mon": "14:30"},
 		IsActive:        true,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
 	return offering
+}
+
+func carePickupTimes(days ...string) map[string]string {
+	times := make(map[string]string, len(days))
+	for _, day := range days {
+		times[day] = "14:30"
+	}
+	return times
+}
+
+func bindTestPickupResyncer(
+	t *testing.T,
+	service enrollmentService.CareOfferingService,
+) *enrollmenttest.PickupResyncer {
+	t.Helper()
+	resyncer := &enrollmenttest.PickupResyncer{}
+	binder, ok := service.(enrollmentService.CareOfferingPickupResyncBinder)
+	require.True(t, ok)
+	binder.SetPickupResyncer(resyncer)
+	return resyncer
+}
+
+func TestCareOfferingService_Create_RequiresPickupTimesForActiveCareDays(t *testing.T) {
+	t.Parallel()
+
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	offering := &enrollmentModels.CareOffering{
+		PhaseID: phase.ID, Name: "Ohne Gehzeit", AvailableDays: []string{"mon"}, IsActive: true,
+	}
+	offering.SetTenantID(testpkg.Tenant(t))
+
+	_, err := svc.Create(testpkg.Ctx(t), offering)
+
+	require.ErrorIs(t, err, enrollmentModels.ErrCareOfferingPickupTimesRequired)
+}
+
+func TestCareOfferingService_Create_AllowsMissingPickupTimesOutsideActiveCare(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		active  bool
+		care    bool
+		careSet bool
+	}{
+		{name: "inactive", active: false},
+		{name: "not care", active: true, care: false, careSet: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, svc, phase, cleanup := setupCareTest(t)
+			defer cleanup()
+			offering := &enrollmentModels.CareOffering{
+				PhaseID: phase.ID, Name: tt.name, AvailableDays: []string{"mon"},
+				IsActive: tt.active, CountsAsCare: tt.care, CountsAsCareSet: tt.careSet,
+			}
+			offering.SetTenantID(testpkg.Tenant(t))
+
+			_, err := svc.Create(testpkg.Ctx(t), offering)
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
@@ -150,6 +217,7 @@ func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
 		IncludesHolidayCare: false,
 		IncludesLunch:       true,
 		IsActive:            true,
+		PickupTimes:         carePickupTimes("mon", "tue", "wed", "thu", "fri"),
 		SortOrder:           0,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
@@ -187,12 +255,14 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 		},
 		Logger: slog.Default(),
 	})
+	bindTestPickupResyncer(t, svc)
 	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Recurrence-gated offering",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 
@@ -217,6 +287,7 @@ func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
 		Name:           "Aktiv",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 	active.SetTenantID(testpkg.Tenant(t))
@@ -264,6 +335,7 @@ func TestCareOfferingService_Update_AppliesChanges(t *testing.T) {
 		Name:           "Original",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
@@ -634,6 +706,28 @@ func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing
 	require.ErrorContains(t, err, "weekday")
 }
 
+func TestCareOfferingService_Update_RefreshesPickupProjectionConsumers(t *testing.T) {
+	t.Parallel()
+
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID: phase.ID, Name: "Gehzeit alt",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon"}, PickupTimes: map[string]string{"mon": "14:30"},
+		IsActive: true,
+	}
+	created, err := svc.Create(ctx, offering)
+	require.NoError(t, err)
+
+	resyncer := bindTestPickupResyncer(t, svc)
+	created.PickupTimes = map[string]string{"mon": "15:00"}
+
+	require.NoError(t, svc.Update(ctx, created))
+	assert.Equal(t, []int64{created.ID}, resyncer.OfferingIDs)
+}
+
 func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	t.Parallel()
 
@@ -753,6 +847,7 @@ func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 		Name:           "Soon-deleted",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
@@ -782,6 +877,7 @@ func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
 		Name:           "Detached-on-delete",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
@@ -812,6 +908,7 @@ func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 			Name:           name,
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 			AvailableDays:  []string{"mon"},
+			PickupTimes:    carePickupTimes("mon"),
 			IsActive:       true,
 			SelectionGroup: "tag",
 			SelectionRule:  rule,
@@ -864,6 +961,7 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 				Name:           "Ganztag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:  []string{"mon"},
+				PickupTimes:    carePickupTimes("mon"),
 				IsActive:       true,
 				SelectionGroup: "umfang",
 				SelectionRule:  rule,
@@ -877,6 +975,7 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 				Name:                      "Randstunde",
 				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:             []string{"mon"},
+				PickupTimes:               carePickupTimes("mon"),
 				IsActive:                  true,
 				SelectionGroup:            "umfang",
 				SelectionRule:             rule,
@@ -924,6 +1023,7 @@ func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 				Name:           "Ganztag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:  []string{"mon"},
+				PickupTimes:    carePickupTimes("mon"),
 				IsActive:       true,
 				SelectionGroup: "umfang",
 				SelectionRule:  tc.triggerRule,
@@ -937,6 +1037,7 @@ func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 				Name:                      "Randstunde",
 				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:             []string{"mon"},
+				PickupTimes:               carePickupTimes("mon"),
 				IsActive:                  true,
 				SelectionGroup:            tc.targetGroup,
 				SelectionRule:             tc.targetRule,

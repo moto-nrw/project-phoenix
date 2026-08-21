@@ -150,6 +150,7 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 		{name: "stranded companion", err: userService.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
 		{name: "busy companion lock", err: userService.ErrCompanionLockBusy, want: http.StatusConflict},
 		{name: "stale pickup impact", err: scheduleService.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
+		{name: "care day belongs to booking", err: scheduleService.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
 		{name: "missing pickup impact", want: http.StatusBadRequest},
 		{name: "unrelated error stays a server error", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}

@@ -10,8 +10,8 @@ import (
 
 // Pure tests for the source/care_offering_id contract on
 // StudentPickupSchedule (#2290): staff rows are the manual default,
-// care_offering rows are materialized from an Angebots-Gehzeit and must
-// carry the offering reference.
+// care_offering rows are legacy materializations and must carry the offering
+// reference while they remain in the schema.
 
 func validPickupScheduleRow() *StudentPickupSchedule {
 	return &StudentPickupSchedule{

@@ -40,6 +40,7 @@ type TimetableDataDependencies struct {
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	ArrivalExceptionRepo   scheduleModel.StudentArrivalExceptionRepository
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	PickupBaselines        PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
 	VisitRepo              activeModel.VisitRepository
 	RoomRepo               facilitiesModel.RoomRepository

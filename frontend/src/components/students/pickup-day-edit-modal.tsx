@@ -9,6 +9,7 @@ import {
   formatPickupTime,
   getWeekdayLabel,
   formatShortDate,
+  pickupScheduleSourceLabel,
 } from "@/lib/pickup-schedule-helpers";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -262,13 +263,14 @@ export function PickupDayEditModal({
           {baseTime && (
             <p className="mb-2 text-xs text-gray-500">
               Reguläre Zeit: {baseTime} Uhr
-              {day.baseSchedule?.source === "care_offering"
-                ? " (aus Betreuungsangebot)"
+              {day.baseSchedule
+                ? ` (${pickupScheduleSourceLabel(day.baseSchedule)})`
                 : null}
             </p>
           )}
           {onResetToOffering &&
           day.baseSchedule &&
+          day.offeringSchedule &&
           day.baseSchedule.source !== "care_offering" ? (
             <Button
               type="button"

@@ -18,7 +18,7 @@ type StudentWeekPreload struct {
 	VisitsByActiveGroup  map[int64][]*activeModel.Visit
 	ArrivalSchedByWeekly map[int]*scheduleModel.StudentArrivalSchedule
 	ArrivalExcByDate     map[string]*scheduleModel.StudentArrivalException
-	PickupSchedByWeekly  map[int]*scheduleModel.StudentPickupSchedule
+	PickupSchedByDate    map[string]*scheduleModel.StudentPickupSchedule
 	PickupExcByDate      map[string]*scheduleModel.StudentPickupException
 }
 
@@ -36,7 +36,7 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 		VisitsByActiveGroup:  map[int64][]*activeModel.Visit{},
 		ArrivalSchedByWeekly: map[int]*scheduleModel.StudentArrivalSchedule{},
 		ArrivalExcByDate:     map[string]*scheduleModel.StudentArrivalException{},
-		PickupSchedByWeekly:  map[int]*scheduleModel.StudentPickupSchedule{},
+		PickupSchedByDate:    map[string]*scheduleModel.StudentPickupSchedule{},
 		PickupExcByDate:      map[string]*scheduleModel.StudentPickupException{},
 	}
 
@@ -96,12 +96,17 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	for _, sc := range arrivalSchedules {
 		out.ArrivalSchedByWeekly[sc.Weekday] = sc
 	}
-	pickupSchedules, err := s.deps.PickupScheduleRepo.FindByStudentID(ctx, studentID)
+	if s.deps.PickupBaselines == nil {
+		return nil, fmt.Errorf("load pickup schedules: baseline projection is not configured")
+	}
+	pickupSchedules, err := s.deps.PickupBaselines.Project(ctx, []int64{studentID}, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load pickup schedules: %w", err)
 	}
-	for _, sc := range pickupSchedules {
-		out.PickupSchedByWeekly[sc.Weekday] = sc
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if row := pickupSchedules.ForDate(studentID, date); row != nil {
+			out.PickupSchedByDate[timetableDateKey(date)] = row
+		}
 	}
 
 	// Arrival/pickup exceptions: range-scoped (avoid unbounded history).

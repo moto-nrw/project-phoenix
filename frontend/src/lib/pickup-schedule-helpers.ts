@@ -10,9 +10,10 @@ export interface PickupSchedule {
   weekdayName: string;
   pickupTime: string; // HH:MM format
   notes?: string;
-  /** "staff" (von Hand gepflegt) oder "care_offering" (Angebots-Gehzeit, #2290) */
+  /** "staff" (von Hand gepflegt) oder "care_offering" (projizierte Angebots-Gehzeit) */
   source?: string;
   careOfferingId?: string;
+  careOfferingName?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +29,7 @@ export interface BackendPickupSchedule {
   notes?: string;
   source?: string; // "staff" | "care_offering" (#2290)
   care_offering_id?: string;
+  care_offering_name?: string;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -90,15 +92,29 @@ export interface BackendPickupNote {
 // Combined Pickup Data (schedules + exceptions + notes)
 export interface PickupData {
   schedules: PickupSchedule[];
+  effectiveSchedules?: DatedPickupSchedule[];
   exceptions: PickupException[];
   notes: PickupNote[];
+}
+
+export interface DatedPickupSchedule {
+  date: string;
+  schedule: PickupSchedule | null;
+  offeringSchedule?: PickupSchedule | null;
 }
 
 // Backend Combined Pickup Data Response
 export interface BackendPickupData {
   schedules: BackendPickupSchedule[];
+  effective_schedules?: BackendDatedPickupSchedule[];
   exceptions: BackendPickupException[];
   notes: BackendPickupNote[];
+}
+
+export interface BackendDatedPickupSchedule {
+  date: string;
+  schedule: BackendPickupSchedule | null;
+  offering_schedule?: BackendPickupSchedule | null;
 }
 
 // Request types for creating/updating schedules
@@ -167,10 +183,21 @@ export function mapPickupScheduleResponse(
     notes: data.notes,
     source: data.source,
     careOfferingId: data.care_offering_id,
+    careOfferingName: data.care_offering_name,
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
+}
+
+export function pickupScheduleSourceLabel(
+  schedule: PickupSchedule | undefined,
+): string | null {
+  if (!schedule) return null;
+  if (schedule.source !== "care_offering") return "von Hand";
+  return schedule.careOfferingName
+    ? `aus Angebot „${schedule.careOfferingName}“`
+    : "aus Angebot";
 }
 
 export function mapPickupExceptionResponse(
@@ -206,6 +233,15 @@ export function mapPickupNoteResponse(data: BackendPickupNote): PickupNote {
 export function mapPickupDataResponse(data: BackendPickupData): PickupData {
   return {
     schedules: (data.schedules ?? []).map(mapPickupScheduleResponse),
+    effectiveSchedules: (data.effective_schedules ?? []).map((dated) => ({
+      date: dated.date,
+      schedule: dated.schedule
+        ? mapPickupScheduleResponse(dated.schedule)
+        : null,
+      offeringSchedule: dated.offering_schedule
+        ? mapPickupScheduleResponse(dated.offering_schedule)
+        : null,
+    })),
     exceptions: (data.exceptions ?? []).map(mapPickupExceptionResponse),
     notes: (data.notes ?? []).map(mapPickupNoteResponse),
   };
@@ -465,6 +501,7 @@ export interface DayData {
   showExcused: boolean;
   exception: PickupException | undefined;
   baseSchedule: PickupSchedule | undefined;
+  offeringSchedule?: PickupSchedule | undefined;
   effectiveTime: string | undefined;
   effectiveNotes: string | undefined;
   isException: boolean;
@@ -482,6 +519,7 @@ export function getDayData(
   notes: PickupNote[] = [],
   isExcusedToday = false,
   statusForDate: StudentStatusKind | null = null,
+  effectiveSchedules: DatedPickupSchedule[] = [],
 ): DayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -498,6 +536,7 @@ export function getDayData(
       showExcused: false,
       exception: undefined,
       baseSchedule: undefined,
+      offeringSchedule: undefined,
       effectiveTime: undefined,
       effectiveNotes: undefined,
       isException: false,
@@ -521,7 +560,13 @@ export function getDayData(
     : isToday && !showSick && !showClassTrip && isExcusedToday;
 
   // Get base schedule for this weekday
-  const baseSchedule = schedules.find((s) => s.weekday === weekday);
+  const datedSchedule = effectiveSchedules.find(
+    (dated) => dated.date === dateStr,
+  );
+  const baseSchedule = datedSchedule
+    ? (datedSchedule.schedule ?? undefined)
+    : schedules.find((s) => s.weekday === weekday);
+  const offeringSchedule = datedSchedule?.offeringSchedule ?? undefined;
 
   // Determine effective pickup time:
   // - If sick, class trip, or excused today: no pickup time (child is not being picked up)
@@ -548,6 +593,7 @@ export function getDayData(
     showExcused,
     exception,
     baseSchedule,
+    offeringSchedule,
     effectiveTime,
     effectiveNotes: showClassTrip
       ? "Klassenfahrt"

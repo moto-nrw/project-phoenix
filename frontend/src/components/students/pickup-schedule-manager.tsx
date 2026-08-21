@@ -26,6 +26,7 @@ import {
   formatShortDate,
   formatDateISO,
   getDayData,
+  pickupScheduleSourceLabel,
 } from "@/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -111,6 +112,7 @@ export default function PickupScheduleManager({
           pickupData.notes,
           isExcused,
           statusByDate.get(formatDateISO(date)) ?? null,
+          pickupData.effectiveSchedules,
         ),
       ),
     [
@@ -120,6 +122,7 @@ export default function PickupScheduleManager({
       isSick,
       isExcused,
       pickupData.notes,
+      pickupData.effectiveSchedules,
       statusByDate,
     ],
   );
@@ -129,7 +132,13 @@ export default function PickupScheduleManager({
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchStudentPickupData(studentId);
+      const firstDay = weekDays[0];
+      const lastDay = weekDays[weekDays.length - 1];
+      if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
+      const data = await fetchStudentPickupData(studentId, {
+        from: formatDateISO(firstDay),
+        to: formatDateISO(lastDay),
+      });
       setPickupData(data);
     } catch (err) {
       logger.error("pickup_data_load_failed", {
@@ -142,7 +151,7 @@ export default function PickupScheduleManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, weekDays]);
 
   useEffect(() => {
     loadPickupData().catch(() => {
@@ -168,11 +177,17 @@ export default function PickupScheduleManager({
   // Refresh day data after changes (keeps modal open with fresh data)
   // Also invalidates OGS groups SWR caches so pickup times update on navigation back
   const refreshAndKeepModal = useCallback(async () => {
-    const data = await fetchStudentPickupData(studentId);
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
+    if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
+    const data = await fetchStudentPickupData(studentId, {
+      from: formatDateISO(firstDay),
+      to: formatDateISO(lastDay),
+    });
     setPickupData(data);
     onUpdate?.();
     invalidatePickupCaches();
-  }, [studentId, onUpdate]);
+  }, [studentId, onUpdate, weekDays]);
 
   // Day edit modal: exception handlers
   const handleSaveException = useCallback(
@@ -203,7 +218,11 @@ export default function PickupScheduleManager({
 
   const handleResetToOffering = useCallback(async () => {
     if (!editingDay || editingDay.weekday === 0) return;
-    await resetStudentPickupToOffering(studentId, editingDay.weekday);
+    await resetStudentPickupToOffering(
+      studentId,
+      editingDay.weekday,
+      formatDateISO(editingDay.date),
+    );
     await refreshAndKeepModal();
   }, [editingDay, studentId, refreshAndKeepModal]);
 
@@ -266,6 +285,7 @@ export default function PickupScheduleManager({
       pickupData.notes,
       isExcused,
       statusByDate.get(formatDateISO(editingDay.date)) ?? null,
+      pickupData.effectiveSchedules,
     );
   }, [editingDay, pickupData, isSick, isExcused, statusByDate]);
 
@@ -452,13 +472,16 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
               {effectiveTime ?? "-"}
             </div>
-            {!day.isException &&
-            day.baseSchedule?.source === "care_offering" ? (
+            {!day.isException && day.baseSchedule ? (
               <span
                 className="flex-shrink-0 text-[10px] text-gray-400"
-                title="Gehzeit aus dem Betreuungsangebot"
+                title={
+                  day.baseSchedule.source === "care_offering"
+                    ? "Gehzeit aus dem Betreuungsangebot"
+                    : "Gehzeit von Hand gepflegt"
+                }
               >
-                aus Angebot
+                {pickupScheduleSourceLabel(day.baseSchedule)}
               </span>
             ) : null}
 
@@ -570,12 +593,16 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           <div className="mt-1 text-sm font-semibold text-gray-900">
             {effectiveTime ?? "-"}
           </div>
-          {!day.isException && day.baseSchedule?.source === "care_offering" ? (
+          {!day.isException && day.baseSchedule ? (
             <div
               className="text-[10px] text-gray-400"
-              title="Gehzeit aus dem Betreuungsangebot"
+              title={
+                day.baseSchedule.source === "care_offering"
+                  ? "Gehzeit aus dem Betreuungsangebot"
+                  : "Gehzeit von Hand gepflegt"
+              }
             >
-              aus Angebot
+              {pickupScheduleSourceLabel(day.baseSchedule)}
             </div>
           ) : null}
 

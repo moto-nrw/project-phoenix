@@ -362,7 +362,13 @@ describe("CareScheduleManager", () => {
     });
 
     expect(mockFetchArrivalData).toHaveBeenCalledWith("42");
-    expect(mockFetchStudentPickupData).toHaveBeenCalledWith("42");
+    expect(mockFetchStudentPickupData).toHaveBeenCalledWith(
+      "42",
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+      }),
+    );
     expect(screen.getAllByText("10:10").length).toBeGreaterThan(0);
     expect(screen.getAllByText("15:15").length).toBeGreaterThan(0);
     expect(

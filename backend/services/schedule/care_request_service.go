@@ -98,8 +98,12 @@ var (
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
 	ErrCareRequestRejectReasonTooLong = errors.New("schedule: reject reason too long")
-	ErrPickupChangeConflict           = errors.New("schedule: pickup change conflicts with a staff exception")
-	ErrPickupChangeAlreadyCompleted   = errors.New("schedule: pickup change cannot be approved after checkout")
+	// ErrCareDayManagedByBooking prevents a permanent care-day request from
+	// pretending to remove a day whose pickup baseline still comes from an
+	// active offering booking. The booking must be changed first (#2416).
+	ErrCareDayManagedByBooking      = errors.New("schedule: care day is managed by an offering booking")
+	ErrPickupChangeConflict         = errors.New("schedule: pickup change conflicts with a staff exception")
+	ErrPickupChangeAlreadyCompleted = errors.New("schedule: pickup change cannot be approved after checkout")
 	// ErrPickupChangeExpired means the requested day has passed while the
 	// request sat in the queue. Approving would write an exception for a day
 	// that is over; staff close such a request by rejecting it.
@@ -1356,6 +1360,15 @@ func (s *careScheduleRequestService) applyCareDayChanges(ctx context.Context, st
 	pickups, err := s.pickup.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return fmt.Errorf("apply care days: load pickups: %w", err)
+	}
+	for _, row := range pickups {
+		if row == nil {
+			continue
+		}
+		active, changed := changes[row.Weekday]
+		if changed && !active && row.Source == scheduleModels.PickupScheduleSourceCareOffering {
+			return ErrCareDayManagedByBooking
+		}
 	}
 	for weekday, active := range changes {
 		if active {

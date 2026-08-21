@@ -128,7 +128,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		groupExportResponsesByClass(responses)
 	}
 
-	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses))
+	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -515,7 +515,7 @@ func birthdaySortKey(birthday string) string {
 	return fmt.Sprintf("%02d-%02d", int(date.Month), date.Day)
 }
 
-func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (map[int64]weeklySchedule, error) {
+func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate timezone.Date) (map[int64]weeklySchedule, error) {
 	result := make(map[int64]weeklySchedule, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil
@@ -529,6 +529,15 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 			PickupByWeekday:  make(map[int]string),
 		}
 	}
+	pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate(r.Context(), studentIDs, planningDate)
+	if err != nil {
+		return nil, err
+	}
+	for _, pickup := range pickups {
+		weekly := result[pickup.StudentID]
+		weekly.PickupByWeekday[pickup.Weekday] = formatWallClock(pickup.PickupTime)
+		result[pickup.StudentID] = weekly
+	}
 	for weekday := schedule.WeekdayMonday; weekday <= schedule.WeekdayFriday; weekday++ {
 		arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
 		if err != nil {
@@ -538,15 +547,6 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 			weekly := result[arrival.StudentID]
 			weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
 			result[arrival.StudentID] = weekly
-		}
-		pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
-		if err != nil {
-			return nil, err
-		}
-		for _, pickup := range pickups {
-			weekly := result[pickup.StudentID]
-			weekly.PickupByWeekday[weekday] = formatWallClock(pickup.PickupTime)
-			result[pickup.StudentID] = weekly
 		}
 	}
 	return result, nil

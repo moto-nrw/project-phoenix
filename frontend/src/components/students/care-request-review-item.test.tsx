@@ -374,4 +374,23 @@ describe("CareRequestReviewItem", () => {
     ).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
   });
+
+  it("directs booking-managed care days to the offering change flow", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new CareRequestApiError(
+        "schedule: care day is managed by an offering booking",
+        "care_day_managed_by_booking",
+      ),
+    );
+
+    render(<CareRequestReviewItem row={row()} onDecided={vi.fn()} />);
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    expect(
+      await screen.findByText(
+        "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.",
+      ),
+    ).toBeInTheDocument();
+  });
 });

@@ -206,7 +206,9 @@ describe("PickupDayEditModal", () => {
           {...defaultProps}
         />,
       );
-      expect(screen.getByText("Reguläre Zeit: 15:30 Uhr")).toBeInTheDocument();
+      expect(
+        screen.getByText("Reguläre Zeit: 15:30 Uhr (von Hand)"),
+      ).toBeInTheDocument();
     });
   });
 

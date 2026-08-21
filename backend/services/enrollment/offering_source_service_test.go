@@ -53,6 +53,7 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
+		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
 	}
 	offering.SetTenantID(testpkg.Tenant(t))
@@ -1936,6 +1937,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	legacyOffering := createSourceOffering(t, env, "LegacyMischFeed", &legacyTemplate.ID)
 	sourceOffering := createSourceOffering(t, env, "LegacyMischQuelle", nil)
 	sourceOffering.AvailableDays = []string{"tue"}
+	sourceOffering.PickupTimes = carePickupTimes("tue")
 	require.NoError(t, env.repos.CareOffering.Update(ctx, sourceOffering))
 
 	// The child holds BOTH offerings.
@@ -2106,8 +2108,10 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	binder.SetSourcedTemplateResyncer(sourcedResyncer)
+	bindTestPickupResyncer(t, svc)
 
 	offering.AvailableDays = []string{"tue"}
+	offering.PickupTimes = carePickupTimes("tue")
 	require.NoError(t, svc.Update(ctx, offering))
 
 	rows = loadTemplateEnrollments(t, env, template.ID)
@@ -2203,6 +2207,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	binder.SetSourcedTemplateResyncer(sourcedResyncer)
+	bindTestPickupResyncer(t, svc)
 
 	offering.PhaseID = latePhase.ID
 	err := svc.Update(ctx, offering)

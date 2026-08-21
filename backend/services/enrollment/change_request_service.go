@@ -77,13 +77,13 @@ type CompanionGraphCoordinator interface {
 }
 
 type ChangeRequestDecisionApplier interface {
+	LockOfferingDerivedWrites(ctx context.Context) error
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	applyApprovedChangeRequestOfferingsWithResult(ctx context.Context, input UpdateChildOfferingsInput) (*appliedOfferingAdjustment, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
-	// ReconcileOfferingPickupForStudentsByAccount realigns the students'
-	// Angebots-Gehzeit rows after an approved change replaced their offering
-	// bookings (#2290).
-	ReconcileOfferingPickupForStudentsByAccount(ctx context.Context, studentIDs []int64, accountID int64) error
+	// ReconcileOfferingPickupForStudents refreshes dependent state
+	// after an approved change replaced the students' offering bookings.
+	ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64) error
 }
 
 type ChangeRequestAggregate struct {
@@ -1350,6 +1350,14 @@ func (s *changeRequestService) verifyCompanionStrandingBatch(ctx context.Context
 }
 
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
+	// Acquire global gates before the first request/student row lock. Direct
+	// booking writers hold the recurrence gate while their FK checks touch
+	// request_children; taking it later would invert that order.
+	if s.DecisionService != nil {
+		if err := s.DecisionService.LockOfferingDerivedWrites(ctx); err != nil {
+			return fmt.Errorf("change request approve: lock offering-derived writes: %w", err)
+		}
+	}
 	req, err := s.RequestRepo.FindByIDForUpdate(ctx, row.RequestID)
 	if err != nil {
 		return ErrRequestNotFound
@@ -1407,7 +1415,6 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			return err
 		}
 	}
-
 	req.GuardianFirstName = strings.TrimSpace(prepared.GuardianFirstName)
 	req.GuardianLastName = strings.TrimSpace(prepared.GuardianLastName)
 	req.GuardianEmail = strings.ToLower(strings.TrimSpace(prepared.GuardianEmail))
@@ -1549,8 +1556,8 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		return err
 	}
 
-	// Replaced bookings can add or drop Angebots-Gehzeiten (#2290): realign
-	// the affected students' offering-sourced pickup rows.
+	// Replaced bookings can add or drop projected offering pickup times:
+	// refresh the affected students' dependent state.
 	if s.DecisionService != nil {
 		studentIDs := make([]int64, 0, len(children))
 		for _, child := range children {
@@ -1559,7 +1566,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			}
 		}
 		if len(studentIDs) > 0 {
-			if err := s.DecisionService.ReconcileOfferingPickupForStudentsByAccount(ctx, studentIDs, input.ActorAccountID); err != nil {
+			if err := s.DecisionService.ReconcileOfferingPickupForStudents(ctx, studentIDs); err != nil {
 				return fmt.Errorf("change request approve: reconcile offering pickup times: %w", err)
 			}
 		}
