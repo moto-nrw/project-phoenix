@@ -21,6 +21,7 @@ describe("permission-labels", () => {
       expect(resourceLabels.substitutions).toBe("Vertretungen");
       expect(resourceLabels.schedules).toBe("Zeitpläne");
       expect(resourceLabels.config).toBe("Konfiguration");
+      expect(resourceLabels.feedback).toBe("Feedback");
       expect(resourceLabels.iot).toBe("Geräte");
       expect(resourceLabels.system).toBe("System");
       expect(resourceLabels.admin).toBe("Administration");
@@ -219,6 +220,9 @@ describe("permission-labels", () => {
         "Neue Stundenpläne erstellen",
       );
       expect(localizeDescription("visits", "read")).toBe("Besuche ansehen");
+      expect(localizeDescription("feedback", "list")).toBe(
+        "Feedback auflisten",
+      );
       expect(localizeDescription("config", "update")).toBe(
         "Konfiguration bearbeiten",
       );

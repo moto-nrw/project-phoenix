@@ -11,6 +11,7 @@ export const resourceLabels: Record<string, string> = {
   substitutions: "Vertretungen",
   schedules: "Zeitpläne",
   config: "Konfiguration",
+  feedback: "Feedback",
   iot: "Geräte",
   system: "System",
   admin: "Administration",
@@ -113,6 +114,13 @@ const permissionDescriptions: Record<string, string> = {
   "visits:delete": "Besuche löschen",
   "visits:list": "Besuche auflisten",
   "visits:manage": "Besuchsverwaltung (Vollzugriff)",
+
+  // Feedback
+  "feedback:create": "Neues Feedback erstellen",
+  "feedback:read": "Feedback ansehen",
+  "feedback:delete": "Feedback löschen",
+  "feedback:list": "Feedback auflisten",
+  "feedback:manage": "Feedbackverwaltung (Vollzugriff)",
 
   // Config
   "config:read": "Konfiguration ansehen",
