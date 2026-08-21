@@ -265,7 +265,6 @@ func int64PtrValue(v *int64) int64 {
 // frontend/src/lib/enrollment-error-messages.ts.
 const (
 	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
-	ErrCodeEnrollmentApprovalCareOfferingMissing = "enrollment.approval_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
 	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"

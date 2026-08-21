@@ -23,6 +23,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+const errCodeApprovalCareOfferingMissing = "enrollment.approval_care_offering_missing"
+
 // AdminRequestSummary is the wire shape for admin list-style responses.
 // Carries the request + per-child overview + the phase name so the
 // list can render without a second fetch. It must not carry status_token:
@@ -594,33 +596,30 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input enrollmentServic
 	return outcome, err
 }
 
-// renderDecideError maps a decision failure to its HTTP status. Context
-// cancellation/timeout and transient DB errors get their own codes so the
-// frontend can distinguish a retryable failure from a terminal one.
+var decideErrorRules = []common.ErrorRule{
+	{Target: context.Canceled, Render: common.ErrorClientClosed},
+	{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
+	{Target: enrollmentService.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
+	{Target: enrollmentService.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
+	{Target: enrollmentService.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrDecisionAlreadyTerminal, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrDecisionInvalidData, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled")
+	}},
+	{Target: enrollmentService.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingMissing)
+	}},
+	{Target: enrollmentService.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch")
+	}},
+	{Match: common.IsTransientDatabaseError, Render: common.ErrorServiceUnavailable},
+}
+
+// renderDecideError keeps cancellation and retryable database failures distinct
+// so the frontend can tell terminal decisions from requests worth retrying.
 func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, context.Canceled):
-		common.RenderError(w, r, common.ErrorClientClosed(err))
-	case errors.Is(err, context.DeadlineExceeded):
-		common.RenderError(w, r, common.ErrorRequestTimeout(err))
-	case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
-		errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
-		errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
-		errors.Is(err, enrollmentService.ErrDecisionInvalidData):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentApprovalCareOfferingMissing))
-	case errors.Is(err, enrollmentService.ErrGuardianAccountMismatch):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch"))
-	case common.IsTransientDatabaseError(err):
-		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
+	common.RenderError(w, r, common.RenderWithRules(err, decideErrorRules, common.ErrorInternalServer))
 }
 
 // newAdminRequestChild maps a decided child model onto the wire shape

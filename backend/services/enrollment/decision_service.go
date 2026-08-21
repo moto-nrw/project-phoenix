@@ -1321,13 +1321,6 @@ func (s *decisionService) validateApprovalOfferingSelection(
 		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
-	enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
-	if err != nil {
-		return fmt.Errorf("decision: resolve care-offering availability: %w", err)
-	}
-	if !enabled {
-		return nil
-	}
 	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
 		ctx,
 		child.ID,

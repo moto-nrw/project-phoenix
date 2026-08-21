@@ -543,4 +543,40 @@ describe("AdminEnrollmentPhaseDetail", () => {
       "Entscheidung gespeichert: Bestätigt",
     );
   });
+
+  it("warns before a quick approval in an optional phase without an offering", async () => {
+    mocks.getCareUsageReport.mockResolvedValue(
+      report({
+        rows: [
+          {
+            ...report().rows[0],
+            offerings: [],
+            effective_days: [],
+            day_count: 0,
+          },
+        ],
+      }),
+    );
+    await renderPhase();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem bestätigen" }),
+    );
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "10",
+        "20",
+        "approved",
+      );
+    });
+  });
 });

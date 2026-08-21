@@ -69,6 +69,7 @@ import {
   CHILD_STATUS_LABELS,
   ChildStatusBadge,
 } from "~/components/enrollment/child-status-badge";
+import { ApprovalWithoutOfferingModal } from "~/components/enrollment/approval-without-offering-modal";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
@@ -147,6 +148,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
+  const [approvalWithoutOfferingRow, setApprovalWithoutOfferingRow] =
+    useState<CareUsageRow | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
   const [exportingReportFormat, setExportingReportFormat] =
@@ -404,6 +407,21 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [loadData, loadReport, reportFilters, toast],
   );
 
+  const requestQuickDecision = useCallback(
+    (row: CareUsageRow, status: DecisionStatus) => {
+      if (
+        status === "approved" &&
+        phase?.care_offering_selection_mode === "optional" &&
+        row.offerings.length === 0
+      ) {
+        setApprovalWithoutOfferingRow(row);
+        return;
+      }
+      void handleQuickDecision(row, status);
+    },
+    [handleQuickDecision, phase?.care_offering_selection_mode],
+  );
+
   const columns = useMemo<DataTableColumn<CareUsageRow>[]>(
     () => [
       {
@@ -493,12 +511,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             row={row}
             href={requestHref(row.request_id)}
             busy={busyChildId === row.child_id}
-            onDecide={(status) => void handleQuickDecision(row, status)}
+            onDecide={(status) => requestQuickDecision(row, status)}
           />
         ),
       },
     ],
-    [busyChildId, handleQuickDecision, requestHref],
+    [busyChildId, requestHref, requestQuickDecision],
   );
 
   if (loading) {
@@ -808,6 +826,15 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             </p>
           </div>
         }
+      />
+      <ApprovalWithoutOfferingModal
+        isOpen={approvalWithoutOfferingRow !== null}
+        onClose={() => setApprovalWithoutOfferingRow(null)}
+        onConfirm={() => {
+          const row = approvalWithoutOfferingRow;
+          setApprovalWithoutOfferingRow(null);
+          if (row !== null) void handleQuickDecision(row, "approved");
+        }}
       />
     </div>
   );

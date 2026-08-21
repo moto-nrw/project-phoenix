@@ -62,6 +62,7 @@ import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enro
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ApprovalWithoutOfferingModal } from "~/components/enrollment/approval-without-offering-modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
@@ -362,7 +363,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </aside>
         </div>
       </section>
-      <ConfirmationModal
+      <ApprovalWithoutOfferingModal
         isOpen={approvalWithoutOfferingChildId !== null}
         onClose={() => setApprovalWithoutOfferingChildId(null)}
         onConfirm={() => {
@@ -370,14 +371,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           setApprovalWithoutOfferingChildId(null);
           if (childId !== null) void handleDecide(childId, "approved");
         }}
-        title="Anmeldung bestätigen"
-        confirmText="Trotzdem bestätigen"
-      >
-        <Alert
-          type="warning"
-          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
-        />
-      </ConfirmationModal>
+      />
       <ConfirmationModal
         isOpen={restoreOpen}
         onClose={() => setRestoreOpen(false)}
