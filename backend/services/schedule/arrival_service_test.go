@@ -1460,6 +1460,41 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		}
 	})
 
+	// Naming a class means "everyone in it", and a child whose care has ended
+	// is not in it any more (#2487). Before this, the class-wide write aborted
+	// at the locked re-check as soon as ONE child of the class had left —
+	// with a message naming a child the office cannot even see any more.
+	t.Run("skips children whose care has ended instead of failing the class", func(t *testing.T) {
+		className := fmt.Sprintf("BCCARE-%d", time.Now().UnixNano())
+		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
+		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
+		_, err := db.NewUpdate().
+			Table("users.students").
+			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+			Where("id = ?", departed.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		schedules := []schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "07:45"}}
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{SchoolClass: className},
+			schedules,
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.NoError(t, err, "one departed child must not abort the whole class")
+		assert.Equal(t, 1, result.StudentsAffected)
+
+		kept, err := service.GetStudentArrivalSchedules(ctx, staying.ID)
+		require.NoError(t, err)
+		assert.Len(t, kept, 1)
+
+		none, err := service.GetStudentArrivalSchedules(ctx, departed.ID)
+		require.NoError(t, err)
+		assert.Empty(t, none, "a departed child gets no new weekly plan")
+	})
+
 	t.Run("upserts schedules only for students in the selected group", func(t *testing.T) {
 		targetGroup := testpkg.CreateTestEducationGroup(t, db, "BulkArrivalTarget")
 		otherGroup := testpkg.CreateTestEducationGroup(t, db, "BulkArrivalOther")
