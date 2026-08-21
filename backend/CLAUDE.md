@@ -198,8 +198,9 @@ func TestExample(t *testing.T) {
   tenants without a tenant transaction (RLS never narrows it), it measures a
   query budget on the shared pool, or it takes a row lock and expects a second
   transaction to block on it. Anything else gets fixed, not exempted.
-- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and CI run
-  `-p 4 -parallel 8`. The pool per binary is derived from `-test.parallel` plus
+- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and
+  post-merge CI run `-p 6 -parallel 8`; changed-only PRs run `-p 4 -parallel 8`.
+  The pool per binary is derived from `-test.parallel` plus
   headroom, because a test holding a tenant transaction that opens a second one
   needs two connections at once — without headroom those tests deadlock and
   every one of them fails on its own 5s deadline, which looks nothing like a

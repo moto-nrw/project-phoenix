@@ -2,20 +2,15 @@ import "@testing-library/jest-dom/vitest";
 import type React from "react";
 import { beforeEach, vi } from "vitest";
 
-// Reset the module-level session cache between tests. Since #2123 the API
-// clients read the NextAuth session through ~/lib/session-cache (10s TTL), so
-// a session cached by one test would otherwise leak into the next. Lazy import
-// on purpose: a static import would load the real next-auth/react before a
-// test file's vi.mock of it registers, so mocked files would bind the real
-// getSession. try/catch instead of an export check: some tests mock
-// ./session-cache with only a sessionFetch export, and vitest's mock proxy
-// throws already on ACCESSING the missing clearSessionCache export.
+// Reset the module-level session cache between tests. A static import would
+// bind next-auth/react before the test file's vi.mock registers. Importing here
+// also resolves the current module after a test calls vi.resetModules(). Some
+// tests mock session-cache without the clear export, and Vitest throws while
+// accessing that missing export.
 beforeEach(async () => {
-  try {
-    const { clearSessionCache } = await import("~/lib/session-cache");
-    clearSessionCache();
-  } catch {
-    // Module mocked without clearSessionCache — nothing to reset.
+  const sessionCache = await import("~/lib/session-cache");
+  if ("clearSessionCache" in sessionCache) {
+    sessionCache.clearSessionCache();
   }
 });
 
