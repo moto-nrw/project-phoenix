@@ -412,8 +412,8 @@ export function ListboxDropdown<K extends string>({
     // even when we skip the explicit scrollIntoView below.
     if (searchable && !optionsFocused) {
       // Only pull focus INTO the menu, never around inside it: a slot may own
-      // focus (a rename field in CreatableSelect), and re-running this effect
-      // must not yank it back to the search field mid-edit.
+      // focus (the rename field of the Abwesenheitsart select), and re-running
+      // this effect must not yank it back to the search field mid-edit.
       const active = document.activeElement;
       const insideMenu =
         active instanceof Node && menuRef.current?.contains(active);

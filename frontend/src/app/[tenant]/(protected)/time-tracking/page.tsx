@@ -35,10 +35,10 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Alert } from "~/components/ui/alert";
-import { CreatableSelect } from "~/components/ui/creatable-select";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -109,7 +109,7 @@ import {
   calculateNetMinutes,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
-import { useAbsenceTypeOptions } from "~/components/staff/use-absence-type-options";
+import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { createLogger } from "~/lib/logger";
 
@@ -2449,7 +2449,6 @@ function EditSessionModal({
 
   // Absence state. absType is an option value, not an AbsenceType: it also
   // carries the school's own Abwesenheitsarten (#2403).
-  const absenceTypeOptions = useAbsenceTypeOptions(canManage);
   const [absType, setAbsType] = useState<string>("sick");
   const [absDateStart, setAbsDateStart] = useState("");
   const [absDateEnd, setAbsDateEnd] = useState("");
@@ -2457,6 +2456,11 @@ function EditSessionModal({
   const [absNote, setAbsNote] = useState("");
   const [absenceSaving, setAbsenceSaving] = useState(false);
   const [absenceDeleting, setAbsenceDeleting] = useState(false);
+  const absenceTypeSelect = useAbsenceTypeSelect({
+    value: absType,
+    onChange: setAbsType,
+    canManage,
+  });
 
   const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
   const router = useTenantRouter();
@@ -2933,16 +2937,10 @@ function EditSessionModal({
                   >
                     Art der Abwesenheit
                   </label>
-                  <CreatableSelect
+                  <ListboxDropdown
+                    {...absenceTypeSelect}
                     id="edit-abs-type"
                     ariaLabelledBy="edit-abs-type-label"
-                    value={absType}
-                    onChange={setAbsType}
-                    options={absenceTypeOptions.options}
-                    onCreate={absenceTypeOptions.create}
-                    onRename={absenceTypeOptions.rename}
-                    onSetActive={absenceTypeOptions.setActive}
-                    searchPlaceholder="Suchen oder eigenen Namen eingeben"
                     testId="edit-absence-type-select"
                   />
                 </div>
@@ -3063,13 +3061,17 @@ function CreateAbsenceModal({
   const todayStr = toISODate(new Date());
   // One option space for the standard types and the school's own names — see
   // absence-type-select for why the value is a string, not an AbsenceType.
-  const absenceTypeOptions = useAbsenceTypeOptions(canManageAbsenceTypes);
   const [absenceType, setAbsenceType] = useState<string>("sick");
   const [dateStart, setDateStart] = useState(todayStr);
   const [dateEnd, setDateEnd] = useState(todayStr);
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const absenceTypeSelect = useAbsenceTypeSelect({
+    value: absenceType,
+    onChange: setAbsenceType,
+    canManage: canManageAbsenceTypes,
+  });
 
   // Reset form when modal opens
   useEffect(() => {
@@ -3129,16 +3131,10 @@ function CreateAbsenceModal({
           >
             Art der Abwesenheit
           </label>
-          <CreatableSelect
+          <ListboxDropdown
+            {...absenceTypeSelect}
             id="absence-type"
             ariaLabelledBy="absence-type-label"
-            value={absenceType}
-            onChange={setAbsenceType}
-            options={absenceTypeOptions.options}
-            onCreate={absenceTypeOptions.create}
-            onRename={absenceTypeOptions.rename}
-            onSetActive={absenceTypeOptions.setActive}
-            searchPlaceholder="Suchen oder eigenen Namen eingeben"
             testId="absence-type-select"
           />
         </div>

@@ -1,38 +1,53 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  CreatableSelect,
-  type CreatableSelectOption,
-} from "./creatable-select";
+import type { UseAbsenceTypeOptionsResult } from "./use-absence-type-options";
 
-const OPTIONS: CreatableSelectOption[] = [
+const typeOptions = vi.hoisted(() => ({
+  current: { options: [] } as UseAbsenceTypeOptionsResult,
+}));
+
+vi.mock("./use-absence-type-options", () => ({
+  useAbsenceTypeOptions: () => typeOptions.current,
+}));
+
+import { useAbsenceTypeSelect } from "./use-absence-type-select";
+import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import type { AbsenceTypeOption } from "./use-absence-type-options";
+
+const OPTIONS: AbsenceTypeOption[] = [
   { value: "sick", label: "Krank", fixed: true },
   { value: "vacation", label: "Urlaub", fixed: true },
   { value: "custom:7", label: "Regenerationstag" },
 ];
 
+function Select({
+  value,
+  onChange = vi.fn(),
+}: {
+  readonly value: string;
+  readonly onChange?: (next: string) => void;
+}) {
+  const props = useAbsenceTypeSelect({ value, onChange, canManage: true });
+  return <ListboxDropdown {...props} ariaLabel="Art der Abwesenheit" />;
+}
+
 function open(): void {
   fireEvent.click(screen.getByRole("combobox"));
 }
 
-describe("CreatableSelect", () => {
+beforeEach(() => {
+  typeOptions.current = { options: [...OPTIONS] };
+});
+
+describe("useAbsenceTypeSelect", () => {
   it("shows the selected option's label on the trigger", () => {
-    render(
-      <CreatableSelect
-        value="custom:7"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        ariaLabel="Art der Abwesenheit"
-      />,
-    );
+    render(<Select value="custom:7" />);
     expect(screen.getByRole("combobox")).toHaveTextContent("Regenerationstag");
   });
 
   it("filters the list by the typed text, ignoring case", () => {
-    render(
-      <CreatableSelect value="sick" options={OPTIONS} onChange={vi.fn()} />,
-    );
+    render(<Select value="sick" />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "regen" },
@@ -45,9 +60,7 @@ describe("CreatableSelect", () => {
   });
 
   it("moves option focus with the arrow, home, and end keys", () => {
-    render(
-      <CreatableSelect value="sick" options={OPTIONS} onChange={vi.fn()} />,
-    );
+    render(<Select value="sick" />);
     open();
 
     const search = screen.getByRole("textbox");
@@ -67,16 +80,10 @@ describe("CreatableSelect", () => {
   });
 
   it("offers to add a name that does not exist yet and selects it", async () => {
-    const onCreate = vi.fn().mockResolvedValue("custom:12");
+    const create = vi.fn().mockResolvedValue("custom:12");
     const onChange = vi.fn();
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={onChange}
-        onCreate={onCreate}
-      />,
-    );
+    typeOptions.current = { options: [...OPTIONS], create };
+    render(<Select value="sick" onChange={onChange} />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "  Ferienzeit  " },
@@ -84,19 +91,13 @@ describe("CreatableSelect", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Ferienzeit.*hinzuf/ }));
 
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith("Ferienzeit"));
+    await waitFor(() => expect(create).toHaveBeenCalledWith("Ferienzeit"));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith("custom:12"));
   });
 
   it("does not offer to add a name that already exists, in any case", () => {
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        onCreate={vi.fn()}
-      />,
-    );
+    typeOptions.current = { options: [...OPTIONS], create: vi.fn() };
+    render(<Select value="sick" />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "REGENERATIONSTAG" },
@@ -106,9 +107,7 @@ describe("CreatableSelect", () => {
   });
 
   it("hides every management affordance without the callbacks", () => {
-    render(
-      <CreatableSelect value="sick" options={OPTIONS} onChange={vi.fn()} />,
-    );
+    render(<Select value="sick" />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Ferienzeit" },
@@ -119,15 +118,12 @@ describe("CreatableSelect", () => {
   });
 
   it("never offers to rename or retire a fixed option", () => {
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        onRename={vi.fn()}
-        onSetActive={vi.fn()}
-      />,
-    );
+    typeOptions.current = {
+      options: [...OPTIONS],
+      rename: vi.fn(),
+      setActive: vi.fn(),
+    };
+    render(<Select value="sick" />);
     open();
 
     expect(
@@ -142,15 +138,9 @@ describe("CreatableSelect", () => {
   });
 
   it("renames an option in place", async () => {
-    const onRename = vi.fn().mockResolvedValue(undefined);
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        onRename={onRename}
-      />,
-    );
+    const rename = vi.fn().mockResolvedValue(undefined);
+    typeOptions.current = { options: [...OPTIONS], rename };
+    render(<Select value="sick" />);
     open();
     fireEvent.click(
       screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
@@ -161,19 +151,13 @@ describe("CreatableSelect", () => {
     fireEvent.click(screen.getByRole("button", { name: "Namen speichern" }));
 
     await waitFor(() =>
-      expect(onRename).toHaveBeenCalledWith("custom:7", "Regenerationstage"),
+      expect(rename).toHaveBeenCalledWith("custom:7", "Regenerationstage"),
     );
   });
 
   it("keeps focus in the rename field instead of the search field", () => {
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        onRename={vi.fn()}
-      />,
-    );
+    typeOptions.current = { options: [...OPTIONS], rename: vi.fn() };
+    render(<Select value="sick" />);
     open();
     fireEvent.click(
       screen.getByRole("button", { name: "Regenerationstag umbenennen" }),
@@ -183,17 +167,11 @@ describe("CreatableSelect", () => {
   });
 
   it("surfaces a failed add instead of closing silently", async () => {
-    const onCreate = vi
+    const create = vi
       .fn()
       .mockRejectedValue(new Error("Name ist bereits vergeben"));
-    render(
-      <CreatableSelect
-        value="sick"
-        options={OPTIONS}
-        onChange={vi.fn()}
-        onCreate={onCreate}
-      />,
-    );
+    typeOptions.current = { options: [...OPTIONS], create };
+    render(<Select value="sick" />);
     open();
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Ferienzeit" },
@@ -204,30 +182,26 @@ describe("CreatableSelect", () => {
   });
 
   it("keeps a retired option visible while it is the current value", () => {
-    const withRetired: CreatableSelectOption[] = [
-      ...OPTIONS,
-      { value: "custom:9", label: "Sonderurlaub", inactive: true },
-    ];
-    render(
-      <CreatableSelect
-        value="custom:9"
-        options={withRetired}
-        onChange={vi.fn()}
-      />,
-    );
+    typeOptions.current = {
+      options: [
+        ...OPTIONS,
+        { value: "custom:9", label: "Sonderurlaub", inactive: true },
+      ],
+    };
+    render(<Select value="custom:9" />);
     open();
 
     expect(screen.getByRole("option", { name: /Sonderurlaub/ })).toBeTruthy();
   });
 
   it("hides a retired option from someone who cannot restore it", () => {
-    const withRetired: CreatableSelectOption[] = [
-      ...OPTIONS,
-      { value: "custom:9", label: "Sonderurlaub", inactive: true },
-    ];
-    render(
-      <CreatableSelect value="sick" options={withRetired} onChange={vi.fn()} />,
-    );
+    typeOptions.current = {
+      options: [
+        ...OPTIONS,
+        { value: "custom:9", label: "Sonderurlaub", inactive: true },
+      ],
+    };
+    render(<Select value="sick" />);
     open();
 
     expect(screen.queryByRole("option", { name: /Sonderurlaub/ })).toBeNull();
@@ -235,18 +209,14 @@ describe("CreatableSelect", () => {
 
   it("keeps a retired option available for reactivation but not for selection", () => {
     const onChange = vi.fn();
-    const withRetired: CreatableSelectOption[] = [
-      ...OPTIONS,
-      { value: "custom:9", label: "Sonderurlaub", inactive: true },
-    ];
-    render(
-      <CreatableSelect
-        value="sick"
-        options={withRetired}
-        onChange={onChange}
-        onSetActive={vi.fn()}
-      />,
-    );
+    typeOptions.current = {
+      options: [
+        ...OPTIONS,
+        { value: "custom:9", label: "Sonderurlaub", inactive: true },
+      ],
+      setActive: vi.fn(),
+    };
+    render(<Select value="sick" onChange={onChange} />);
     open();
 
     const option = screen.getByRole("option", { name: /Sonderurlaub/ });

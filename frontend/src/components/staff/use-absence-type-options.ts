@@ -4,13 +4,12 @@
 // standard types plus whatever names the school added, in one list.
 //
 // Lives in the component layer rather than in lib/ because it produces
-// component props (CreatableSelectOption) and runs React hooks. The pure
-// value↔request mapping stays in ~/lib/absence-type-select, which nothing in
-// the UI layer needs to know about.
+// option props for the dropdown and runs React hooks. The pure value↔request
+// mapping stays in ~/lib/absence-type-select, which nothing in the UI layer
+// needs to know about.
 
 import { useCallback, useMemo } from "react";
 
-import type { CreatableSelectOption } from "~/components/ui/creatable-select";
 import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
 import {
   customIdFromOptionValue,
@@ -22,19 +21,32 @@ import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "AbsenceTypeOptions" });
 
+export interface AbsenceTypeOption {
+  readonly value: string;
+  readonly label: string;
+  /** A standard type: code-owned, so it carries no rename/retire affordance. */
+  readonly fixed?: boolean;
+  /**
+   * A retired type stays selectable only while it is the current value, so an
+   * absence filed under it keeps rendering its own name instead of silently
+   * falling back to something else.
+   */
+  readonly inactive?: boolean;
+}
+
 /**
  * The standard types offered for self-service. Freizeitausgleich is absent on
  * purpose — it moves the Stundenkonto and stays manager-controlled.
  */
-export const STANDARD_ABSENCE_OPTIONS: readonly CreatableSelectOption[] = [
+export const STANDARD_ABSENCE_OPTIONS: readonly AbsenceTypeOption[] = [
   { value: "sick", label: "Krank", fixed: true },
   { value: "vacation", label: "Urlaub", fixed: true },
   { value: "training", label: "Fortbildung", fixed: true },
   { value: "other", label: "Sonstige", fixed: true },
 ];
 
-interface UseAbsenceTypeOptionsResult {
-  readonly options: CreatableSelectOption[];
+export interface UseAbsenceTypeOptionsResult {
+  readonly options: AbsenceTypeOption[];
   /** Undefined for a user without time_tracking:manage — hides the affordance. */
   readonly create?: (name: string) => Promise<string>;
   readonly rename?: (value: string, name: string) => Promise<void>;
@@ -66,7 +78,7 @@ async function withReadableError<T>(operation: Promise<T>): Promise<T> {
 
 export function useAbsenceTypeOptions(
   canManage: boolean,
-  standardOptions: readonly CreatableSelectOption[] = STANDARD_ABSENCE_OPTIONS,
+  standardOptions: readonly AbsenceTypeOption[] = STANDARD_ABSENCE_OPTIONS,
 ): UseAbsenceTypeOptionsResult {
   const { data: custom = [], mutate } = useSWRAuth<AbsenceType[]>(
     "staff-absence-types",
@@ -82,7 +94,7 @@ export function useAbsenceTypeOptions(
     },
   );
 
-  const options = useMemo<CreatableSelectOption[]>(
+  const options = useMemo<AbsenceTypeOption[]>(
     () => [
       ...standardOptions,
       ...custom.map((type) => ({
