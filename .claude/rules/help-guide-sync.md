@@ -52,7 +52,7 @@ interface GuideStep {
   checklist?: readonly string[]; // rendered as a checklist block
   callout?: GuideCallout;        // { title, body, tone? } — highlighted hint
   screenshot: string;            // caption / alt text describing the supporting image (ALWAYS set)
-  image?: string;                // path under /public, e.g. "/help/screens/feedback.webp"
+  image?: string;                // path under /public, e.g. "/help/screens/kindersuche.webp"
   gallery?: readonly { image; caption }[]; // captioned grid instead of one image (NFC tablet states)
   icon?: LucideIcon;             // shown instead of a number badge on reference pages
   printCompact?: boolean;        // tighter print spacing + keeps the card on one PDF page
