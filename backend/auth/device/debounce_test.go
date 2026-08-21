@@ -19,6 +19,8 @@ import (
 // getOrCreateLastSeenState Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestGetOrCreateLastSeenState_CreatesNewState(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -29,6 +31,8 @@ func TestGetOrCreateLastSeenState_CreatesNewState(t *testing.T) {
 	assert.Nil(t, state.flushTimer)
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestGetOrCreateLastSeenState_ReturnsSameState(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -38,6 +42,8 @@ func TestGetOrCreateLastSeenState_ReturnsSameState(t *testing.T) {
 	assert.Same(t, state1, state2, "Should return the same state object for the same device")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestGetOrCreateLastSeenState_DifferentDevices(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -47,6 +53,8 @@ func TestGetOrCreateLastSeenState_DifferentDevices(t *testing.T) {
 	assert.NotSame(t, stateA, stateB, "Different devices should have different state objects")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestGetOrCreateLastSeenState_ConcurrentAccess(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -72,6 +80,8 @@ func TestGetOrCreateLastSeenState_ConcurrentAccess(t *testing.T) {
 // persistLastSeen Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestPersistLastSeen_Success(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -85,6 +95,8 @@ func TestPersistLastSeen_Success(t *testing.T) {
 	assert.Equal(t, observedAt, state.lastPersisted, "Should persist the observed timestamp")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestPersistLastSeen_Error(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -99,6 +111,8 @@ func TestPersistLastSeen_Error(t *testing.T) {
 	assert.True(t, state.lastPersisted.IsZero(), "Should NOT update lastPersisted on error")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -125,6 +139,8 @@ func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
 // flushDeferredLastSeen Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestFlushDeferredLastSeen_NoopWhenLatestSeenIsZero(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -139,6 +155,8 @@ func TestFlushDeferredLastSeen_NoopWhenLatestSeenIsZero(t *testing.T) {
 	assert.False(t, mockService.updateCalled, "Should not write when latestSeen is zero")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestFlushDeferredLastSeen_NoopWhenLatestSeenNotAfterLastPersisted(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -154,6 +172,8 @@ func TestFlushDeferredLastSeen_NoopWhenLatestSeenNotAfterLastPersisted(t *testin
 	assert.False(t, mockService.updateCalled, "Should not write when latestSeen is not after lastPersisted")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestFlushDeferredLastSeen_WritesWhenLatestSeenAfterLastPersisted(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -170,6 +190,8 @@ func TestFlushDeferredLastSeen_WritesWhenLatestSeenAfterLastPersisted(t *testing
 	assert.Equal(t, now, state.lastPersisted, "Should persist the latest observed timestamp")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -195,6 +217,8 @@ func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
 // updateDeviceLastSeen Integration Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestUpdateDeviceLastSeen_FirstCallWritesImmediately(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -209,6 +233,8 @@ func TestUpdateDeviceLastSeen_FirstCallWritesImmediately(t *testing.T) {
 	assert.NotNil(t, device.LastSeen, "Should set LastSeen on device")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -243,6 +269,8 @@ func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T)
 	assert.True(t, hasTimer, "Should have scheduled a flush timer")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestUpdateDeviceLastSeen_ConcurrentFirstCallsOnlyWriteOnce(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -278,6 +306,8 @@ func TestUpdateDeviceLastSeen_ConcurrentFirstCallsOnlyWriteOnce(t *testing.T) {
 	assert.Equal(t, 1, updateCount, "Concurrent first requests should reserve the write and avoid duplicate DB updates")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestUpdateDeviceLastSeen_ErrorDoesNotPreventSubsequentCalls(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 

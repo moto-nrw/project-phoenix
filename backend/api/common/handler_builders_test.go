@@ -37,6 +37,8 @@ func route(t *testing.T, method, pattern, path string, h http.HandlerFunc, body 
 }
 
 func TestIDAction(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success responds 204 and passes the parsed id", func(t *testing.T) {
 		var got int64
 		h := common.IDAction("id", "invalid id", func(_ context.Context, id int64) error {
@@ -86,6 +88,8 @@ func TestIDAction(t *testing.T) {
 }
 
 func TestTwoIDAction(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success passes both ids in order", func(t *testing.T) {
 		var a, b int
 		h := common.TwoIDAction("accountId", "invalid account ID", "roleId", "invalid role ID",
@@ -111,6 +115,8 @@ func TestTwoIDAction(t *testing.T) {
 }
 
 func TestIDFetch(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success wraps the payload in the standard envelope", func(t *testing.T) {
 		type thing struct {
 			Name string `json:"name"`
@@ -136,6 +142,30 @@ func TestIDFetch(t *testing.T) {
 	})
 }
 
+func TestFetch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success wraps the payload in the standard envelope", func(t *testing.T) {
+		h := common.Fetch(func(_ context.Context) (string, error) {
+			return "payload", nil
+		}, common.ErrorInternalServer, "Retrieved")
+
+		rec := route(t, http.MethodGet, "/things", "/things", h, "")
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), `"data":"payload"`)
+	})
+
+	t.Run("fetch error renders through renderErr", func(t *testing.T) {
+		h := common.Fetch(func(_ context.Context) (string, error) {
+			return "", errors.New("gone")
+		}, common.ErrorNotFound, "")
+
+		rec := route(t, http.MethodGet, "/things", "/things", h, "")
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "gone")
+	})
+}
+
 type bindReq struct {
 	Name string `json:"name"`
 }
@@ -148,6 +178,8 @@ func (b *bindReq) Bind(_ *http.Request) error {
 }
 
 func TestBindAction(t *testing.T) {
+	t.Parallel()
+
 	newReq := func() *bindReq { return &bindReq{} }
 
 	t.Run("success responds with the given status", func(t *testing.T) {

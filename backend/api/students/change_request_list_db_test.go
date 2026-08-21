@@ -45,13 +45,6 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 	request.UpdatedAt = decidedAt
 	_, err := tc.db.NewInsert().Model(request).Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, cleanupErr := tc.db.NewDelete().Model((*userModels.StudentDataChangeRequest)(nil)).
-			Where("id = ?", request.ID).Exec(t.Context())
-		if cleanupErr != nil {
-			t.Logf("cleanup of change request %d failed: %v", request.ID, cleanupErr)
-		}
-	})
 	return request
 }
 
@@ -59,12 +52,13 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 // chain, real services, real keyset SQL. The distinctive child name plus the
 // server-side search keeps the assertions hermetic on the shared test DB.
 func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggListGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Zaggreg", "Atkind", "AL1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -115,12 +109,13 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "OpenReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggOpenGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Zoffen", "Listkind", "AL2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
@@ -135,13 +130,6 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	request.TenantID = student.TenantID
 	_, err := tc.db.NewInsert().Model(request).Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, cleanupErr := tc.db.NewDelete().Model((*userModels.StudentDataChangeRequest)(nil)).
-			Where("id = ?", request.ID).Exec(t.Context())
-		if cleanupErr != nil {
-			t.Logf("cleanup of change request %d failed: %v", request.ID, cleanupErr)
-		}
-	})
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 
@@ -164,4 +152,111 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	// Without either review permission the route itself refuses.
 	rr = authExec(t, tc, testutil.NewRequest("GET", "/change-requests", nil), claims, []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+}
+
+// The child-name search runs as a SQL predicate, so the two things a
+// hand-written LIKE gets wrong have to hold in the real query: it matches
+// across the first/last name boundary, and typed wildcards match literally
+// instead of returning the whole queue.
+func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "SearchReviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggSearchGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Zsuchkind", "Nachname", "AS1")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	base := time.Now().UTC().Add(-time.Hour)
+	decided := insertDecidedMasterDataRequest(t, tc, student.ID, student.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	perms := []string{"users:read", "users:update"}
+	fetch := func(t *testing.T, query string) aggListEnvelope {
+		t.Helper()
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?"+query, nil), claims, perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env aggListEnvelope
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		return env
+	}
+
+	// "kind Nach" spans the space the query builds between first and last name.
+	spanning := fetch(t, "view=history&types=master_data&search="+url.QueryEscape("kind Nach"))
+	require.Len(t, spanning.Data.Items, 1)
+	var payload struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(spanning.Data.Items[0].Data, &payload))
+	assert.Equal(t, strconv.FormatInt(decided.ID, 10), payload.ID)
+
+	// Case folds.
+	assert.Len(t, fetch(t, "view=history&types=master_data&search=zSUCHkind").Data.Items, 1)
+
+	// A typed "%" is a literal percent, not "match everything".
+	assert.Empty(t, fetch(t, "view=history&types=master_data&search="+url.QueryEscape("%")).Data.Items,
+		"a wildcard must not defeat the search")
+	assert.Empty(t, fetch(t, "view=history&types=master_data&search="+url.QueryEscape("Zsuchkind_Nachname")).Data.Items,
+		"a typed underscore must not act as a single-character wildcard")
+}
+
+// Kinderkartei-Reiter „Änderungsprotokoll“ (#2437): the same aggregation,
+// filtered to one child. Two children of the same group each carry a decided
+// request, so the test proves the filter selects and — more importantly —
+// excludes.
+func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "ProtocolReviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggProtocolGroup")
+	child := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Eigenkind", "AP1")
+	other := testpkg.CreateTestStudent(t, tc.db, "Zprotokoll", "Fremdkind", "AP2")
+	testpkg.AssignStudentToGroup(t, tc.db, child.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	base := time.Now().UTC().Add(-time.Hour)
+	own := insertDecidedMasterDataRequest(t, tc, child.ID, child.TenantID, account.ID, userModels.DataChangeStatusApproved, base)
+	foreign := insertDecidedMasterDataRequest(t, tc, other.ID, other.TenantID, account.ID, userModels.DataChangeStatusApproved, base.Add(-time.Minute))
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	perms := []string{"users:read", "users:update"}
+
+	fetch := func(t *testing.T, query string) aggListEnvelope {
+		t.Helper()
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?"+query, nil), claims, perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env aggListEnvelope
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		return env
+	}
+	requestIDs := func(env aggListEnvelope) []string {
+		ids := make([]string, 0, len(env.Data.Items))
+		for _, item := range env.Data.Items {
+			var payload struct {
+				ID string `json:"id"`
+			}
+			require.NoError(t, json.Unmarshal(item.Data, &payload))
+			ids = append(ids, payload.ID)
+		}
+		return ids
+	}
+
+	// Both children share the search name; only the filtered child remains.
+	both := requestIDs(fetch(t, "view=history&types=master_data&search=Zprotokoll"))
+	assert.Contains(t, both, strconv.FormatInt(own.ID, 10))
+	assert.Contains(t, both, strconv.FormatInt(foreign.ID, 10))
+
+	filtered := requestIDs(fetch(t, "view=history&student_id="+strconv.FormatInt(child.ID, 10)))
+	assert.Equal(t, []string{strconv.FormatInt(own.ID, 10)}, filtered)
+
+	// A malformed child id is a client bug, not an unfiltered list.
+	for _, bad := range []string{"student_id=0", "student_id=-1", "student_id=abc"} {
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?view=history&"+bad, nil), claims, perms)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, bad)
+	}
 }

@@ -22,8 +22,10 @@ import type {
   AggregatedRequestType,
 } from "~/lib/change-request-list-api";
 import {
+  canOpenParentRequestsTab,
   canOpenRequestsPage,
   canReviewChangeRequests,
+  canReviewEnrollmentChangeRequests,
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
 } from "~/lib/change-request-access";
@@ -40,8 +42,21 @@ const REQUEST_TYPE_OPTIONS: readonly {
   { value: "master_data", label: "Stammdaten" },
   { value: "care_schedule", label: "Betreuungszeiten" },
   { value: "offering", label: "Angebote und AGs" },
-  { value: "excused", label: "Entschuldigungen" },
+  { value: "excused", label: "Abwesenheiten" },
 ];
+
+// Anmeldungsänderungen sieht nur, wer sie auch entscheiden darf (#2435).
+const ENROLLMENT_TYPE_OPTION: {
+  value: AggregatedRequestType;
+  label: string;
+} = { value: "enrollment", label: "Anmeldung" };
+
+// Direkt-Korrekturen sind keine Anfragen: sie gibt es nur in der Historie,
+// also auch den Filter nur dort (#2436).
+const HISTORY_ONLY_TYPE_OPTIONS: readonly {
+  value: AggregatedRequestType;
+  label: string;
+}[] = [{ value: "direct_correction", label: "Direkt-Korrekturen" }];
 
 // Die Abwesenheitsarten, die Mitarbeitende beantragen können, mit den Namen
 // aus der geteilten Beschriftungstabelle. Freizeitausgleich fehlt bewusst: den
@@ -67,8 +82,8 @@ const STATUS_OPTIONS: readonly {
  * nach Herkunft. Der Eltern-Reiter zeigt seit #2432 EINE Liste über alle vier
  * Anfragearten (statt vier Abschnitte), mit serverseitiger Namenssuche,
  * Art-Filter und — in der Historie — Status- und Zeitraum-Filter. Der
- * Mitarbeitende-Reiter ist bis zum Aggregator-Umbau ein Platzhalter und
- * erscheint nur mit Freigaberecht für Abwesenheiten (vacation:approve).
+ * Mitarbeitende-Reiter zeigt seit #2433 die Abwesenheitsanträge (offen und
+ * Historie) und erscheint nur mit Freigaberecht dafür (vacation:approve).
  */
 export default function AnfragenPage() {
   // Die Seite öffnet, wer mindestens einen Reiter sehen darf. Die Regeln
@@ -77,12 +92,19 @@ export default function AnfragenPage() {
   const { isReady } = useRequirePermission(canOpenRequestsPage);
   const { data: session } = useSession();
 
-  const showElternTab = canReviewChangeRequests(session);
+  const showElternTab = canOpenParentRequestsTab(session);
+  // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
+  // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
+  const showEnrollmentRequests = canReviewEnrollmentChangeRequests(session);
   const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
-  // Nur die Entschuldigungs-Warteschlange akzeptiert users:absence. Wer nur
-  // das hält, sieht ohnehin nur diese Art — der Art-Filter wäre eine Liste
-  // aus drei toten Optionen (#2232).
-  const showTypeFilter = canReviewStudentDataRequests(session);
+  // Der Aggregator über die vier Kinderdaten-Arten verlangt users:update oder
+  // users:absence — ohne eines von beiden darf die Quelle gar nicht angefragt
+  // werden.
+  const showAggregatedRequests = canReviewChangeRequests(session);
+  const showStudentDataRequests = canReviewStudentDataRequests(session);
+  // Wer nur die Entschuldigungs-Warteschlange hält, sieht ohnehin nur diese
+  // eine Art — der Art-Filter wäre eine Liste toter Optionen (#2232).
+  const showTypeFilter = showStudentDataRequests || showEnrollmentRequests;
 
   // Reiter erscheinen nur mit passender Berechtigung; wer nur einen sehen
   // darf, bekommt keine Reiterleiste mit einem einzelnen Eintrag.
@@ -117,7 +139,12 @@ export default function AnfragenPage() {
   const filters: AggregatedRequestFilters = useMemo(
     () => ({
       search: deferredSearch,
-      types: typeFilter,
+      includeAggregated: showAggregatedRequests,
+      includeEnrollment: showEnrollmentRequests,
+      types:
+        view === "history"
+          ? typeFilter
+          : typeFilter.filter((type) => type !== "direct_correction"),
       statuses: view === "history" ? statusFilter : [],
       from:
         view === "history" && dateRange?.from
@@ -128,12 +155,33 @@ export default function AnfragenPage() {
           ? toISODate(dateRange.to)
           : undefined,
     }),
-    [deferredSearch, typeFilter, statusFilter, dateRange, view],
+    [
+      deferredSearch,
+      showAggregatedRequests,
+      showEnrollmentRequests,
+      typeFilter,
+      statusFilter,
+      dateRange,
+      view,
+    ],
   );
 
   const staffFilters: StaffAbsenceRequestFilters = useMemo(
     () => ({ search: deferredSearch, types: absenceTypeFilter }),
     [deferredSearch, absenceTypeFilter],
+  );
+
+  // Die im aktuellen Umschalter-Zustand wählbaren Anfragearten. Eine Quelle
+  // für Filterknöpfe UND Filter-Chips: was hier fehlt, ist auch als Chip weg.
+  const typeOptions = useMemo(
+    () => [
+      ...(showStudentDataRequests ? REQUEST_TYPE_OPTIONS : []),
+      ...(showEnrollmentRequests ? [ENROLLMENT_TYPE_OPTION] : []),
+      ...(view === "history" && showStudentDataRequests
+        ? HISTORY_ONLY_TYPE_OPTIONS
+        : []),
+    ],
+    [showStudentDataRequests, showEnrollmentRequests, view],
   );
 
   const filterConfigs = useMemo(() => {
@@ -151,7 +199,7 @@ export default function AnfragenPage() {
                   ? value
                   : [value]) as AggregatedRequestType[],
               ),
-            options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
+            options: typeOptions.map((option) => ({ ...option })),
           },
         ]
       : [];
@@ -190,14 +238,14 @@ export default function AnfragenPage() {
           ]
         : [];
     return [...typeConfig, ...historyConfigs];
-  }, [showTypeFilter, view, typeFilter, statusFilter, dateRange]);
+  }, [showTypeFilter, view, typeOptions, typeFilter, statusFilter, dateRange]);
 
   const activeFilters = useMemo(() => {
     const chips: ActiveFilter[] = [];
     for (const type of typeFilter) {
-      const label = REQUEST_TYPE_OPTIONS.find(
-        (option) => option.value === type,
-      )?.label;
+      // Eine Art, die in dieser Ansicht nicht wählbar ist, trägt auch keinen
+      // Chip — in der Arbeitsliste betrifft das die Direkt-Korrekturen.
+      const label = typeOptions.find((option) => option.value === type)?.label;
       if (!label) continue;
       chips.push({
         id: `art-${type}`,
@@ -228,7 +276,7 @@ export default function AnfragenPage() {
       }
     }
     return chips;
-  }, [typeFilter, statusFilter, dateRange, view]);
+  }, [typeOptions, typeFilter, statusFilter, dateRange, view]);
 
   const staffFilterConfigs = useMemo<FilterConfig[]>(
     () => [
@@ -270,6 +318,15 @@ export default function AnfragenPage() {
     setDateRange(undefined);
   };
 
+  const handleElternViewChange = (nextView: "open" | "history") => {
+    if (nextView === "open") {
+      setTypeFilter((previous) =>
+        previous.filter((type) => type !== "direct_correction"),
+      );
+    }
+    setView(nextView);
+  };
+
   if (!isReady) {
     return (
       <div className="-mt-1.5 w-full">
@@ -282,6 +339,18 @@ export default function AnfragenPage() {
   }
 
   const staffActive = activeTab === "mitarbeitende";
+
+  const viewSwitcher = (
+    <SegmentedControl
+      items={[
+        { value: "open", label: "Offen" },
+        { value: "history", label: "Historie" },
+      ]}
+      value={view}
+      onChange={staffActive ? setView : handleElternViewChange}
+      ariaLabel="Ansicht wählen"
+    />
+  );
 
   return (
     <div className="-mt-1.5 w-full">
@@ -322,15 +391,16 @@ export default function AnfragenPage() {
         onClearAllFilters={clearAllFilters}
         filterVariant="quiet"
         activeFilterDisplay="count"
+        // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
+        // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
+        // jeder Breite dort — `actionButton` wandert auf Mobil in die
+        // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
+        tabsRowAction={viewSwitcher}
       />
       {staffActive ? (
-        <MitarbeitendeTab
-          view={view}
-          onViewChange={setView}
-          filters={staffFilters}
-        />
+        <MitarbeitendeTab view={view} filters={staffFilters} />
       ) : (
-        <ElternTab view={view} onViewChange={setView} filters={filters} />
+        <ElternTab view={view} filters={filters} />
       )}
     </div>
   );
@@ -343,31 +413,13 @@ export default function AnfragenPage() {
  */
 function ElternTab({
   view,
-  onViewChange,
   filters,
 }: Readonly<{
   view: "open" | "history";
-  onViewChange: (view: "open" | "history") => void;
   filters: AggregatedRequestFilters;
 }>) {
   return (
     <div className="w-full">
-      <p className="mb-4 max-w-3xl text-sm text-gray-600">
-        {view === "open"
-          ? "Von Eltern eingereichte Änderungen, die eine Freigabe benötigen."
-          : "Bereits entschiedene Anfragen mit Datum, Person und Begründung."}
-      </p>
-      <div className="mb-6">
-        <SegmentedControl
-          items={[
-            { value: "open", label: "Offen" },
-            { value: "history", label: "Historie" },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel="Ansicht wählen"
-        />
-      </div>
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
       <AggregatedRequestList key={view} view={view} filters={filters} />
@@ -382,31 +434,13 @@ function ElternTab({
  */
 function MitarbeitendeTab({
   view,
-  onViewChange,
   filters,
 }: Readonly<{
   view: "open" | "history";
-  onViewChange: (view: "open" | "history") => void;
   filters: StaffAbsenceRequestFilters;
 }>) {
   return (
     <div className="w-full">
-      <p className="mb-4 max-w-3xl text-sm text-gray-600">
-        {view === "open"
-          ? "Urlaub, Krank, Fortbildung und Sonstige, die eine Freigabe brauchen."
-          : "Bereits entschiedene Anträge mit Datum, Person und Begründung."}
-      </p>
-      <div className="mb-6">
-        <SegmentedControl
-          items={[
-            { value: "open", label: "Offen" },
-            { value: "history", label: "Historie" },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel="Ansicht wählen"
-        />
-      </div>
       {/* key={view}: die Liste mountet beim Umschalten frisch. */}
       <StaffAbsenceRequestList key={view} view={view} filters={filters} />
     </div>

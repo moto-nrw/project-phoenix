@@ -22,6 +22,8 @@ import (
 // =============================================================================
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		errResponse    *common.ErrResponse
@@ -75,6 +77,8 @@ func TestErrResponse_Render(t *testing.T) {
 // =============================================================================
 
 func TestErrorInvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("validation failed")
 	renderer := common.ErrorInvalidRequest(testErr)
 
@@ -87,6 +91,8 @@ func TestErrorInvalidRequest(t *testing.T) {
 }
 
 func TestErrorUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("invalid token")
 	renderer := common.ErrorUnauthorized(testErr)
 
@@ -99,6 +105,8 @@ func TestErrorUnauthorized(t *testing.T) {
 }
 
 func TestErrorForbidden(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("access denied")
 	renderer := common.ErrorForbidden(testErr)
 
@@ -111,6 +119,8 @@ func TestErrorForbidden(t *testing.T) {
 }
 
 func TestErrorNotFound(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("resource not found")
 	renderer := common.ErrorNotFound(testErr)
 
@@ -123,6 +133,8 @@ func TestErrorNotFound(t *testing.T) {
 }
 
 func TestErrorInternalServer(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("database error")
 	renderer := common.ErrorInternalServer(testErr)
 
@@ -135,6 +147,8 @@ func TestErrorInternalServer(t *testing.T) {
 }
 
 func TestErrorConflict(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("resource conflict")
 	renderer := common.ErrorConflict(testErr)
 
@@ -147,6 +161,8 @@ func TestErrorConflict(t *testing.T) {
 }
 
 func TestErrorTooManyRequests(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("rate limited")
 	renderer := common.ErrorTooManyRequests(testErr)
 
@@ -159,6 +175,8 @@ func TestErrorTooManyRequests(t *testing.T) {
 }
 
 func TestErrorGone(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("resource deleted")
 	renderer := common.ErrorGone(testErr)
 
@@ -175,6 +193,8 @@ func TestErrorGone(t *testing.T) {
 // =============================================================================
 
 func TestRenderError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("renders error response successfully", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/test", nil)
@@ -191,12 +211,16 @@ func TestRenderError(t *testing.T) {
 // =============================================================================
 
 func TestErrorConstants(t *testing.T) {
+	t.Parallel()
+
 	// Verify error variables are defined
 	assert.NotNil(t, common.ErrUnauthorized)
 	assert.Equal(t, "unauthorized", common.ErrUnauthorized.Error())
 }
 
 func TestMessageConstants(t *testing.T) {
+	t.Parallel()
+
 	// Verify validation message constants
 	assert.Equal(t, "invalid group ID", common.MsgInvalidGroupID)
 	assert.Equal(t, "invalid student ID", common.MsgInvalidStudentID)
@@ -223,6 +247,8 @@ func TestMessageConstants(t *testing.T) {
 // =============================================================================
 
 func TestErrorInvalidRequest_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("field validation failed")
 	renderer := common.ErrorInvalidRequest(testErr)
 
@@ -241,6 +267,8 @@ func TestErrorInvalidRequest_ResponseBody(t *testing.T) {
 }
 
 func TestErrorUnauthorized_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("token expired")
 	renderer := common.ErrorUnauthorized(testErr)
 
@@ -258,6 +286,8 @@ func TestErrorUnauthorized_ResponseBody(t *testing.T) {
 }
 
 func TestErrorForbidden_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("insufficient permissions")
 	renderer := common.ErrorForbidden(testErr)
 
@@ -275,6 +305,8 @@ func TestErrorForbidden_ResponseBody(t *testing.T) {
 }
 
 func TestErrorNotFound_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("student not found")
 	renderer := common.ErrorNotFound(testErr)
 
@@ -292,6 +324,8 @@ func TestErrorNotFound_ResponseBody(t *testing.T) {
 }
 
 func TestErrorInternalServer_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("database connection failed")
 	renderer := common.ErrorInternalServer(testErr)
 
@@ -309,6 +343,8 @@ func TestErrorInternalServer_ResponseBody(t *testing.T) {
 }
 
 func TestErrorConflict_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("resource already exists")
 	renderer := common.ErrorConflict(testErr)
 
@@ -326,6 +362,8 @@ func TestErrorConflict_ResponseBody(t *testing.T) {
 }
 
 func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("rate limit exceeded")
 	renderer := common.ErrorTooManyRequests(testErr)
 
@@ -343,6 +381,8 @@ func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
 }
 
 func TestErrorGone_ResponseBody(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("invitation expired")
 	renderer := common.ErrorGone(testErr)
 
@@ -364,6 +404,8 @@ func TestErrorGone_ResponseBody(t *testing.T) {
 // =============================================================================
 
 func TestIsConstraintViolation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("detects foreign key violation string", func(t *testing.T) {
 		err := errors.New(`ERROR: update or delete on table "staff" violates foreign key constraint "fk_attendance_checked_in_by"`)
 		assert.True(t, common.IsConstraintViolation(err))
@@ -395,6 +437,8 @@ func TestIsConstraintViolation(t *testing.T) {
 // =============================================================================
 
 func TestErrorConflictWithCode(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("account already has access to tenant")
 	renderer := common.ErrorConflictWithCode(testErr, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
 
@@ -414,6 +458,8 @@ func TestErrorConflictWithCode(t *testing.T) {
 }
 
 func TestErrorConflictWithCode_OmitsEmptyCode(t *testing.T) {
+	t.Parallel()
+
 	testErr := errors.New("conflict")
 	renderer := common.ErrorConflict(testErr)
 
@@ -435,6 +481,8 @@ func TestErrorConflictWithCode_OmitsEmptyCode(t *testing.T) {
 // =============================================================================
 
 func TestErrorConflictMessage(t *testing.T) {
+	t.Parallel()
+
 	renderer := common.ErrorConflictMessage("Raum kann nicht gelöscht werden")
 
 	w := httptest.NewRecorder()
@@ -457,6 +505,8 @@ func TestErrorConflictMessage(t *testing.T) {
 // =============================================================================
 
 func TestErrorValidation(t *testing.T) {
+	t.Parallel()
+
 	fields := []common.FieldError{
 		{Field: "status", Reason: "must be one of: expected, present, absent"},
 		{Field: "note", Reason: "must be at most 500 characters"},
@@ -486,6 +536,8 @@ func TestErrorValidation(t *testing.T) {
 }
 
 func TestErrorValidation_EmptyFields(t *testing.T) {
+	t.Parallel()
+
 	// nil/empty fields slice — `errors` key is omitted via omitempty.
 	renderer := common.ErrorValidation("bad request", nil)
 
@@ -505,6 +557,8 @@ func TestErrorValidation_EmptyFields(t *testing.T) {
 // =============================================================================
 
 func TestErrorInternalServerWrap(t *testing.T) {
+	t.Parallel()
+
 	cause := errors.New("pq: duplicate key value violates unique constraint \"students_pkey\"")
 	renderer := common.ErrorInternalServerWrap("failed to create student", cause)
 
@@ -528,17 +582,23 @@ func TestErrorInternalServerWrap(t *testing.T) {
 }
 
 func TestIsTransientDatabaseError_DetectsBadConnection(t *testing.T) {
+	t.Parallel()
+
 	err := fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn)
 
 	assert.True(t, common.IsTransientDatabaseError(err))
 }
 
 func TestIsTransientDatabaseError_IgnoresRequestContextCancellation(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, common.IsTransientDatabaseError(context.Canceled))
 	assert.False(t, common.IsTransientDatabaseError(context.DeadlineExceeded))
 }
 
 func TestIsTransientDatabaseError_IgnoresDomainValidation(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("invalid session data: check-in time must be before check-out time")
 
 	assert.False(t, common.IsTransientDatabaseError(err))
@@ -549,6 +609,8 @@ func TestIsTransientDatabaseError_IgnoresDomainValidation(t *testing.T) {
 // =============================================================================
 
 func TestFieldError_JSON(t *testing.T) {
+	t.Parallel()
+
 	fe := common.FieldError{Field: "substatus", Reason: "must be late|excused|sick|field_trip|other"}
 	raw, err := json.Marshal(fe)
 	require.NoError(t, err)
@@ -560,6 +622,8 @@ func TestFieldError_JSON(t *testing.T) {
 // =============================================================================
 
 func TestRenderError_5xxLogsAndReports(t *testing.T) {
+	t.Parallel()
+
 	// The 5xx path hits slog + sentry.CaptureException. We cannot easily
 	// intercept those here, but executing the branch still counts toward
 	// coverage and guards against regressions that change the side-effects.
@@ -574,6 +638,8 @@ func TestRenderError_5xxLogsAndReports(t *testing.T) {
 }
 
 func TestRenderError_WrappedInternalServerPath(t *testing.T) {
+	t.Parallel()
+
 	// Exercises RenderError's 5xx branch with a wrapped error. The Err field
 	// is non-nil via errors.New("…"), which is what Sentry reporting relies on.
 	w := httptest.NewRecorder()
@@ -587,6 +653,8 @@ func TestRenderError_WrappedInternalServerPath(t *testing.T) {
 }
 
 func TestRenderError_5xxWithSentryHubInContext(t *testing.T) {
+	t.Parallel()
+
 	// Cover the hub-not-nil branch: sentry.GetHubFromContext(ctx) returns a
 	// non-nil hub when a hub was attached to the context. The hub is created
 	// with no client, so CaptureException is a cheap no-op.
@@ -603,6 +671,8 @@ func TestRenderError_5xxWithSentryHubInContext(t *testing.T) {
 }
 
 func TestRenderError_NonErrResponseRenderer(t *testing.T) {
+	t.Parallel()
+
 	// RenderError accepts any render.Renderer; the 5xx branch only fires for
 	// *ErrResponse. Passing a different renderer must take the plain render path.
 	w := httptest.NewRecorder()
@@ -630,6 +700,8 @@ func TestRenderError_NonErrResponseRenderer(t *testing.T) {
 // reintroduce the panic.
 
 func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	// Each entry: helper name -> (invocation, expected HTTP status).
 	// Every helper that takes a single `error` parameter must accept nil
 	// without panicking and return the corresponding HTTP status with a
@@ -679,6 +751,8 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 }
 
 func TestErrorConflictWithCode_NilError(t *testing.T) {
+	t.Parallel()
+
 	// ErrorConflictWithCode takes (err, code). nil err must still produce
 	// a valid response, and the provided code must be preserved.
 	renderer := common.ErrorConflictWithCode(nil, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
@@ -704,6 +778,8 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 }
 
 func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
+	t.Parallel()
+
 	// Sibling check to the nil-error suite: when a real error is passed,
 	// ErrorText must reflect err.Error() — not the http.StatusText fallback.
 	// Guards against a future "always use StatusText" regression.

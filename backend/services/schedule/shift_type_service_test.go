@@ -26,12 +26,13 @@ func uniqueName(prefix string) string {
 }
 
 func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueName("Betreuung")
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: name, Color: "#83CD2D", IsActive: true})
@@ -49,12 +50,13 @@ func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
 }
 
 func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: uniqueName("Pause"), Color: "#6B7280", IsActive: true})
 	require.NoError(t, err)
@@ -76,14 +78,15 @@ func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
 }
 
 func TestShiftTypeService_CreateDefaultsIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 
 	// Fresh tenant so the count is deterministic.
-	const tenantID = int64(910021)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
 
@@ -111,15 +114,15 @@ func TestShiftTypeService_CreateDefaultsIsIdempotent(t *testing.T) {
 }
 
 func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "ShiftType", "FKNull")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 	st, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{Name: uniqueName("ToDelete"), Color: "#F78C10", IsActive: true})
 	require.NoError(t, err)
@@ -154,12 +157,13 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 // gotcha: creating a shift type with IsActive=false must store false, not have
 // the column DEFAULT TRUE silently win. (Regression for #1836 follow-up.)
 func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{
 		Name:     uniqueName("Inaktiv"),

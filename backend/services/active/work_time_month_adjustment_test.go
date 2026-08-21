@@ -69,6 +69,8 @@ func wtmAdjustment(id int64, adjustmentType string, minutesDelta int, effective 
 // A payout in the requested month reduces that month's own balance and shows
 // up as adjustment_minutes + one Adjustments entry on the card.
 func TestWTMAdjustments_CurrentMonthPayoutReducesBalance(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	baseline, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
 	require.NoError(t, err)
@@ -90,6 +92,8 @@ func TestWTMAdjustments_CurrentMonthPayoutReducesBalance(t *testing.T) {
 // An adjustment in a PRIOR month flows into the requested month's Übertrag via
 // the carry chain, without appearing in the requested month's own list.
 func TestWTMAdjustments_PriorMonthAdjustmentFlowsIntoCarry(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	baseline, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
 	require.NoError(t, err)
@@ -109,6 +113,8 @@ func TestWTMAdjustments_PriorMonthAdjustmentFlowsIntoCarry(t *testing.T) {
 // A future-dated adjustment is neutral until its effective date arrives, like
 // future targets, sessions, and credits.
 func TestWTMAdjustments_FutureDatedAdjustmentIgnored(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	baseline, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
 	require.NoError(t, err)
@@ -130,6 +136,8 @@ func TestWTMAdjustments_FutureDatedAdjustmentIgnored(t *testing.T) {
 // day, so including July 13/14 activity in a July 7 reset would corrupt the
 // requested carryover.
 func TestWTMAdjustments_ClosingBalanceAsOfHistoricalCutoff(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.sessions.sessions = []*activeModels.WorkSession{
 		wtmSession(timezone.NewDate(2026, time.July, 6), 9, 300, 0),
@@ -155,6 +163,8 @@ func TestWTMAdjustments_ClosingBalanceAsOfHistoricalCutoff(t *testing.T) {
 }
 
 func TestWTMAdjustments_BalanceAdjustmentMinutesUsesRequestedRange(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	date := timezone.NewDate(2026, time.July, 7)
 	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
@@ -171,6 +181,8 @@ func TestWTMAdjustments_BalanceAdjustmentMinutesUsesRequestedRange(t *testing.T)
 }
 
 func TestWTMAdjustments_ReductionCapacityProtectsFutureLedgerAndCompTime(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	compTimeDate := timezone.NewDate(2026, time.July, 20)
@@ -200,6 +212,8 @@ func TestWTMAdjustments_ReductionCapacityProtectsFutureLedgerAndCompTime(t *test
 }
 
 func TestWTMAdjustments_ReductionCapacityUsesOpeningBalanceOnEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	effectiveDate := timezone.NewDate(2026, time.July, 20)
@@ -220,6 +234,8 @@ func TestWTMAdjustments_ReductionCapacityUsesOpeningBalanceOnEffectiveDate(t *te
 }
 
 func TestWTMAdjustments_FutureReductionUsesCurrentAccruedBalance(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	effectiveDate := timezone.NewDate(2026, time.July, 27)
@@ -238,6 +254,8 @@ func TestWTMAdjustments_FutureReductionUsesCurrentAccruedBalance(t *testing.T) {
 }
 
 func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	compTimeDate := timezone.NewDate(2026, time.July, 20)
@@ -266,6 +284,8 @@ func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) 
 }
 
 func TestWTMAdjustments_CompTimeUsesRecordedWork(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	monday := timezone.NewDate(2026, time.July, 13)
@@ -295,6 +315,8 @@ func TestWTMAdjustments_CompTimeUsesRecordedWork(t *testing.T) {
 }
 
 func TestWTMAdjustments_BackdatedReductionProtectsMinimumDailyClosing(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	effectiveDate := timezone.NewDate(2026, time.July, 6)
@@ -315,6 +337,8 @@ func TestWTMAdjustments_BackdatedReductionProtectsMinimumDailyClosing(t *testing
 }
 
 func TestWTMAdjustments_ReductionCapacityStartsFromFrozenPriorMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
 		snapshot: &activeModels.StaffMonthBalanceSnapshot{
@@ -339,6 +363,8 @@ func TestWTMAdjustments_ReductionCapacityStartsFromFrozenPriorMonth(t *testing.T
 }
 
 func TestWTMAdjustments_AdvancedAccountStartIgnoresOlderSnapshotBoundary(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
@@ -372,6 +398,8 @@ func TestWTMAdjustments_AdvancedAccountStartIgnoresOlderSnapshotBoundary(t *test
 }
 
 func TestWTMAdjustments_DailyMinimumMatchesCarryChain(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	from := timezone.NewDate(2026, time.July, 6)
@@ -408,6 +436,8 @@ func TestWTMAdjustments_DailyMinimumMatchesCarryChain(t *testing.T) {
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).
 func TestWTMAdjustments_ResetRowZeroesClosingBalance(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	// One worked Monday (2026-07-06, 300 net minutes) against two Monday
 	// targets to date (July 6 + 13 = 960): balance = 300 − 960 = −660.
@@ -431,6 +461,8 @@ func TestWTMAdjustments_ResetRowZeroesClosingBalance(t *testing.T) {
 // correction entered later for work before the reset must remain visible in
 // the current balance; rewriting the stored reset delta would erase it.
 func TestWTMAdjustments_LateHistoricalCorrectionRemainsVisibleAfterReset(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	cutoff := timezone.NewDate(2026, time.July, 7)
 	balanceAtDecision, err := f.svc.GetClosingBalanceAsOf(context.Background(), wtmStaffID, cutoff)
@@ -456,6 +488,8 @@ func TestWTMAdjustments_LateHistoricalCorrectionRemainsVisibleAfterReset(t *test
 // credits it. The day still counts as consumed, so an overlapping vacation
 // cannot re-credit it.
 func TestWTMAbsences_CompTimeNotCredited(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.July, 6)
 
 	// Vacation on the Monday: the 480-minute Soll is credited back.
@@ -498,6 +532,8 @@ func TestWTMAbsences_CompTimeNotCredited(t *testing.T) {
 // eight-hour target leave a four-hour deduction. Crediting another four hours
 // here would incorrectly make the Freizeitausgleich free.
 func TestWTMAbsences_HalfDayCompTimeRequiresWorkedHalf(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.July, 6)
 
 	f := newWTMFixture()

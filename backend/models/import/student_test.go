@@ -11,6 +11,8 @@ import (
 // =============================================================================
 
 func TestStudentImportRow_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	row := StudentImportRow{}
 
 	assert.Empty(t, row.FirstName)
@@ -27,6 +29,8 @@ func TestStudentImportRow_DefaultValues(t *testing.T) {
 }
 
 func TestStudentImportRow_WithValues(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(5)
 	row := StudentImportRow{
 		FirstName:       "Max",
@@ -64,6 +68,8 @@ func TestStudentImportRow_WithValues(t *testing.T) {
 // =============================================================================
 
 func TestPhoneImportData_Fields(t *testing.T) {
+	t.Parallel()
+
 	phone := PhoneImportData{
 		PhoneNumber: "+49 123 456789",
 		PhoneType:   "mobile",
@@ -82,6 +88,8 @@ func TestPhoneImportData_Fields(t *testing.T) {
 // =============================================================================
 
 func TestGuardianImportData_Fields(t *testing.T) {
+	t.Parallel()
+
 	guardian := GuardianImportData{
 		FirstName:          "Anna",
 		LastName:           "Mustermann",
@@ -107,6 +115,8 @@ func TestGuardianImportData_Fields(t *testing.T) {
 }
 
 func TestGuardianImportData_MinimalFields(t *testing.T) {
+	t.Parallel()
+
 	guardian := GuardianImportData{
 		FirstName: "Peter",
 		LastName:  "Test",

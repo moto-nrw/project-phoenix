@@ -1,25 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import {
-  AdminEnrollmentChangeRequestDetail,
-  AdminEnrollmentChangeRequestsList,
-} from "~/components/enrollment/admin-enrollment-change-requests";
+import { AdminEnrollmentChangeRequestDetail } from "~/components/enrollment/admin-enrollment-change-requests";
 
 /**
- * Both components fetch their data client-side
- * (`listAdminEnrollmentChangeRequests` / `getAdminEnrollmentChangeRequest`).
- * There is no backend in Storybook, so the fetch fails and each component
- * renders its own graceful error state instead of crashing — these stories
- * document that fallback state.
+ * Die Detailansicht lädt ihre Daten clientseitig
+ * (`getAdminEnrollmentChangeRequest`). In Storybook gibt es kein Backend, der
+ * Abruf schlägt also fehl und die Komponente rendert ihren Fehlerzustand —
+ * genau den zeigt diese Story.
  */
-const listMeta: Meta<typeof AdminEnrollmentChangeRequestsList> = {
-  title: "components/enrollment/AdminEnrollmentChangeRequestsList",
-  component: AdminEnrollmentChangeRequestsList,
+const meta: Meta<typeof AdminEnrollmentChangeRequestDetail> = {
+  title: "components/enrollment/AdminEnrollmentChangeRequestDetail",
+  component: AdminEnrollmentChangeRequestDetail,
 };
 
-export default listMeta;
-type ListStory = StoryObj<typeof AdminEnrollmentChangeRequestsList>;
-
-export const Empty: ListStory = {};
+export default meta;
 
 export const DetailNotFound: StoryObj<
   typeof AdminEnrollmentChangeRequestDetail

@@ -20,7 +20,10 @@ import {
   QuestionAbsenceModal,
 } from "~/components/staff/absence-decision-modals";
 import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
-import { RequestReviewCard } from "~/components/students/request-review-card";
+import {
+  RequestReviewCard,
+  RequestRowHeader,
+} from "~/components/students/request-review-card";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -196,12 +199,15 @@ export function StaffAbsenceRequestList({
 
   if (view === "history") {
     return (
-      <div className="space-y-3">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+        <RequestRowHeader view="history" />
         {rows.map((row) => (
           <RequestReviewCard
             key={row.id}
+            type="absence"
+            typeLabel={absenceRowLabel(row)}
             childName={staffLabel(row)}
-            summary={`${absenceRowLabel(row)} · ${formatAbsenceRange(row.date_start, row.date_end)}`}
+            summary={formatAbsenceRange(row.date_start, row.date_end)}
             submittedAt={row.requested_at}
             history={{
               status: HISTORY_STATUS[row.status] ?? row.status,

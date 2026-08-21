@@ -183,8 +183,9 @@ export function OfferingRequestReviewItem({
 
   return (
     <RequestReviewCard
+      type="offering"
       childName={row.student_name}
-      summary={`Betreuungsangebote und AGs · ab ${formatDate(row.effective_from)}`}
+      summary={`ab ${formatDate(row.effective_from)}`}
       badge={
         fullWithdrawal ? (
           <StatusBadge tone="red" label="Komplett-Abmeldung" />
@@ -219,7 +220,7 @@ export function OfferingRequestReviewItem({
           />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         {row.diff.length === 0 && (
           <span className="text-sm text-gray-500">—</span>
         )}

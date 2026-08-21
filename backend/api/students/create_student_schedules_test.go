@@ -18,12 +18,13 @@ import (
 // pickup schedules are created together in one atomic request (issue #1502),
 // mirroring the existing atomic guardian-creation path.
 func TestCreateStudent_WithSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The schedule path stamps CreatedBy from the JWT, so the acting account
 	// must resolve to a staff record (account → person → staff).
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Schedule", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Schedule", "Creator")
 
 	body := map[string]interface{}{
 		"first_name":   "Scheduled",
@@ -50,7 +51,6 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 
 	// Schedules FK to the student with ON DELETE CASCADE, so deleting the
 	// student (via the shared guardian cleanup) also removes them.
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	ctx := context.Background()
 
@@ -90,10 +90,11 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 // time is a client error (400) caught at Bind — before any row is written — so
 // no orphaned person/student survives.
 func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadTimeSchedule", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadTimeSchedule", "Creator")
 
 	const firstName = "BadTime"
 	const lastName = "Schedule"
@@ -147,10 +148,11 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 // care schedules are Betreuungszeiten writes and must require the same
 // users:update permission as the standalone update endpoints.
 func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleCreateOnly", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleCreateOnly", "Creator")
 
 	const firstName = "CreateOnly"
 	const lastName = "ScheduleDenied"
@@ -193,12 +195,13 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 // happy-path persistence of schedules inside the same transaction is covered by
 // TestCreateStudent_WithSchedules above.
 func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The schedule path resolves the acting staff from the JWT, so the account
 	// must map to a staff record (account → person → staff).
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleRollback", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleRollback", "Creator")
 
 	const firstName = "ScheduleAtomic"
 	const lastName = "Orphan"
@@ -291,10 +294,11 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 // so this exercises the pickup validation branch specifically — the same
 // validatePickupScheduleItems rules the bulk-update endpoint enforces.
 func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadPickupSchedule", "Creator")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadPickupSchedule", "Creator")
 
 	const firstName = "BadPickup"
 	const lastName = "Schedule"
@@ -350,12 +354,12 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 // with 403 — and no student/person may be created. Covers the getStaffIDFromJWT
 // failure branch of the atomic create path.
 func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Person + account WITHOUT a staff record — getStaffIDFromJWT must fail.
-	actingPerson, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Scheduler")
-	defer testpkg.CleanupPerson(t, tc.db, actingPerson.ID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Scheduler")
 
 	const firstName = "NonStaffCreated"
 	const lastName = "Child"

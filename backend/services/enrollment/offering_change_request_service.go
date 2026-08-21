@@ -25,6 +25,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -276,12 +278,18 @@ type OfferingChangeRequestService interface {
 	// Withdraw flips the submitting guardian's own pending request to withdrawn.
 	Withdraw(ctx context.Context, requestID, accountID, studentID int64) error
 
-	// ListPending backs the staff review queue.
-	ListPending(ctx context.Context) ([]*OfferingChangeView, error)
+	// ListPending backs the working list, newest submission first. The filters
+	// narrow and page the query in SQL; their zero value returns the whole
+	// queue.
+	ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*OfferingChangeView, next *usersService.HistoryCursor, err error)
 	// ListHistory returns decided requests newest-decision-first, keyset
-	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// paginated on (updated_at, id). A zero BeforeInstant returns the first
 	// page; next is nil when no older rows exist beyond this page.
-	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*OfferingChangeHistoryItem, next *usersService.HistoryCursor, err error)
+	ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*OfferingChangeHistoryItem, next *usersService.HistoryCursor, err error)
+	// ListDirectCorrections returns the office's own corrections to bookings,
+	// newest change first, keyset paginated on (changed_at, id). They are not
+	// requests: no pending state, nothing to decide (#2436).
+	ListDirectCorrections(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*DirectCorrectionItem, next *usersService.HistoryCursor, err error)
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
 	// PreviewDecision materializes a pending approval with the supplied
@@ -306,7 +314,10 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
-	UserContext              authorize.StudentAccessUserContext
+	// OfferingAdjustmentRepo backs the direct-correction feed of the central
+	// history (#2436); the same append-only log the decision service writes.
+	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
+	UserContext            authorize.StudentAccessUserContext
 	// Applier performs the dated adjustment on approval. It is the decision
 	// service, reached through the same narrow interface the change-request
 	// service uses.
@@ -923,11 +934,15 @@ func (s *offeringChangeRequestService) Withdraw(ctx context.Context, requestID, 
 	return nil
 }
 
-func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*OfferingChangeView, error) {
-	rows, err := s.ChangeRepo.ListPendingForTenant(ctx)
+func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*OfferingChangeView, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, probeLimit(filters))
 	if err != nil {
-		return nil, fmt.Errorf("offering change: list pending: %w", err)
+		return nil, nil, fmt.Errorf("offering change: list pending: %w", err)
 	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *enrollmentModels.OfferingChangeRequest) (time.Time, int64) {
+		return r.CreatedAt, r.ID
+	})
 	studentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
@@ -936,7 +951,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	}
 	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("offering change: load students: %w", err)
+		return nil, nil, fmt.Errorf("offering change: load students: %w", err)
 	}
 	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
 	visibleRows := make([]*enrollmentModels.OfferingChangeRequest, 0, len(rows))
@@ -956,7 +971,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 	}
 	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
 	if err != nil {
-		return nil, fmt.Errorf("offering change: load student persons: %w", err)
+		return nil, nil, fmt.Errorf("offering change: load student persons: %w", err)
 	}
 	reviews, diffErr := s.pendingReviews(ctx, visibleRows)
 	if diffErr != nil {
@@ -986,26 +1001,33 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 		}
 		views = append(views, view)
 	}
-	return views, nil
+	return views, next, nil
 }
 
-func (s *offeringChangeRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*OfferingChangeHistoryItem, *usersService.HistoryCursor, error) {
+// probeLimit asks the repository for one row more than the caller wants, so a
+// present extra row proves an older page exists. An unbounded page stays
+// unbounded.
+func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFilters {
+	if filters.Limit > 0 {
+		filters.Limit++
+	}
+	return filters
+}
+
+func (s *offeringChangeRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*OfferingChangeHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.ChangeRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	rows, err := s.ChangeRepo.ListDecidedForTenant(ctx, probeLimit(filters))
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list decided: %w", err)
 	}
 	// The cursor points at the last DB row (not the last visible item): the
 	// per-child scope filters after the DB limit, so a cursor built from the
 	// filtered page would skip rows.
-	var next *usersService.HistoryCursor
-	if len(rows) > limit {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
-	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *enrollmentModels.OfferingChangeRequest) (time.Time, int64) {
+		return r.UpdatedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*OfferingChangeHistoryItem{}, nil, nil
+		return []*OfferingChangeHistoryItem{}, next, nil
 	}
 
 	studentIDs := make([]int64, 0, len(rows))
@@ -1072,7 +1094,7 @@ func (s *offeringChangeRequestService) ListHistory(ctx context.Context, beforeUp
 }
 
 func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, error) {
-	rows, err := s.ChangeRepo.ListPendingForTenant(ctx)
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return 0, fmt.Errorf("offering change: list pending for count: %w", err)
 	}

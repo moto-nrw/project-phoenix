@@ -7,6 +7,8 @@ import (
 )
 
 func TestCommentRead_StructFields(t *testing.T) {
+	t.Parallel()
+
 	// Verify struct can be instantiated with all fields
 	cr := &CommentRead{
 		AccountID: 123,

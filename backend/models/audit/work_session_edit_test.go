@@ -9,6 +9,8 @@ import (
 )
 
 func TestWorkSessionEdit_Validate(t *testing.T) {
+	t.Parallel()
+
 	validEdit := func() *WorkSessionEdit {
 		return &WorkSessionEdit{
 			SessionID: 1,
@@ -95,6 +97,8 @@ func TestWorkSessionEdit_Validate(t *testing.T) {
 }
 
 func TestWorkSessionEdit_FieldConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "check_in_time", FieldCheckInTime)
 	assert.Equal(t, "check_out_time", FieldCheckOutTime)
 	assert.Equal(t, "break_minutes", FieldBreakMinutes)

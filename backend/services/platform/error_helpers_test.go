@@ -13,6 +13,8 @@ import (
 // ============================================================================
 
 func TestIsRowsAffectedMismatch(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -58,6 +60,8 @@ func TestIsRowsAffectedMismatch(t *testing.T) {
 // ============================================================================
 
 func TestIsForeignKeyViolation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -108,6 +112,8 @@ func TestIsForeignKeyViolation(t *testing.T) {
 // ============================================================================
 
 func TestIsSchoolLookupNotFound_DatabaseErrorWithOtherError(t *testing.T) {
+	t.Parallel()
+
 	err := &modelBase.DatabaseError{Op: "find school", Err: errors.New("connection refused")}
 	assert.False(t, isLookupNotFound(err))
 }

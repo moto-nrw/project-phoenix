@@ -6,6 +6,8 @@ import (
 )
 
 func TestAuthEvent_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		ae      *AuthEvent
@@ -167,6 +169,8 @@ func TestAuthEvent_Validate(t *testing.T) {
 }
 
 func TestAuthEvent_Validate_SetsDefaultCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	ae := &AuthEvent{
 		AccountID: 1,
 		EventType: EventTypeLogin,
@@ -193,6 +197,8 @@ func TestAuthEvent_Validate_SetsDefaultCreatedAt(t *testing.T) {
 }
 
 func TestAuthEvent_Metadata(t *testing.T) {
+	t.Parallel()
+
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		ae := &AuthEvent{
 			Metadata: nil,
@@ -252,6 +258,8 @@ func TestAuthEvent_Metadata(t *testing.T) {
 }
 
 func TestNewAuthEvent(t *testing.T) {
+	t.Parallel()
+
 	before := time.Now()
 	ae := NewAuthEvent(42, EventTypeLogin, true, "10.0.0.1")
 	after := time.Now()
@@ -282,6 +290,8 @@ func TestNewAuthEvent(t *testing.T) {
 }
 
 func TestEventTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	// Verify constants have expected values
 	tests := []struct {
 		constant string

@@ -85,6 +85,8 @@ func (r *recordingAttendanceSyncer) MirrorCheckOutForVisits(_ context.Context, v
 }
 
 func TestGetVisitLookupErrorClassification(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
@@ -133,6 +135,8 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 }
 
 func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now()
 	existingVisit := &activeModels.Visit{
@@ -285,6 +289,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 }
 
 func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
+	t.Parallel()
+
 	entryTime := time.Now().Add(-time.Hour)
 	exitTime := time.Now()
 	existing := &activeModels.Visit{
@@ -309,6 +315,8 @@ func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
 }
 
 func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	existingVisit := &activeModels.Visit{
@@ -350,6 +358,8 @@ func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing
 }
 
 func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	exitTime := time.Now()
@@ -387,6 +397,8 @@ func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
 }
 
 func TestUpdateVisitOpenEntryTimeEditReconcilesSlot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	existingVisit := &activeModels.Visit{
@@ -420,6 +432,8 @@ func TestUpdateVisitOpenEntryTimeEditReconcilesSlot(t *testing.T) {
 }
 
 func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)

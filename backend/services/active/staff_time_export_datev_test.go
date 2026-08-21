@@ -144,6 +144,8 @@ func checkDatevGolden(t *testing.T, name string, data []byte) {
 // TestDatevExport_GoldenFiles pins both file formats byte for byte,
 // including the CRLF line ends the LODAS handbook requires.
 func TestDatevExport_GoldenFiles(t *testing.T) {
+	t.Parallel()
+
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -166,6 +168,8 @@ func TestDatevExport_GoldenFiles(t *testing.T) {
 // from the Monatskarte of the same person — the file cannot carry a number
 // the card does not show.
 func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -216,6 +220,8 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 // the gap, but no file or audit row is produced until every staff member has
 // a personnel number.
 func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	f := newDatevFixture(t)
 	f.setPersonnelNumber(t, f.staff[1].ID, "")
 	actorID := f.newActorAccount(t)
@@ -246,6 +252,8 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 // TestDatevExport_RefusesIncompleteConfiguration: no file from missing LODAS
 // header identifiers or a fully unconfigured Lohnart mapping.
 func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
+	t.Parallel()
+
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -280,6 +288,8 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 // TestDatevExport_RequiresSingleMonth: payroll is monthly; year spans and day
 // granularity are rejected for the DATEV formats.
 func TestDatevExport_RequiresSingleMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -296,6 +306,8 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 }
 
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
+	t.Parallel()
+
 	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil)
 
 	for _, format := range []string{"", active.ExportFormatCSV, active.ExportFormatXLSX} {
@@ -310,6 +322,8 @@ func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 
 // TestDatevExport_NoFileWithoutAudit: same contract as CSV/XLSX (#2005).
 func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
+	t.Parallel()
+
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	settings := &configtest.Mock{

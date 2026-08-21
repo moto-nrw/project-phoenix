@@ -38,6 +38,8 @@ func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, timezone.Date) (int6
 }
 
 func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{}
 	svc.SetDeviationEventRepo(events)
@@ -82,6 +84,8 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 }
 
 func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{}
 	svc.SetDeviationEventRepo(events)
@@ -107,6 +111,8 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 }
 
 func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{createErr: errors.New("audit down")}
 	svc.SetDeviationEventRepo(events)

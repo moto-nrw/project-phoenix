@@ -12,6 +12,8 @@ import (
 )
 
 func TestNormalizeBulkDates_DedupesAndSortsAscending(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	later := today.AddDays(3)
 	sooner := today.AddDays(1)
@@ -24,6 +26,8 @@ func TestNormalizeBulkDates_DedupesAndSortsAscending(t *testing.T) {
 }
 
 func TestNormalizeBulkDates_RejectsEmptyInput(t *testing.T) {
+	t.Parallel()
+
 	_, err := normalizeBulkDates(nil)
 
 	var de *DeviationError
@@ -33,6 +37,8 @@ func TestNormalizeBulkDates_RejectsEmptyInput(t *testing.T) {
 }
 
 func TestNormalizeBulkDates_RejectsPastDates(t *testing.T) {
+	t.Parallel()
+
 	_, err := normalizeBulkDates([]timezone.Date{timezone.TodayDate().AddDays(-1)})
 
 	var de *DeviationError
@@ -42,6 +48,8 @@ func TestNormalizeBulkDates_RejectsPastDates(t *testing.T) {
 }
 
 func TestNormalizeBulkDates_CapsAtMaxDatesAfterDedupe(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	dates := make([]timezone.Date, 0, MaxBulkSubstitutionDates+1)
 	for i := 0; i <= MaxBulkSubstitutionDates; i++ {
@@ -64,6 +72,8 @@ func TestNormalizeBulkDates_CapsAtMaxDatesAfterDedupe(t *testing.T) {
 }
 
 func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.August, 18)
 	cause := errors.New("root cause")
 	inner := &DeviationError{
@@ -84,6 +94,8 @@ func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
 }
 
 func TestBulkDayError_PassesNonDeviationErrorsThrough(t *testing.T) {
+	t.Parallel()
+
 	plain := errors.New("boom")
 	assert.Same(t, plain, bulkDayError(timezone.TodayDate(), plain))
 }

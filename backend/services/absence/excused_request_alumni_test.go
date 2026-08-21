@@ -19,6 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -26,15 +27,16 @@ import (
 )
 
 func TestExcusedRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	req := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
 
 	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 1, "the pending request must start out visible")
 
@@ -54,7 +56,7 @@ func TestExcusedRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.
 	require.NoError(t, err)
 
 	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		items, e := svc.ListPending(txCtx)
+		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items, "a graduated child's request must leave the queue and the badge")
 

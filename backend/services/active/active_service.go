@@ -967,11 +967,11 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		return
 	}
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, "")
+	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
+	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
 }
 
-// emitVisitCheckout is broadcastVisitCheckout with the student display data
+// emitVisitCheckout is broadcastVisitCheckout with the student routing data
 // already resolved. Split out so the attendance checkout paths can read the
 // student inside their request transaction and defer only the emission to a
 // tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
@@ -981,7 +981,6 @@ func (s *service) emitVisitCheckout(
 	ctx context.Context,
 	endedVisit *active.Visit,
 	snapshot *AttendanceSnapshot,
-	studentName string,
 	studentRec *userModels.Student,
 	source string,
 ) {
@@ -994,8 +993,7 @@ func (s *service) emitVisitCheckout(
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
-		StudentID:   &studentID,
-		StudentName: &studentName,
+		StudentID: &studentID,
 	}
 	if source != "" {
 		data.Source = &source
@@ -1011,13 +1009,19 @@ func (s *service) emitVisitCheckout(
 		data,
 	)
 
-	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
-	s.broadcastToEducationalGroup(ctx, studentRec, event)
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+		s.getLogger().Error("SSE broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("event_type", "student_checkout"),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("student_id", studentID),
+		)
+	}
+	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
-	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
 // broadcastVisitMoved publishes a checkout from the source active group and a
@@ -1028,12 +1032,19 @@ func (s *service) broadcastVisitMoved(
 	previousVisit, movedVisit *active.Visit,
 	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
 ) {
-	if s.Broadcaster == nil || previousVisit == nil || movedVisit == nil {
+	if previousVisit == nil || movedVisit == nil {
 		return
 	}
 
-	s.broadcastVisitCheckout(ctx, previousVisit, sourceSnapshot)
-	s.broadcastVisitCreated(ctx, movedVisit, targetSnapshot)
+	// Moving a visit used to delegate to broadcastVisitCreated, which also
+	// wakes guardians. Keep that side effect while reusing the resolved student.
+	s.wakeGuardiansAfterCommit(ctx, movedVisit.StudentID)
+	if s.Broadcaster == nil {
+		return
+	}
+	studentRec := s.getStudentForSSE(ctx, movedVisit.StudentID)
+	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, studentRec, "")
+	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, studentRec)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -1127,8 +1138,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// Single tenant-wide broadcast for the entire batch, scoped to the
 	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
-		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonStudentMoved)
+		s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	}
 }
 
@@ -1159,8 +1169,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
-	s.broadcastDashboardCountsChanged(ctx, nil)
-	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonActivityEnded)
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
@@ -1496,7 +1505,6 @@ func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64,
 type visitSSEData struct {
 	VisitID   int64
 	StudentID int64
-	Name      string
 	Student   *userModels.Student
 }
 

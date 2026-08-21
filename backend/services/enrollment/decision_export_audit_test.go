@@ -51,6 +51,8 @@ func newAuditDecisionService(repo auditModels.DataAccessLogRepository) enrollmen
 }
 
 func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubAccessLogRepo{}
 	svc := newAuditDecisionService(repo)
 	phase := samplePhaseForAudit()
@@ -105,6 +107,8 @@ func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T
 }
 
 func TestRecordPhaseExportAudit_DefaultsEmptyRole(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubAccessLogRepo{}
 	svc := newAuditDecisionService(repo)
 
@@ -121,6 +125,8 @@ func TestRecordPhaseExportAudit_DefaultsEmptyRole(t *testing.T) {
 }
 
 func TestRecordPhaseExportAudit_PropagatesWriteFailure(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubAccessLogRepo{err: errors.New("db down")}
 	svc := newAuditDecisionService(repo)
 
@@ -132,6 +138,8 @@ func TestRecordPhaseExportAudit_PropagatesWriteFailure(t *testing.T) {
 }
 
 func TestRecordPhaseExportAudit_GuardsBadInput(t *testing.T) {
+	t.Parallel()
+
 	svc := newAuditDecisionService(&stubAccessLogRepo{})
 
 	if err := svc.RecordPhaseExportAudit(context.Background(), 0, "admin", samplePhaseForAudit(), "pdf", "", 1, 1); err == nil {

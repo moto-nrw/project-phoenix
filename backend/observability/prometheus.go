@@ -81,6 +81,13 @@ var (
 		},
 		[]string{"tenant_id", "scope", "method", "route"},
 	)
+	rateLimitRejections = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_rate_limit_rejections_total",
+			Help: "Requests rejected by the API rate limiter, split by quota bucket.",
+		},
+		[]string{"bucket"},
+	)
 	iotRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_iot_requests_total",
@@ -168,6 +175,7 @@ func init() {
 		appHTTPActive,
 		tenantHTTPRequests,
 		tenantHTTPDuration,
+		rateLimitRejections,
 		iotRequests,
 		iotDuration,
 		sseBroadcasts,
@@ -248,6 +256,10 @@ func ObserveTenantRequest(tenantID int64, scope, method, route string, status in
 	statusClass := StatusClass(status)
 	tenantHTTPRequests.WithLabelValues(tenant, scope, method, route, statusClass, txOutcome).Inc()
 	tenantHTTPDuration.WithLabelValues(tenant, scope, method, route).Observe(duration.Seconds())
+}
+
+func RecordRateLimitRejection(bucket string) {
+	rateLimitRejections.WithLabelValues(sanitizeLabel(bucket)).Inc()
 }
 
 func ObserveIoTRequest(tenantID int64, method, route string, status int, duration time.Duration, deviceType string) {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestResolveDayPlanning_Precedence(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -107,6 +109,8 @@ func TestResolveDayPlanning_Precedence(t *testing.T) {
 // it makes the student search, the timetable, and the guardian tile disagree on
 // the same child and date.
 func TestResolveDayPlanning_TimelessExceptionCancelsDay(t *testing.T) {
+	t.Parallel()
+
 	at := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -175,6 +179,8 @@ func TestResolveDayPlanning_TimelessExceptionCancelsDay(t *testing.T) {
 }
 
 func TestResolveDayPlanning_NoTimeExceptionSurfacesNotes(t *testing.T) {
+	t.Parallel()
+
 	arrival := ResolveDayPlanning(DayPlanningInputs{
 		Arrival: &EffectiveArrivalTime{IsException: true, Notes: "Arzttermin"},
 	})

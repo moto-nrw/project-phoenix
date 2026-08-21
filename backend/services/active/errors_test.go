@@ -9,6 +9,8 @@ import (
 
 // TestActiveServiceErrorVariables tests that error variables have correct messages
 func TestActiveServiceErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -49,6 +51,8 @@ func TestActiveServiceErrorVariables(t *testing.T) {
 
 // TestActiveServiceErrorsAreDistinct ensures each error can be identified uniquely
 func TestActiveServiceErrorsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrActiveGroupNotFound,
 		ErrVisitNotFound,
@@ -89,6 +93,8 @@ func TestActiveServiceErrorsAreDistinct(t *testing.T) {
 
 // TestActiveError tests the ActiveError custom error type
 func TestActiveError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error with underlying error", func(t *testing.T) {
 		underlyingErr := errors.New("database connection lost")
 		activeErr := &ActiveError{

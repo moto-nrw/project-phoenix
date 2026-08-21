@@ -21,10 +21,11 @@ import (
 // TestAttendanceRepository_GetTodayByStudentIDs tests fetching today's attendance
 // records for multiple students with hermetic fixtures.
 func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := activeRepo.NewAttendanceRepository(db)
 
 	t.Run("returns latest attendance per student with deduplication", func(t *testing.T) {
@@ -33,8 +34,6 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "Bob", "Test", "1a")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
 		device := testpkg.CreateTestDevice(t, db, "attendance-device-001")
-
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, staff.ID, device.ID)
 
 		// Create multiple attendance records for student1 (different check-in times)
 		// Use timezone.Today() for consistent Europe/Berlin timezone handling
@@ -87,7 +86,6 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	t.Run("returns empty map when no attendance records exist", func(t *testing.T) {
 		// ARRANGE: Create student with no attendance
 		student := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		result, err := repo.GetTodayByStudentIDs(ctx, []int64{student.ID})
@@ -101,10 +99,11 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 // TestVisitRepository_GetCurrentByStudentIDs tests fetching current (active) visits
 // for students using hermetic fixtures.
 func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := activeRepo.NewVisitRepository(db)
 
 	t.Run("returns current visits for students", func(t *testing.T) {
@@ -119,21 +118,17 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Carol", "Visitor", "2a")
 		student2 := testpkg.CreateTestStudent(t, db, "Dave", "Visitor", "2b")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activityGroup.ID, room.ID, activeGroup.ID, student1.ID, student2.ID)
-
 		now := time.Now()
 
 		// Create active visit for student1 (no exit time)
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID,
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID,
 			now.Add(-15*time.Minute), nil)
 
 		// Create active visit for student2 (no exit time)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID,
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID,
 			now.Add(-10*time.Minute), nil)
 
 		// Also clean up visits
-		defer testpkg.CleanupActivityFixtures(t, db, visit1.ID, visit2.ID)
 
 		// ACT
 		studentIDs := []int64{student1.ID, student2.ID}
@@ -154,14 +149,10 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Eve", "Former", "3a")
 
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activityGroup.ID, room.ID, activeGroup.ID, student.ID)
-
 		// Create visit that has ended
 		exitTime := time.Now().Add(-5 * time.Minute)
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID,
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID,
 			time.Now().Add(-30*time.Minute), &exitTime)
-		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 		// ACT
 		result, err := repo.GetCurrentByStudentIDs(ctx, []int64{student.ID})
@@ -182,10 +173,11 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 // TestGroupRepository_FindByIDs tests fetching active groups with their Room relations
 // using hermetic fixtures.
 func TestGroupRepository_FindByIDs(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := activeRepo.NewGroupRepository(db)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
@@ -197,10 +189,6 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 		activity2 := testpkg.CreateTestActivityGroup(t, db, "Music Club")
 		room2 := testpkg.CreateTestRoom(t, db, "Music Room")
 		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db,
-			activity1.ID, room1.ID, activeGroup1.ID,
-			activity2.ID, room2.ID, activeGroup2.ID)
 
 		// ACT
 		groupIDs := []int64{activeGroup1.ID, activeGroup2.ID}

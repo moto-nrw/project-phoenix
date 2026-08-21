@@ -91,6 +91,11 @@ function absenceProbe() {
   };
 }
 
+/** Der Umschalter in der Reiterzeile: Offen gegen Historie. */
+function umschalten(label: "Offen" | "Historie") {
+  fireEvent.click(screen.getByRole("button", { name: label }));
+}
+
 describe("AnfragenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -138,10 +143,10 @@ describe("AnfragenPage", () => {
   it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {
     render(<AnfragenPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     expect(listProbe().view).toBe("history");
 
-    fireEvent.click(screen.getByRole("button", { name: "Offen" }));
+    umschalten("Offen");
     expect(listProbe().view).toBe("open");
   });
 
@@ -163,6 +168,69 @@ describe("AnfragenPage", () => {
     expect(probe.filters.statuses).toEqual([]);
     expect(probe.filters.from).toBeUndefined();
     expect(probe.filters.to).toBeUndefined();
+  });
+
+  it("bietet den Direkt-Korrektur-Filter nur in der Historie an", () => {
+    render(<AnfragenPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    expect(screen.queryByText("Direkt-Korrekturen")).toBeNull();
+
+    umschalten("Historie");
+    fireEvent.click(screen.getByText("Direkt-Korrekturen"));
+    expect(listProbe().filters.types).toEqual(["direct_correction"]);
+
+    // Zurück in der Arbeitsliste dürfen Korrekturen nie auftauchen, auch
+    // nicht als übrig gebliebener Filter (#2436).
+    umschalten("Offen");
+    const open = listProbe();
+    expect(open.view).toBe("open");
+    expect(open.filters.types).toEqual([]);
+
+    // Der inkompatible Filter wird beim Wechsel gelöscht und kehrt nicht
+    // still zurück, wenn die Historie wieder geöffnet wird.
+    umschalten("Historie");
+    expect(listProbe().filters.types).toEqual([]);
+  });
+
+  // Anmeldungsänderungen (#2435): eigene Art im selben Reiter, eigenes Recht.
+  it("lädt Anmeldungsänderungen nur mit config:manage mit", () => {
+    render(<AnfragenPage />);
+    expect(listProbe().filters.includeEnrollment).toBe(false);
+
+    mockUseSession.mockReturnValue(
+      sessionWith(["users:update", "config:manage"]),
+    );
+    render(<AnfragenPage />);
+    expect(
+      JSON.parse(
+        screen
+          .getAllByTestId("aggregated-list")[1]!
+          .getAttribute("data-filters") ?? "{}",
+      ),
+    ).toMatchObject({ includeEnrollment: true, includeAggregated: true });
+  });
+
+  it("bietet die Anfrageart Anmeldung nur mit config:manage an", () => {
+    render(<AnfragenPage />);
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    expect(screen.queryByText("Anmeldung")).toBeNull();
+  });
+
+  it("zeigt einer Person mit nur config:manage ausschließlich die Anmeldungen", () => {
+    mockUseSession.mockReturnValue(sessionWith(["config:manage"]));
+
+    render(<AnfragenPage />);
+
+    const probe = listProbe();
+    // Der Aggregator verlangt users:update oder users:absence — ohne beides
+    // darf er gar nicht erst gefragt werden, sonst antwortet er 403.
+    expect(probe.filters.includeAggregated).toBe(false);
+    expect(probe.filters.includeEnrollment).toBe(true);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    expect(screen.getByText("Anmeldung")).toBeInTheDocument();
+    expect(screen.queryByText("Stammdaten")).toBeNull();
   });
 
   it("zeigt einer Person mit users:absence die Liste ohne Art-Filter", () => {
@@ -223,7 +291,7 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    umschalten("Historie");
     expect(absenceProbe().view).toBe("history");
   });
 

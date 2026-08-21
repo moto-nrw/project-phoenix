@@ -11,6 +11,8 @@ import (
 )
 
 func TestGetClientIPString_ChiXFFSingleHop(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.10")
 	req.RemoteAddr = "172.18.0.4:54321"
@@ -21,6 +23,8 @@ func TestGetClientIPString_ChiXFFSingleHop(t *testing.T) {
 }
 
 func TestGetClientIPString_ChiXFFUsesRightmostUntrustedHop(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.10, 198.51.100.4, 192.0.2.1")
 	req.RemoteAddr = "172.18.0.4:54321"
@@ -31,6 +35,8 @@ func TestGetClientIPString_ChiXFFUsesRightmostUntrustedHop(t *testing.T) {
 }
 
 func TestGetClientIPString_MalformedXFFFallsBackToRemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.10, not-an-ip")
 	req.RemoteAddr = "172.18.0.4:54321"
@@ -41,6 +47,8 @@ func TestGetClientIPString_MalformedXFFFallsBackToRemoteAddr(t *testing.T) {
 }
 
 func TestGetClientIPString_RemoteAddrWithPort(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "203.0.113.5:54321"
 
@@ -48,6 +56,8 @@ func TestGetClientIPString_RemoteAddrWithPort(t *testing.T) {
 }
 
 func TestGetClientIPString_RemoteAddrWithoutPortReturnedRaw(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "no-port-here"
 
@@ -55,6 +65,8 @@ func TestGetClientIPString_RemoteAddrWithoutPortReturnedRaw(t *testing.T) {
 }
 
 func TestGetClientIPString_IPv6BracketsHandled(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "[2001:db8::1]:54321"
 
@@ -62,6 +74,8 @@ func TestGetClientIPString_IPv6BracketsHandled(t *testing.T) {
 }
 
 func TestParseClientIP(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.10")
 	req.RemoteAddr = "172.18.0.4:54321"
@@ -83,6 +97,8 @@ func TestParseClientIP(t *testing.T) {
 }
 
 func TestParseIPString(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, ParseIPString(""))
 	assert.Nil(t, ParseIPString("not-an-ip"))
 	assert.Equal(t, "203.0.113.10", ParseIPString("203.0.113.10").String())

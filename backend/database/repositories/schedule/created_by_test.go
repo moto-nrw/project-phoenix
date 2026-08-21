@@ -14,7 +14,6 @@ func createRepositoryTestStaffID(tb testing.TB, db *bun.DB) int64 {
 
 	staff := testpkg.CreateTestStaff(tb, db, "Schedule", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
 	tb.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(tb, db, staff.ID)
 	})
 
 	return staff.ID

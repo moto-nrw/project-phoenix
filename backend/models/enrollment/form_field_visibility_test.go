@@ -15,6 +15,8 @@ import (
 // ---- Information fields --------------------------------------------------
 
 func TestFormField_Validate_InfoHappyPath(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{
 		Key:     "infotext_1",
 		Type:    FormFieldInfo,
@@ -25,6 +27,8 @@ func TestFormField_Validate_InfoHappyPath(t *testing.T) {
 }
 
 func TestFormField_Validate_InfoRequiresContent(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{Key: "infotext_1", Type: FormFieldInfo, Content: "   "}
 	err := f.Validate()
 	require.Error(t, err)
@@ -32,6 +36,8 @@ func TestFormField_Validate_InfoRequiresContent(t *testing.T) {
 }
 
 func TestFormField_Validate_InfoCannotBeRequired(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{Key: "infotext_1", Type: FormFieldInfo, Content: "Hinweis", Required: true}
 	err := f.Validate()
 	require.Error(t, err)
@@ -39,6 +45,8 @@ func TestFormField_Validate_InfoCannotBeRequired(t *testing.T) {
 }
 
 func TestFormField_Validate_InfoRejectsOptions(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{
 		Key:     "infotext_1",
 		Type:    FormFieldInfo,
@@ -51,6 +59,8 @@ func TestFormField_Validate_InfoRejectsOptions(t *testing.T) {
 }
 
 func TestFormField_Validate_InfoRejectsTarget(t *testing.T) {
+	t.Parallel()
+
 	f := FormField{
 		Key:     "infotext_1",
 		Type:    FormFieldInfo,
@@ -63,6 +73,8 @@ func TestFormField_Validate_InfoRejectsTarget(t *testing.T) {
 }
 
 func TestFormField_Validate_QuestionRejectsContent(t *testing.T) {
+	t.Parallel()
+
 	// Only information fields may carry content; a normal question with
 	// content set is a programming error.
 	f := FormField{Key: "allergies", Label: "Allergien", Type: FormFieldText, Content: "oops"}
@@ -74,16 +86,22 @@ func TestFormField_Validate_QuestionRejectsContent(t *testing.T) {
 // ---- VisibilityCondition shape ------------------------------------------
 
 func TestVisibilityCondition_Validate_FieldEq(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Field: "has_allergy", Operator: ConditionOpEquals, Value: true}
 	assert.NoError(t, c.Validate(false))
 }
 
 func TestVisibilityCondition_Validate_NotEmptyNeedsNoValue(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Field: "has_allergy", Operator: ConditionOpNotEmpty}
 	assert.NoError(t, c.Validate(false))
 }
 
 func TestVisibilityCondition_Validate_EqRequiresValue(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Field: "x", Operator: ConditionOpEquals}
 	err := c.Validate(false)
 	require.Error(t, err)
@@ -91,11 +109,15 @@ func TestVisibilityCondition_Validate_EqRequiresValue(t *testing.T) {
 }
 
 func TestVisibilityCondition_Validate_UnknownOperator(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Field: "x", Operator: "between", Value: 1}
 	require.Error(t, c.Validate(false))
 }
 
 func TestVisibilityCondition_Validate_FieldSourceRequiresKey(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Operator: ConditionOpEquals, Value: true}
 	err := c.Validate(false)
 	require.Error(t, err)
@@ -103,17 +125,23 @@ func TestVisibilityCondition_Validate_FieldSourceRequiresKey(t *testing.T) {
 }
 
 func TestVisibilityCondition_Validate_FieldSourceRejectsIncludes(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceField, Field: "x", Operator: ConditionOpIncludes, Value: "a"}
 	require.Error(t, c.Validate(false))
 }
 
 func TestVisibilityCondition_Validate_GradeLevelChildOnly(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: ConditionSourceGradeLevel, Operator: ConditionOpEquals, Value: 1}
 	assert.NoError(t, c.Validate(true), "valid on a per-child field")
 	require.Error(t, c.Validate(false), "rejected on a guardian-level field")
 }
 
 func TestVisibilityCondition_Validate_CareOfferingRequiresIncludes(t *testing.T) {
+	t.Parallel()
+
 	ok := &VisibilityCondition{Source: ConditionSourceCareOffering, Operator: ConditionOpIncludes, Value: "Mittagessen"}
 	assert.NoError(t, ok.Validate(true))
 
@@ -125,6 +153,8 @@ func TestVisibilityCondition_Validate_CareOfferingRequiresIncludes(t *testing.T)
 }
 
 func TestVisibilityCondition_Validate_UnknownSource(t *testing.T) {
+	t.Parallel()
+
 	c := &VisibilityCondition{Source: "weather", Operator: ConditionOpEquals, Value: "sunny"}
 	require.Error(t, c.Validate(true))
 }
@@ -136,6 +166,8 @@ func schemaWithFields(fields ...FormField) *FormSchema {
 }
 
 func TestFormSchema_Validate_ConditionReferencesBooleanField(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "has_allergy", Label: "Allergie?", Type: FormFieldBoolean, SortOrder: 0},
 		FormField{Key: "which", Label: "Welche?", Type: FormFieldText, SortOrder: 1,
@@ -145,6 +177,8 @@ func TestFormSchema_Validate_ConditionReferencesBooleanField(t *testing.T) {
 }
 
 func TestFormSchema_Validate_ConditionUnknownReference(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "which", Label: "Welche?", Type: FormFieldText, SortOrder: 0,
 			VisibleWhen: &VisibilityCondition{Source: ConditionSourceField, Field: "ghost", Operator: ConditionOpEquals, Value: true}},
@@ -155,6 +189,8 @@ func TestFormSchema_Validate_ConditionUnknownReference(t *testing.T) {
 }
 
 func TestFormSchema_Validate_ConditionSelfReference(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "loop", Label: "Loop", Type: FormFieldSelect, SortOrder: 0,
 			Options:     []FormFieldOption{{Label: "A", Value: "a"}},
@@ -166,6 +202,8 @@ func TestFormSchema_Validate_ConditionSelfReference(t *testing.T) {
 }
 
 func TestFormSchema_Validate_ConditionControllerMustBeBooleanOrSelect(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "free_text", Label: "Freitext", Type: FormFieldText, SortOrder: 0},
 		FormField{Key: "dependent", Label: "Abhängig", Type: FormFieldText, SortOrder: 1,
@@ -177,6 +215,8 @@ func TestFormSchema_Validate_ConditionControllerMustBeBooleanOrSelect(t *testing
 }
 
 func TestFormSchema_Validate_GuardianFieldCannotDependOnChildField(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "child_flag", Label: "Kind-Flag", Type: FormFieldBoolean, SortOrder: 0, AppliesToCh: true},
 		FormField{Key: "guardian_note", Label: "Eltern-Notiz", Type: FormFieldText, SortOrder: 1, AppliesToCh: false,
@@ -188,6 +228,8 @@ func TestFormSchema_Validate_GuardianFieldCannotDependOnChildField(t *testing.T)
 }
 
 func TestFormSchema_Validate_ChildFieldMayDependOnGuardianField(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "guardian_flag", Label: "Eltern-Flag", Type: FormFieldBoolean, SortOrder: 0, AppliesToCh: false},
 		FormField{Key: "child_note", Label: "Kind-Notiz", Type: FormFieldText, SortOrder: 1, AppliesToCh: true,
@@ -197,6 +239,8 @@ func TestFormSchema_Validate_ChildFieldMayDependOnGuardianField(t *testing.T) {
 }
 
 func TestFormSchema_Validate_InfoFieldWithCondition(t *testing.T) {
+	t.Parallel()
+
 	s := schemaWithFields(
 		FormField{Key: "has_allergy", Label: "Allergie?", Type: FormFieldBoolean, SortOrder: 0},
 		FormField{Key: "infotext_1", Type: FormFieldInfo, Content: "Allergiepass mitbringen.", SortOrder: 1,

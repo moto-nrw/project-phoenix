@@ -34,6 +34,8 @@ func (s *stubParentMessageThreadClaims) ClaimStaffMessageNotification(_ context.
 }
 
 func TestStaffParentMessageNotifierAddressesResponsibleStaff(t *testing.T) {
+	t.Parallel()
+
 	notifier := &captureNotifier{}
 	recipients := &stubStaffRecipients{scopes: []notifications.StaffRecipientScope{
 		{AccountID: absenceAccountA, StudentIDs: []int64{absenceStudentA}},
@@ -70,6 +72,8 @@ func TestStaffParentMessageNotifierAddressesResponsibleStaff(t *testing.T) {
 }
 
 func TestStaffParentMessageNotifierSuppressesUnclaimedThread(t *testing.T) {
+	t.Parallel()
+
 	notifier := &captureNotifier{}
 	recipients := &stubStaffRecipients{scopes: []notifications.StaffRecipientScope{
 		{AccountID: absenceAccountA, StudentIDs: []int64{absenceStudentA}},

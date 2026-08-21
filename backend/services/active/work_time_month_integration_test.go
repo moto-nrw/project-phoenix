@@ -28,8 +28,9 @@ func (s wtmIntSettings) ResolveString(context.Context, string) (string, error) {
 // minutes, sick credit, and the LIVE Übertrag (a late correction in a past
 // month immediately flows into the next month's carry).
 func TestWorkTimeMonthSummary_DB(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -45,8 +46,6 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	// Contract: Mondays 480 minutes since 2020.

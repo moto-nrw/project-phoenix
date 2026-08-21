@@ -1,70 +1,29 @@
 package suggestions_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// cleanupComments removes test comments.
-func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
-	t.Helper()
-	if len(commentIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr("suggestions.comments").
-		Where("id IN (?)", bun.List(commentIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup comments: %v", err)
-	}
-}
-
-// cleanupOperators removes test operators.
-func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
-	t.Helper()
-	if len(operatorIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr("platform.operators").
-		Where("id IN (?)", bun.List(operatorIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup operators: %v", err)
-	}
-}
-
 func TestCommentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-create-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("creates comment successfully", func(t *testing.T) {
 		comment := &suggestions.Comment{
@@ -78,7 +37,6 @@ func TestCommentRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, comment.ID, int64(0))
 		assert.NotZero(t, comment.CreatedAt)
-		defer cleanupComments(t, db, comment.ID)
 	})
 
 	t.Run("rejects nil comment", func(t *testing.T) {
@@ -113,20 +71,18 @@ func TestCommentRepository_Create(t *testing.T) {
 }
 
 func TestCommentRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbyid-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Find me!", suggestions.AuthorTypeUser)
-	defer cleanupComments(t, db, comment.ID)
 
 	t.Run("finds existing comment", func(t *testing.T) {
 		found, err := repo.FindByID(ctx, comment.ID)
@@ -146,7 +102,6 @@ func TestCommentRepository_FindByID(t *testing.T) {
 
 	t.Run("returns nil for soft-deleted comment", func(t *testing.T) {
 		deletedComment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
-		defer cleanupComments(t, db, deletedComment.ID)
 
 		err := repo.Delete(ctx, deletedComment.ID)
 		require.NoError(t, err)
@@ -158,17 +113,16 @@ func TestCommentRepository_FindByID(t *testing.T) {
 }
 
 func TestCommentRepository_FindByPostID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbypost-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	person := testpkg.CreateTestPerson(t, db, "Comment", "Author")
-	defer testpkg.CleanupTableRecords(t, db, "users.persons", person.ID)
 
 	_, err := db.NewUpdate().
 		TableExpr("users.persons").
@@ -178,15 +132,12 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 	require.NoError(t, err)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
-	defer cleanupOperators(t, db, operatorID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	comment1 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "First comment", suggestions.AuthorTypeUser)
 	comment2 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Second comment", suggestions.AuthorTypeUser)
 	internalComment := testpkg.CreateTestComment(t, db, post.ID, operatorID, "Internal note", suggestions.AuthorTypeOperator)
-	defer cleanupComments(t, db, comment1.ID, comment2.ID, internalComment.ID)
 
 	t.Run("finds all comments for a post", func(t *testing.T) {
 		comments, err := repo.FindByPostID(ctx, post.ID)
@@ -211,7 +162,6 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 
 	t.Run("returns empty slice for post with no comments", func(t *testing.T) {
 		emptyPost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Empty %d", time.Now().UnixNano()), "No comments")
-		defer cleanupPosts(t, db, emptyPost.ID)
 
 		comments, err := repo.FindByPostID(ctx, emptyPost.ID)
 		require.NoError(t, err)
@@ -220,7 +170,6 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 
 	t.Run("excludes soft-deleted comments", func(t *testing.T) {
 		deletedComment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Will be deleted", suggestions.AuthorTypeUser)
-		defer cleanupComments(t, db, deletedComment.ID)
 
 		err := repo.Delete(ctx, deletedComment.ID)
 		require.NoError(t, err)
@@ -235,21 +184,19 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 }
 
 func TestCommentRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-delete-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
-	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("soft-deletes comment successfully", func(t *testing.T) {
 		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
-		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Delete(ctx, comment.ID)
 		require.NoError(t, err)
@@ -275,7 +222,6 @@ func TestCommentRepository_Delete(t *testing.T) {
 
 	t.Run("no error when deleting already deleted comment", func(t *testing.T) {
 		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Already deleted", suggestions.AuthorTypeUser)
-		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Delete(ctx, comment.ID)
 		require.NoError(t, err)

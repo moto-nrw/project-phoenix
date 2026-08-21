@@ -9,6 +9,8 @@ import (
 // Moved from models/auth/account_test.go (TestAccount_HasRole) when the role
 // membership check left the model in issue #586 (Rule 12).
 func TestAccountHasRole(t *testing.T) {
+	t.Parallel()
+
 	account := &auth.Account{
 		Email: "test@example.com",
 		Roles: []*auth.Role{{Name: "admin"}},

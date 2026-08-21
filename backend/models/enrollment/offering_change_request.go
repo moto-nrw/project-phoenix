@@ -130,12 +130,12 @@ type OfferingChangeRequestRepository interface {
 
 	// ListPendingForTenant backs the staff review queue, ordered by effective
 	// date so the switch that lands soonest is decided first.
-	ListPendingForTenant(ctx context.Context) ([]*OfferingChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
 
 	// ListDecidedForTenant returns the tenant's decided rows (approved,
 	// rejected, withdrawn) newest-decision-first via keyset pagination on
 	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
-	ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*OfferingChangeRequest, error)
+	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
 
 	// FindByIDForUpdate locks a row by id regardless of status, so an ownership
 	// check can run on the locked row before the pending check (a foreign id

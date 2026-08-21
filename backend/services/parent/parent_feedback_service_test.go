@@ -23,7 +23,6 @@ import (
 func buildFeedbackService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -46,13 +45,13 @@ func buildFeedbackService(t *testing.T) (parentService.Service, *bun.DB) {
 // taken on trust from the client. Without this check a parent could post onto
 // (and read) the board of any school whose id they guessed.
 func TestParentFeedbackRequiresOwnSchool(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	foreignTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenant)
-	defer testpkg.CleanupTenantTestData(t, db, foreignTenant)
 
 	ctx := context.Background()
 
@@ -66,10 +65,10 @@ func TestParentFeedbackRequiresOwnSchool(t *testing.T) {
 // TestParentFeedbackRoundTrip covers the guardian's own board end to end: post,
 // read back pseudonymously, comment, and see the reply counted.
 func TestParentFeedbackRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -99,9 +98,10 @@ func TestParentFeedbackRoundTrip(t *testing.T) {
 // TestParentFeedbackSchoolsFollowChildren: the picker offers exactly the
 // schools the guardian actually has a child at.
 func TestParentFeedbackSchoolsFollowChildren(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	schools, err := svc.ListFeedbackSchools(context.Background(), chain.AccountID)
 	require.NoError(t, err)
@@ -113,10 +113,10 @@ func TestParentFeedbackSchoolsFollowChildren(t *testing.T) {
 // guardian can put it in. Read-back after each write matters here because the
 // service returns a freshly fetched row rather than the one it sent in.
 func TestParentFeedbackEntryLifecycle(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -149,10 +149,10 @@ func TestParentFeedbackEntryLifecycle(t *testing.T) {
 // database, so each step asserts the value that comes back out rather than the
 // one the client sent.
 func TestParentFeedbackVoting(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -190,10 +190,10 @@ func TestParentFeedbackVoting(t *testing.T) {
 // TestParentFeedbackThreadReadState covers the badge path: a reply is unread
 // until the guardian opens the thread, and the sidebar count has to drop with it.
 func TestParentFeedbackThreadReadState(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -281,9 +281,10 @@ func TestParentFeedbackThreadReadState(t *testing.T) {
 // account and school id from the request, so a missing one has to be refused
 // before any transaction opens — an unscoped query is the leak this prevents.
 func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 
@@ -313,7 +314,6 @@ func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
 	t.Run("foreign school on a write", func(t *testing.T) {
 		foreignTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, foreignTenant)
-		defer testpkg.CleanupTenantTestData(t, db, foreignTenant)
 
 		err := svc.CreateFeedbackComment(ctx, chain.AccountID, foreignTenant, 1, "Hallo")
 		require.ErrorIs(t, err, parentService.ErrFeedbackSchoolNotAllowed)
@@ -327,8 +327,9 @@ func TestParentFeedbackRejectsUnusableIdentifiers(t *testing.T) {
 // a missing dependency is a startup fault. It must surface as one instead of
 // panicking in a request.
 func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -338,7 +339,6 @@ func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 
@@ -363,13 +363,12 @@ func TestParentFeedbackWithoutSuggestionsWiring(t *testing.T) {
 // school must collapse into one entry, and the order has to be stable by name —
 // otherwise the picker reshuffles between requests.
 func TestParentFeedbackSchoolsDedupeAndSort(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	const (
-		musterstadtTenantID = 8801
-		altdorfTenantID     = 8802
-	)
+	db := testpkg.SetupTestDB(t)
+
+	musterstadtTenantID := testpkg.UniqueTestTenantID(t)
+	altdorfTenantID := testpkg.UniqueTestTenantID(t)
 	repo := &stubChildRepo{
 		result: []*parentModels.ChildSummary{
 			{StudentID: 5001, TenantID: musterstadtTenantID, FirstName: "Lara", SchoolName: "GS Musterstadt"},
@@ -398,10 +397,10 @@ func TestParentFeedbackSchoolsDedupeAndSort(t *testing.T) {
 // service, so the parent path has to surface its error rather than swallow it
 // and report a created entry that never landed.
 func TestParentFeedbackRejectsEmptyEntry(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildFeedbackService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	defer testpkg.CleanupTenantTestData(t, db, chain.TenantID)
 
 	ctx := context.Background()
 
@@ -418,8 +417,9 @@ func TestParentFeedbackRejectsEmptyEntry(t *testing.T) {
 // request must fail too — treating an error as "no children" would be a
 // fail-open authorization bug.
 func TestParentFeedbackChildLookupFailurePropagates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	lookupErr := errors.New("children unavailable")
 	repos := repositories.NewFactory(db)
@@ -455,8 +455,9 @@ func TestParentFeedbackChildLookupFailurePropagates(t *testing.T) {
 // schools it derived itself. A child without a school id would open an unscoped
 // transaction, so the helper has to refuse instead.
 func TestParentFeedbackUnreadCountRejectsUnusableSchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{

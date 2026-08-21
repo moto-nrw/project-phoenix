@@ -38,7 +38,7 @@ func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 func createTestDateframe(t *testing.T, db *bun.DB, name string, startDate, endDate time.Time) *schedule.Dateframe {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	df := &schedule.Dateframe{
@@ -47,7 +47,7 @@ func createTestDateframe(t *testing.T, db *bun.DB, name string, startDate, endDa
 		EndDate:     endDate,
 		Description: "Test dateframe: " + name,
 	}
-	df.SetTenantID(1)
+	df.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(df).
@@ -62,7 +62,7 @@ func createTestDateframe(t *testing.T, db *bun.DB, name string, startDate, endDa
 func createTestTimeframe(t *testing.T, db *bun.DB, startTime time.Time, endTime *time.Time, isActive bool) *schedule.Timeframe {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	tf := &schedule.Timeframe{
@@ -71,7 +71,7 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startTime time.Time, endTime 
 		IsActive:    isActive,
 		Description: "Test timeframe",
 	}
-	tf.SetTenantID(1)
+	tf.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(tf).
@@ -86,14 +86,14 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startTime time.Time, endTime 
 func createTestRecurrenceRule(t *testing.T, db *bun.DB, frequency string, intervalCount int) *schedule.RecurrenceRule {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	rr := &schedule.RecurrenceRule{
 		Frequency:     frequency,
 		IntervalCount: intervalCount,
 	}
-	rr.SetTenantID(1)
+	rr.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(rr).
@@ -104,55 +104,23 @@ func createTestRecurrenceRule(t *testing.T, db *bun.DB, frequency string, interv
 	return rr
 }
 
-// cleanupScheduleFixtures removes schedule-related test fixtures
-func cleanupScheduleFixtures(t *testing.T, db *bun.DB, dateframeIDs, timeframeIDs, recurrenceRuleIDs []int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	for _, id := range dateframeIDs {
-		_, _ = db.NewDelete().
-			Model((*schedule.Dateframe)(nil)).
-			ModelTableExpr(`schedule.dateframes`).
-			Where("id = ?", id).
-			Exec(ctx)
-	}
-
-	for _, id := range timeframeIDs {
-		_, _ = db.NewDelete().
-			Model((*schedule.Timeframe)(nil)).
-			ModelTableExpr(`schedule.timeframes`).
-			Where("id = ?", id).
-			Exec(ctx)
-	}
-
-	for _, id := range recurrenceRuleIDs {
-		_, _ = db.NewDelete().
-			Model((*schedule.RecurrenceRule)(nil)).
-			ModelTableExpr(`schedule.recurrence_rules`).
-			Where("id = ?", id).
-			Exec(ctx)
-	}
-}
-
 // ============================================================================
 // Dateframe Tests
 // ============================================================================
 
 func TestScheduleService_GetDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns dateframe for valid ID", func(t *testing.T) {
 		// ARRANGE
 		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := createTestDateframe(t, db, "GetTest", startDate, endDate)
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
 
 		// ACT
 		result, err := service.GetDateframe(ctx, df.ID)
@@ -175,11 +143,12 @@ func TestScheduleService_GetDateframe(t *testing.T) {
 }
 
 func TestScheduleService_CreateDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates dateframe successfully", func(t *testing.T) {
 		// ARRANGE
@@ -198,8 +167,6 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, df.ID)
-
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
 
 		// Verify it was created
 		retrieved, err := service.GetDateframe(ctx, df.ID)
@@ -240,18 +207,18 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 }
 
 func TestScheduleService_UpdateDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates dateframe successfully", func(t *testing.T) {
 		// ARRANGE
 		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := createTestDateframe(t, db, "UpdateTest", startDate, endDate)
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
 
 		// Update description
 		df.Description = "Updated description"
@@ -270,11 +237,12 @@ func TestScheduleService_UpdateDateframe(t *testing.T) {
 }
 
 func TestScheduleService_DeleteDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes dateframe successfully", func(t *testing.T) {
 		// ARRANGE
@@ -296,18 +264,18 @@ func TestScheduleService_DeleteDateframe(t *testing.T) {
 }
 
 func TestScheduleService_ListDateframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all dateframes", func(t *testing.T) {
 		// ARRANGE
 		startDate := timezone.Today().AddDate(0, 0, 1)
 		df1 := createTestDateframe(t, db, "List1", startDate, startDate.AddDate(0, 1, 0))
 		df2 := createTestDateframe(t, db, "List2", startDate.AddDate(0, 2, 0), startDate.AddDate(0, 3, 0))
-		defer cleanupScheduleFixtures(t, db, []int64{df1.ID, df2.ID}, nil, nil)
 
 		// ACT
 		dateframes, err := service.ListDateframes(ctx, nil)
@@ -332,11 +300,12 @@ func TestScheduleService_ListDateframes(t *testing.T) {
 }
 
 func TestScheduleService_FindDateframesByDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds dateframes containing a specific date", func(t *testing.T) {
 		// ARRANGE
@@ -344,7 +313,6 @@ func TestScheduleService_FindDateframesByDate(t *testing.T) {
 		startDate := today.AddDate(0, 0, -5)
 		endDate := today.AddDate(0, 0, 5)
 		df := createTestDateframe(t, db, "ContainsToday", startDate, endDate)
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
 
 		// ACT
 		dateframes, err := service.FindDateframesByDate(ctx, today)
@@ -366,17 +334,17 @@ func TestScheduleService_FindDateframesByDate(t *testing.T) {
 }
 
 func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds overlapping dateframes", func(t *testing.T) {
 		// ARRANGE
 		today := timezone.Today()
-		df := createTestDateframe(t, db, "Overlapping", today, today.AddDate(0, 1, 0))
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
+		createTestDateframe(t, db, "Overlapping", today, today.AddDate(0, 1, 0))
 
 		// ACT - Find dateframes overlapping with a range that includes our dateframe
 		searchStart := today.AddDate(0, 0, -5)
@@ -405,18 +373,18 @@ func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GetTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns timeframe for valid ID", func(t *testing.T) {
 		// ARRANGE
 		startTime := time.Now().Add(1 * time.Hour)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
 		// ACT
 		result, err := service.GetTimeframe(ctx, tf.ID)
@@ -438,11 +406,12 @@ func TestScheduleService_GetTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_CreateTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
@@ -461,7 +430,6 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, tf.ID)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 	})
 
 	t.Run("creates open-ended timeframe", func(t *testing.T) {
@@ -479,7 +447,6 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, tf.ID)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 	})
 
 	t.Run("rejects timeframe with end before start", func(t *testing.T) {
@@ -500,18 +467,18 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_UpdateTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
 		startTime := time.Now().Add(1 * time.Hour)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, false)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
 		// Update
 		tf.IsActive = true
@@ -532,11 +499,12 @@ func TestScheduleService_UpdateTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_DeleteTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes timeframe successfully", func(t *testing.T) {
 		// ARRANGE
@@ -558,14 +526,14 @@ func TestScheduleService_DeleteTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	start := time.Now().Add(time.Hour)
 	end := start.Add(time.Hour)
 	timeframe := createTestTimeframe(t, db, start, &end, true)
-	defer cleanupScheduleFixtures(t, db, nil, []int64{timeframe.ID}, nil)
 
 	lockCalls := 0
 	validationCalls := 0
@@ -619,20 +587,20 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 }
 
 func TestScheduleService_ListTimeframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all timeframes", func(t *testing.T) {
 		// ARRANGE
 		startTime := time.Now().Add(1 * time.Hour)
 		endTime1 := startTime.Add(2 * time.Hour)
 		endTime2 := startTime.Add(3 * time.Hour)
-		tf1 := createTestTimeframe(t, db, startTime, &endTime1, true)
-		tf2 := createTestTimeframe(t, db, startTime.Add(4*time.Hour), &endTime2, false)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf1.ID, tf2.ID}, nil)
+		createTestTimeframe(t, db, startTime, &endTime1, true)
+		createTestTimeframe(t, db, startTime.Add(4*time.Hour), &endTime2, false)
 
 		// ACT
 		timeframes, err := service.ListTimeframes(ctx, nil)
@@ -644,11 +612,12 @@ func TestScheduleService_ListTimeframes(t *testing.T) {
 }
 
 func TestScheduleService_FindActiveTimeframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active timeframes", func(t *testing.T) {
 		// ARRANGE
@@ -656,7 +625,6 @@ func TestScheduleService_FindActiveTimeframes(t *testing.T) {
 		endTime := startTime.Add(2 * time.Hour)
 		activeTF := createTestTimeframe(t, db, startTime, &endTime, true)
 		inactiveTF := createTestTimeframe(t, db, startTime.Add(3*time.Hour), &endTime, false)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{activeTF.ID, inactiveTF.ID}, nil)
 
 		// ACT
 		timeframes, err := service.FindActiveTimeframes(ctx)
@@ -679,18 +647,18 @@ func TestScheduleService_FindActiveTimeframes(t *testing.T) {
 }
 
 func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds timeframes in range", func(t *testing.T) {
 		// ARRANGE
 		startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
 		// ACT
 		searchStart := startTime.Add(-1 * time.Hour)
@@ -727,16 +695,16 @@ func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GetRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns recurrence rule for valid ID", func(t *testing.T) {
 		// ARRANGE
 		rr := createTestRecurrenceRule(t, db, schedule.FrequencyWeekly, 1)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// ACT
 		result, err := service.GetRecurrenceRule(ctx, rr.ID)
@@ -759,11 +727,12 @@ func TestScheduleService_GetRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates daily rule successfully", func(t *testing.T) {
 		// ARRANGE
@@ -778,7 +747,6 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, rr.ID)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 	})
 
 	t.Run("creates weekly rule with weekdays", func(t *testing.T) {
@@ -795,7 +763,6 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, rr.ID)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 	})
 
 	t.Run("creates monthly rule with month days", func(t *testing.T) {
@@ -812,7 +779,6 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, rr.ID)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 	})
 
 	t.Run("creates rule with count limit", func(t *testing.T) {
@@ -830,7 +796,6 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, rr.ID)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 	})
 
 	t.Run("creates rule with end date", func(t *testing.T) {
@@ -848,7 +813,6 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotZero(t, rr.ID)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 	})
 
 	t.Run("rejects invalid frequency", func(t *testing.T) {
@@ -929,16 +893,16 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates recurrence rule successfully", func(t *testing.T) {
 		// ARRANGE
 		rr := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Update
 		rr.IntervalCount = 2
@@ -957,11 +921,12 @@ func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes recurrence rule successfully", func(t *testing.T) {
 		// ARRANGE
@@ -981,17 +946,17 @@ func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_ListRecurrenceRules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all recurrence rules", func(t *testing.T) {
 		// ARRANGE
-		rr1 := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
-		rr2 := createTestRecurrenceRule(t, db, schedule.FrequencyWeekly, 2)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr1.ID, rr2.ID})
+		createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
+		createTestRecurrenceRule(t, db, schedule.FrequencyWeekly, 2)
 
 		// ACT
 		rules, err := service.ListRecurrenceRules(ctx, nil)
@@ -1003,17 +968,17 @@ func TestScheduleService_ListRecurrenceRules(t *testing.T) {
 }
 
 func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by frequency", func(t *testing.T) {
 		// ARRANGE
 		dailyRR := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
 		weeklyRR := createTestRecurrenceRule(t, db, schedule.FrequencyWeekly, 1)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{dailyRR.ID, weeklyRR.ID})
 
 		// ACT
 		rules, err := service.FindRecurrenceRulesByFrequency(ctx, schedule.FrequencyDaily)
@@ -1034,11 +999,12 @@ func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
 }
 
 func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by weekday", func(t *testing.T) {
 		// ARRANGE - Create rule with weekdays via service
@@ -1049,7 +1015,6 @@ func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// ACT
 		rules, err := service.FindRecurrenceRulesByWeekday(ctx, "MON")
@@ -1074,16 +1039,16 @@ func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GenerateEvents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("generates daily events", func(t *testing.T) {
 		// ARRANGE
 		rr := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 7) // 1 week
@@ -1105,7 +1070,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Find a Monday to start
 		startDate := timezone.Today()
@@ -1132,7 +1096,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Start from the 1st of a month
 		now := time.Now()
@@ -1158,7 +1121,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 30) // 1 month
@@ -1174,7 +1136,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 	t.Run("rejects invalid date range", func(t *testing.T) {
 		// ARRANGE
 		rr := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// ACT - End before start
 		endDate := time.Now()
@@ -1195,7 +1156,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// ACT - Search in future
 		startDate := time.Now().AddDate(0, 0, 1)
@@ -1226,7 +1186,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Use a specific date
 		startDate := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
@@ -1249,7 +1208,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Start on Feb 29 of a leap year
 		startDate := time.Date(2024, 2, 29, 0, 0, 0, 0, time.UTC)
@@ -1271,7 +1229,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 10) // 10 days
@@ -1294,7 +1251,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Find a Monday to start
 		startDate := timezone.Today()
@@ -1322,7 +1278,6 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		}
 		err := service.CreateRecurrenceRule(ctx, rr)
 		require.NoError(t, err)
-		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 30) // Request 30 days
@@ -1338,19 +1293,19 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 }
 
 func TestScheduleService_CheckConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("detects conflict with existing timeframe", func(t *testing.T) {
 		// ARRANGE - Use a far-future date to avoid conflicts with existing test data
 		baseTime := time.Date(3000, 5, 15, 10, 0, 0, 0, time.UTC)
 		startTime := baseTime
 		endTime := startTime.Add(2 * time.Hour)
-		tf := createTestTimeframe(t, db, startTime, &endTime, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
+		createTestTimeframe(t, db, startTime, &endTime, true)
 
 		// ACT - Check for conflict in overlapping range
 		checkStart := startTime.Add(30 * time.Minute)
@@ -1368,8 +1323,7 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 		baseTime := time.Date(3000, 6, 15, 10, 0, 0, 0, time.UTC)
 		startTime := baseTime
 		endTime := startTime.Add(2 * time.Hour)
-		tf := createTestTimeframe(t, db, startTime, &endTime, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
+		createTestTimeframe(t, db, startTime, &endTime, true)
 
 		// ACT - Check for conflict outside the timeframe and outside seeded
 		// daytime slots. schedule.timeframes stores wall-clock TIME values, so
@@ -1396,11 +1350,12 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 }
 
 func TestScheduleService_FindAvailableSlots(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds available slots between timeframes", func(t *testing.T) {
 		// ARRANGE - Create two timeframes with a gap
@@ -1409,9 +1364,8 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 		startTime2 := baseTime.Add(3 * time.Hour)
 		endTime2 := baseTime.Add(4 * time.Hour)
 
-		tf1 := createTestTimeframe(t, db, baseTime, &endTime1, true)
-		tf2 := createTestTimeframe(t, db, startTime2, &endTime2, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf1.ID, tf2.ID}, nil)
+		createTestTimeframe(t, db, baseTime, &endTime1, true)
+		createTestTimeframe(t, db, startTime2, &endTime2, true)
 
 		// ACT - Find slots of at least 1 hour
 		searchStart := baseTime.Add(-1 * time.Hour)
@@ -1425,11 +1379,13 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 	})
 
 	t.Run("returns empty when no slots available", func(t *testing.T) {
+		// Own tenant: the previous subtest's timeframes would otherwise still
+		// be in this one's search window (#2419).
+		ctx := testpkg.OwnCtx(t)
 		// ARRANGE - Create a continuous timeframe
 		startTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(10 * time.Hour)
-		tf := createTestTimeframe(t, db, startTime, &endTime, true)
-		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
+		createTestTimeframe(t, db, startTime, &endTime, true)
 
 		// ACT - Find slots that don't fit
 		searchStart := startTime
@@ -1464,19 +1420,19 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 }
 
 func TestScheduleService_GetCurrentDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns current dateframe when exists", func(t *testing.T) {
 		// ARRANGE - Create a dateframe that includes today
 		today := timezone.Today()
 		startDate := today.AddDate(0, 0, -5)
 		endDate := today.AddDate(0, 0, 5)
-		df := createTestDateframe(t, db, "Current", startDate, endDate)
-		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
+		createTestDateframe(t, db, "Current", startDate, endDate)
 
 		// ACT
 		result, err := service.GetCurrentDateframe(ctx)

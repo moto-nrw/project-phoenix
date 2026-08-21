@@ -15,6 +15,8 @@ import (
 // Without the pointer + Bind guard a "{}" body would decode to a nil slice and
 // silently wipe the day's stored dishes.
 func TestSetDayRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		body       string

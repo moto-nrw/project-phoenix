@@ -69,7 +69,7 @@ jobs:
         if: steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
@@ -96,7 +96,7 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
@@ -117,8 +117,10 @@ jobs:
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           # The route-table golden builds the production API, whose serve
-          # connection uses the role created above with this password.
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          # connection uses the role created above with this password. The
+          # value must stay identical to testdb.AuthRolePassword — the test
+          # lifecycle pins the cluster-global phoenix_auth role to it.
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and
@@ -134,10 +136,18 @@ jobs:
         # gotestsum is a go.mod tool directive, so its whole dependency
         # graph is locked by go.sum (sonar githubactions:S8545).
         run: |
+          # -p/-parallel are pinned, not left at GOMAXPROCS: `go test` runs
+          # -p package binaries at once and each opens (-parallel + headroom)
+          # connections plus a keeper. 6 x 13 = 78 fits the 100 connections a
+          # stock postgres:17 service container allows and leaves 22 for
+          # lifecycle and maintenance sessions.
+          # scripts/test-backend.sh owns these numbers — change them there
+          # first, then mirror. CI cannot call the wrapper: it needs the
+          # coverage flags and does its own DB snapshot restore.
           go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
-            -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+            -- -p 6 -parallel 8 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Fix Go coverage paths for SonarCloud
         if: ${{ always() && hashFiles('backend/coverage.out') != '' }}
@@ -231,3 +241,144 @@ jobs:
           path: frontend/coverage/lcov.info
           retention-days: 7
         if: always()
+
+  # The seeder is the widest end-to-end path in this repo: roughly a hundred
+  # real API calls across auth, enrollment, parent portal, time tracking and
+  # IoT. Until this job existed it ran nowhere automatically, so a tightened
+  # request contract could break it unnoticed — a mandatory `reason` field on
+  # the parent pickup-change endpoint did exactly that in July 2026 and only
+  # surfaced a month later, when a developer seeded by hand.
+  seed-smoke:
+    name: Seed & simulate smoke
+    if: ${{ inputs.run-backend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_seed
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        # Operator login enrolls MFA and reads the code back out of mailpit's
+        # REST API, so the seeder cannot authenticate without a mail sink.
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+      PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      # validateServeConfig() in cmd/serve.go requires every one of these:
+      # there are no fallback defaults anywhere in this codebase.
+      PORT: "8080"
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "true"
+      AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 168h
+      # Read by os.Getenv in migration 001011003, which creates the operator
+      # account the seeder logs in with.
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_PASSWORD: SeedSmoke1234%
+      OPERATOR_DISPLAY_NAME: CI Operator
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: SeedSmoke1234%
+      FRONTEND_URL: http://localhost:3000
+      PARENTS_URL: http://parents.localhost:3000
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
+      NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      TENANT_DOMAIN: localhost
+      # api/server.go refuses to build the server without it.
+      METRICS_BEARER_TOKEN: ci-metrics-token
+      # No tenant override exists on a fresh seed, so device auth falls back to
+      # this env var. It must match the seeder's --pin, or every RFID call in
+      # the simulation returns 401.
+      OGS_DEVICE_PIN: "1234"
+      EMAIL_SMTP_HOST: localhost
+      EMAIL_SMTP_PORT: 1025
+      EMAIL_FROM_ADDRESS: noreply@localhost
+      EMAIL_FROM_NAME: moto CI
+      MAILPIT_URL: http://localhost:8025
+      # The schedulers would mutate seeded rows behind the coverage check.
+      CLEANUP_SCHEDULER_ENABLED: "false"
+      SESSION_END_SCHEDULER_ENABLED: "false"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build backend binary
+        working-directory: backend
+        run: go build -o "${RUNNER_TEMP}/phoenix" .
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" migrate
+
+      - name: Start server
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "server up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy in 60s"
+          exit 1
+
+      - name: Seed demo data
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" seed \
+            --email "${OPERATOR_EMAIL}" \
+            --password "${OPERATOR_PASSWORD}" \
+            --pin 1234 \
+            --url http://localhost:8080 \
+            --tenant-slug demo-school \
+            --staff-password 'SeedSmoke1234%' \
+            --admin-email school-admin@example.com
+
+      - name: Simulate a full care day
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate full-day
+
+      - name: Check seed coverage ratchet
+        working-directory: backend
+        env:
+          SEED_COVERAGE_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+        run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+
+      - name: Server log
+        if: always()
+        run: tail -n 200 "${RUNNER_TEMP}/server.log" || true
+
+      - name: Stop server
+        if: always()
+        run: kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true

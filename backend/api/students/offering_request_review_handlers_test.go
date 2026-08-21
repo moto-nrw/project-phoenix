@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -45,12 +45,16 @@ func (f *fakeOfferingChangeRequestService) Withdraw(context.Context, int64, int6
 	return nil
 }
 
-func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, time.Time, int64, int) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
+func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
 	return nil, nil, nil
 }
 
-func (f *fakeOfferingChangeRequestService) ListPending(context.Context) ([]*enrollmentService.OfferingChangeView, error) {
-	return nil, nil
+func (f *fakeOfferingChangeRequestService) ListDirectCorrections(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
+}
+
+func (f *fakeOfferingChangeRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
+	return nil, nil, nil
 }
 
 func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, error) {
@@ -72,6 +76,8 @@ func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context
 }
 
 func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeOfferingChangeRequestService{}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true}`))
@@ -90,6 +96,8 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 }
 
 func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeOfferingChangeRequestService{preview: []enrollmentService.OfferingChangePreviewSelection{{
 		OfferingID: 11,
 		State:      "booked",
@@ -112,6 +120,8 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 }
 
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request: &enrollmentModels.OfferingChangeRequest{},
 		Diff: []enrollmentService.OfferingChangeDiffEntry{{
@@ -136,6 +146,8 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 }
 
 func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request:        &enrollmentModels.OfferingChangeRequest{},
 		FullWithdrawal: true,
@@ -167,6 +179,8 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 }
 
 func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *testing.T) {
+	t.Parallel()
+
 	view := &enrollmentService.OfferingChangeView{
 		Request: &enrollmentModels.OfferingChangeRequest{},
 		Diff: []enrollmentService.OfferingChangeDiffEntry{{

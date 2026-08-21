@@ -19,6 +19,8 @@ import (
 // =============================================================================
 
 func TestFindRoomForActivity_KnownActivity(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{
 		"OGS-Raum 1": 10,
 		"OGS-Raum 3": 15,
@@ -33,6 +35,8 @@ func TestFindRoomForActivity_KnownActivity(t *testing.T) {
 }
 
 func TestFindRoomForActivity_AllMappings(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{
 		"OGS-Raum 1":    1,
 		"OGS-Raum 2":    2,
@@ -67,20 +71,28 @@ func TestFindRoomForActivity_AllMappings(t *testing.T) {
 }
 
 func TestFindRoomForActivity_UnknownActivity(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{"OGS-Raum 1": 1}
 	assert.Equal(t, int64(0), findRoomForActivity("Schwimmen", rooms))
 }
 
 func TestFindRoomForActivity_MissingRoom(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{} // Room "OGS-Raum 1" not in map
 	assert.Equal(t, int64(0), findRoomForActivity("Hausaufgaben", rooms))
 }
 
 func TestFindRoomForActivity_EmptyRooms(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, int64(0), findRoomForActivity("Fußball", map[string]int64{}))
 }
 
 func TestFindRoomForActivity_EmptyActivity(t *testing.T) {
+	t.Parallel()
+
 	rooms := map[string]int64{"OGS-Raum 1": 1}
 	assert.Equal(t, int64(0), findRoomForActivity("", rooms))
 }
@@ -90,6 +102,8 @@ func TestFindRoomForActivity_EmptyActivity(t *testing.T) {
 // =============================================================================
 
 func TestSortedDeviceKeys_SortsAlphabetically(t *testing.T) {
+	t.Parallel()
+
 	devices := map[string]seedapi.SeedDevice{
 		"demo-device-003": {APIKey: "k3"},
 		"demo-device-001": {APIKey: "k1"},
@@ -101,11 +115,15 @@ func TestSortedDeviceKeys_SortsAlphabetically(t *testing.T) {
 }
 
 func TestSortedDeviceKeys_Empty(t *testing.T) {
+	t.Parallel()
+
 	keys := sortedDeviceKeys(map[string]seedapi.SeedDevice{})
 	assert.Empty(t, keys)
 }
 
 func TestSortedDeviceKeys_Single(t *testing.T) {
+	t.Parallel()
+
 	devices := map[string]seedapi.SeedDevice{
 		"only-device": {APIKey: "k1"},
 	}
@@ -118,6 +136,8 @@ func TestSortedDeviceKeys_Single(t *testing.T) {
 // =============================================================================
 
 func TestSortedStringKeys_SortsAlphabetically(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]int64{
 		"Fußball":      1,
 		"Basteln":      2,
@@ -129,11 +149,15 @@ func TestSortedStringKeys_SortsAlphabetically(t *testing.T) {
 }
 
 func TestSortedStringKeys_Empty(t *testing.T) {
+	t.Parallel()
+
 	keys := sortedStringKeys(map[string]int64{})
 	assert.Empty(t, keys)
 }
 
 func TestSortedStringKeys_Single(t *testing.T) {
+	t.Parallel()
+
 	m := map[string]int64{"only": 1}
 	keys := sortedStringKeys(m)
 	assert.Equal(t, []string{"only"}, keys)
@@ -144,6 +168,8 @@ func TestSortedStringKeys_Single(t *testing.T) {
 // =============================================================================
 
 func TestRunFullDay_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := simulationAPIMock(t)
 	defer srv.Close()
 
@@ -195,6 +221,8 @@ func TestRunFullDay_Success(t *testing.T) {
 }
 
 func TestRunFullDay_WithClose(t *testing.T) {
+	t.Parallel()
+
 	srv := simulationAPIMock(t)
 	defer srv.Close()
 
@@ -224,6 +252,8 @@ func TestRunFullDay_WithClose(t *testing.T) {
 }
 
 func TestRunFullDay_NoAdminAccounts(t *testing.T) {
+	t.Parallel()
+
 	srv := simulationAPIMock(t)
 	defer srv.Close()
 
@@ -242,12 +272,16 @@ func TestRunFullDay_NoAdminAccounts(t *testing.T) {
 }
 
 func TestRunFullDay_InvalidStatePath(t *testing.T) {
+	t.Parallel()
+
 	err := RunFullDay(context.Background(), FullDayOptions{StatePath: "/nonexistent/state.json"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load seed state")
 }
 
 func TestRunFullDay_NoDevices(t *testing.T) {
+	t.Parallel()
+
 	srv := simulationAPIMock(t)
 	defer srv.Close()
 
@@ -313,6 +347,8 @@ func simulationAPIMock(t *testing.T) *httptest.Server {
 }
 
 func TestRunFullDay_ManyStudents(t *testing.T) {
+	t.Parallel()
+
 	srv := simulationAPIMock(t)
 	defer srv.Close()
 
@@ -368,6 +404,8 @@ func TestRunFullDay_ManyStudents(t *testing.T) {
 }
 
 func TestRunFullDay_ServerHealthFails(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
 
@@ -385,6 +423,8 @@ func TestRunFullDay_ServerHealthFails(t *testing.T) {
 }
 
 func TestRunFullDay_LoginFails(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -414,6 +454,8 @@ func TestRunFullDay_LoginFails(t *testing.T) {
 // =============================================================================
 
 func TestFullDayOptions_Defaults(t *testing.T) {
+	t.Parallel()
+
 	opts := FullDayOptions{
 		StatePath: ".seed-state.json",
 		Close:     false,
@@ -426,6 +468,8 @@ func TestFullDayOptions_Defaults(t *testing.T) {
 }
 
 func TestFullDayOptions_WithClose(t *testing.T) {
+	t.Parallel()
+
 	opts := FullDayOptions{
 		StatePath: "/tmp/state.json",
 		Close:     true,

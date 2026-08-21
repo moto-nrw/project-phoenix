@@ -16,6 +16,8 @@ import (
 
 // Tests for isNotFoundError helper
 func TestIsNotFoundError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true for DatabaseError with sql.ErrNoRows", func(t *testing.T) {
 		err := &base.DatabaseError{
 			Op:  "find by id",
@@ -73,6 +75,8 @@ func TestIsNotFoundError(t *testing.T) {
 // short-circuits inside the app-level ensureStudentHasNoActiveVisit
 // check and never reaches visitRepo.Create.
 func TestIsDuplicateActiveVisitViolation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns false for nil error", func(t *testing.T) {
 		assert.False(t, isDuplicateActiveVisitViolation(nil))
 	})
@@ -88,9 +92,8 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 
 	t.Run("returns true for real 23505 violation on uniq_active_visits_open_per_student", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		repo := repositories.NewFactory(db).ActiveVisit
 
 		// Hermetic fixtures.
@@ -98,11 +101,9 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "DupViolActivity")
 		room := testpkg.CreateTestRoom(t, db, "DupViolRoom")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, activity.ID, room.ID, activeGroup.ID)
 
 		// First insert: succeeds and stays open (exit_time IS NULL).
-		first := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
-		defer testpkg.CleanupTableRecords(t, db, "active.visits", first.ID)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
 
 		// Second insert: same (tenant_id=1, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.

@@ -18,38 +18,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func cleanupWCRoomAliasIntegrationArtifacts(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name IN ('%s', '%s'))`, constants.WCRoomName, constants.WCRoomAliasName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name IN ('%s', '%s'))`, constants.WCRoomName, constants.WCRoomAliasName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name IN ('%s', '%s'))`, constants.WCRoomName, constants.WCRoomAliasName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name IN ('%s', '%s'))`, constants.WCRoomName, constants.WCRoomAliasName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name IN ('%s', '%s')`, constants.WCRoomName, constants.WCRoomAliasName),
-	}
-
-	for _, stmt := range stmts {
-		_, _ = db.ExecContext(dbCtx, stmt)
-	}
-}
-
 func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(room).
@@ -60,25 +37,21 @@ func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *fa
 	return room
 }
 
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
-	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-auto")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Toilette", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Toilette", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("TOI%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)
@@ -118,25 +91,21 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	assert.Nil(t, activeGroup.DeviceID)
 }
 
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
-	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-no-dup")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Alias", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Alias", "Student", "1b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("TOD%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)
@@ -162,7 +131,7 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	err := ctx.db.NewSelect().
 		TableExpr(`facilities.rooms AS "room"`).
 		ColumnExpr(`COUNT(*)`).
-		Where(`"room".tenant_id = ?`, 1).
+		Where(`"room".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"room".name IN (?, ?)`, constants.WCRoomName, constants.WCRoomAliasName).
 		Scan(context.Background(), &aliasCount)
 	require.NoError(t, err)

@@ -11,10 +11,8 @@ import (
 
 func TestNormalizeRoomCapacityMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTestTenant(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, normalizeRoomCapacityDown(ctx, db))

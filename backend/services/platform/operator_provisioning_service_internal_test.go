@@ -287,6 +287,8 @@ func newPgErrorWithConstraint(code, constraintName string) error {
 // ---------------------------------------------------------------------------
 
 func TestNormalizeAdminInviteRequest(t *testing.T) {
+	t.Parallel()
+
 	req := normalizeAdminInviteRequest(authSvc.InvitationRequest{Email: " Principal@Example.com "}, 4, 9)
 	assert.Equal(t, "principal@example.com", req.Email)
 	assert.Equal(t, int64(4), req.RoleID)
@@ -294,6 +296,8 @@ func TestNormalizeAdminInviteRequest(t *testing.T) {
 }
 
 func TestIsSchoolLookupNotFound(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isLookupNotFound(sql.ErrNoRows))
 	assert.True(t, isLookupNotFound(&modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}))
 	assert.False(t, isLookupNotFound(assert.AnError))
@@ -301,6 +305,8 @@ func TestIsSchoolLookupNotFound(t *testing.T) {
 }
 
 func TestMapSchoolCreateConflict_NilSchool(t *testing.T) {
+	t.Parallel()
+
 	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{}, nil)
 	require.Error(t, err)
 	var conflictErr *ConflictError
@@ -308,6 +314,8 @@ func TestMapSchoolCreateConflict_NilSchool(t *testing.T) {
 }
 
 func TestMapSchoolCreateConflict_SlugConflict(t *testing.T) {
+	t.Parallel()
+
 	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{
 		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
 			return &platformModels.School{Model: modelBase.Model{ID: 1}, Name: "Existing"}, nil
@@ -325,6 +333,8 @@ func TestMapSchoolCreateConflict_SlugConflict(t *testing.T) {
 }
 
 func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
+	t.Parallel()
+
 	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{
 		FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 			return &platformModels.School{Model: modelBase.Model{ID: 2}, Name: "Existing"}, nil
@@ -342,6 +352,8 @@ func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
 }
 
 func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
+	t.Parallel()
+
 	service := &operatorProvisioningService{}
 	called := false
 	err := tenant.WithAdminTxOrDirect(context.Background(), service.adminDB(), func(context.Context) error {
@@ -353,6 +365,8 @@ func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
 }
 
 func TestGetLogger_Default(t *testing.T) {
+	t.Parallel()
+
 	service := &operatorProvisioningService{}
 	assert.NotNil(t, service.getLogger())
 }
@@ -362,21 +376,29 @@ func TestGetLogger_Default(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateWebManualDevice_NilDeviceRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	require.NoError(t, svc.createWebManualDevice(context.Background(), 1))
 }
 
 func TestCreateWebManualDevice_ZeroTenantID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{}}}
 	require.NoError(t, svc.createWebManualDevice(context.Background(), 0))
 }
 
 func TestCreateWebManualDevice_NegativeTenantID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{}}}
 	require.NoError(t, svc.createWebManualDevice(context.Background(), -1))
 }
 
 func TestCreateWebManualDevice_Success(t *testing.T) {
+	t.Parallel()
+
 	var created *iotModels.Device
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		createFn: func(_ context.Context, device *iotModels.Device) error {
@@ -397,6 +419,8 @@ func TestCreateWebManualDevice_Success(t *testing.T) {
 }
 
 func TestCreateWebManualDevice_UniqueViolation(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		createFn: func(context.Context, *iotModels.Device) error {
 			return newPgError("23505")
@@ -407,6 +431,8 @@ func TestCreateWebManualDevice_UniqueViolation(t *testing.T) {
 }
 
 func TestCreateWebManualDevice_CreateError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		createFn: func(context.Context, *iotModels.Device) error {
 			return assert.AnError
@@ -424,16 +450,22 @@ func TestCreateWebManualDevice_CreateError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSeedDefaultActivityCategories_NilCategoryRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	require.NoError(t, svc.seedDefaultActivityCategories(context.Background(), 1))
 }
 
 func TestSeedDefaultActivityCategories_ZeroTenantID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{CategoryRepo: &internalCategoryRepoStub{}}}
 	require.NoError(t, svc.seedDefaultActivityCategories(context.Background(), 0))
 }
 
 func TestSeedDefaultActivityCategories_UniqueViolationSkipped(t *testing.T) {
+	t.Parallel()
+
 	var count int
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{CategoryRepo: &internalCategoryRepoStub{
 		createFn: func(context.Context, *activityModels.Category) error {
@@ -460,6 +492,8 @@ func TestSeedDefaultActivityCategories_UniqueViolationSkipped(t *testing.T) {
 // "Mensa" category, otherwise Termine for lunch have no fitting
 // Pflichtkategorie to select.
 func TestSeedDefaultActivityCategories_IncludesMensa(t *testing.T) {
+	t.Parallel()
+
 	var seeded []string
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{CategoryRepo: &internalCategoryRepoStub{
 		createFn: func(_ context.Context, category *activityModels.Category) error {
@@ -477,6 +511,8 @@ func TestSeedDefaultActivityCategories_IncludesMensa(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsUniqueViolation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -510,6 +546,8 @@ func TestIsUniqueViolation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestResolveSystemRoleByName_NilRoleSkipped(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{nil}, nil
@@ -522,6 +560,8 @@ func TestResolveSystemRoleByName_NilRoleSkipped(t *testing.T) {
 }
 
 func TestResolveSystemRoleByName_NameMismatch(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{
@@ -536,7 +576,9 @@ func TestResolveSystemRoleByName_NameMismatch(t *testing.T) {
 }
 
 func TestResolveSystemRoleByName_TenantSpecificSkipped(t *testing.T) {
-	tenantID := int64(5)
+	t.Parallel()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{
@@ -551,6 +593,8 @@ func TestResolveSystemRoleByName_TenantSpecificSkipped(t *testing.T) {
 }
 
 func TestResolveSystemRoleByName_NonSystemSkipped(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{
@@ -565,6 +609,8 @@ func TestResolveSystemRoleByName_NonSystemSkipped(t *testing.T) {
 }
 
 func TestResolveSystemRoleByName_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return nil, assert.AnError
@@ -577,6 +623,8 @@ func TestResolveSystemRoleByName_RepoError(t *testing.T) {
 }
 
 func TestResolveSystemRoleByName_Success(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return []*authModels.Role{
@@ -592,6 +640,8 @@ func TestResolveSystemRoleByName_Success(t *testing.T) {
 }
 
 func TestListSystemRoles_Error(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{RoleRepo: &internalRoleRepoStub{
 		listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
 			return nil, assert.AnError
@@ -609,6 +659,8 @@ func TestListSystemRoles_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLogAction_AuditLogError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{AuditLogRepo: &internalAuditLogRepoStub{
 		createFn: func(context.Context, *platformModels.OperatorAuditLog) error {
 			return assert.AnError
@@ -623,6 +675,8 @@ func TestLogAction_AuditLogError(t *testing.T) {
 }
 
 func TestLogAction_EmptyChanges(t *testing.T) {
+	t.Parallel()
+
 	var entry *platformModels.OperatorAuditLog
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{AuditLogRepo: &internalAuditLogRepoStub{
 		createFn: func(_ context.Context, e *platformModels.OperatorAuditLog) error {
@@ -638,6 +692,8 @@ func TestLogAction_EmptyChanges(t *testing.T) {
 }
 
 func TestLogAction_WithChanges(t *testing.T) {
+	t.Parallel()
+
 	var entry *platformModels.OperatorAuditLog
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{AuditLogRepo: &internalAuditLogRepoStub{
 		createFn: func(_ context.Context, e *platformModels.OperatorAuditLog) error {
@@ -659,6 +715,8 @@ func TestLogAction_WithChanges(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMapSchoolCreateConflict_GenericFallthrough(t *testing.T) {
+	t.Parallel()
+
 	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{}, &platformModels.School{
 		OrganizationID: 2,
 		Name:           "School",
@@ -676,6 +734,8 @@ func TestMapSchoolCreateConflict_GenericFallthrough(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoadActiveSchool_SqlErrNoRows(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, sql.ErrNoRows
@@ -689,6 +749,8 @@ func TestLoadActiveSchool_SqlErrNoRows(t *testing.T) {
 }
 
 func TestLoadActiveSchool_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
@@ -702,6 +764,8 @@ func TestLoadActiveSchool_DatabaseError(t *testing.T) {
 }
 
 func TestLoadActiveSchool_GenericError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
@@ -718,6 +782,8 @@ func TestLoadActiveSchool_GenericError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateOrganization_NilInput(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	org, err := svc.CreateOrganization(context.Background(), nil, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -726,6 +792,8 @@ func TestCreateOrganization_NilInput(t *testing.T) {
 }
 
 func TestCreateOrganization_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
 		Name: "",
@@ -737,6 +805,8 @@ func TestCreateOrganization_ValidationError(t *testing.T) {
 }
 
 func TestCreateOrganization_FindBySlugError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, assert.AnError
@@ -751,6 +821,8 @@ func TestCreateOrganization_FindBySlugError(t *testing.T) {
 }
 
 func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
@@ -769,6 +841,8 @@ func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 }
 
 func TestCreateOrganization_CreateError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
@@ -790,6 +864,8 @@ func TestCreateOrganization_CreateError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateSchool_NilInput(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	school, err := svc.CreateSchool(context.Background(), nil, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, school)
@@ -798,6 +874,8 @@ func TestCreateSchool_NilInput(t *testing.T) {
 }
 
 func TestCreateSchool_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	school, err := svc.CreateSchool(context.Background(), &platformModels.School{
 		Name:           "",
@@ -811,6 +889,8 @@ func TestCreateSchool_ValidationError(t *testing.T) {
 }
 
 func TestCreateSchool_OrgFindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
@@ -829,6 +909,8 @@ func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 }
 
 func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
@@ -852,6 +934,8 @@ func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 }
 
 func TestCreateSchool_DeviceCreateError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
@@ -880,6 +964,8 @@ func TestCreateSchool_DeviceCreateError(t *testing.T) {
 }
 
 func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
+	t.Parallel()
+
 	var deviceCreated bool
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -915,6 +1001,8 @@ func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInviteSchoolAdmin_RoleRepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
@@ -940,6 +1028,8 @@ func TestInviteSchoolAdmin_RoleRepoError(t *testing.T) {
 }
 
 func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
@@ -975,6 +1065,8 @@ func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEnsureSchoolSlugAvailable_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
 			return nil, assert.AnError
@@ -986,6 +1078,8 @@ func TestEnsureSchoolSlugAvailable_RepoError(t *testing.T) {
 }
 
 func TestEnsureSchoolSubdomainAvailable_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 			return nil, assert.AnError
@@ -1001,6 +1095,8 @@ func TestEnsureSchoolSubdomainAvailable_RepoError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateSchool_CreateNonUniqueError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
@@ -1027,6 +1123,8 @@ func TestCreateSchool_CreateNonUniqueError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 	// Put a non-nil tx pointer in context so TxFromContext returns true
 	tx := bun.Tx{}
@@ -1045,6 +1143,8 @@ func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsSchoolLookupNotFound_DatabaseErrorNonNoRows(t *testing.T) {
+	t.Parallel()
+
 	err := &modelBase.DatabaseError{Op: "find", Err: assert.AnError}
 	assert.False(t, isLookupNotFound(err))
 }
@@ -1054,6 +1154,8 @@ func TestIsSchoolLookupNotFound_DatabaseErrorNonNoRows(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMaskAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		key  *string
@@ -1078,16 +1180,22 @@ func TestMaskAPIKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEnrichDeviceInfo_EmptySlice(t *testing.T) {
+	t.Parallel()
+
 	result := enrichDeviceInfo([]OperatorDeviceInfo{})
 	assert.Empty(t, result)
 }
 
 func TestEnrichDeviceInfo_NilSlice(t *testing.T) {
+	t.Parallel()
+
 	result := enrichDeviceInfo(nil)
 	assert.Nil(t, result)
 }
 
 func TestEnrichDeviceInfo_NilLastSeen(t *testing.T) {
+	t.Parallel()
+
 	apiKey := "abcdef1234567890"
 	devices := []OperatorDeviceInfo{
 		{ID: 1, DeviceID: "dev-1", APIKey: &apiKey, LastSeen: nil},
@@ -1099,6 +1207,8 @@ func TestEnrichDeviceInfo_NilLastSeen(t *testing.T) {
 }
 
 func TestEnrichDeviceInfo_LastSeenWithin5Min(t *testing.T) {
+	t.Parallel()
+
 	recent := time.Now().Add(-2 * time.Minute)
 	devices := []OperatorDeviceInfo{
 		{ID: 1, DeviceID: "dev-1", LastSeen: &recent},
@@ -1109,6 +1219,8 @@ func TestEnrichDeviceInfo_LastSeenWithin5Min(t *testing.T) {
 }
 
 func TestEnrichDeviceInfo_LastSeenOlderThan5Min(t *testing.T) {
+	t.Parallel()
+
 	old := time.Now().Add(-10 * time.Minute)
 	devices := []OperatorDeviceInfo{
 		{ID: 1, DeviceID: "dev-1", LastSeen: &old},
@@ -1119,6 +1231,8 @@ func TestEnrichDeviceInfo_LastSeenOlderThan5Min(t *testing.T) {
 }
 
 func TestEnrichDeviceInfo_MultipleDevices(t *testing.T) {
+	t.Parallel()
+
 	recent := time.Now().Add(-1 * time.Minute)
 	old := time.Now().Add(-10 * time.Minute)
 	key1 := "shortkey"
@@ -1143,6 +1257,8 @@ func TestEnrichDeviceInfo_MultipleDevices(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestQueryDevices_NoWhereClause(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1165,6 +1281,8 @@ func TestQueryDevices_NoWhereClause(t *testing.T) {
 }
 
 func TestQueryDevices_WithWhereClause(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1187,6 +1305,8 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 }
 
 func TestQueryDevices_ScanError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1205,6 +1325,8 @@ func TestQueryDevices_ScanError(t *testing.T) {
 }
 
 func TestQueryDevices_UsesTxFromContext(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1240,6 +1362,8 @@ func TestQueryDevices_UsesTxFromContext(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestListAllDevices_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1270,6 +1394,8 @@ func TestListAllDevices_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestListSchoolDevices_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1311,6 +1437,8 @@ func TestListSchoolDevices_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestListOrganizationDevices_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1345,6 +1473,8 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsAPIKeyConstraintViolation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -1383,6 +1513,8 @@ func TestIsAPIKeyConstraintViolation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 
 	t.Run("schoolID <= 0", func(t *testing.T) {
@@ -1423,6 +1555,8 @@ func TestCreateDevice_InvalidInput(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_SchoolNotFound(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, nil // nil school, no error
@@ -1437,6 +1571,8 @@ func TestCreateDevice_SchoolNotFound(t *testing.T) {
 }
 
 func TestCreateDevice_SchoolNotFound_SqlErrNoRows(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, sql.ErrNoRows
@@ -1454,6 +1590,8 @@ func TestCreateDevice_SchoolNotFound_SqlErrNoRows(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_Success_AutoKey(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1521,6 +1659,8 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_Success_ManualKey(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1580,6 +1720,8 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_DuplicateDeviceID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
@@ -1611,6 +1753,8 @@ func TestCreateDevice_DuplicateDeviceID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1670,6 +1814,8 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_ManualKeyConflict(t *testing.T) {
+	t.Parallel()
+
 	manualKey := "my-conflicting-key"
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -1701,6 +1847,8 @@ func TestCreateDevice_ManualKeyConflict(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetDeviceAPIKey_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 
 	t.Run("id zero", func(t *testing.T) {
@@ -1724,6 +1872,8 @@ func TestSetDeviceAPIKey_InvalidID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetDeviceAPIKey_DeviceNotFound(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil device returned", func(t *testing.T) {
 		svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 			findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
@@ -1770,6 +1920,8 @@ func TestSetDeviceAPIKey_DeviceNotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1830,6 +1982,8 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1889,6 +2043,8 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
+	t.Parallel()
+
 	manualKey := "conflicting-key"
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
@@ -1921,6 +2077,8 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1942,6 +2100,8 @@ func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
 }
 
 func TestQueryDeviceSingle_NoRows(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -1970,6 +2130,8 @@ func TestQueryDeviceSingle_NoRows(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeleteDevice_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{}
 
 	err := svc.DeleteDevice(context.Background(), 0, 1, net.IPv4(127, 0, 0, 1))
@@ -1979,6 +2141,8 @@ func TestDeleteDevice_InvalidID(t *testing.T) {
 }
 
 func TestDeleteDevice_NotFound(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		findByID func(context.Context, interface{}) (*iotModels.Device, error)
@@ -2019,6 +2183,8 @@ func TestDeleteDevice_NotFound(t *testing.T) {
 }
 
 func TestDeleteDevice_ProtectedDevice(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
@@ -2037,6 +2203,8 @@ func TestDeleteDevice_ProtectedDevice(t *testing.T) {
 }
 
 func TestDeleteDevice_DeleteErrors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign key violation becomes device in use", func(t *testing.T) {
 		device := &iotModels.Device{
 			Model:      modelBase.Model{ID: 10},
@@ -2087,6 +2255,8 @@ func TestDeleteDevice_DeleteErrors(t *testing.T) {
 }
 
 func TestDeleteDevice_Success(t *testing.T) {
+	t.Parallel()
+
 	var deletedID interface{}
 	var auditEntry *platformModels.OperatorAuditLog
 	device := &iotModels.Device{
@@ -2125,6 +2295,8 @@ func TestDeleteDevice_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSoftDeleteSchool_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
@@ -2137,6 +2309,8 @@ func TestSoftDeleteSchool_FindByIDError(t *testing.T) {
 }
 
 func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
@@ -2163,6 +2337,8 @@ func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
 }
 
 func TestRestoreSchool_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
@@ -2175,6 +2351,8 @@ func TestRestoreSchool_FindByIDError(t *testing.T) {
 }
 
 func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
+	t.Parallel()
+
 	deletedAt := time.Now()
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2216,6 +2394,8 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
@@ -2228,6 +2408,8 @@ func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 }
 
 func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
@@ -2256,6 +2438,8 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 }
 
 func TestRestoreOrganization_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
@@ -2268,6 +2452,8 @@ func TestRestoreOrganization_FindByIDError(t *testing.T) {
 }
 
 func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
+	t.Parallel()
+
 	deletedAt := time.Now()
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -2304,6 +2490,8 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 // Nothing reaches this decision with that role — every school-access path
 // refuses it before provisioning (ErrRoleLegacyTeacherNotAssignable).
 func TestIsPlatformCaregiverRole(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		roleName string
@@ -2336,6 +2524,8 @@ func TestIsPlatformCaregiverRole(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGenerateRandomSuffix(t *testing.T) {
+	t.Parallel()
+
 	const validChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 	t.Run("correct length", func(t *testing.T) {

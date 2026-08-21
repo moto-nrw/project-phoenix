@@ -44,6 +44,8 @@ func createTestXLSX(t *testing.T, headers []string, rows [][]string) *bytes.Buff
 // ============================================================================
 
 func TestNewXLSXParser(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates new parser", func(t *testing.T) {
 		parser := NewXLSXParser()
 		assert.NotNil(t, parser)
@@ -55,6 +57,8 @@ func TestNewXLSXParser(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_ParseStudents(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses valid Excel file with student data", func(t *testing.T) {
 		// ARRANGE
 		headers := []string{"Vorname", "Nachname", "Klasse"}
@@ -325,6 +329,8 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_ParseStudents_GuardianProfileFields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses guardian profile fields", func(t *testing.T) {
 		headers := []string{
 			"Vorname", "Nachname", "Klasse",
@@ -386,6 +392,8 @@ func TestXLSXParser_ParseStudents_GuardianProfileFields(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_ParseStudents_ArrivalSchedule(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses all five weekdays with notes", func(t *testing.T) {
 		headers := []string{
 			"Vorname", "Nachname", "Klasse",
@@ -422,6 +430,8 @@ func TestXLSXParser_ParseStudents_ArrivalSchedule(t *testing.T) {
 }
 
 func TestXLSXParser_ParseStudents_PickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses all five weekdays with notes", func(t *testing.T) {
 		headers := []string{
 			"Vorname", "Nachname", "Klasse",
@@ -505,6 +515,8 @@ func TestXLSXParser_ParseStudents_PickupSchedule(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
+	t.Parallel()
+
 	headers := []string{
 		"Vorname", "Nachname", "Klasse",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon",
@@ -569,6 +581,8 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_ValidateHeader(t *testing.T) {
+	t.Parallel()
+
 	t.Run("validates complete header", func(t *testing.T) {
 		// ARRANGE
 		headers := []string{"Vorname", "Nachname", "Klasse", "Geburtstag"}
@@ -633,6 +647,8 @@ func TestXLSXParser_ValidateHeader(t *testing.T) {
 // ============================================================================
 
 func TestXLSXParser_GetColumnMapping(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns column mapping after parsing", func(t *testing.T) {
 		// ARRANGE
 		headers := []string{"Vorname", "Nachname", "Klasse"}
@@ -659,6 +675,8 @@ func TestXLSXParser_GetColumnMapping(t *testing.T) {
 // ============================================================================
 
 func TestIsEmptyRow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true for empty row", func(t *testing.T) {
 		row := []string{"", "", ""}
 		assert.True(t, isEmptyRow(row))

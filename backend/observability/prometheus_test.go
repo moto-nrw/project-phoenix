@@ -22,6 +22,9 @@ func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
 	return p.stats
 }
 
+// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
+// process-global provider that MetricsHandler reads on every scrape, so two
+// of these tests overwrite each other's provider.
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
 	RegisterSSEStatsProvider(staticSSEStatsProvider{
 		stats: SSEStats{ClientsByTenant: map[int64]int{101: 2, 202: 1}},
@@ -38,6 +41,8 @@ func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
 }
 
 func TestMetricsBearerTokenFromEnvRequiresConfiguredToken(t *testing.T) {
+	t.Parallel()
+
 	token, err := MetricsBearerTokenFromEnv(func(string) string {
 		return "  "
 	})
@@ -47,6 +52,8 @@ func TestMetricsBearerTokenFromEnvRequiresConfiguredToken(t *testing.T) {
 }
 
 func TestMetricsBearerTokenFromEnvReturnsTrimmedToken(t *testing.T) {
+	t.Parallel()
+
 	token, err := MetricsBearerTokenFromEnv(func(string) string {
 		return " correct-token "
 	})
@@ -56,6 +63,8 @@ func TestMetricsBearerTokenFromEnvReturnsTrimmedToken(t *testing.T) {
 }
 
 func TestMetricsAuthMiddlewareRejectsWrongToken(t *testing.T) {
+	t.Parallel()
+
 	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called with the wrong token")
 	}))
@@ -69,6 +78,8 @@ func TestMetricsAuthMiddlewareRejectsWrongToken(t *testing.T) {
 }
 
 func TestMetricsAuthMiddlewareAllowsCorrectToken(t *testing.T) {
+	t.Parallel()
+
 	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -81,6 +92,9 @@ func TestMetricsAuthMiddlewareAllowsCorrectToken(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, rr.Code)
 }
 
+// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
+// process-global provider that MetricsHandler reads on every scrape, so two
+// of these tests overwrite each other's provider.
 func TestMetricsHandlerRefreshesSSEGaugesBeforeServing(t *testing.T) {
 	RegisterSSEStatsProvider(staticSSEStatsProvider{
 		stats: SSEStats{ClientsByTenant: map[int64]int{303: 5}},
@@ -95,6 +109,8 @@ func TestMetricsHandlerRefreshesSSEGaugesBeforeServing(t *testing.T) {
 }
 
 func TestPrometheusRecordersUseStableLabels(t *testing.T) {
+	t.Parallel()
+
 	ObserveTenantRequest(404, "", http.MethodGet, "/api/students/{id}", http.StatusCreated, time.Millisecond, "commit")
 	ObserveIoTRequest(0, http.MethodPost, "/api/iot/scan", http.StatusUnauthorized, time.Millisecond, "")
 	RecordSSEConnection(404, "connected")
@@ -110,12 +126,16 @@ func TestPrometheusRecordersUseStableLabels(t *testing.T) {
 }
 
 func TestRoutePatternFallsBackToUnmatched(t *testing.T) {
+	t.Parallel()
+
 	request := httptest.NewRequest(http.MethodGet, "/not-mounted", nil)
 
 	assert.Equal(t, "unmatched", RoutePattern(request))
 }
 
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
+	t.Parallel()
+
 	RegisterDBStatsProvider(fakeDBStatsProvider{stats: sql.DBStats{
 		OpenConnections:   8,
 		InUse:             3,
@@ -138,6 +158,8 @@ func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 }
 
 func TestDBStatsCollectorDescribesEveryEmittedMetric(t *testing.T) {
+	t.Parallel()
+
 	ch := make(chan *prometheus.Desc, 10)
 
 	dbStatsCollector{}.Describe(ch)

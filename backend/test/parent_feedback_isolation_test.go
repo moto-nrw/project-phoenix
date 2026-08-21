@@ -48,15 +48,14 @@ func createBoardPost(tb testing.TB, db *bun.DB, tenantID, accountID int64, autho
 // TestParentFeedbackHiddenFromStaffBoard is the core guarantee of #1678: what a
 // guardian writes to the product team must never be readable by the school.
 func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	account := CreateTestAccount(t, db, "feedback-isolation@example.test")
-	defer CleanupAccount(t, db, account.ID)
 	EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	parentPost := createBoardPost(t, db, tenantID, account.ID, suggestions.PostAuthorParent, "Elternsicht auf die App")
@@ -118,15 +117,14 @@ func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
 // parent-typed row written through the wrong transaction is refused by the
 // policy's WITH CHECK instead of silently landing on the school's board.
 func TestParentPostRejectedInStaffTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	account := CreateTestAccount(t, db, "feedback-wrong-tx@example.test")
-	defer CleanupAccount(t, db, account.ID)
 	EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -148,12 +146,12 @@ func TestParentPostRejectedInStaffTransaction(t *testing.T) {
 // a staff transaction for parent work would run against the wrong board, so the
 // mismatch has to fail loudly rather than degrade silently.
 func TestNestedActorMismatchRejected(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := UniqueTestTenantID(t)
 	EnsureTestTenant(t, db, tenantID)
-	defer CleanupTenantTestData(t, db, tenantID)
 
 	err := tenant.WithTenantTx(context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return tenant.WithParentTx(txCtx, db, tenantID, func(context.Context, bun.Tx) error {

@@ -12,6 +12,8 @@ import (
 func ptr[T any](v T) *T { return &v }
 
 func TestStaffMasterData_Validate(t *testing.T) {
+	t.Parallel()
+
 	entry := timezone.NewDate(2024, 8, 1)
 	before := timezone.NewDate(2024, 7, 31)
 	after := timezone.NewDate(2025, 1, 31)
@@ -81,6 +83,8 @@ func TestStaffMasterData_Validate(t *testing.T) {
 }
 
 func TestStaffQualification_Validate(t *testing.T) {
+	t.Parallel()
+
 	acquired := timezone.NewDate(2023, 3, 10)
 	expires := timezone.NewDate(2026, 3, 10)
 	expired := timezone.NewDate(2022, 3, 10)
@@ -114,6 +118,8 @@ func TestStaffQualification_Validate(t *testing.T) {
 }
 
 func TestStaffFinancialData_Validate(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, (&StaffFinancialData{StaffID: 9001}).Validate())
 
 	err := (&StaffFinancialData{}).Validate()
@@ -124,6 +130,8 @@ func TestStaffFinancialData_Validate(t *testing.T) {
 // The financial columns carry `json:"-"`: a StaffFinancialData that ever ends
 // up in a response body must not leak IBAN, Steuer-ID or SV-Nummer.
 func TestStaffFinancialData_JSONOmitsSensitiveFields(t *testing.T) {
+	t.Parallel()
+
 	payload, err := json.Marshal(&StaffFinancialData{
 		StaffID:              9001,
 		IBAN:                 ptr("DE89370400440532013000"),

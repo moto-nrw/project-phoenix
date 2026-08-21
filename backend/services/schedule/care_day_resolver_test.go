@@ -57,6 +57,8 @@ func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 // them either hides children at schools that keep no plans, or never filters
 // anything at schools that do.
 func TestCareDayStatusFor_NoPlanVersusNotBookedToday(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 42
 
 	t.Run("no care plan at all stays unknown", func(t *testing.T) {
@@ -83,6 +85,8 @@ func TestCareDayStatusFor_NoPlanVersusNotBookedToday(t *testing.T) {
 }
 
 func TestCareDayStatusFor_Exceptions(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 43
 
 	// A cancellation is NOT a non-booking: the child is not expected, but the
@@ -168,6 +172,8 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 // A pickup-only plan is still a plan: schools that record only the going-home
 // side must not have every child collapse to "not scheduled".
 func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 44
 	pickup := careDayClock("16:00")
 
@@ -184,6 +190,8 @@ func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
 // Children never resolved (walk-ins, unwired service) must fall through as
 // expected rather than silently vanishing from a roster.
 func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, CareDayUnknown.Expected())
 	assert.True(t, CareDayScheduled.Expected())
 	assert.True(t, CareDayStatus("").Expected())
@@ -195,6 +203,8 @@ func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {
 // cancellation would drop the row from the attendance history and the exports,
 // because the completed-instance filter hides surviving 'expected' rows.
 func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, CareDayNotScheduled.ExemptFromAbsence())
 	assert.False(t, CareDayCancelled.ExemptFromAbsence())
 	assert.False(t, CareDayScheduled.ExemptFromAbsence())
@@ -207,6 +217,8 @@ func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
 // so the decision is recognized by its own stamp — and it outranks the
 // derivation both while the block runs and once it is over (#1747 review).
 func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
+	t.Parallel()
+
 	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)
 
 	manual := &schedule.InstanceStudent{
@@ -236,6 +248,8 @@ func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
 // planner must keep counting those children as non-scheduled — the same
 // treatment a broad day status gets via student_status_day_id.
 func TestAttendanceRowCareDay_PartialExcusalProvenanceIsNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	exceptionID := int64(90)
 	statusDayID := int64(30)
 	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)

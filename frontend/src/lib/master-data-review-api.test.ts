@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  decideMasterDataChangeRequest,
-  listMasterDataChangeRequestHistory,
-  listMasterDataChangeRequests,
-} from "./master-data-review-api";
+import { decideMasterDataChangeRequest } from "./master-data-review-api";
 
 const originalFetch = globalThis.fetch;
 
@@ -31,38 +27,6 @@ afterEach(() => {
 });
 
 describe("master-data review API", () => {
-  it("lists pending change requests from the staff queue", async () => {
-    let seenURL = "";
-    let seenMethod = "";
-    mockFetch(async (input, init) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      seenMethod = init?.method ?? "";
-      return jsonResponse({
-        data: [
-          {
-            id: "100",
-            student_id: "42",
-            first_name: "Lara",
-            last_name: "Beispiel",
-            target: "person",
-            field_key: "birthday",
-            old_value: "2018-01-01",
-            new_value: "2018-01-02",
-            status: "pending",
-            created_at: "2026-06-24T12:00:00Z",
-          },
-        ],
-      });
-    });
-
-    const out = await listMasterDataChangeRequests();
-
-    expect(seenURL).toBe("/api/students/master-data-change-requests");
-    expect(seenMethod).toBe("GET");
-    expect(out).toHaveLength(1);
-    expect(out[0]!.field_key).toBe("birthday");
-  });
-
   it("posts approve decisions with an encoded request id", async () => {
     let seenURL = "";
     let seenMethod = "";
@@ -135,28 +99,11 @@ describe("master-data review API", () => {
     );
   });
 
-  it("falls back to a generic list error when the body is not JSON", async () => {
+  it("falls back to a generic error when the body is not JSON", async () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
 
-    await expect(listMasterDataChangeRequests()).rejects.toThrow(
-      /Änderungsanfragen konnten nicht geladen werden/,
+    await expect(decideMasterDataChangeRequest("100", true)).rejects.toThrow(
+      /Entscheidung konnte nicht gespeichert werden/,
     );
-  });
-
-  it("lädt die Historie mit URL-kodiertem Cursor", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({
-        data: { items: [], next_cursor: "abc" },
-      });
-    });
-
-    const out = await listMasterDataChangeRequestHistory("cur+1");
-
-    expect(seenURL).toBe(
-      "/api/students/master-data-change-requests/history?cursor=cur%2B1",
-    );
-    expect(out.next_cursor).toBe("abc");
   });
 });

@@ -14,12 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
@@ -35,7 +38,7 @@ func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) 
 		return false
 	}
 
-	items, err := f.svc.ListPending(ctx)
+	items, _, err := f.svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.True(t, containsRequest(items), "the pending request must start out visible")
 
@@ -47,7 +50,7 @@ func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) 
 		Exec(ctx)
 	require.NoError(t, err)
 
-	items, err = f.svc.ListPending(ctx)
+	items, _, err = f.svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.False(t, containsRequest(items), "a graduated child's request must leave the queue and the badge")
 

@@ -9,6 +9,8 @@ import (
 )
 
 func TestSubstitutionIsActive(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.NewDate(2026, 6, 9)
 	yesterday := now.AddDays(-1)
 	tomorrow := now.AddDays(1)
@@ -71,6 +73,8 @@ func TestSubstitutionIsActive(t *testing.T) {
 }
 
 func TestSubstitutionIsActiveNow(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	today := timezone.DateFromTime(now)
 	yesterday := today.AddDays(-1)
@@ -109,6 +113,8 @@ func TestSubstitutionIsActiveNow(t *testing.T) {
 }
 
 func TestSubstitutionIsActive_Nil(t *testing.T) {
+	t.Parallel()
+
 	if SubstitutionIsActive(nil, timezone.TodayDate()) {
 		t.Error("SubstitutionIsActive(nil) = true, want false")
 	}

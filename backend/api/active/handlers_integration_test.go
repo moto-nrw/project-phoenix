@@ -26,6 +26,7 @@ import (
 // ============================================================================
 
 func TestCombinedGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCombinedGroupRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -49,7 +50,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 	t.Run("create combined group", func(t *testing.T) {
 		// Create fixtures
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Combined Room %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 		body := map[string]interface{}{
 			"name":       fmt.Sprintf("Test Combined %d", time.Now().UnixNano()),
@@ -66,7 +66,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 	t.Run("get combined group by id", func(t *testing.T) {
 		// Create combined group fixture
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -88,8 +87,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 	t.Run("update combined group", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Update Room %d", time.Now().UnixNano()))
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 		body := map[string]interface{}{
 			"name":       "Updated Combined Name",
@@ -105,7 +102,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("end combined group", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/combined/%d/end", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -125,7 +121,6 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("get combined group groups", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d/groups", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -153,6 +148,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappings_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupMappingsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -161,7 +157,6 @@ func TestGroupMappings_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Mapping Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Mapping Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -171,7 +166,6 @@ func TestGroupMappings_Integration(t *testing.T) {
 
 	t.Run("get combined group mappings", func(t *testing.T) {
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/combined/%d", combinedGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -185,8 +179,6 @@ func TestGroupMappings_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Add Mapping Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		body := map[string]interface{}{
 			"active_group_id":   activeGroup.ID,
@@ -205,10 +197,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Remove Mapping Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		combinedGroup := createTestCombinedGroup(t, tc.db)
-		mapping := createTestGroupMapping(t, tc.db, activeGroup.ID, combinedGroup.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
-		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
-		defer cleanupGroupMapping(t, tc.db, mapping.ID)
+		createTestGroupMapping(t, tc.db, activeGroup.ID, combinedGroup.ID)
 
 		body := map[string]interface{}{
 			"active_group_id":   activeGroup.ID,
@@ -227,6 +216,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 // ============================================================================
 
 func TestUnclaimedGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupUnclaimedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -249,14 +239,12 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Claim Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Claim Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
-		defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
 
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsUpdate},
@@ -277,6 +265,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorsByGroup_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupSupervisorRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -287,7 +276,6 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Supervisor", "Test")
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -304,7 +292,6 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Empty Supervisor Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Empty Supervisor Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -325,6 +312,7 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 // ============================================================================
 
 func TestVisitsByGroup_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupVisitsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -334,8 +322,7 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Visits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Student", "1a")
-		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
+		_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -351,7 +338,6 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Empty Visits Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Empty Visits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -372,6 +358,7 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 // ============================================================================
 
 func TestAnalytics_Integration(t *testing.T) {
+	t.Parallel()
 	_, router := setupAnalyticsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -388,6 +375,7 @@ func TestAnalytics_Integration(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupActiveGroupsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -426,7 +414,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Get Group Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Get Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -455,8 +442,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 	t.Run("get active groups by room", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("ByRoom Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("ByRoom Activity %d", time.Now().UnixNano()))
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/room/%d", room.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -474,8 +460,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 	t.Run("get active groups by group", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("ByGroup Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("ByGroup Activity %d", time.Now().UnixNano()))
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/group/%d", activityGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -494,7 +479,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Visits Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Visits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -513,7 +497,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Supervisors Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Supervisors Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/supervisors", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -534,13 +517,11 @@ func TestActiveGroups_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Display", "Staff")
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
-		defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
-			TenantID:    1,
+			TenantID:    testpkg.Tenant(t),
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsRead},
@@ -564,7 +545,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 	t.Run("create active group", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Create Group Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Create Group Activity %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
 
 		body := map[string]interface{}{
 			"group_id":   activityGroup.ID,
@@ -589,7 +569,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Update Group Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Update Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		body := map[string]interface{}{
 			"group_id":   activityGroup.ID,
@@ -626,7 +605,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Delete Group Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Delete Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
@@ -645,7 +623,6 @@ func TestActiveGroups_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("End Group Room %d", time.Now().UnixNano()))
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("End Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -666,6 +643,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestVisits_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupVisitsCRUDRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -699,7 +677,6 @@ func TestVisits_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "GetVisit", "Student", "1a")
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -730,8 +707,7 @@ func TestVisits_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Student Visits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "StudentVisits", "Student", "1a")
-		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
+		_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -748,7 +724,6 @@ func TestVisits_Integration(t *testing.T) {
 
 	t.Run("get student current visit - no visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoCurrentVisit", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -763,8 +738,7 @@ func TestVisits_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Current Visit Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "HasCurrentVisit", "Student", "1a")
-		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
+		_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -785,7 +759,6 @@ func TestVisits_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "UpdateVisit", "Student", "1a")
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		body := map[string]interface{}{
 			"student_id":      student.ID,
@@ -824,7 +797,6 @@ func TestVisits_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "DeleteVisit", "Student", "1a")
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
@@ -845,7 +817,6 @@ func TestVisits_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "EndVisit", "Student", "1a")
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/%d/end", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -866,6 +837,7 @@ func TestVisits_Integration(t *testing.T) {
 // ============================================================================
 
 func TestSupervisors_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupSupervisorsCRUDRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -896,7 +868,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "GetSupervisor", "Staff")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -924,7 +895,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "StaffSupervisions", "Staff")
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d", staff.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -945,7 +915,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "StaffActive", "Staff")
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d/active", staff.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -965,7 +934,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Create Supervisor Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "CreateSupervisor", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		body := map[string]interface{}{
 			"staff_id":        staff.ID,
@@ -992,7 +960,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "UpdateSupervisor", "Staff")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		body := map[string]interface{}{
 			"staff_id":        staff.ID,
@@ -1031,7 +998,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "DeleteSupervisor", "Staff")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
@@ -1052,7 +1018,6 @@ func TestSupervisors_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "EndSupervision", "Staff")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/supervisors/%d/end", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -1133,13 +1098,13 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	combinedGroup := &active.CombinedGroup{
 		StartTime: time.Now(),
 	}
-	combinedGroup.SetTenantID(1)
+	combinedGroup.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(combinedGroup).
@@ -1150,43 +1115,18 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	return combinedGroup
 }
 
-// cleanupCombinedGroup removes a combined group from the database
-func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	// First delete any mappings
-	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.group_mappings").
-		Where("active_combined_group_id = ?", id).
-		Exec(ctx)
-
-	// Then delete the combined group
-	_, err := db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.combined_groups").
-		Where("id = ?", id).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup combined group: %v", err)
-	}
-}
-
 // createTestGroupMapping creates a group mapping directly in the database
 func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	mapping := &active.GroupMapping{
 		ActiveGroupID:         activeGroupID,
 		ActiveCombinedGroupID: combinedGroupID,
 	}
-	mapping.SetTenantID(1)
+	mapping.SetTenantID(testpkg.Tenant(t))
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1195,21 +1135,4 @@ func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGro
 	require.NoError(t, err, "Failed to create test group mapping")
 
 	return mapping
-}
-
-// cleanupGroupMapping removes a group mapping from the database
-func cleanupGroupMapping(t *testing.T, db *bun.DB, id int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("active.group_mappings").
-		Where("id = ?", id).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup group mapping: %v", err)
-	}
 }

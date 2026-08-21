@@ -15,6 +15,8 @@ import (
 // because no DB IDs are used.
 
 func TestApplyActualTimesFromAttendance_NilGuards(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil response is a no-op", func(t *testing.T) {
 		// Should not panic.
 		applyActualTimesFromAttendance(nil, &activeService.AttendanceStatus{})
@@ -38,6 +40,8 @@ func TestApplyActualTimesFromAttendance_NilGuards(t *testing.T) {
 }
 
 func TestApplyActualTimesFromAttendance_FormatsBothClocks(t *testing.T) {
+	t.Parallel()
+
 	checkIn := time.Date(2026, 4, 27, 6, 5, 0, 0, time.UTC)    // 08:05 Berlin (CEST)
 	checkOut := time.Date(2026, 4, 27, 13, 42, 0, 0, time.UTC) // 15:42 Berlin (CEST)
 
@@ -59,6 +63,8 @@ func TestApplyActualTimesFromAttendance_FormatsBothClocks(t *testing.T) {
 }
 
 func TestApplyActualTimesFromAttendance_CheckedInOnly(t *testing.T) {
+	t.Parallel()
+
 	checkIn := time.Date(2026, 1, 15, 7, 12, 0, 0, timezone.Berlin) // already in Berlin
 
 	response := &StudentResponse{}
@@ -76,6 +82,8 @@ func TestApplyActualTimesFromAttendance_CheckedInOnly(t *testing.T) {
 }
 
 func TestApplyActualTimesFromSnapshot_NilGuards(t *testing.T) {
+	t.Parallel()
+
 	response := &StudentResponse{ID: 42}
 
 	// All three nil-paths must be no-ops without panicking.
@@ -96,6 +104,8 @@ func TestApplyActualTimesFromSnapshot_NilGuards(t *testing.T) {
 }
 
 func TestApplyActualTimesFromSnapshot_LooksUpByResponseID(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 42
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)  // 08:30 Berlin
 	checkOut := time.Date(2026, 4, 27, 14, 0, 0, 0, time.UTC) // 16:00 Berlin
@@ -129,6 +139,8 @@ func TestApplyActualTimesFromSnapshot_LooksUpByResponseID(t *testing.T) {
 }
 
 func TestApplyActualTimesFromSnapshot_StudentMissingFromSnapshot(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		LocationSnapshot: &common.StudentLocationSnapshot{
 			Attendances: map[int64]*activeService.AttendanceStatus{

@@ -21,7 +21,7 @@ import (
 
 func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRepository, name string) *scheduleModels.CalendarPeriod {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
@@ -31,7 +31,7 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 
 	err := repo.Create(ctx, period)
 	require.NoError(t, err)
@@ -40,11 +40,12 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 }
 
 func TestCalendarPeriodRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Create-%d", time.Now().UnixNano())
@@ -56,7 +57,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -78,7 +79,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			WeekCycleAnchor: &anchor,
 			IsActive:        true,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -101,7 +102,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -117,7 +118,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -133,7 +134,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2025, 7, 31),
 			WeekCycleLength: 1,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -149,7 +150,7 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 		}
-		period.SetTenantID(1)
+		period.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(ctx, period)
 
@@ -159,11 +160,12 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds period by ID", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByID-%d", time.Now().UnixNano())
@@ -187,11 +189,12 @@ func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Update-%d", time.Now().UnixNano())
@@ -235,11 +238,12 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all periods for tenant", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -253,10 +257,9 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
-		p2.SetTenantID(1)
+		p2.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, p2)
 		require.NoError(t, err)
-
 		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", p1.ID, p2.ID)
 
 		periods, err := repo.FindByTenantID(ctx)
@@ -279,11 +282,12 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only active periods", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -298,12 +302,11 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
-		inactivePeriod.SetTenantID(1)
+		inactivePeriod.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, inactivePeriod)
 		require.NoError(t, err)
 
 		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", activePeriod.ID, inactivePeriod.ID)
-
 		periods, err := repo.FindActiveByTenantID(ctx)
 
 		require.NoError(t, err)
@@ -323,11 +326,12 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds period by name", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByName-%d", time.Now().UnixNano())
@@ -354,9 +358,12 @@ func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 // exact: the shared tenant 1 accumulates periods from other tests (and other
 // packages running in parallel against the same test DB) whose ranges would
 // pollute overlap results.
-func newOverlapTenant(t *testing.T, db *bun.DB, base int64) (int64, context.Context) {
+func newOverlapTenant(t *testing.T, db *bun.DB) (int64, context.Context) {
 	t.Helper()
-	tenantID := base + time.Now().UnixNano()%50000
+	// UniqueTestTenantID, not a clock-derived offset: two subtests reading the
+	// same nanosecond used to get the same tenant, and the cross-tenant
+	// assertions below then compared a tenant with itself.
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -383,13 +390,14 @@ func createPeriodForTenant(t *testing.T, repo scheduleModels.CalendarPeriodRepos
 }
 
 func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 
 	t.Run("inserts when name is absent, no-ops on conflict", func(t *testing.T) {
-		tenantID, ctx := newOverlapTenant(t, db, 510000)
+		tenantID, ctx := newOverlapTenant(t, db)
 		name := fmt.Sprintf("Bootstrap-%d", time.Now().UnixNano())
 
 		first := &scheduleModels.CalendarPeriod{
@@ -430,8 +438,8 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("same name in another tenant still inserts", func(t *testing.T) {
-		tenantA, ctxA := newOverlapTenant(t, db, 520000)
-		tenantB, ctxB := newOverlapTenant(t, db, 530000)
+		tenantA, ctxA := newOverlapTenant(t, db)
+		tenantB, ctxB := newOverlapTenant(t, db)
 		name := fmt.Sprintf("Bootstrap-Cross-%d", time.Now().UnixNano())
 
 		makePeriod := func(tenantID int64) *scheduleModels.CalendarPeriod {
@@ -457,7 +465,7 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("fails on nil period", func(t *testing.T) {
-		_, ctx := newOverlapTenant(t, db, 540000)
+		_, ctx := newOverlapTenant(t, db)
 		created, err := repo.CreateIfAbsent(ctx, nil)
 		require.Error(t, err)
 		assert.False(t, created)
@@ -465,7 +473,7 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("fails validation before touching the database", func(t *testing.T) {
-		tenantID, ctx := newOverlapTenant(t, db, 550000)
+		tenantID, ctx := newOverlapTenant(t, db)
 		invalid := &scheduleModels.CalendarPeriod{
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
 			StartDate:       timezone.NewDate(2030, time.August, 1),
@@ -481,11 +489,12 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	tenantID, ctx := newOverlapTenant(t, db, 560000)
+	tenantID, ctx := newOverlapTenant(t, db)
 
 	// Fixture layout (all in the fresh tenant):
 	//   active     2030-08-01 .. 2031-07-31  (the period others may collide with)
@@ -552,7 +561,7 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 	})
 
 	t.Run("cross-tenant isolation", func(t *testing.T) {
-		otherTenantID, otherCtx := newOverlapTenant(t, db, 570000)
+		otherTenantID, otherCtx := newOverlapTenant(t, db)
 		other := createPeriodForTenant(t, repo, otherCtx, otherTenantID, "Overlap-Fremd",
 			timezone.NewDate(2030, time.August, 1), timezone.NewDate(2031, time.July, 31), true)
 
@@ -572,11 +581,12 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	tenantID, ctx := newOverlapTenant(t, db, 580000)
+	tenantID, ctx := newOverlapTenant(t, db)
 
 	createTyped := func(cctx context.Context, tid int64, name, periodType string, isActive bool) *scheduleModels.CalendarPeriod {
 		period := &scheduleModels.CalendarPeriod{
@@ -634,7 +644,7 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 	})
 
 	t.Run("cross-tenant isolation", func(t *testing.T) {
-		otherTenantID, otherCtx := newOverlapTenant(t, db, 590000)
+		otherTenantID, otherCtx := newOverlapTenant(t, db)
 		other := createTyped(otherCtx, otherTenantID, "ByType-Fremd", scheduleModels.PeriodTypeSemester, true)
 
 		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, 0)
@@ -648,9 +658,11 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
 	usage, err := repo.UsageCounts(ctx)
@@ -661,11 +673,12 @@ func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T)
 }
 
 func TestCalendarPeriodRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Delete-%d", time.Now().UnixNano())
@@ -686,10 +699,11 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 // Catalog code 'n' = SET NULL, 'a' = NO ACTION (default RESTRICT-equivalent),
 // 'c' = CASCADE, 'r' = RESTRICT, 'd' = SET DEFAULT.
 func TestCalendarPeriodFKOnDelete(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	tables := []string{
 		"activities.schedules",
@@ -721,16 +735,16 @@ func TestCalendarPeriodFKOnDelete(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists periods with nil options", func(t *testing.T) {
 		name := fmt.Sprintf("Test-List-%d", time.Now().UnixNano())
-		period := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
+		createTestCalendarPeriod(t, repo, name)
 
 		periods, err := repo.List(ctx, nil)
 

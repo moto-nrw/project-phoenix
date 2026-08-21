@@ -23,6 +23,8 @@ func (r *assignableCategoryRepo) FindByIDForShare(context.Context, int64) (*acti
 }
 
 func TestValidateAssignableCategory(t *testing.T) {
+	t.Parallel()
+
 	categoryID := time.Now().UnixNano()
 	t.Run("accepts an active category", func(t *testing.T) {
 		err := validateAssignableCategory(

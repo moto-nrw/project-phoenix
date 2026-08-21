@@ -12,11 +12,12 @@ import (
 )
 
 func TestAuthService_SwitchTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("fails for non-existent account", func(t *testing.T) {
 		// ACT
@@ -134,11 +135,12 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 // proper logout, the old user's refresh tokens are invalidated and a different
 // user can switch tenants cleanly.
 func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Ensure tenant 2 exists
 	testpkg.EnsureTestTenant(t, db, 2)
@@ -186,17 +188,18 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 // TestLogoutInvalidatesRefreshToken verifies that after logout, the refresh
 // token used to authenticate is invalidated and cannot be reused.
 func TestLogoutInvalidatesRefreshToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE
 	email, username := uniqueTestCredentials("logout-invalidate")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)

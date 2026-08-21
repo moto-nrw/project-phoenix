@@ -31,6 +31,8 @@ func schoolMiddlewareRequest(claims jwtpkg.AppClaims) *http.Request {
 // tenant-bound (unlike parent tokens), because the class-day surface
 // runs under RLS and needs the tenant transaction.
 func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
+	t.Parallel()
+
 	var gotTenantID, gotOrgID int64
 	var gotScope string
 	var handlerCalled bool
@@ -63,6 +65,8 @@ func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
 // TestSchoolMiddleware_NoClaims_Unauthorized — request with no claims
 // (no Authenticator middleware in front) gets 401.
 func TestSchoolMiddleware_NoClaims_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
@@ -81,6 +85,8 @@ func TestSchoolMiddleware_NoClaims_Unauthorized(t *testing.T) {
 // host-only school cookie + the proxy already make this leak path
 // impossible, but the hard reject closes the gap if either fails.
 func TestSchoolMiddleware_RejectsOtherScopes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		claims jwtpkg.AppClaims
@@ -111,6 +117,8 @@ func TestSchoolMiddleware_RejectsOtherScopes(t *testing.T) {
 // login always pins the resolved school). Rejecting it here beats
 // letting RLS silently return zero rows downstream.
 func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("tenant_id=0 school token must NOT reach the wrapped handler")
 	}))
@@ -129,6 +137,8 @@ func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 // malformed or downgraded token) are rejected before the scope check
 // runs.
 func TestSchoolMiddleware_ZeroID_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("ID=0 claims must NOT reach the wrapped handler")
 	}))
@@ -149,6 +159,8 @@ func TestSchoolMiddleware_ZeroID_Unauthorized(t *testing.T) {
 // satisfy RLS on every tenant route and quietly widen class_day:read
 // into full portal access.
 func TestTenantMiddleware_RejectsSchoolScope(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("school-scope token must NOT reach a tenant handler")
 	}))

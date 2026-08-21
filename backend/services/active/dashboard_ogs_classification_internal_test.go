@@ -89,6 +89,8 @@ func emptyRoomData() *dashboardRoomData {
 }
 
 func TestIsOGSGroupTemplate(t *testing.T) {
+	t.Parallel()
+
 	templates := templateFixtures()
 
 	tests := []struct {
@@ -111,6 +113,8 @@ func TestIsOGSGroupTemplate(t *testing.T) {
 }
 
 func TestProcessActiveGroupsCountsOnlyEducationBoundCareSessions(t *testing.T) {
+	t.Parallel()
+
 	templates := templateFixtures()
 	colliding := collidingID
 	care := careTemplateID
@@ -137,6 +141,8 @@ func TestProcessActiveGroupsCountsOnlyEducationBoundCareSessions(t *testing.T) {
 // A dashboard whose activities templates failed to load must report zero OGS
 // groups rather than inventing them from colliding education ids.
 func TestProcessActiveGroupsWithoutTemplatesCountsNoOGSGroups(t *testing.T) {
+	t.Parallel()
+
 	colliding := collidingID
 	sessions := []*activeModels.Group{activeSession(1001, &colliding, 501)}
 
@@ -151,6 +157,8 @@ func TestProcessActiveGroupsWithoutTemplatesCountsNoOGSGroups(t *testing.T) {
 }
 
 func TestResolveGroupNameAndTypeUsesTemplateNotEducationID(t *testing.T) {
+	t.Parallel()
+
 	templates := templateFixtures()
 	colliding := collidingID
 	care := careTemplateID
@@ -183,6 +191,8 @@ func TestResolveGroupNameAndTypeUsesTemplateNotEducationID(t *testing.T) {
 }
 
 func TestBuildActiveGroupsSummaryLabelsCollidingSessionAsActivity(t *testing.T) {
+	t.Parallel()
+
 	templates := templateFixtures()
 	colliding := collidingID
 	care := careTemplateID

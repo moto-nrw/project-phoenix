@@ -226,7 +226,6 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		}
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", person.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-		_ = db.Close()
 	}
 	return env, cleanup
 }
@@ -301,6 +300,8 @@ func decodeStatus(t *testing.T, rec *httptest.ResponseRecorder) statusEnvelope {
 	return out
 }
 
+// Deliberately NOT parallel: process-global state — the fixture sets viper
+// keys for the public status router.
 func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing.T) {
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
@@ -330,6 +331,8 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	assert.Equal(t, http.StatusCreated, sibling.Code, sibling.Body.String())
 }
 
+// Deliberately NOT parallel: process-global state — the fixture sets viper
+// keys for the public status router.
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()

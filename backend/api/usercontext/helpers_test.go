@@ -20,6 +20,8 @@ func wrapError(err error) error {
 }
 
 func TestErrorRenderer_UserNotAuthenticated(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotAuthenticated)
 	renderer := ErrorRenderer(err)
 
@@ -29,6 +31,8 @@ func TestErrorRenderer_UserNotAuthenticated(t *testing.T) {
 }
 
 func TestErrorRenderer_UserNotAuthorized(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotAuthorized)
 	renderer := ErrorRenderer(err)
 
@@ -38,6 +42,8 @@ func TestErrorRenderer_UserNotAuthorized(t *testing.T) {
 }
 
 func TestErrorRenderer_UserNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotFound)
 	renderer := ErrorRenderer(err)
 
@@ -47,6 +53,8 @@ func TestErrorRenderer_UserNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_UserNotLinkedToPerson(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotLinkedToPerson)
 	renderer := ErrorRenderer(err)
 
@@ -56,6 +64,8 @@ func TestErrorRenderer_UserNotLinkedToPerson(t *testing.T) {
 }
 
 func TestErrorRenderer_UserNotLinkedToStaff(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotLinkedToStaff)
 	renderer := ErrorRenderer(err)
 
@@ -65,6 +75,8 @@ func TestErrorRenderer_UserNotLinkedToStaff(t *testing.T) {
 }
 
 func TestErrorRenderer_UserNotLinkedToTeacher(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrUserNotLinkedToTeacher)
 	renderer := ErrorRenderer(err)
 
@@ -74,6 +86,8 @@ func TestErrorRenderer_UserNotLinkedToTeacher(t *testing.T) {
 }
 
 func TestErrorRenderer_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrGroupNotFound)
 	renderer := ErrorRenderer(err)
 
@@ -83,6 +97,8 @@ func TestErrorRenderer_GroupNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_NoActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrNoActiveGroups)
 	renderer := ErrorRenderer(err)
 
@@ -92,6 +108,8 @@ func TestErrorRenderer_NoActiveGroups(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidOperation(t *testing.T) {
+	t.Parallel()
+
 	err := wrapError(usercontext.ErrInvalidOperation)
 	renderer := ErrorRenderer(err)
 
@@ -101,6 +119,8 @@ func TestErrorRenderer_InvalidOperation(t *testing.T) {
 }
 
 func TestErrorRenderer_GenericUserContextError(t *testing.T) {
+	t.Parallel()
+
 	// Create a generic UserContextError that doesn't match specific types
 	err := &usercontext.UserContextError{
 		Op:  "test",
@@ -114,6 +134,8 @@ func TestErrorRenderer_GenericUserContextError(t *testing.T) {
 }
 
 func TestErrorRenderer_NonUserContextError(t *testing.T) {
+	t.Parallel()
+
 	// Test with a regular error (not a UserContextError)
 	err := errors.New("some random error")
 	renderer := ErrorRenderer(err)
@@ -133,6 +155,8 @@ func TestErrorRenderer_NonUserContextError(t *testing.T) {
 // =============================================================================
 
 func TestAllowedImageTypes(t *testing.T) {
+	t.Parallel()
+
 	allowed := []string{"image/jpeg", "image/jpg", "image/png", "image/webp"}
 	notAllowed := []string{"image/gif", "image/bmp", "application/pdf", "text/html"}
 

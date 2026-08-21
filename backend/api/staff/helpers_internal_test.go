@@ -12,6 +12,8 @@ import (
 )
 
 func TestRequestedCaregiverPool(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, requestedCaregiverPool(nil))
 	assert.False(t, requestedCaregiverPool([]string{"admin"}))
 	assert.False(t, requestedCaregiverPool([]string{"admin", "user"}))
@@ -25,6 +27,8 @@ func TestRequestedCaregiverPool(t *testing.T) {
 // Avatar path resolution tests — uses centralized common.ResolveStoredPath.
 
 func TestStaffAvatarPath_ValidPaths(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name       string
 		avatarPath string
@@ -44,6 +48,8 @@ func TestStaffAvatarPath_ValidPaths(t *testing.T) {
 }
 
 func TestStaffAvatarPath_InvalidPaths(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name       string
 		avatarPath string
@@ -63,6 +69,8 @@ func TestStaffAvatarPath_InvalidPaths(t *testing.T) {
 }
 
 func TestCaregiverStaffIDSet(t *testing.T) {
+	t.Parallel()
+
 	set := caregiverStaffIDSet([]*users.ActiveCaregiver{
 		{StaffID: 11},
 		{StaffID: 22},
@@ -77,6 +85,8 @@ func TestCaregiverStaffIDSet(t *testing.T) {
 }
 
 func TestNewPersonResponse_IncludesAvatarAndTag(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tagID := "rfid-123"
 	accountID := int64(77)
@@ -105,5 +115,7 @@ func TestNewPersonResponse_IncludesAvatarAndTag(t *testing.T) {
 }
 
 func TestNewPersonResponse_NilPerson(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, newPersonResponse(nil, "", ""))
 }

@@ -32,11 +32,12 @@ func setupCalendarPeriodService(t *testing.T, db *bun.DB) schedule.CalendarPerio
 // =============================================================================
 
 func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all periods for tenant", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -62,8 +63,6 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 		err = svc.CreatePeriod(ctx, p2)
 		require.NoError(t, err)
 
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", p1.ID, p2.ID)
-
 		periods, err := svc.GetAllPeriods(ctx)
 
 		require.NoError(t, err)
@@ -76,11 +75,12 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only active periods", func(t *testing.T) {
 		suffix := time.Now().UnixNano()
@@ -106,8 +106,6 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 		err = svc.CreatePeriod(ctx, inactive)
 		require.NoError(t, err)
 
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", active.ID, inactive.ID)
-
 		periods, err := svc.GetActivePeriods(ctx)
 
 		require.NoError(t, err)
@@ -122,11 +120,12 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns period by ID", func(t *testing.T) {
 		name := fmt.Sprintf("GetByID-%d", time.Now().UnixNano())
@@ -140,7 +139,6 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 		}
 		err := svc.CreatePeriod(ctx, period)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		found, err := svc.GetPeriodByID(ctx, period.ID)
 
@@ -162,11 +160,12 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Create-%d", time.Now().UnixNano())
@@ -183,10 +182,10 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Greater(t, period.ID, int64(0))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 
 	t.Run("creates period with week cycle", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		name := fmt.Sprintf("Create-Cycle-%d", time.Now().UnixNano())
 		anchor := timezone.NewDate(2025, 9, 1)
 		period := &scheduleModels.CalendarPeriod{
@@ -203,10 +202,10 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Greater(t, period.ID, int64(0))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 
 	t.Run("rejects duplicate name", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		name := fmt.Sprintf("Duplicate-%d", time.Now().UnixNano())
 		first := &scheduleModels.CalendarPeriod{
 			Name:            name,
@@ -218,7 +217,6 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		}
 		err := svc.CreatePeriod(ctx, first)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", first.ID)
 
 		second := &scheduleModels.CalendarPeriod{
 			Name:            name,
@@ -270,8 +268,9 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 	tenantID := int64(600000) + time.Now().UnixNano()%50000
@@ -405,8 +404,9 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 // gate both requests could pass the overlap check before either insert
 // commits, silently violating the hard invariant.
 func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 	tenantID, ctx := newBootstrapTenant(t, db)
@@ -454,13 +454,15 @@ func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
 }
 
 func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates period successfully", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		name := fmt.Sprintf("Update-%d", time.Now().UnixNano())
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
@@ -472,7 +474,6 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		}
 		err := svc.CreatePeriod(ctx, period)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		newName := fmt.Sprintf("Updated-%d", time.Now().UnixNano())
 		period.Name = newName
@@ -502,7 +503,6 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		}
 		err := svc.CreatePeriod(ctx, period)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		period.IsActive = false
 		err = svc.UpdatePeriod(ctx, period)
@@ -534,8 +534,6 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		err = svc.CreatePeriod(ctx, second)
 		require.NoError(t, err)
 
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", first.ID, second.ID)
-
 		second.Name = first.Name
 		err = svc.UpdatePeriod(ctx, second)
 
@@ -544,6 +542,7 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 	})
 
 	t.Run("rejects invalid update data", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
 		name := fmt.Sprintf("InvalidUpdate-%d", time.Now().UnixNano())
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
@@ -555,7 +554,6 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		}
 		err := svc.CreatePeriod(ctx, period)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		period.Name = ""
 		err = svc.UpdatePeriod(ctx, period)
@@ -587,8 +585,9 @@ func newBootstrapTenant(t *testing.T, db *bun.DB) (int64, context.Context) {
 }
 
 func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 
@@ -725,8 +724,9 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 // the committed period (created=false) or the explicit create loses with the
 // overlap conflict — exactly one row survives.
 func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 	tenantID, ctx := newBootstrapTenant(t, db)
@@ -783,8 +783,9 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
 	_, ctx := newBootstrapTenant(t, db)
@@ -839,11 +840,12 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_DeletePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Delete-%d", time.Now().UnixNano())

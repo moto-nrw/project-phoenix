@@ -19,15 +19,15 @@ import (
 // ============================================================================
 
 func TestProfileRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates profile with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-create")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		profile := &users.Profile{
 			AccountID: account.ID,
@@ -40,12 +40,10 @@ func TestProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 	})
 
 	t.Run("creates profile with minimal data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-minimal")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Settings must be valid JSON or empty object
 		profile := &users.Profile{
@@ -57,7 +55,6 @@ func TestProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 	})
 
 	t.Run("fails with nil profile", func(t *testing.T) {
@@ -78,7 +75,6 @@ func TestProfileRepository_Create(t *testing.T) {
 
 	t.Run("fails with invalid settings JSON", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-bad-json")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		profile := &users.Profile{
 			AccountID: account.ID,
@@ -92,16 +88,15 @@ func TestProfileRepository_Create(t *testing.T) {
 }
 
 func TestProfileRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "findbyid")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		found, err := repo.FindByID(ctx, profile.ID)
 		require.NoError(t, err)
@@ -116,16 +111,15 @@ func TestProfileRepository_FindByID(t *testing.T) {
 }
 
 func TestProfileRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds profile by account ID", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "byaccount")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		found, err := repo.FindByAccountID(ctx, profile.AccountID)
 		require.NoError(t, err)
@@ -140,16 +134,15 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestProfileRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "update")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		profile.Bio = "Updated bio"
 		profile.Avatar = "https://example.com/new-avatar.png"
@@ -171,15 +164,15 @@ func TestProfileRepository_Update(t *testing.T) {
 }
 
 func TestProfileRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "delete")
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		err := repo.Delete(ctx, profile.ID)
 		require.NoError(t, err)
@@ -196,16 +189,15 @@ func TestProfileRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestProfileRepository_UpdateAvatar(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates avatar", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "avatar")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		newAvatar := "https://example.com/updated-avatar.png"
 		err := repo.UpdateAvatar(ctx, profile.ID, newAvatar)
@@ -222,16 +214,15 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 // ============================================================================
 
 func TestProfileRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all profiles", func(t *testing.T) {
-		profile := testpkg.CreateTestProfile(t, db, "listall")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
+		testpkg.CreateTestProfile(t, db, "listall")
 
 		found, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -240,8 +231,6 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with account_id filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "filteraccount")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{
 			"account_id": profile.AccountID,
@@ -254,9 +243,7 @@ func TestProfileRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with has_avatar filter", func(t *testing.T) {
-		profile := testpkg.CreateTestProfile(t, db, "hasavatar")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
+		testpkg.CreateTestProfile(t, db, "hasavatar")
 
 		filters := map[string]interface{}{
 			"has_avatar": true,
@@ -272,9 +259,7 @@ func TestProfileRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with has_bio filter", func(t *testing.T) {
-		profile := testpkg.CreateTestProfile(t, db, "hasbio")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
+		testpkg.CreateTestProfile(t, db, "hasbio")
 
 		filters := map[string]interface{}{
 			"has_bio": true,
@@ -291,8 +276,6 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with bio_like filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "biolike")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{
 			"bio_like": "biolike",

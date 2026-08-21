@@ -24,7 +24,6 @@ import (
 func setupRequestRepoTest(t *testing.T) (*bun.DB, enrollmentModels.RequestRepository, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := tenantIDForTestName(t.Name())
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -61,7 +60,7 @@ func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
 }
 
 func uniqueToken(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 func makeRequest(phaseID int64, token, email string) *enrollmentModels.Request {
@@ -95,6 +94,8 @@ func insertRequestChild(t *testing.T, db *bun.DB, tenantID, requestID int64, fir
 // --- Create + FindByID -------------------------------------------------
 
 func TestRequestRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("create")
 	defer wipeRequests(db, tenantID, token)
@@ -109,6 +110,8 @@ func TestRequestRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestRequestRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("find")
 	defer wipeRequests(db, tenantID, token)
@@ -131,6 +134,8 @@ func TestRequestRepository_FindByID_HappyPath(t *testing.T) {
 }
 
 func TestRequestRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 
 	var got *enrollmentModels.Request
@@ -144,6 +149,8 @@ func TestRequestRepository_FindByID_NotFound(t *testing.T) {
 }
 
 func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("pinNotificationMode")
 	defer wipeRequests(db, tenantID, token)
@@ -178,6 +185,8 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 }
 
 func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("invalidNotificationMode")
 	defer wipeRequests(db, tenantID, token)
@@ -198,6 +207,8 @@ func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *tes
 // --- FindByStatusToken -------------------------------------------------
 
 func TestRequestRepository_FindByStatusToken_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("findtoken")
 	defer wipeRequests(db, tenantID, token)
@@ -219,6 +230,8 @@ func TestRequestRepository_FindByStatusToken_HappyPath(t *testing.T) {
 }
 
 func TestRequestRepository_FindByStatusToken_UnknownTokenErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 
 	var got *enrollmentModels.Request
@@ -234,6 +247,8 @@ func TestRequestRepository_FindByStatusToken_UnknownTokenErrors(t *testing.T) {
 // --- ListAdmin ---------------------------------------------------------
 
 func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listAll")
 	defer wipeRequests(db, tenantID, token)
@@ -270,6 +285,8 @@ func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
 }
 
 func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listPhase")
 	defer wipeRequests(db, tenantID, token)
@@ -306,6 +323,8 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 }
 
 func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listChildStatus")
 	defer wipeRequests(db, tenantID, token)
@@ -347,6 +366,8 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 // --- FindActiveDuplicate -----------------------------------------------
 
 func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupe")
 	defer wipeRequests(db, tenantID, token)
@@ -373,6 +394,8 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 }
 
 func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeTerminal")
 	defer wipeRequests(db, tenantID, token)
@@ -399,6 +422,8 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 }
 
 func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *testing.T) {
+	t.Parallel()
+
 	// Same child name but different guardian email → not a duplicate.
 	// Two unrelated families with kids of the same name must both be
 	// able to enrol.
@@ -423,6 +448,8 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 }
 
 func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *testing.T) {
+	t.Parallel()
+
 	// A child enrolled in phase A should be allowed to enrol in phase B.
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeOtherPhase")
@@ -447,6 +474,8 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 }
 
 func TestRequestRepository_FindActiveDuplicate_RejectsZeroPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		_, dErr := repo.FindActiveDuplicate(ctx, 0, "x@y.z", nil)
@@ -456,6 +485,8 @@ func TestRequestRepository_FindActiveDuplicate_RejectsZeroPhase(t *testing.T) {
 }
 
 func TestRequestRepository_FindActiveDuplicate_EmptyEmailIsNotADuplicate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	var dupes []enrollmentModels.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -469,6 +500,8 @@ func TestRequestRepository_FindActiveDuplicate_EmptyEmailIsNotADuplicate(t *test
 }
 
 func TestRequestRepository_FindActiveDuplicate_EmptyChildListIsNotADuplicate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	var dupes []enrollmentModels.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -483,6 +516,8 @@ func TestRequestRepository_FindActiveDuplicate_EmptyChildListIsNotADuplicate(t *
 // --- ExistsByPhaseID + ExistsBySchemaID --------------------------------
 
 func TestRequestRepository_ExistsByPhaseID_TrueWhenReferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsByPhase")
 	defer wipeRequests(db, tenantID, token)
@@ -503,6 +538,8 @@ func TestRequestRepository_ExistsByPhaseID_TrueWhenReferenced(t *testing.T) {
 }
 
 func TestRequestRepository_ExistsByPhaseID_FalseWhenUnreferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -515,6 +552,8 @@ func TestRequestRepository_ExistsByPhaseID_FalseWhenUnreferenced(t *testing.T) {
 }
 
 func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsBySchema")
 	defer wipeRequests(db, tenantID, token)
@@ -552,6 +591,8 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 }
 
 func TestRequestRepository_ExistsBySchemaID_FalseWhenUnreferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -593,6 +634,8 @@ func createMatchTestStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 }
 
 func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchActive")
 	defer wipeRequests(db, tenantID, token)
@@ -622,6 +665,8 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 }
 
 func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndOtherPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchTerminal")
 	defer wipeRequests(db, tenantID, token)
@@ -659,6 +704,8 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 // pin and refuse every approval. A DIFFERENT active row pinned to the same
 // student is still a collision (#1663).
 func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchExclude")
 	defer wipeRequests(db, tenantID, token)
@@ -700,6 +747,8 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 }
 
 func TestRequestRepository_AcquireExistingStudentMatchLock_RejectsBadPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.AcquireExistingStudentMatchLock(ctx, 0)
@@ -708,6 +757,8 @@ func TestRequestRepository_AcquireExistingStudentMatchLock_RejectsBadPhase(t *te
 }
 
 func TestRequestRepository_AcquireExistingStudentMatchLock_SucceedsInTx(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.AcquireExistingStudentMatchLock(ctx, phaseID)

@@ -15,6 +15,8 @@ import (
 // (#2382) carries its "Keine Betreuung" marker in the name cell and renders
 // "—" in every weekday cell like a non-care day.
 func TestClassRosterTableDocumentMarksListEntries(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.ClassRosterReport{
 		Filters: enrollmentService.ClassRosterAppliedFilters{SchoolClass: "1a"},
 		Totals:  enrollmentService.ClassRosterTotals{Students: 2, Registered: 1, ListEntries: 1},

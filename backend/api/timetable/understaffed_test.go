@@ -16,6 +16,8 @@ import (
 )
 
 func TestAcknowledgeUnderstaffed_SetWithNote(t *testing.T) {
+	t.Parallel()
+
 	note := "kein Ersatz verfügbar"
 	instance := &scheduleModel.ActivityInstance{
 		Status:           scheduleModel.InstanceStatusPlanned,
@@ -48,6 +50,8 @@ func TestAcknowledgeUnderstaffed_SetWithNote(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_ClearDropsNote(t *testing.T) {
+	t.Parallel()
+
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned}
 	instance.ID = int64(8)
 
@@ -69,6 +73,8 @@ func TestAcknowledgeUnderstaffed_ClearDropsNote(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_EmptyNoteNormalized(t *testing.T) {
+	t.Parallel()
+
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(9)
 	mock := &mockInstanceService{ackRes: instance}
@@ -81,6 +87,8 @@ func TestAcknowledgeUnderstaffed_EmptyNoteNormalized(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_WhitespaceNoteNormalized(t *testing.T) {
+	t.Parallel()
+
 	// A whitespace-only note must normalize to nil, not persist as an
 	// empty-looking reason — matching trimReason on the substitute path.
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
@@ -95,6 +103,8 @@ func TestAcknowledgeUnderstaffed_WhitespaceNoteNormalized(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
+	t.Parallel()
+
 	// Surrounding whitespace is stripped before persisting so the stored reason
 	// is exactly the trimmed text.
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
@@ -110,6 +120,8 @@ func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_NoteTooLong(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
@@ -120,6 +132,8 @@ func TestAcknowledgeUnderstaffed_NoteTooLong(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
@@ -128,6 +142,8 @@ func TestAcknowledgeUnderstaffed_InvalidID(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_NilService(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
@@ -136,6 +152,8 @@ func TestAcknowledgeUnderstaffed_NilService(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
+	t.Parallel()
+
 	// Service refuses a terminal-status instance → 409 via the shared lifecycle
 	// error mapper.
 	mock := &mockInstanceService{ackErr: scheduleSvc.ErrInvalidInstanceTransition}
@@ -147,6 +165,8 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 }
 
 func TestAcknowledgeUnderstaffed_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockInstanceService{ackErr: scheduleSvc.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)

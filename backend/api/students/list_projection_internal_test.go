@@ -90,6 +90,8 @@ func fullyPopulatedStudentResponse() StudentResponse {
 // projection puts on the wire (#2097). It fails both ways: a field silently
 // re-added (payload creep) and a field the page reads silently dropped.
 func TestSlimStudentResponseWireContract(t *testing.T) {
+	t.Parallel()
+
 	slim := slimStudentResponses([]StudentResponse{fullyPopulatedStudentResponse()}, timezone.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 
@@ -146,6 +148,8 @@ func TestSlimStudentResponseWireContract(t *testing.T) {
 // projection: every kept field must carry the full response's value, not a
 // zero value or a neighbouring field.
 func TestSlimStudentResponseCopiesValues(t *testing.T) {
+	t.Parallel()
+
 	full := fullyPopulatedStudentResponse()
 	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
@@ -185,6 +189,8 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 }
 
 func TestSlimStudentResponsePreservesUnknownLegacyDepartureLabel(t *testing.T) {
+	t.Parallel()
+
 	full := StudentResponse{
 		ID:                      7,
 		PickupStatus:            "Taxi mit Begleitperson",
@@ -200,6 +206,8 @@ func TestSlimStudentResponsePreservesUnknownLegacyDepartureLabel(t *testing.T) {
 
 // TestParseStudentListView covers the query-parameter contract.
 func TestParseStudentListView(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		value   string
 		want    bool

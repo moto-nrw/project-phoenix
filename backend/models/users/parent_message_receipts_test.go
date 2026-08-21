@@ -19,12 +19,16 @@ func receiptMsg(id int64, at time.Time, kind string) *ParentMessage {
 }
 
 func TestStampStaffReadReceipts_NilCutoffStampsNothing(t *testing.T) {
+	t.Parallel()
+
 	msgs := []*ParentMessage{receiptMsg(1, time.Now(), ParentMessageSenderGuardian)}
 	StampStaffReadReceipts(msgs, nil)
 	assert.False(t, msgs[0].ReadByStaff, "no staff read cursor → no receipt")
 }
 
 func TestStampStaffReadReceipts_OnlyGuardianMessagesAtOrBeforeCursor(t *testing.T) {
+	t.Parallel()
+
 	base := time.Now().Truncate(time.Microsecond)
 	cursor := &ReadCursor{LastReadAt: base, LastReadMessageID: 10}
 
@@ -43,6 +47,8 @@ func TestStampStaffReadReceipts_OnlyGuardianMessagesAtOrBeforeCursor(t *testing.
 }
 
 func TestStampStaffReadReceipts_TieBreakOnMessageID(t *testing.T) {
+	t.Parallel()
+
 	at := time.Now().Truncate(time.Microsecond)
 	cursor := &ReadCursor{LastReadAt: at, LastReadMessageID: 20}
 
@@ -56,6 +62,8 @@ func TestStampStaffReadReceipts_TieBreakOnMessageID(t *testing.T) {
 }
 
 func TestStampGuardianReadReceipts_OnlyStaffMessages(t *testing.T) {
+	t.Parallel()
+
 	base := time.Now().Truncate(time.Microsecond)
 	cursor := &ReadCursor{LastReadAt: base, LastReadMessageID: 10}
 
@@ -72,12 +80,16 @@ func TestStampGuardianReadReceipts_OnlyStaffMessages(t *testing.T) {
 }
 
 func TestStampGuardianReadReceipts_NilCutoffStampsNothing(t *testing.T) {
+	t.Parallel()
+
 	msgs := []*ParentMessage{receiptMsg(1, time.Now(), ParentMessageSenderStaff)}
 	StampGuardianReadReceipts(msgs, nil)
 	assert.False(t, msgs[0].ReadByGuardian)
 }
 
 func TestIsCounterpartMessage(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	guardianMsg := receiptMsg(1, now, ParentMessageSenderGuardian)
 	staffMsg := receiptMsg(2, now, ParentMessageSenderStaff)

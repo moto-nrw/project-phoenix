@@ -69,15 +69,12 @@ func seedDeviatedOccurrence(t *testing.T, s *scenarioSetup, date timezone.Date) 
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence materialized")
 	instanceID := instances[0].ID
-	s.registerCleanup("schedule.activity_instances", instanceID)
 
 	subStaff := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Sub", fmt.Sprintf("Stitute-%d", time.Now().UnixNano()))
 	// extraCleanups run AFTER activity_instances (and their cascaded
 	// instance_staff) are removed, so the staff/person rows have no referencing
 	// child by then.
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", subStaff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", subStaff.PersonID)
 	})
 
 	applyDeviation(t, s, instanceID, s.staffID, subStaff.ID)
@@ -89,6 +86,8 @@ func seedDeviatedOccurrence(t *testing.T, s *scenarioSetup, date timezone.Date) 
 // leave their substitute behind as an extra supervisor on the regenerated
 // block.
 func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -96,15 +95,19 @@ func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *te
 	subStaffID := seedDeviatedOccurrence(t, s, date)
 
 	// Remove the absent employee from the template so re-plan regenerates the
-	// occurrence WITHOUT their planned position.
-	testpkg.CleanupTableRecords(t, s.db, "activities.supervisors", s.supervisorIDs...)
+	// occurrence WITHOUT their planned position. This delete is the test's ACT
+	// step, not a teardown.
+	_, err := s.db.NewDelete().
+		TableExpr("activities.supervisors").
+		Where("id IN (?)", bun.List(s.supervisorIDs)).
+		Exec(context.Background())
+	require.NoError(t, err)
 
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1, "re-plan regenerated the occurrence")
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 
 	rows := loadInstanceStaffRows(t, s.db, s.ctx, regen[0].ID)
 	for _, r := range rows {
@@ -119,6 +122,8 @@ func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *te
 // counterpart: when the absent employee stays on the template, the absence is
 // reapplied and the substitute is recreated.
 func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -131,7 +136,6 @@ func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) 
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1)
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 
 	rows := loadInstanceStaffRows(t, s.db, s.ctx, regen[0].ID)
 	var absentReapplied, substituteRecreated bool
@@ -155,6 +159,8 @@ func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) 
 // the removed position's substitute as an orphaned extra supervisor and overstaff
 // the block. The recreate must be capped at the number of surviving absences.
 func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -165,13 +171,10 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 	supB.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(supB).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.supervisors", supB.ID)
 
 	subX := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "SubX", fmt.Sprintf("X-%d", time.Now().UnixNano()))
 	subY := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "SubY", fmt.Sprintf("Y-%d", time.Now().UnixNano()))
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staffB.ID, subX.ID, subY.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", staffB.PersonID, subX.PersonID, subY.PersonID)
 	})
 
 	// Materialize the single Monday occurrence — now with two planned staff.
@@ -180,7 +183,6 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence, two planned staff")
 	instanceID := instances[0].ID
-	s.registerCleanup("schedule.activity_instances", instanceID)
 
 	// A (s.staffID) absent → covered by X; B absent → covered by Y.
 	applyDeviation(t, s, instanceID, s.staffID, subX.ID)
@@ -197,7 +199,6 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1, "re-plan regenerated the occurrence")
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 
 	rows := loadInstanceStaffRows(t, s.db, s.ctx, regen[0].ID)
 	substituteCount, aAbsent := 0, false
@@ -223,6 +224,8 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 // counting snapshots (rather than the original occurrence cardinality) would have
 // misread this day as "sole" and moved the override.
 func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -236,23 +239,18 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	_, err := s.db.NewInsert().Model(tf2).ModelTableExpr(`schedule.timeframes`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.timeframes", tf2.ID)
 	})
 
 	sched2 := &activitiesModels.Schedule{Weekday: activitiesModels.WeekdayMonday, TimeframeID: &tf2.ID, ActivityGroupID: s.template.ID, WeekPattern: 0}
 	sched2.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(sched2).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.schedules", sched2.ID)
 
 	// Materialize both slots.
 	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 2, "two slots materialized")
-	for _, inst := range instances {
-		s.registerCleanup("schedule.activity_instances", inst.ID)
-	}
 
 	// tf2 (10:00) always materializes to the later start_time than tf1 (08:00),
 	// regardless of how the TIME column round-trips, so the later occurrence is
@@ -268,8 +266,6 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 
 	subStaff := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Sub", fmt.Sprintf("Slot2-%d", time.Now().UnixNano()))
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", subStaff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", subStaff.PersonID)
 	})
 	// Deviate ONLY slot2: mark the planned supervisor absent + assign a substitute.
 	applyDeviation(t, s, slot2.ID, s.staffID, subStaff.ID)
@@ -285,7 +281,6 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1, "only slot1 regenerated")
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 	assert.NotEqual(t, slot2.StartTime.Format("15:04:05"), regen[0].StartTime.Format("15:04:05"),
 		"the surviving slot is the un-deviated one (tf1), not the deleted deviated slot")
 
@@ -309,6 +304,8 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 // copied onto materialized rows, so template-level edits keep propagating
 // while a non-NULL instance value is always a deliberate pin.
 func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -328,7 +325,6 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence materialized")
-	s.registerCleanup("schedule.activity_instances", instances[0].ID)
 	require.Nil(t, instances[0].RequiredStaff,
 		"materialized rows must NOT copy the template override (inherit-at-read)")
 
@@ -349,7 +345,6 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen, 1, "re-plan regenerated the occurrence")
-	s.registerCleanup("schedule.activity_instances", regen[0].ID)
 	require.NotNil(t, regen[0].RequiredStaff, "per-occurrence pin must survive the re-plan")
 	assert.Equal(t, 5, *regen[0].RequiredStaff)
 
@@ -369,7 +364,6 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 
 	regen2 := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, regen2, 1)
-	s.registerCleanup("schedule.activity_instances", regen2[0].ID)
 	assert.Nil(t, regen2[0].RequiredStaff,
 		"an un-pinned occurrence stays NULL after re-plan so template edits keep propagating")
 }

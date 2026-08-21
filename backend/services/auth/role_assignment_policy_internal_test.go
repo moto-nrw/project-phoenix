@@ -30,6 +30,8 @@ func baseRolePtr(v string) *string { return &v }
 // grants, not off its label: Role.Validate lowercases every name on write, so a
 // school role called "Guardian" or "Teacher" collides with the platform names.
 func TestValidateAssignableSchoolRole_TenantRolesAreNotBlockedByName(t *testing.T) {
+	t.Parallel()
+
 	otherTenant := policyTestTenantID + 1
 
 	tests := []struct {
@@ -93,6 +95,8 @@ func TestValidateAssignableSchoolRole_TenantRolesAreNotBlockedByName(t *testing.
 }
 
 func TestValidateAssignableSchoolRole_RejectsUnknownAndMalformedRoles(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing role", func(t *testing.T) {
 		repo := newStubRoleRepository()
 

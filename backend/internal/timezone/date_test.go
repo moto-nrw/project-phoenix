@@ -10,6 +10,8 @@ import (
 // historical bug class: between 22:00/23:00 UTC and midnight UTC, the UTC
 // calendar date is one day behind Berlin's.
 func TestDateFromTime_BoundaryInstants(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   time.Time
@@ -38,6 +40,8 @@ func TestDateFromTime_BoundaryInstants(t *testing.T) {
 // TestDate_DSTArithmetic pins calendar arithmetic across the 2026 German
 // DST transitions (Mar 29 spring-forward: 23h day; Oct 25 fall-back: 25h day).
 func TestDate_DSTArithmetic(t *testing.T) {
+	t.Parallel()
+
 	if got := NewDate(2026, 3, 28).AddDays(2); got != NewDate(2026, 3, 30) {
 		t.Errorf("AddDays across spring-forward = %v, want 2026-03-30", got)
 	}
@@ -70,6 +74,8 @@ func TestDate_DSTArithmetic(t *testing.T) {
 }
 
 func TestDate_Comparisons(t *testing.T) {
+	t.Parallel()
+
 	a, b := NewDate(2026, 6, 9), NewDate(2026, 6, 10)
 	if !a.Before(b) || b.Before(a) || !b.After(a) {
 		t.Error("Before/After ordering wrong")
@@ -89,6 +95,8 @@ func TestDate_Comparisons(t *testing.T) {
 
 // TestDate_ValueScanRoundtrip pins the driver-facing contract.
 func TestDate_ValueScanRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	d := NewDate(2026, 6, 10)
 
 	v, err := d.Value()
@@ -130,6 +138,8 @@ func TestDate_ValueScanRoundtrip(t *testing.T) {
 }
 
 func TestDate_JSON(t *testing.T) {
+	t.Parallel()
+
 	d := NewDate(2026, 6, 10)
 
 	b, err := json.Marshal(d)
@@ -164,6 +174,8 @@ func TestDate_JSON(t *testing.T) {
 }
 
 func TestDate_StringAndFormat(t *testing.T) {
+	t.Parallel()
+
 	d := NewDate(2026, 6, 10)
 	if d.String() != "2026-06-10" {
 		t.Errorf("String() = %q", d.String())

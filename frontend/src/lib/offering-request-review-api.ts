@@ -118,24 +118,6 @@ async function readError(
   return new OfferingRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending offering change requests. */
-export async function listOfferingChangeRequests(): Promise<
-  StaffOfferingRequest[]
-> {
-  const response = await fetch("/api/students/offering-change-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Angebots-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffOfferingRequest[]>);
-}
-
 /**
  * Approves (applies the dated switch) or rejects one offering change request.
  * Approval can legitimately fail (capacity, deactivated offering); the row then
@@ -191,13 +173,6 @@ export async function previewOfferingChangeRequest(
   return unwrap((await response.json()) as Envelope<OfferingRequestPreview>);
 }
 
-/** One page of the decided-request history. */
-export interface OfferingRequestHistoryPage {
-  readonly items: readonly StaffOfferingRequestHistoryEntry[];
-  /** Absent on the last page. */
-  readonly next_cursor?: string;
-}
-
 /**
  * One decided offering change request in the staff history. Mirrors
  * api/students.OfferingRequestHistoryResponse; the diff is the frozen
@@ -215,25 +190,4 @@ interface OfferingRequestRequestedLine {
   readonly offering_id: string;
   readonly label: string;
   readonly new: string;
-}
-
-/** Lists the tenant's decided offering change requests, newest decision first. */
-export async function listOfferingChangeRequestHistory(
-  cursor?: string,
-): Promise<OfferingRequestHistoryPage> {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const response = await fetch(
-    `/api/students/offering-change-requests/history${query}`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-    },
-  );
-  if (!response.ok) {
-    throw await readError(response, "Historie konnte nicht geladen werden");
-  }
-  return unwrap(
-    (await response.json()) as Envelope<OfferingRequestHistoryPage>,
-  );
 }

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { RequestHistoryItem } from "./request-history-item";
@@ -10,6 +10,7 @@ function masterDataItem(
 ): AggregatedHistoryRequest {
   return {
     request_type: "master_data",
+    occurred_at: "2026-08-20T10:00:00Z",
     data: {
       id: "1",
       student_id: "42",
@@ -29,9 +30,19 @@ function masterDataItem(
   };
 }
 
+/**
+ * Eine Historien-Zeile ist zugeklappt; Zeitpunkt, Begruendung und das
+ * Aenderungspanel stehen erst danach. Die Zeile ist die einzige Schaltflaeche
+ * einer gerenderten Karte, deshalb reicht der Rollen-Zugriff ohne Namen.
+ */
+function aufklappen() {
+  fireEvent.click(screen.getByRole("button"));
+}
+
 describe("RequestHistoryItem", () => {
   it("zeigt bei Stammdaten Status, Person, Begründung und alt → neu", () => {
     render(<RequestHistoryItem item={masterDataItem()} />);
+    aufklappen();
 
     expect(screen.getByText("Lara Lehmann")).toBeInTheDocument();
     expect(screen.getByText("Abgelehnt")).toBeInTheDocument();
@@ -52,6 +63,7 @@ describe("RequestHistoryItem", () => {
         })}
       />,
     );
+    aufklappen();
 
     expect(screen.getByText("Automatisch übernommen")).toBeInTheDocument();
     expect(
@@ -62,6 +74,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt die Abholzeit einer entschiedenen Abholzeit-Anfrage", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "care_schedule",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "pickup-1",
         student_id: "42",
@@ -85,7 +98,11 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
-    expect(screen.getByText(/· Abholzeit$/)).toBeInTheDocument();
+    aufklappen();
+
+    // Die Zusammenfassung steht in einer eigenen Spalte; der frühere Trenner
+    // vor ihr war der zum Kindernamen auf derselben Zeile.
+    expect(screen.getByText("Abholzeit")).toBeInTheDocument();
     expect(screen.getByText("Beantragt")).toBeInTheDocument();
     expect(
       screen.getByText("20.08.2026 · Abholzeit: 15:30"),
@@ -95,6 +112,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt bei Betreuungszeiten den eingefrorenen alt → neu Diff statt der Beantragt-Liste", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "care_schedule",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "care-1",
         student_id: "42",
@@ -126,6 +144,8 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Änderungen")).toBeInTheDocument();
     expect(
       screen.getByText("Montag · Abholzeit: 15:00 → 16:00"),
@@ -136,6 +156,7 @@ describe("RequestHistoryItem", () => {
   it("zeigt bei einer zurückgezogenen Angebots-Anfrage die gespeicherten Angebote", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "offering",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "offering-1",
         student_id: "42",
@@ -151,19 +172,47 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Zurückgezogen")).toBeInTheDocument();
     expect(screen.getByText("Beantragt")).toBeInTheDocument();
     expect(screen.getByText("Kreativ-AG: Di")).toBeInTheDocument();
   });
 
+  it("zeigt ohne Diff und beantragte Angebote keine leere Beantragt-Fläche", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "offering",
+      occurred_at: "2026-08-20T10:00:00Z",
+      data: {
+        id: "offering-empty",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        status: "withdrawn",
+        effective_from: "2026-08-20",
+        diff: [],
+        requested: [],
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    aufklappen();
+
+    expect(screen.queryByText("Beantragt")).not.toBeInTheDocument();
+  });
+
   it("zeigt bei einer entschuldigten Abmeldung Daten und Notiz", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "excused",
+      occurred_at: "2026-08-20T10:00:00Z",
       data: {
         id: "excused-1",
         student_id: "42",
         first_name: "Lara",
         last_name: "Lehmann",
+        absence_status: "excused",
         status: "approved",
         dates: ["2026-08-20", "2026-08-21"],
         note: "Arzttermin",
@@ -175,9 +224,102 @@ describe("RequestHistoryItem", () => {
 
     render(<RequestHistoryItem item={item} />);
 
+    aufklappen();
+
     expect(screen.getByText("Freigegeben")).toBeInTheDocument();
     expect(
       screen.getByText("20.08.2026, 21.08.2026 · Arzttermin"),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt eine entschiedene Krankmeldung als Krankmeldung", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "excused",
+      occurred_at: "2026-08-20T10:00:00Z",
+      data: {
+        id: "sick-1",
+        student_id: "42",
+        first_name: "Lara",
+        last_name: "Lehmann",
+        absence_status: "sick",
+        status: "approved",
+        dates: ["2026-08-20"],
+        note: "Fieber",
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText(/Krankmeldung/)).toBeInTheDocument();
+  });
+
+  it("zeigt eine Direkt-Korrektur als eigene Zeilen-Art mit vorher → nachher", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      occurred_at: "2026-08-20T10:00:00Z",
+      data: {
+        id: "9",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [
+          {
+            offering_id: "3",
+            label: "Mittagessen",
+            old: "Mo",
+            new: "abgemeldet",
+          },
+        ],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    aufklappen();
+
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    // Keine Anfrage: nichts wurde eingereicht und nichts entschieden.
+    expect(
+      screen.getByText(/^Geändert am 18\.08\.2026 von Olga Office$/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Eingereicht am/)).not.toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mittagessen: Mo → abgemeldet"),
+    ).toBeInTheDocument();
+  });
+
+  it("hält eine Korrektur ohne Tagesänderung trotzdem fest", () => {
+    // Kommt vor, wenn sich nur intern etwas verschiebt (selbst gesetzte gegen
+    // automatisch übernommene Tage) und die gebuchten Tage gleich bleiben.
+    const item: AggregatedHistoryRequest = {
+      request_type: "direct_correction",
+      occurred_at: "2026-08-20T10:00:00Z",
+      data: {
+        id: "10",
+        student_id: "42",
+        student_name: "Lara Lehmann",
+        changed_at: "2026-08-18T10:00:00Z",
+        changed_by_name: "Olga Office",
+        reason: "Telefonisch gemeldet",
+        diff: [],
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    aufklappen();
+
+    // Jede Änderung wird dokumentiert, auch die ohne sichtbaren Unterschied
+    // an den Tagen — dann sagt die Karte das ausdrücklich.
+    expect(screen.getByText("Direkt-Korrektur")).toBeInTheDocument();
+    expect(screen.getByText("„Telefonisch gemeldet“")).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Änderung an den gebuchten Tagen"),
     ).toBeInTheDocument();
   });
 });

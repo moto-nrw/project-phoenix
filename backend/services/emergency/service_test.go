@@ -73,6 +73,8 @@ func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
 }
 
 func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newMockBunDB(t)
 	defer cleanup()
 
@@ -120,6 +122,8 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 }
 
 func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newMockBunDB(t)
 	defer cleanup()
 
@@ -158,6 +162,8 @@ func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
 }
 
 func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
+	t.Parallel()
+
 	db, _, cleanup := newMockBunDB(t)
 	defer cleanup()
 
@@ -177,6 +183,8 @@ func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
 }
 
 func TestRenderSnapshot(t *testing.T) {
+	t.Parallel()
+
 	db, _, cleanup := newMockBunDB(t)
 	defer cleanup()
 
@@ -197,6 +205,8 @@ func TestRenderSnapshot(t *testing.T) {
 }
 
 func TestBuildSnapshotDocumentRejectsMissingDependencies(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService(Dependencies{})
 
 	_, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
@@ -204,6 +214,8 @@ func TestBuildSnapshotDocumentRejectsMissingDependencies(t *testing.T) {
 }
 
 func TestBuildDocumentRows(t *testing.T) {
+	t.Parallel()
+
 	rows := buildDocumentRows([]snapshotRow{
 		{
 			Name:         "Mila Albrecht",
@@ -223,12 +235,16 @@ func TestBuildDocumentRows(t *testing.T) {
 }
 
 func TestJoinUnique(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Lea Albrecht; Noah Albrecht", strutil.JoinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
 	assert.Equal(t, "02551 111; 02551 222", strutil.JoinUnique("02551 111; 02551 222", "02551 111"))
 	assert.Empty(t, strutil.JoinUnique("", " "))
 }
 
 func TestBinaryLocationLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Anwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_in"}))
 	assert.Equal(t, "Schulhof", binaryLocationLabel(&activeService.AttendanceStatus{Status: "on_yard"}))
 	assert.Equal(t, "Abwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_out"}))
@@ -236,6 +252,8 @@ func TestBinaryLocationLabel(t *testing.T) {
 }
 
 func TestSortSnapshotRowsGermanNameOrder(t *testing.T) {
+	t.Parallel()
+
 	rows := []snapshotRow{
 		{Name: "Jan Zimmermann", Location: "Raum A"},
 		{Name: "emre özdemir", Location: "Raum A"},

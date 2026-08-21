@@ -23,7 +23,6 @@ import (
 func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -41,9 +40,10 @@ func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 }
 
 func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
@@ -59,9 +59,10 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetStudent, FieldKey: "school_class", Value: json.RawMessage(`"2b"`)},
@@ -79,9 +80,10 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
 		{
@@ -103,13 +105,13 @@ func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
 }
 
 func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	repos := repositories.NewFactory(db)
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.accounts", otherAccount.ID) })
 
 	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		privateAudit := &usersModels.StudentDataChangeRequest{
@@ -148,9 +150,10 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	change := []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
@@ -163,9 +166,10 @@ func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_ConcurrentDuplicatePending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	change := []parentService.MasterDataFieldChange{
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
@@ -198,9 +202,10 @@ func TestSubmitMasterDataChangeRequest_ConcurrentDuplicatePending(t *testing.T) 
 }
 
 func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Submitting the current value is a no-op -> ErrMasterDataNoChanges.
 	_, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
@@ -210,9 +215,10 @@ func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, nil)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataNoChanges)
@@ -255,8 +261,9 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 // the thread timeline and the deep-link into the Änderungsanfragen queue can
 // resolve the exact row for any field, not just the first.
 func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := parentmessaging.NewEmitter(
@@ -278,7 +285,6 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Two changed fields (current person is Felix Schneider) -> two rows.
 	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{

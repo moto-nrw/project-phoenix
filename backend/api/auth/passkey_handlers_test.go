@@ -121,6 +121,8 @@ func (s passkeySchoolServiceStub) ListActiveSchoolsByAccountID(context.Context, 
 }
 
 func TestPasskeyLoginHandlers(t *testing.T) {
+	t.Parallel()
+
 	svc := &passkeyServiceStub{}
 	school := &platformModel.School{
 		Model:     base.Model{ID: 42},
@@ -158,6 +160,8 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 }
 
 func TestPasskeyAuthenticatedHandlers(t *testing.T) {
+	t.Parallel()
+
 	svc := &passkeyServiceStub{}
 	school := &platformModel.School{
 		Model:     base.Model{ID: 42},
@@ -212,6 +216,8 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 }
 
 func TestPasskeyAuthenticatedHandlersRejectNonTenantAccountClaims(t *testing.T) {
+	t.Parallel()
+
 	platformClaims := jwt.AppClaims{ID: 99, Scope: tenant.ScopePlatform}
 	zeroTenantClaims := jwt.AppClaims{ID: 99}
 
@@ -336,6 +342,8 @@ func TestPasskeyAuthenticatedHandlersRejectNonTenantAccountClaims(t *testing.T) 
 }
 
 func TestPasskeyHandlerErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	rs.passkeyLoginOptions(w, passkeyJSONRequest("/passkeys/login/options", `{"tenant_slug":"school-a"}`))

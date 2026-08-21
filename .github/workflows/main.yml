@@ -78,15 +78,16 @@ jobs:
 
   # Deliberately NOT a ci-gate dependency. Sonar needs the coverage artifacts,
   # so it can only start once test finishes; keeping it in the gate added its
-  # full runtime to every run's critical path. It still runs on every push and
-  # non-draft PR and reports through its own SonarCloud check.
+  # full runtime to every run's critical path. Run it only after changes land
+  # on development or main; PRs already run lint and tests before merge.
   sonarcloud:
     needs: [detect-changes, test]
     # always(): analyse failing runs too, matching the previous behaviour from
     # when this job lived in test.yml.
     if: >-
       always()
-      && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      && github.event_name == 'push'
+      && (github.ref_name == 'development' || github.ref_name == 'main')
       && (needs.detect-changes.outputs.run-backend == 'true' || needs.detect-changes.outputs.run-frontend == 'true')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:

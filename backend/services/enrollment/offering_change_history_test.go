@@ -2,14 +2,13 @@ package enrollment_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestOfferingChangeRequestService_ListHistory proves the staff history:
@@ -17,9 +16,11 @@ import (
 // name, the decision reason, and the FROZEN snapshot diff — while pending rows
 // stay out.
 func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "History")
 
@@ -32,10 +33,9 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	// While pending, the history is empty.
-	items, next, err := svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, next, err := svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	for _, item := range items {
@@ -46,7 +46,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		RequestID: row.ID, Approve: false, Reason: "Kapazität erschöpft", ReviewedBy: env.creatorID,
 	}))
 
-	items, next, err = svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, next, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	var got *enrollmentService.OfferingChangeHistoryItem
@@ -77,10 +77,9 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", withdrawn.ID) })
 	require.NoError(t, svc.Withdraw(ctx, withdrawn.ID, env.creatorID, fx.studentID))
 
-	items, _, err = svc.ListHistory(ctx, time.Time{}, 0, 25)
+	items, _, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
 	require.NoError(t, err)
 	var withdrawnHistory *enrollmentService.OfferingChangeHistoryItem
 	for _, item := range items {

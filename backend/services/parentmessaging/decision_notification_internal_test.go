@@ -10,6 +10,8 @@ import (
 )
 
 func TestIsStaffDecisionPill(t *testing.T) {
+	t.Parallel()
+
 	decision := ChildEvent{
 		EventType:     usersModels.ParentMessageEventRequestStatus,
 		ActorKind:     usersModels.ParentMessageSenderStaff,
@@ -54,12 +56,15 @@ func TestIsStaffDecisionPill(t *testing.T) {
 }
 
 func TestRequestDecisionCopy(t *testing.T) {
+	t.Parallel()
+
 	t.Run("names the subject area, never the child", func(t *testing.T) {
 		cases := map[string]string{
 			usersModels.ParentMessageRequestCareSchedule:   "Betreuungszeiten",
 			usersModels.ParentMessageRequestPickupChange:   "Abholzeit",
 			usersModels.ParentMessageRequestMasterData:     "Stammdaten",
 			usersModels.ParentMessageRequestExcusedAbsence: "Abmeldung",
+			usersModels.ParentMessageRequestSickAbsence:    "Krankmeldung",
 		}
 		for requestType, expected := range cases {
 			title, body := requestDecisionCopy("de", requestType, usersModels.ParentMessageRequestStatusDone)

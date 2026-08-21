@@ -19,6 +19,8 @@ import (
 // tests cover the three error exits plus the happy path.
 
 func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator_ReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newTestOperatorMFAService(t)
 
 	err := svc.VerifyCodeForOperator(context.Background(), 999_999_999, "123456")
@@ -29,6 +31,8 @@ func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator_ReturnsInvalid
 }
 
 func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge_ReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 
@@ -39,6 +43,8 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge_ReturnsInval
 }
 
 func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(context.Background(), op.ID))
@@ -59,6 +65,8 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *te
 // downstream StartChallenge error.
 
 func TestOperatorMFAService_ResendChallenge_InvalidJWT_ReturnsTokenInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newTestOperatorMFAService(t)
 
 	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
@@ -69,6 +77,8 @@ func TestOperatorMFAService_ResendChallenge_InvalidJWT_ReturnsTokenInvalid(t *te
 }
 
 func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 
@@ -92,6 +102,8 @@ func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *te
 }
 
 func TestOperatorMFAService_ResendChallenge_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(context.Background(), op.ID))

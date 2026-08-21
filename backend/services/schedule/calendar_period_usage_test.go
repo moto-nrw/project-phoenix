@@ -20,11 +20,12 @@ import (
 // =============================================================================
 
 func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 
@@ -57,7 +58,6 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		IsActive:        false,
 	}
 	require.NoError(t, svc.CreatePeriod(ctx, groupOnly))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", used.ID, unused.ID, groupOnly.ID)
 
 	bg := context.Background()
 
@@ -71,20 +71,18 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		IsActive:                  true,
 		CalendarPeriodID:          &used.ID,
 	}
-	phase.SetTenantID(1)
+	phase.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(phase).
 		ModelTableExpr("enrollment.phases").
 		Returning("id").
 		Exec(bg)
 	require.NoError(t, err, "Failed to create test phase")
-	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
 
 	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Usage-Group-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Usage", fmt.Sprintf("Student-%d", suffix), "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Usage", fmt.Sprintf("Staff-%d", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Usage-Room-%d", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID, staff.ID, room.ID)
 	_, err = db.NewUpdate().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -94,7 +92,6 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	require.NoError(t, err, "Failed to link test activity group to calendar period")
 
 	groupOnlyFixture := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Usage-Group-Only-Fixture-%d", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, groupOnlyFixture.ID)
 	_, err = db.NewUpdate().
 		Model(groupOnlyFixture).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -109,14 +106,13 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		WeekPattern:      0,
 		CalendarPeriodID: &used.ID,
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(sched).
 		ModelTableExpr("activities.schedules").
 		Returning("id").
 		Exec(bg)
 	require.NoError(t, err, "Failed to create test schedule")
-	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched.ID)
 
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:        student.ID,
@@ -124,7 +120,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		ValidFrom:        timezone.NewDate(2026, 8, 1),
 		CalendarPeriodID: &used.ID,
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(enrollment).
 		ModelTableExpr("activities.student_enrollments").
@@ -138,7 +134,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		ValidFrom:        timezone.NewDate(2026, 8, 1),
 		CalendarPeriodID: &used.ID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().
 		Model(supervisor).
 		ModelTableExpr("activities.supervisors").
@@ -158,7 +154,6 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		Where("id = ?", instance.ID).
 		Exec(bg)
 	require.NoError(t, err, "Failed to link test activity instance to calendar period")
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
 
 	usage, err := svc.GetUsageCounts(ctx)
 	require.NoError(t, err)

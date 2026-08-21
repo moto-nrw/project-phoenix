@@ -10,6 +10,8 @@ import (
 )
 
 func TestRedactFeedToken(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"/public/calendar/secret-token":     "/public/calendar/[REDACTED]",
 		"/public/calendar/tok123?refresh=1": "/public/calendar/[REDACTED]?refresh=1",
@@ -26,6 +28,8 @@ func TestRedactFeedToken(t *testing.T) {
 }
 
 func TestFeedTokenRedactorHandler(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	base := slog.NewTextHandler(&buf, &slog.HandlerOptions{})
 	logger := slog.New(NewFeedTokenRedactor(base))
@@ -57,6 +61,8 @@ func TestFeedTokenRedactorHandler(t *testing.T) {
 
 // The security logger derived from NewSecurityLogger must redact feed tokens.
 func TestSecurityLoggerRedactsFeedToken(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	sl := &SecurityLogger{logger: slog.New(NewFeedTokenRedactor(slog.NewTextHandler(&buf, nil)))}
 
@@ -73,6 +79,8 @@ func TestSecurityLoggerRedactsFeedToken(t *testing.T) {
 }
 
 func TestRedactQueryValues(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"search=Mustermann":               "search",
 		"search=Mustermann&page=2":        "search&page",
@@ -93,6 +101,8 @@ func TestRedactQueryValues(t *testing.T) {
 // "request" group) and the "referer" attribute must lose their query values
 // while other attributes stay intact.
 func TestQueryValueRedactorHandler(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(NewQueryValueRedactor(slog.NewTextHandler(&buf, nil)))
 
@@ -125,6 +135,8 @@ func TestQueryValueRedactorHandler(t *testing.T) {
 var _ slog.Handler = (*attrRedactor)(nil)
 
 func TestFeedTokenRedactorEnabled(t *testing.T) {
+	t.Parallel()
+
 	h := NewFeedTokenRedactor(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	if !h.Enabled(context.Background(), slog.LevelInfo) {
 		t.Error("expected Info to be enabled")

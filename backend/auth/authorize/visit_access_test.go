@@ -77,8 +77,8 @@ func setupVisitAccessServices(t *testing.T, db *bun.DB) (education.Service, user
 }
 
 func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -90,8 +90,8 @@ func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
 }
 
 func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
@@ -103,27 +103,23 @@ func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
 }
 
 func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
 	// ARRANGE: Create student with account
 	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
 	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for this student
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Student tries to access their own visit
 	result, err := authorize.CanViewVisit(context.Background(), studentAccount.ID, []string{"student"}, []string{}, visit.ID, activeService, usersService, eduService)
@@ -134,28 +130,24 @@ func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
 }
 
 func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
 	// ARRANGE: Create two students
-	student1, student1Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "One", "1a")
-	student2, student2Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "Two", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student1Account.ID, student2.ID, student2Account.ID)
+	_, student1Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "One", "1a")
+	student2, _ := testpkg.CreateTestStudentWithAccount(t, db, "Student", "Two", "1b")
 
 	// Create activity and room
 	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit belonging to student2
 	visit := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Student1 tries to access Student2's visit
 	result, err := authorize.CanViewVisit(context.Background(), student1Account.ID, []string{"student"}, []string{}, visit.ID, activeService, usersService, eduService)
@@ -166,37 +158,31 @@ func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
 }
 
 func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
 	// ARRANGE: Create teacher with account
 	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
 
 	// Create education group and assign teacher
 	eduGroup := testpkg.CreateTestEducationGroup(t, db, "Class 1a")
 	testpkg.CreateTestGroupTeacher(t, db, eduGroup.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, eduGroup.ID)
 
 	// Create student IN THE SAME GROUP as teacher
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	student, _ := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
 	testpkg.AssignStudentToGroup(t, db, student.ID, eduGroup.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
 	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for student
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Teacher tries to access student's visit
 	result, err := authorize.CanViewVisit(context.Background(), teacherAccount.ID, []string{"teacher"}, []string{}, visit.ID, activeService, usersService, eduService)
@@ -207,41 +193,34 @@ func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
 }
 
 func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
 	// ARRANGE: Create teacher with account
 	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
 
 	// Create education group A and assign teacher to it
 	groupA := testpkg.CreateTestEducationGroup(t, db, "Class A")
 	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, groupA.ID)
 
 	// Create education group B (teacher NOT assigned)
 	groupB := testpkg.CreateTestEducationGroup(t, db, "Class B")
-	defer testpkg.CleanupActivityFixtures(t, db, groupB.ID)
 
 	// Create student in GROUP B (not teacher's group)
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Other", "Student", "2b")
+	student, _ := testpkg.CreateTestStudentWithAccount(t, db, "Other", "Student", "2b")
 	testpkg.AssignStudentToGroup(t, db, student.ID, groupB.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
 	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for student
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Teacher tries to access student's visit (student not in their group)
 	result, err := authorize.CanViewVisit(context.Background(), teacherAccount.ID, []string{"teacher"}, []string{}, visit.ID, activeService, usersService, eduService)
@@ -252,28 +231,23 @@ func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testin
 }
 
 func TestCanViewVisit_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
 
 	// ARRANGE: Create a regular user (person with account but no student/staff/teacher)
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Regular", "User")
-	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Regular", "User")
 
 	// Create student and visit
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
+	student, _ := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 	room := testpkg.CreateTestRoom(t, db, "Test Room")
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Regular user (not student, not staff) tries to access visit
 	result, err := authorize.CanViewVisit(context.Background(), account.ID, []string{"user"}, []string{}, visit.ID, activeService, usersService, eduService)
@@ -345,6 +319,7 @@ func (f *fakeVisitEducation) GetTeacherGroups(_ context.Context, _ int64) ([]*ed
 }
 
 func TestCanViewVisit_PropagatesVisitLookupError(t *testing.T) {
+	t.Parallel()
 	lookupErr := errors.New("visit lookup failed")
 
 	result, err := authorize.CanViewVisit(
@@ -363,6 +338,7 @@ func TestCanViewVisit_PropagatesVisitLookupError(t *testing.T) {
 }
 
 func TestRequireVisitView(t *testing.T) {
+	t.Parallel()
 	// Fixture graph shared by the deny and error cases: a non-admin caller
 	// who resolves to a teacher, so the education lookup decides the outcome.
 	teacherPersons := func() *fakeVisitPersons {

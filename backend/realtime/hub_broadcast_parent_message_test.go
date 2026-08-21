@@ -47,6 +47,8 @@ func expectNoEvent(t *testing.T, c *Client, who string) {
 // to one guardian reaches that guardian and the tenant's staff, but never
 // another guardian or another tenant's staff.
 func TestHubBroadcastParentMessage_RoutesByGuardianAndTenant(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	guardianA := newParentClient(hub, 501) // account 501
@@ -75,6 +77,8 @@ func TestHubBroadcastParentMessage_RoutesByGuardianAndTenant(t *testing.T) {
 // but a staffer who knows a thread URL and later loses access to that child must
 // not be able to correlate future triggers to that specific conversation.
 func TestHubBroadcastParentMessage_SanitizesStaffCopy(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	guardian := newParentClient(hub, 501)
@@ -106,6 +110,8 @@ func TestHubBroadcastParentMessage_SanitizesStaffCopy(t *testing.T) {
 
 // TestHubBroadcastParentMessage_EmptyHub — no clients connected must not panic.
 func TestHubBroadcastParentMessage_EmptyHub(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 	if err := hub.BroadcastParentMessage(int64(900), int64(901), NewEvent(EventParentMessage, "", EventData{})); err != nil {
 		t.Errorf("BroadcastParentMessage on empty hub should return nil, got: %v", err)

@@ -81,6 +81,8 @@ func consentTestRepo() *fakeAnnouncementRepo {
 // guardian push. The audience of an announcement says who it is FOR; consent
 // says who agreed to be pushed about it. The second must narrow the first.
 func TestPublishNotifiesOnlyGuardiansWhoAgreed(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	notifier := &fakeNotifier{}
 	prefs := &fakePreferences{optedIn: []int64{202}}
@@ -104,6 +106,8 @@ func TestPublishNotifiesOnlyGuardiansWhoAgreed(t *testing.T) {
 // TestPublishNotifiesNobodyWithoutConsent is the case that makes the default
 // flip safe: the announcement still publishes, it simply pushes to nobody.
 func TestPublishNotifiesNobodyWithoutConsent(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	notifier := &fakeNotifier{}
 
@@ -125,6 +129,8 @@ func TestPublishNotifiesNobodyWithoutConsent(t *testing.T) {
 // consent (FilterOptedIn) must not decide this, since most families have no row at
 // all, so an opt-in rule here would silence the e-mail for nearly everybody.
 func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
 	repo.recipients = []*usersModels.AnnouncementRecipient{
@@ -167,6 +173,8 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 // school has no preference rows and no push subscriptions at all. That must not
 // stop the announcement e-mail, which schools have relied on all along.
 func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
 	repo.recipients = []*usersModels.AnnouncementRecipient{
@@ -202,6 +210,8 @@ func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
 // A broken opt-out read must not be interpreted as "everyone agreed" either:
 // the publish fails so staff can retry instead of guessing the audience.
 func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
 	repo.recipients = []*usersModels.AnnouncementRecipient{
@@ -228,6 +238,8 @@ func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
 }
 
 func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
 	repo.recipients = []*usersModels.AnnouncementRecipient{
@@ -267,6 +279,8 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 // e-mail does not ring. A gated push must therefore leave both the publication
 // and the e-mail untouched.
 func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		notifierErr error
@@ -315,6 +329,8 @@ func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 // TestPublishFailsOnConsentLookupError keeps a broken consent read from being
 // read as "nobody agreed" — that would look identical to a working feature.
 func TestPublishFailsOnConsentLookupError(t *testing.T) {
+	t.Parallel()
+
 	repo := consentTestRepo()
 	notifier := &fakeNotifier{}
 	prefs := &fakePreferences{err: errors.New("boom")}

@@ -12,6 +12,8 @@ import (
 )
 
 func TestCommonScheduleValidityEnvelope(t *testing.T) {
+	t.Parallel()
+
 	validFrom := timezone.NewDate(2026, time.July, 6)
 	validUntil := timezone.NewDate(2026, time.August, 17)
 
@@ -64,6 +66,8 @@ func TestCommonScheduleValidityEnvelope(t *testing.T) {
 }
 
 func TestCommonScheduleValidityEnvelopeRejectsInconsistentRows(t *testing.T) {
+	t.Parallel()
+
 	validFrom := timezone.NewDate(2026, time.July, 6)
 	validUntil := timezone.NewDate(2026, time.August, 17)
 	invertedFrom := validUntil.AddDays(1)

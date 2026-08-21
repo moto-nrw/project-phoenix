@@ -273,8 +273,28 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
   const mockMutate = vi.fn();

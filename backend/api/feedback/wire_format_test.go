@@ -37,6 +37,8 @@ func renderWire(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestWireFormat_Feedback_ErrorRenderer(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		err        error
@@ -86,6 +88,8 @@ func TestWireFormat_Feedback_ErrorRenderer(t *testing.T) {
 }
 
 func TestWireFormat_Feedback_ErrorHelpers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		renderer   render.Renderer

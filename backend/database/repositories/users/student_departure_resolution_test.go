@@ -8,6 +8,8 @@ import (
 )
 
 func TestResolveAllowedDepartureModes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("hydrated unified change wins when legacy mirrors are unchanged", func(t *testing.T) {
 		current := &studentDepartureState{
 			BusDays:       userModels.BusDays{userModels.PickupDayMonday: true},

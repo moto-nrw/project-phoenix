@@ -394,8 +394,8 @@ func withChiParam(r *http.Request, key, value string) *http.Request {
 	return r.WithContext(ctx)
 }
 
-func validClaims() jwt.AppClaims {
-	return jwt.AppClaims{ID: 1, TenantID: 1}
+func validClaims(tb testing.TB) jwt.AppClaims {
+	return jwt.AppClaims{ID: 1, TenantID: testpkg.Tenant(tb)}
 }
 
 type apiResponse struct {
@@ -421,6 +421,8 @@ var (
 // --- CheckInRequest.Bind ---
 
 func TestCheckInRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid present", func(t *testing.T) {
 		assert.NoError(t, (&CheckInRequest{Status: "present"}).Bind(nil))
 	})
@@ -441,6 +443,8 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), newMockSettingsService("", nil), nil, nil, nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
@@ -452,6 +456,8 @@ func TestNewResource(t *testing.T) {
 // --- Router ---
 
 func TestRouter(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	router := rs.Router()
 	assert.NotNil(t, router)
@@ -460,14 +466,18 @@ func TestRouter(t *testing.T) {
 // --- getStaffIDFromClaims ---
 
 func TestGetStaffIDFromClaims_Success(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	claims := jwt.AppClaims{ID: 1, TenantID: 1}
+	claims := jwt.AppClaims{ID: 1, TenantID: testpkg.Tenant(t)}
 	staffID, err := rs.getStaffIDFromClaims(context.Background(), claims)
 	require.NoError(t, err)
 	assert.Equal(t, int64(100), staffID)
 }
 
 func TestGetStaffIDFromClaims_ZeroID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	claims := jwt.AppClaims{ID: 0}
 	_, err := rs.getStaffIDFromClaims(context.Background(), claims)
@@ -476,19 +486,23 @@ func TestGetStaffIDFromClaims_ZeroID(t *testing.T) {
 }
 
 func TestGetStaffIDFromClaims_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	pSvc := &userstest.PersonServiceMock{
 		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
-	claims := jwt.AppClaims{ID: 1, TenantID: 1}
+	claims := jwt.AppClaims{ID: 1, TenantID: testpkg.Tenant(t)}
 	_, err := rs.getStaffIDFromClaims(context.Background(), claims)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "person not found")
 }
 
 func TestGetStaffIDFromClaims_StaffNotFound(t *testing.T) {
+	t.Parallel()
+
 	pSvc := &userstest.PersonServiceMock{
 		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			p := &userModels.Person{}
@@ -500,7 +514,7 @@ func TestGetStaffIDFromClaims_StaffNotFound(t *testing.T) {
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
-	claims := jwt.AppClaims{ID: 1, TenantID: 1}
+	claims := jwt.AppClaims{ID: 1, TenantID: testpkg.Tenant(t)}
 	_, err := rs.getStaffIDFromClaims(context.Background(), claims)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "staff record not found")
@@ -509,8 +523,9 @@ func TestGetStaffIDFromClaims_StaffNotFound(t *testing.T) {
 // --- checkIn handler ---
 
 func TestCheckIn_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, staffID int64, status, source, _ string) (*activeModels.WorkSession, error) {
@@ -527,7 +542,7 @@ func TestCheckIn_Success(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -537,12 +552,14 @@ func TestCheckIn_Success(t *testing.T) {
 }
 
 func TestCheckIn_InvalidBody(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	body := bytes.NewBufferString(`{"status":"invalid"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -550,6 +567,8 @@ func TestCheckIn_InvalidBody(t *testing.T) {
 }
 
 func TestCheckIn_InvalidClaims(t *testing.T) {
+	t.Parallel()
+
 	pSvc := &userstest.PersonServiceMock{
 		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
@@ -560,7 +579,7 @@ func TestCheckIn_InvalidClaims(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -568,8 +587,9 @@ func TestCheckIn_InvalidClaims(t *testing.T) {
 }
 
 func TestCheckIn_ServiceConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -581,7 +601,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -596,8 +616,9 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 // classifyServiceError is what would silently break if someone wrapped the
 // error or moved the type — service-level tests alone don't catch that.
 func TestCheckIn_ReopenStatusConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -613,7 +634,7 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"home_office"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -642,8 +663,9 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 }
 
 func TestCheckIn_PlannedStartNotReached(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -658,7 +680,7 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -681,8 +703,9 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 // --- checkOut handler ---
 
 func TestCheckOut_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, staffID int64, _ string) (*activeModels.WorkSession, error) {
@@ -695,7 +718,7 @@ func TestCheckOut_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -703,8 +726,9 @@ func TestCheckOut_Success(t *testing.T) {
 }
 
 func TestCheckOut_NoActiveSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -714,7 +738,7 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -722,6 +746,8 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 }
 
 func TestCheckOut_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	pSvc := &userstest.PersonServiceMock{
 		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
@@ -730,7 +756,7 @@ func TestCheckOut_Unauthorized(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
 
 	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -740,6 +766,8 @@ func TestCheckOut_Unauthorized(t *testing.T) {
 // --- getCurrent handler ---
 
 func TestGetCurrent_Success(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getCurrentSessionFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
@@ -751,7 +779,7 @@ func TestGetCurrent_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/current", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getCurrent(w, r)
@@ -759,6 +787,8 @@ func TestGetCurrent_Success(t *testing.T) {
 }
 
 func TestGetCurrent_NoSession(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getCurrentSessionFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 			return nil, nil
@@ -767,7 +797,7 @@ func TestGetCurrent_NoSession(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/current", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getCurrent(w, r)
@@ -775,6 +805,8 @@ func TestGetCurrent_NoSession(t *testing.T) {
 }
 
 func TestGetCurrent_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getCurrentSessionFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 			return nil, errors.New("database error")
@@ -783,7 +815,7 @@ func TestGetCurrent_ServiceError(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/current", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getCurrent(w, r)
@@ -793,10 +825,12 @@ func TestGetCurrent_ServiceError(t *testing.T) {
 // --- getConfig handler ---
 
 func TestGetConfig_EmptyDefault(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getConfig(w, r)
@@ -809,11 +843,13 @@ func TestGetConfig_EmptyDefault(t *testing.T) {
 }
 
 func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	rs.SettingsService = newMockSettingsService("2026-08-01", nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getConfig(w, r)
@@ -826,11 +862,13 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 }
 
 func TestGetConfig_AccountStartDateSettingsError(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	rs.SettingsService = newMockSettingsService("", errors.New("settings unavailable"))
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getConfig(w, r)
@@ -841,6 +879,8 @@ func TestGetConfig_AccountStartDateSettingsError(t *testing.T) {
 // --- getHistory handler ---
 
 func TestGetHistory_Success(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getHistoryFn: func(_ context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 			assert.Equal(t, int64(100), staffID)
@@ -855,7 +895,7 @@ func TestGetHistory_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/history?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getHistory(w, r)
@@ -863,10 +903,12 @@ func TestGetHistory_Success(t *testing.T) {
 }
 
 func TestGetHistory_MissingDateParams(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/history", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getHistory(w, r)
@@ -874,10 +916,12 @@ func TestGetHistory_MissingDateParams(t *testing.T) {
 }
 
 func TestGetHistory_InvalidFromDate(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/history?from=bad&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getHistory(w, r)
@@ -885,10 +929,12 @@ func TestGetHistory_InvalidFromDate(t *testing.T) {
 }
 
 func TestGetHistory_InvalidToDate(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/history?from=2026-01-01&to=bad", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getHistory(w, r)
@@ -896,6 +942,8 @@ func TestGetHistory_InvalidToDate(t *testing.T) {
 }
 
 func TestGetHistory_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getHistoryFn: func(_ context.Context, _ int64, _, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
 			return nil, errors.New("database error")
@@ -904,7 +952,7 @@ func TestGetHistory_ServiceError(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/history?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getHistory(w, r)
@@ -914,8 +962,9 @@ func TestGetHistory_ServiceError(t *testing.T) {
 // --- updateSession handler ---
 
 func TestUpdateSession_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, staffID int64, sessionID int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -929,7 +978,7 @@ func TestUpdateSession_Success(t *testing.T) {
 	body := bytes.NewBufferString(`{"notes":"updated"}`)
 	r := httptest.NewRequest(http.MethodPut, "/42", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "42")
 	w := httptest.NewRecorder()
 
@@ -938,12 +987,14 @@ func TestUpdateSession_Success(t *testing.T) {
 }
 
 func TestUpdateSession_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	body := bytes.NewBufferString(`{"notes":"x"}`)
 	r := httptest.NewRequest(http.MethodPut, "/abc", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "abc")
 	w := httptest.NewRecorder()
 
@@ -952,12 +1003,14 @@ func TestUpdateSession_InvalidID(t *testing.T) {
 }
 
 func TestUpdateSession_InvalidBody(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	body := bytes.NewBufferString(`{invalid}`)
 	r := httptest.NewRequest(http.MethodPut, "/42", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "42")
 	w := httptest.NewRecorder()
 
@@ -966,8 +1019,9 @@ func TestUpdateSession_InvalidBody(t *testing.T) {
 }
 
 func TestUpdateSession_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -979,7 +1033,7 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 	body := bytes.NewBufferString(`{"notes":"x"}`)
 	r := httptest.NewRequest(http.MethodPut, "/42", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "42")
 	w := httptest.NewRecorder()
 
@@ -994,8 +1048,9 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 // classifyServiceError the error would fall through to ErrorInternalServer
 // and leak the raw message — this test guards the classifier wiring.
 func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
@@ -1007,7 +1062,7 @@ func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"home_office"}`)
 	r := httptest.NewRequest(http.MethodPut, "/42", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "42")
 	w := httptest.NewRecorder()
 
@@ -1019,8 +1074,9 @@ func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
 // --- startBreak handler ---
 
 func TestStartBreak_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, staffID int64, _ *int) (*activeModels.WorkSessionBreak, error) {
@@ -1031,7 +1087,7 @@ func TestStartBreak_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/break/start", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.startBreak(w, r)
@@ -1039,8 +1095,9 @@ func TestStartBreak_Success(t *testing.T) {
 }
 
 func TestStartBreak_WithPlannedDuration(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
@@ -1056,7 +1113,7 @@ func TestStartBreak_WithPlannedDuration(t *testing.T) {
 	body, err := json.Marshal(StartBreakRequest{PlannedDurationMinutes: &durationMinutes})
 	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPost, "/break/start", bytes.NewReader(body))
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.startBreak(w, r)
@@ -1064,8 +1121,9 @@ func TestStartBreak_WithPlannedDuration(t *testing.T) {
 }
 
 func TestStartBreak_AlreadyActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, _ int64, _ *int) (*activeModels.WorkSessionBreak, error) {
@@ -1075,7 +1133,7 @@ func TestStartBreak_AlreadyActive(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/break/start", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.startBreak(w, r)
@@ -1085,8 +1143,9 @@ func TestStartBreak_AlreadyActive(t *testing.T) {
 // --- endBreak handler ---
 
 func TestEndBreak_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		endBreakFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
@@ -1097,7 +1156,7 @@ func TestEndBreak_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/break/end", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.endBreak(w, r)
@@ -1105,8 +1164,9 @@ func TestEndBreak_Success(t *testing.T) {
 }
 
 func TestEndBreak_NoActiveBreak(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		endBreakFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
@@ -1116,7 +1176,7 @@ func TestEndBreak_NoActiveBreak(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/break/end", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.endBreak(w, r)
@@ -1126,6 +1186,8 @@ func TestEndBreak_NoActiveBreak(t *testing.T) {
 // --- getBreaks handler ---
 
 func TestGetBreaks_Success(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getSessionBreaksFn: func(_ context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 			assert.Equal(t, int64(100), staffID) // from defaultPersonSvc
@@ -1137,7 +1199,7 @@ func TestGetBreaks_Success(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/42", nil)
 	r = withChiParam(r, "sessionId", "42")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -1145,11 +1207,13 @@ func TestGetBreaks_Success(t *testing.T) {
 }
 
 func TestGetBreaks_InvalidSessionID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/abc", nil)
 	r = withChiParam(r, "sessionId", "abc")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -1157,6 +1221,8 @@ func TestGetBreaks_InvalidSessionID(t *testing.T) {
 }
 
 func TestGetBreaks_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getSessionBreaksFn: func(_ context.Context, _, _ int64) ([]*activeModels.WorkSessionBreak, error) {
 			return nil, errors.New("database error")
@@ -1166,7 +1232,7 @@ func TestGetBreaks_ServiceError(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/42", nil)
 	r = withChiParam(r, "sessionId", "42")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -1176,6 +1242,8 @@ func TestGetBreaks_ServiceError(t *testing.T) {
 // --- getSessionEdits handler ---
 
 func TestGetSessionEdits_Success(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getSessionEditsFn: func(_ context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
 			assert.Equal(t, int64(100), staffID) // from defaultPersonSvc
@@ -1187,7 +1255,7 @@ func TestGetSessionEdits_Success(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/42/edits", nil)
 	r = withChiParam(r, "id", "42")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getSessionEdits(w, r)
@@ -1195,11 +1263,13 @@ func TestGetSessionEdits_Success(t *testing.T) {
 }
 
 func TestGetSessionEdits_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/abc/edits", nil)
 	r = withChiParam(r, "id", "abc")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getSessionEdits(w, r)
@@ -1209,6 +1279,8 @@ func TestGetSessionEdits_InvalidID(t *testing.T) {
 // --- exportSessions handler ---
 
 func TestExportSessions_CSV(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		exportSessionsFn: func(_ context.Context, staffID int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, int64(100), staffID)
@@ -1219,7 +1291,7 @@ func TestExportSessions_CSV(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31&format=csv", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.exportSessions(w, r)
@@ -1229,6 +1301,8 @@ func TestExportSessions_CSV(t *testing.T) {
 }
 
 func TestExportSessions_XLSX(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, "xlsx", format)
@@ -1238,7 +1312,7 @@ func TestExportSessions_XLSX(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31&format=xlsx", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.exportSessions(w, r)
@@ -1247,6 +1321,8 @@ func TestExportSessions_XLSX(t *testing.T) {
 }
 
 func TestExportSessions_DefaultCSV(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) (*activeSvc.ExportFile, error) {
 			assert.Equal(t, "csv", format)
@@ -1256,7 +1332,7 @@ func TestExportSessions_DefaultCSV(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.exportSessions(w, r)
@@ -1264,10 +1340,12 @@ func TestExportSessions_DefaultCSV(t *testing.T) {
 }
 
 func TestExportSessions_MissingDates(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/export", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.exportSessions(w, r)
@@ -1275,6 +1353,8 @@ func TestExportSessions_MissingDates(t *testing.T) {
 }
 
 func TestExportSessions_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, _ string) (*activeSvc.ExportFile, error) {
 			return nil, errors.New("export failed")
@@ -1283,7 +1363,7 @@ func TestExportSessions_ServiceError(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.exportSessions(w, r)
@@ -1293,6 +1373,8 @@ func TestExportSessions_ServiceError(t *testing.T) {
 // --- listAbsences handler ---
 
 func TestListAbsences_Success(t *testing.T) {
+	t.Parallel()
+
 	absSvc := &mockStaffAbsenceService{
 		getAbsencesForRange: func(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
@@ -1302,7 +1384,7 @@ func TestListAbsences_Success(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1310,10 +1392,12 @@ func TestListAbsences_Success(t *testing.T) {
 }
 
 func TestListAbsences_MissingDates(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1321,6 +1405,8 @@ func TestListAbsences_MissingDates(t *testing.T) {
 }
 
 func TestListAbsences_StatusOnly(t *testing.T) {
+	t.Parallel()
+
 	absSvc := &mockStaffAbsenceService{
 		listAbsencesFn: func(_ context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
@@ -1333,7 +1419,7 @@ func TestListAbsences_StatusOnly(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences?status=question", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1341,10 +1427,12 @@ func TestListAbsences_StatusOnly(t *testing.T) {
 }
 
 func TestListAbsences_IncompleteDateRange(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences?from=2026-01-01&status=question", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1352,6 +1440,8 @@ func TestListAbsences_IncompleteDateRange(t *testing.T) {
 }
 
 func TestListAbsences_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	absSvc := &mockStaffAbsenceService{
 		listAbsencesFn: func(_ context.Context, _ int64, _ activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
 			return nil, errors.New("invalid absence status")
@@ -1360,7 +1450,7 @@ func TestListAbsences_InvalidStatus(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences?status=unknown", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1368,6 +1458,8 @@ func TestListAbsences_InvalidStatus(t *testing.T) {
 }
 
 func TestListAbsences_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	absSvc := &mockStaffAbsenceService{
 		getAbsencesForRange: func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 			return nil, errors.New("database error")
@@ -1376,7 +1468,7 @@ func TestListAbsences_ServiceError(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences?from=2026-01-01&to=2026-01-31", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.listAbsences(w, r)
@@ -1386,8 +1478,9 @@ func TestListAbsences_ServiceError(t *testing.T) {
 // --- createAbsence handler ---
 
 func TestCreateAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		createAbsenceFn: func(_ context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1401,7 +1494,7 @@ func TestCreateAbsence_Success(t *testing.T) {
 	body := bytes.NewBufferString(`{"absence_type":"sick","date_start":"2026-01-10","date_end":"2026-01-12"}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.createAbsence(w, r)
@@ -1409,12 +1502,14 @@ func TestCreateAbsence_Success(t *testing.T) {
 }
 
 func TestCreateAbsence_InvalidBody(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	body := bytes.NewBufferString(`{invalid}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.createAbsence(w, r)
@@ -1422,8 +1517,9 @@ func TestCreateAbsence_InvalidBody(t *testing.T) {
 }
 
 func TestCreateAbsence_Conflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		createAbsenceFn: func(_ context.Context, _ int64, _ activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1435,7 +1531,7 @@ func TestCreateAbsence_Conflict(t *testing.T) {
 	body := bytes.NewBufferString(`{"absence_type":"sick","date_start":"2026-01-10","date_end":"2026-01-12"}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.createAbsence(w, r)
@@ -1445,14 +1541,15 @@ func TestCreateAbsence_Conflict(t *testing.T) {
 // --- updateAbsence handler ---
 
 func TestUpdateAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, staffID int64, actorAccountID *int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			require.NotNil(t, actorAccountID)
-			assert.Equal(t, int64(validClaims().ID), *actorAccountID)
+			assert.Equal(t, int64(validClaims(t).ID), *actorAccountID)
 			assert.Equal(t, int64(77), absenceID)
 			return &activeSvc.StaffAbsenceResponse{}, nil
 		},
@@ -1462,7 +1559,7 @@ func TestUpdateAbsence_Success(t *testing.T) {
 	body := bytes.NewBufferString(`{"note":"updated note"}`)
 	r := httptest.NewRequest(http.MethodPut, "/absences/77", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
@@ -1471,12 +1568,14 @@ func TestUpdateAbsence_Success(t *testing.T) {
 }
 
 func TestUpdateAbsence_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	body := bytes.NewBufferString(`{"note":"x"}`)
 	r := httptest.NewRequest(http.MethodPut, "/absences/abc", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "abc")
 	w := httptest.NewRecorder()
 
@@ -1485,8 +1584,9 @@ func TestUpdateAbsence_InvalidID(t *testing.T) {
 }
 
 func TestUpdateAbsence_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -1498,7 +1598,7 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 	body := bytes.NewBufferString(`{"note":"x"}`)
 	r := httptest.NewRequest(http.MethodPut, "/absences/7", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "7")
 	w := httptest.NewRecorder()
 
@@ -1509,8 +1609,9 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 // --- deleteAbsence handler ---
 
 func TestDeleteAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, staffID int64, absenceID int64) error {
@@ -1522,7 +1623,7 @@ func TestDeleteAbsence_Success(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodDelete, "/absences/77", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
@@ -1531,10 +1632,12 @@ func TestDeleteAbsence_Success(t *testing.T) {
 }
 
 func TestDeleteAbsence_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodDelete, "/absences/abc", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "abc")
 	w := httptest.NewRecorder()
 
@@ -1543,8 +1646,9 @@ func TestDeleteAbsence_InvalidID(t *testing.T) {
 }
 
 func TestDeleteAbsence_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
@@ -1554,7 +1658,7 @@ func TestDeleteAbsence_NotFound(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodDelete, "/absences/7", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "7")
 	w := httptest.NewRecorder()
 
@@ -1563,8 +1667,9 @@ func TestDeleteAbsence_NotFound(t *testing.T) {
 }
 
 func TestDeleteAbsence_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
@@ -1574,7 +1679,7 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodDelete, "/absences/7", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "7")
 	w := httptest.NewRecorder()
 
@@ -1583,13 +1688,10 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 }
 
 func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	scope := testpkg.NewTenantScope(t, db)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", scope.TenantID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", scope.TenantID).Exec(context.Background())
-	})
 
 	profileRepo := repositories.NewFactory(db).GuardianProfile
 	tests := []struct {
@@ -1672,6 +1774,8 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 // --- getPresenceMap handler ---
 
 func TestGetPresenceMap_Success(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getTodayPresenceFn: func(_ context.Context) (map[int64]string, error) {
 			return map[int64]string{1: "present", 2: "home_office"}, nil
@@ -1680,7 +1784,7 @@ func TestGetPresenceMap_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/presence-map", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getPresenceMap(w, r)
@@ -1688,6 +1792,8 @@ func TestGetPresenceMap_Success(t *testing.T) {
 }
 
 func TestGetPresenceMap_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	wsSvc := &mockWorkSessionService{
 		getTodayPresenceFn: func(_ context.Context) (map[int64]string, error) {
 			return nil, errors.New("database error")
@@ -1696,7 +1802,7 @@ func TestGetPresenceMap_ServiceError(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/presence-map", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.getPresenceMap(w, r)
@@ -1706,6 +1812,8 @@ func TestGetPresenceMap_ServiceError(t *testing.T) {
 // --- Error classifier tests ---
 
 func TestClassifyServiceError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		errMsg     string
@@ -1741,6 +1849,8 @@ func TestClassifyServiceError(t *testing.T) {
 }
 
 func TestClassifyAbsenceError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		errMsg     string
@@ -1794,6 +1904,8 @@ func TestClassifyAbsenceError(t *testing.T) {
 // --- parseDateRange tests ---
 
 func TestParseDateRange_ValidDates(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/?from=2026-01-01&to=2026-01-31", nil)
 	from, to, ok := parseDateRange(w, r)
@@ -1803,6 +1915,8 @@ func TestParseDateRange_ValidDates(t *testing.T) {
 }
 
 func TestParseDateRange_MissingFrom(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/?to=2026-01-31", nil)
 	_, _, ok := parseDateRange(w, r)
@@ -1811,6 +1925,8 @@ func TestParseDateRange_MissingFrom(t *testing.T) {
 }
 
 func TestParseDateRange_MissingTo(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/?from=2026-01-01", nil)
 	_, _, ok := parseDateRange(w, r)
@@ -1819,6 +1935,8 @@ func TestParseDateRange_MissingTo(t *testing.T) {
 }
 
 func TestParseDateRange_InvalidFromFormat(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/?from=01-01-2026&to=2026-01-31", nil)
 	_, _, ok := parseDateRange(w, r)
@@ -1827,6 +1945,8 @@ func TestParseDateRange_InvalidFromFormat(t *testing.T) {
 }
 
 func TestParseDateRange_InvalidToFormat(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/?from=2026-01-01&to=31-01-2026", nil)
 	_, _, ok := parseDateRange(w, r)
@@ -1835,6 +1955,8 @@ func TestParseDateRange_InvalidToFormat(t *testing.T) {
 }
 
 func TestParseDateRange_BothMissing(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	_, _, ok := parseDateRange(w, r)
@@ -1847,8 +1969,9 @@ func TestParseDateRange_BothMissing(t *testing.T) {
 // The frontend branches on this code via DEVIATION_REASON_REQUIRED_CODE and
 // drives the reason dialog from the details payload; both are wire contracts.
 func TestCheckIn_DeviationReasonRequired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
@@ -1865,7 +1988,7 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -1888,8 +2011,9 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 }
 
 func TestCheckOut_DeviationReasonRequired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
@@ -1904,7 +2028,7 @@ func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -1924,8 +2048,9 @@ func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 }
 
 func TestCheckIn_ForwardsReason(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var gotReason string
 	wsSvc := &mockWorkSessionService{
@@ -1939,7 +2064,7 @@ func TestCheckIn_ForwardsReason(t *testing.T) {
 	body := bytes.NewBufferString(`{"status":"present","reason":"Frühdienst übernommen"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkIn(w, r)
@@ -1948,8 +2073,9 @@ func TestCheckIn_ForwardsReason(t *testing.T) {
 }
 
 func TestCheckOut_ForwardsReason(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var gotReason string
 	wsSvc := &mockWorkSessionService{
@@ -1963,7 +2089,7 @@ func TestCheckOut_ForwardsReason(t *testing.T) {
 	body := bytes.NewBufferString(`{"reason":"Elterngespräch lief länger"}`)
 	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -1972,8 +2098,9 @@ func TestCheckOut_ForwardsReason(t *testing.T) {
 }
 
 func TestCheckOut_MalformedBodyRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	called := false
 	wsSvc := &mockWorkSessionService{
@@ -1987,7 +2114,7 @@ func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 	body := bytes.NewBufferString(`{"reason":`)
 	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	w := httptest.NewRecorder()
 
 	rs.checkOut(w, r)
@@ -1998,13 +2125,14 @@ func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 // --- resubmitAbsence (#1419 Rückfrage answer) ---
 
 func TestResubmitAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
-			assert.Equal(t, int64(validClaims().ID), actorAccountID)
+			assert.Equal(t, int64(validClaims(t).ID), actorAccountID)
 			assert.Equal(t, int64(77), absenceID)
 			assert.Equal(t, "Vertretung geklärt", note)
 			return &activeSvc.StaffAbsenceResponse{}, nil
@@ -2015,7 +2143,7 @@ func TestResubmitAbsence_Success(t *testing.T) {
 	body := bytes.NewBufferString(`{"note":"Vertretung geklärt"}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
@@ -2024,8 +2152,9 @@ func TestResubmitAbsence_Success(t *testing.T) {
 }
 
 func TestResubmitAbsence_NotOwn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
@@ -2037,7 +2166,7 @@ func TestResubmitAbsence_NotOwn(t *testing.T) {
 	body := bytes.NewBufferString(`{"note":"x"}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
@@ -2046,8 +2175,9 @@ func TestResubmitAbsence_NotOwn(t *testing.T) {
 }
 
 func TestResubmitAbsence_WrongStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
@@ -2059,7 +2189,7 @@ func TestResubmitAbsence_WrongStatus(t *testing.T) {
 	body := bytes.NewBufferString(`{"note":"x"}`)
 	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
 	r.Header.Set("Content-Type", "application/json")
-	r = withClaims(r, validClaims())
+	r = withClaims(r, validClaims(t))
 	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 

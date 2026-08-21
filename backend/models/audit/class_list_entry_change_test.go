@@ -17,6 +17,8 @@ func validClassListEntryChange() *ClassListEntryChange {
 }
 
 func TestClassListEntryChangeValidate(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validClassListEntryChange().Validate())
 
 	for _, action := range []string{

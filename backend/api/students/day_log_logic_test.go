@@ -26,6 +26,8 @@ func dayLogStatusRow(status, source string, reportedAt time.Time) *active.Studen
 }
 
 func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	checkOut := now.Add(6 * time.Hour)
 	row := dayLogStudent{}
@@ -41,6 +43,8 @@ func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
 }
 
 func TestClassifyDayLogStudent_SickBeatsExcused(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	row := dayLogStudent{}
 	classifyDayLogStudent(&row, nil, []*active.StudentStatusDay{
@@ -53,6 +57,8 @@ func TestClassifyDayLogStudent_SickBeatsExcused(t *testing.T) {
 }
 
 func TestClassifyDayLogStudent_CancelledCareDayIsSignedOff(t *testing.T) {
+	t.Parallel()
+
 	row := dayLogStudent{}
 	classifyDayLogStudent(&row, nil, nil, scheduleService.CareDayCancelled)
 	assert.Equal(t, dayLogStatusExcused, row.Status)
@@ -61,6 +67,8 @@ func TestClassifyDayLogStudent_CancelledCareDayIsSignedOff(t *testing.T) {
 }
 
 func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
+	t.Parallel()
+
 	row := dayLogStudent{}
 	classifyDayLogStudent(&row, nil, nil, scheduleService.CareDayNotScheduled)
 	assert.Equal(t, dayLogStatusNotScheduled, row.Status)
@@ -73,6 +81,8 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 }
 
 func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
 
@@ -89,6 +99,8 @@ func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T)
 // day it validated: rolling over mid-request would drop the care plan and turn
 // every scheduled child into an unexcused absence.
 func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
+	t.Parallel()
+
 	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
 	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
 
@@ -114,6 +126,8 @@ func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
 }
 
 func TestDayLogArrivalIsStillPending(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
 	arrival := timezone.WallClock(now.Add(2 * time.Hour))
 	row := dayLogStudent{Status: dayLogStatusAbsent}
@@ -129,6 +143,8 @@ func TestDayLogArrivalIsStillPending(t *testing.T) {
 }
 
 func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
 	date := timezone.DateFromTime(now)
 	arrival := timezone.WallClock(now.Add(2 * time.Hour))
@@ -159,6 +175,8 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 // from. A derived verdict must not be reported or counted; a real check-in
 // must.
 func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.July, 26, 12, 0, 0, 0, timezone.Berlin)
 	date := timezone.DateFromTime(now)
 	startsLater := date.AddDays(7)
@@ -199,6 +217,8 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 // roster query after midnight would otherwise drop a child activated
 // immediately for the requested day (enrolled_from still in the future).
 func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
+	t.Parallel()
+
 	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
 	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
 	clock := rs.dayLogClock()
@@ -224,6 +244,8 @@ func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
 }
 
 func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
 	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		10: scheduleService.CareDayNotScheduled,
@@ -255,6 +277,8 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 // never render its Values — data rows must not carry a GroupTitle (the first
 // PDF render shipped empty because every row did).
 func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
+	t.Parallel()
+
 	multi := dayLogResponse{Groups: []dayLogGroup{
 		{Name: "Gruppe A", Counters: dayLogCounters{Present: 1, NotScheduled: 2}, Students: []dayLogStudent{{FirstName: "Mia", LastName: "Bauer", Status: dayLogStatusPresent, Label: "Anwesend"}}},
 		{Name: "Gruppe B", Students: []dayLogStudent{{FirstName: "Paul", LastName: "Wolf", Status: dayLogStatusAbsent, Label: "Abwesend"}}},
@@ -277,6 +301,8 @@ func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
 }
 
 func TestMergeDayLogAttendance_OpenSessionKeepsDepartureOpen(t *testing.T) {
+	t.Parallel()
+
 	morning := time.Now().Add(-6 * time.Hour)
 	noon := morning.Add(4 * time.Hour)
 	noonOut := morning.Add(3 * time.Hour)

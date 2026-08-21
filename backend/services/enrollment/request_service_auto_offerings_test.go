@@ -11,6 +11,8 @@ import (
 )
 
 func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	primaryOfferingID := int64(101)
 	automaticOfferingID := int64(202)
@@ -52,6 +54,8 @@ func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *t
 }
 
 func TestMaterializeOfferingSelectionsSkipsAutomaticOfferingForNonMatchingGrade(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(3)
 	primaryOfferingID := int64(303)
 	automaticOfferingID := int64(404)
@@ -85,6 +89,8 @@ func TestMaterializeOfferingSelectionsSkipsAutomaticOfferingForNonMatchingGrade(
 }
 
 func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	careOfferingID := int64(505)
 	lunchOfferingID := int64(606)
@@ -124,6 +130,8 @@ func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T)
 }
 
 func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *testing.T) {
+	t.Parallel()
+
 	nonCareOfferingID := int64(707)
 	lunchOfferingID := int64(808)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -157,6 +165,8 @@ func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *te
 }
 
 func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	primaryOfferingID := int64(901)
 	firstAutomaticID := int64(902)
@@ -206,6 +216,8 @@ func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t 
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAddedGroupRules(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1001)
 	automaticOfferingID := int64(1002)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -240,6 +252,8 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferingForExactlyOne(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1101)
 	automaticOfferingID := int64(1102)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -274,6 +288,8 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferin
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetForExactlyOne(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1201)
 	automaticOfferingID := int64(1202)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -309,6 +325,8 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 // Opt-out (#2370): an excluded auto-add target loses its rule-derived days but
 // keeps the days the parents picked themselves.
 func TestMaterializeOfferingSelectionsExcludedTargetKeepsManualShare(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	triggerID := int64(1101)
 	targetID := int64(1102)
@@ -353,6 +371,8 @@ func TestMaterializeOfferingSelectionsExcludedTargetKeepsManualShare(t *testing.
 // was only triggered by the excluded one falls away with it (the chain keeps no
 // orphaned bookings).
 func TestMaterializeOfferingSelectionsExclusionCascadesThroughChain(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	primaryID := int64(1201)
 	firstAutoID := int64(1202)
@@ -399,6 +419,8 @@ func TestMaterializeOfferingSelectionsExclusionCascadesThroughChain(t *testing.T
 // The exclusion switches off only the Mitbuchungs-Regel. Required-lunch days
 // are not overridable and keep being derived.
 func TestMaterializeOfferingSelectionsExclusionKeepsRequiredLunchDays(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	careID := int64(1301)
 	lunchID := int64(1302)

@@ -19,6 +19,7 @@ import (
 // LoginOperator: MFA enrollment-required branch
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
@@ -73,6 +74,7 @@ func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&confirmHits), "enroll/confirm must be hit exactly once")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing.T) {
 	// Server emits `status` only, not the explicit boolean — the client
 	// should still recognise the enrollment branch.
@@ -108,6 +110,7 @@ func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing
 	assert.Equal(t, "final", auth.Token)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollStartFails(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
@@ -137,6 +140,7 @@ func TestLoginOperator_EnrollStartFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "enroll start")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
@@ -169,6 +173,7 @@ func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "enroll confirm")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
@@ -205,6 +210,7 @@ func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
 // LoginOperator: MFA verify-required branch
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
@@ -252,6 +258,7 @@ func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&verifyHits))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_VerifyFails(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
@@ -279,6 +286,7 @@ func TestLoginOperator_VerifyFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "mfa verify")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_Verify_NoToken(t *testing.T) {
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
@@ -305,6 +313,7 @@ func TestLoginOperator_Verify_NoToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "no access token")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
 	// Point mailpit at a closed port so polling fails immediately on
 	// every iteration. The enrollment flow then surfaces a timeout

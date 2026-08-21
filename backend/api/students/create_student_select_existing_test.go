@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // seedExistingGuardian inserts a guardian profile in tenant 1 and returns it,
@@ -27,7 +28,7 @@ func seedExistingGuardian(t *testing.T, tc *testContext, firstName, lastName, em
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	g.SetTenantID(1)
+	g.SetTenantID(testpkg.Tenant(t))
 	_, err := tc.db.NewInsert().Model(g).Exec(ctx)
 	require.NoError(t, err)
 
@@ -46,6 +47,8 @@ func seedExistingGuardian(t *testing.T, tc *testContext, firstName, lastName, em
 // created with guardian_profile_id links the EXISTING profile (no new profile,
 // no mutation, no phone writes) and applies only the relationship flags.
 func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -74,7 +77,6 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	// Exactly one link, pointing at the EXISTING profile.
 	var linkedID int64
@@ -144,6 +146,8 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 // existing guardian selected twice in one request yields a single link (the
 // duplicate is skipped silently), never a UNIQUE-constraint 500.
 func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -166,7 +170,6 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	relCount, err := tc.db.NewSelect().
 		Table("users.students_guardians").
@@ -179,6 +182,8 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 // TestCreateStudent_MixedNewAndExistingGuardian verifies one request can both
 // link an existing guardian and create a brand-new one in the same atomic write.
 func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -207,7 +212,6 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	var resp createStudentResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.NotZero(t, resp.Data.ID)
-	defer cleanupStudentWithGuardians(t, tc, resp.Data.ID, resp.Data.PersonID)
 
 	relCount, err := tc.db.NewSelect().
 		Table("users.students_guardians").
@@ -231,6 +235,8 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 // that does not exist (or belongs to another tenant — RLS makes it invisible) is
 // a clean 400, not a 500, and commits no orphaned student.
 func TestCreateStudent_SelectExistingGuardian_NotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "GhostRef"

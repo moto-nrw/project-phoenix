@@ -32,17 +32,16 @@ func historyRouter(s *devSetup) chi.Router {
 }
 
 func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Verlauf"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
 
-	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
-	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY, "reason": "krank"}},
@@ -82,6 +81,8 @@ func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 }
 
 func TestDeviationHistory_RejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	hr := historyRouter(s)
 

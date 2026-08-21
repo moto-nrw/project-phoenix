@@ -7,6 +7,8 @@ import (
 )
 
 func TestCompareGermanUmlautsGroupWithBaseLetters(t *testing.T) {
+	t.Parallel()
+
 	// DIN 5007-1 dictionary order: ä/ö/ü sort with a/o/u, not after z.
 	ordered := []string{
 		"Anders",
@@ -27,6 +29,8 @@ func TestCompareGermanUmlautsGroupWithBaseLetters(t *testing.T) {
 }
 
 func TestCompareGermanIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	if got := CompareGerman("müller", "Müller"); got != 0 {
 		t.Errorf("CompareGerman(müller, Müller) = %d, want 0", got)
 	}
@@ -37,6 +41,8 @@ func TestCompareGermanIsCaseInsensitive(t *testing.T) {
 }
 
 func TestCompareGermanKeepsDiacriticsSignificant(t *testing.T) {
+	t.Parallel()
+
 	// Dictionary order (not phone-book): Mueller < Müller, and they are
 	// distinct — IgnoreCase must not collapse diacritics like Loose would.
 	if CompareGerman("Mueller", "Müller") >= 0 {
@@ -48,6 +54,8 @@ func TestCompareGermanKeepsDiacriticsSignificant(t *testing.T) {
 }
 
 func TestCompareGermanNames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                         string
 		aLast, aFirst, bLast, bFirst string
@@ -71,6 +79,8 @@ func TestCompareGermanNames(t *testing.T) {
 }
 
 func TestCompareGermanSortIntegration(t *testing.T) {
+	t.Parallel()
+
 	names := []string{"Zimmermann", "Özdemir", "ahrens", "Ärmel", "Müller", "Mueller"}
 	sort.SliceStable(names, func(i, j int) bool {
 		return CompareGerman(names[i], names[j]) < 0
@@ -84,6 +94,8 @@ func TestCompareGermanSortIntegration(t *testing.T) {
 }
 
 func TestCompareGermanConcurrentUse(t *testing.T) {
+	t.Parallel()
+
 	// The pool must make concurrent comparisons safe; run with -race.
 	var wg sync.WaitGroup
 	for g := 0; g < 16; g++ {

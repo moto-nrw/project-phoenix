@@ -12,6 +12,8 @@ import (
 )
 
 func TestTimeTrackingAuditLogAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 
 	rec := ctx.get("/staff/time-tracking/audit-log", "time_tracking:manage")
@@ -31,6 +33,8 @@ func TestTimeTrackingAuditLogAPI_PermissionSplit(t *testing.T) {
 }
 
 func TestTimeTrackingAuditLogAPI_Validation(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 
 	for _, tc := range []struct {

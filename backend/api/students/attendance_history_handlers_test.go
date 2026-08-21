@@ -20,7 +20,7 @@ import (
 // via a real DB setting override. Cleanup is deferred automatically.
 func enableAttendanceLog(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	err := tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -29,9 +29,10 @@ func enableAttendanceLog(t *testing.T, tc *testContext) {
 }
 
 func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "DisabledFeat", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -41,19 +42,19 @@ func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "EnabledFeat", "Student", "2b")
 	staff := testpkg.CreateTestStaff(t, tc.db, "EnabledFeat", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "enabled-feat-dev")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, device.ID)
 
 	// Create today's attendance
 	checkIn := timezone.Today().Add(8 * time.Hour)
 	checkOut := timezone.Today().Add(15 * time.Hour)
-	a := testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkIn, &checkOut)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", a.ID)
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkIn, &checkOut)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -91,6 +92,8 @@ func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -101,6 +104,8 @@ func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -111,11 +116,12 @@ func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Audit", "Student", "3a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -143,11 +149,12 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Clamped", "Student", "2c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Request 90-day range (cap is 30 by default)
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history?start=2026-01-01T00:00:00Z&end=2026-04-06T23:59:59Z", student.ID), nil)
@@ -166,10 +173,11 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 }
 
 func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	today := timezone.Today()
 	start := today.AddDate(0, 0, -1)
@@ -201,10 +209,11 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	today := timezone.Today()
 	start := today.AddDate(0, 0, 1)
@@ -219,14 +228,15 @@ func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	// #2329: the history is readable by any verified staff member of the tenant,
 	// regardless of which group the child belongs to.
 	student := testpkg.CreateTestStudent(t, tc.db, "ScopeAll", "Student", "3b")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ScopeAll", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ScopeAll", "Staff")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -235,6 +245,8 @@ func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -242,7 +254,6 @@ func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
 	// not staff and must stay out — users:read alone never unlocks the history.
 	student := testpkg.CreateTestStudent(t, tc.db, "Unlinked", "Student", "3c")
 	account := testpkg.CreateTestAccount(t, tc.db, "history-unlinked@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, account.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -251,11 +262,12 @@ func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Student", "1c")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history?start=2026-04-10T00:00:00Z&end=2026-04-01T00:00:00Z", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -264,11 +276,12 @@ func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_EmptyResult(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Empty", "Student", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

@@ -38,6 +38,8 @@ func renderStatus(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestRenderWithRules(t *testing.T) {
+	t.Parallel()
+
 	rules := []common.ErrorRule{
 		{Target: errRuleNotFound, Render: common.ErrorNotFound},
 		{Target: errRuleConflict, Render: common.ErrorConflict},
@@ -63,6 +65,8 @@ func TestRenderWithRules(t *testing.T) {
 }
 
 func TestRulesRenderer(t *testing.T) {
+	t.Parallel()
+
 	renderer := common.RulesRenderer([]common.ErrorRule{
 		{Target: errRuleNotFound, Render: common.ErrorNotFound},
 	}, common.ErrorInternalServer)
@@ -74,6 +78,8 @@ func TestRulesRenderer(t *testing.T) {
 }
 
 func TestUnwrapRenderer(t *testing.T) {
+	t.Parallel()
+
 	renderer := common.UnwrapRenderer[*fakeDomainError]([]common.ErrorRule{
 		{Target: errRuleNotFound, Render: common.ErrorNotFound},
 		{Target: errRuleConflict, Render: common.ErrorConflict},

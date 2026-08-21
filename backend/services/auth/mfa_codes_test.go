@@ -9,6 +9,8 @@ import (
 )
 
 func TestGenerateEmailCode(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < 50; i++ {
 		code, err := GenerateEmailCode()
 		require.NoError(t, err)
@@ -20,6 +22,8 @@ func TestGenerateEmailCode(t *testing.T) {
 }
 
 func TestHashShortCode_RoundTripEmailCode(t *testing.T) {
+	t.Parallel()
+
 	code, err := GenerateEmailCode()
 	require.NoError(t, err)
 
@@ -38,6 +42,8 @@ func TestHashShortCode_RoundTripEmailCode(t *testing.T) {
 }
 
 func TestTrustedDeviceToken_GenerateHashSignVerify(t *testing.T) {
+	t.Parallel()
+
 	raw, err := GenerateTrustedDeviceToken()
 	require.NoError(t, err)
 	assert.NotEmpty(t, raw)
@@ -58,6 +64,8 @@ func TestTrustedDeviceToken_GenerateHashSignVerify(t *testing.T) {
 }
 
 func TestTrustedDeviceToken_RejectsTamperedSignature(t *testing.T) {
+	t.Parallel()
+
 	raw, err := GenerateTrustedDeviceToken()
 	require.NoError(t, err)
 
@@ -75,6 +83,8 @@ func TestTrustedDeviceToken_RejectsTamperedSignature(t *testing.T) {
 }
 
 func TestTrustedDeviceToken_RejectsWrongSecret(t *testing.T) {
+	t.Parallel()
+
 	raw, err := GenerateTrustedDeviceToken()
 	require.NoError(t, err)
 
@@ -84,6 +94,8 @@ func TestTrustedDeviceToken_RejectsWrongSecret(t *testing.T) {
 }
 
 func TestTrustedDeviceToken_RejectsMalformed(t *testing.T) {
+	t.Parallel()
+
 	secret := DeriveMFASecret("any-secret")
 	for _, in := range []string{"", "no-dot-at-all", ".", "raw.", ".sig"} {
 		_, ok := VerifyTrustedDeviceToken(in, secret)
@@ -92,6 +104,8 @@ func TestTrustedDeviceToken_RejectsMalformed(t *testing.T) {
 }
 
 func TestDeriveMFASecret_DeterministicAndDistinct(t *testing.T) {
+	t.Parallel()
+
 	a := DeriveMFASecret("jwt-secret")
 	b := DeriveMFASecret("jwt-secret")
 	assert.Equal(t, a, b, "same input must produce same secret")

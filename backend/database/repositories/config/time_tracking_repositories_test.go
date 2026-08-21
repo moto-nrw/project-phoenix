@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -13,17 +12,15 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Exclusive")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	defer cleanupStaffWorkSchedules(t, db, staff.ID)
 
 	repo := configRepo.NewStaffWorkScheduleRepository(db)
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
@@ -52,13 +49,12 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 }
 
 func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Invalid")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	defer cleanupStaffWorkSchedules(t, db, staff.ID)
 
 	repo := configRepo.NewStaffWorkScheduleRepository(db)
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
@@ -88,15 +84,13 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 }
 
 func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	ownStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Owner")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Other")
-	defer testpkg.CleanupStaffFixtures(t, db, otherStaff.ID, ownStaff.ID)
-	defer cleanupStaffWorkSchedules(t, db, ownStaff.ID)
-	defer cleanupStaffWorkSchedules(t, db, otherStaff.ID)
 
 	queryDate := timezone.NewDate(2026, time.June, 8)
 	otherRow := &configModel.StaffWorkSchedule{
@@ -108,7 +102,7 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 		ValidFrom:      queryDate.AddDays(10),
 		ValidUntil:     ptrDate(queryDate.AddDays(20)),
 	}
-	otherRow.SetTenantID(1)
+	otherRow.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(otherRow).
 		ModelTableExpr("config.staff_work_schedules").
@@ -122,13 +116,12 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 }
 
 func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Template", "Refresh")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer cleanupStaffWorkSchedules(t, db, staff.ID)
 
 	repo := configRepo.NewWorkTimeModelRepository(db)
 	model := &configModel.WorkTimeModel{
@@ -202,9 +195,10 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 }
 
 func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	repo := configRepo.NewWorkTimeModelRepository(db)
 	model := &configModel.WorkTimeModel{
@@ -238,12 +232,12 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 }
 
 func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Assigned", "Template")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	repo := configRepo.NewWorkTimeModelRepository(db)
 	model := &configModel.WorkTimeModel{
 		Name:               "Assigned delete safety",
@@ -284,19 +278,16 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 }
 
 func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
-	foreignTenantID := int64(1837001)
+	ctx := testpkg.Ctx(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 
 	first := testpkg.CreateTestStaff(t, db, "Range", "First")
 	second := testpkg.CreateTestStaff(t, db, "Range", "Second")
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Range", "Foreign")
-	defer testpkg.CleanupStaffFixtures(t, db, first.ID, second.ID, foreign.ID)
-	defer cleanupStaffWorkSchedules(t, db, first.ID)
-	defer cleanupStaffWorkSchedules(t, db, second.ID)
-	defer cleanupStaffWorkSchedules(t, db, foreign.ID)
 
 	from := timezone.NewDate(2026, time.June, 8)
 	to := from.AddDays(6)
@@ -311,7 +302,7 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayThursday, TargetMinutes: 700, ValidFrom: to.AddDays(1)},
 	}
 	for _, row := range rows {
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -343,10 +334,11 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 }
 
 func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
-	foreignTenantID := int64(1837002)
+	ctx := testpkg.Ctx(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
@@ -388,15 +380,6 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	assert.Len(t, byID[localA.ID].Entries, 2)
 	require.Len(t, byID[localB.ID].Entries, 1)
 	assert.Equal(t, 180, byID[localB.ID].Entries[0].TargetMinutes)
-}
-
-func cleanupStaffWorkSchedules(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Table("config.staff_work_schedules").
-		Where("staff_id = ?", staffID).
-		Exec(context.Background())
-	require.NoError(t, err)
 }
 
 func ptrDate(d timezone.Date) *timezone.Date {

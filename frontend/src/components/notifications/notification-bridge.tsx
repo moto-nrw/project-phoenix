@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "~/contexts/ToastContext";
 import type { PhoenixNotificationDetail } from "~/lib/notification-events";
+import { installRateLimitFetchGuard } from "~/lib/rate-limit-backoff";
 import { tenantAwarePath } from "~/lib/tenant-path";
 
 export type { PhoenixNotificationDetail } from "~/lib/notification-events";
@@ -48,6 +49,8 @@ export function NotificationBridge() {
   const router = useRouter();
   const { tenant: tenantSlug } = useParams<{ tenant?: string }>();
 
+  useEffect(() => installRateLimitFetchGuard(), []);
+
   useEffect(() => {
     const onNotification = (event: Event) => {
       const detail = (event as CustomEvent<PhoenixNotificationDetail>).detail;
@@ -85,6 +88,24 @@ export function NotificationBridge() {
     return () =>
       window.removeEventListener("phoenix:notification", onNotification);
   }, [router, tenantSlug, toast]);
+
+  useEffect(() => {
+    const onRateLimited = (event: Event) => {
+      const seconds =
+        event instanceof CustomEvent &&
+        typeof event.detail?.seconds === "number"
+          ? Math.max(1, Math.ceil(event.detail.seconds))
+          : 60;
+      toast.warning(
+        `Zu viele Anfragen auf einmal. Bitte warten Sie ${seconds} Sekunden und versuchen Sie es dann erneut.`,
+        { id: "rate-limit", duration: Math.min(10_000, seconds * 1000) },
+      );
+    };
+
+    window.addEventListener("phoenix:rate-limited", onRateLimited);
+    return () =>
+      window.removeEventListener("phoenix:rate-limited", onRateLimited);
+  }, [toast]);
 
   return null;
 }
