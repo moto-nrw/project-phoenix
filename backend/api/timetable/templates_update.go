@@ -429,16 +429,28 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	// The filter follows the source: a kept or carried source keeps the stored
 	// filter; a source cleared by explicit null takes the filter down with it.
 	if len(req.SourceCareOfferingIDs.Value) == 0 {
-		// Preserve an explicitly submitted filter so model validation rejects it
-		// instead of returning success after silently discarding client input.
-		if (req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0) ||
-			(req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0) {
-			return
-		}
-		req.SourceGradeLevels.Value = nil
-		req.SourceSchoolClasses.Value = nil
+		clearOfferingSourceFiltersWhenSourceMissing(req)
 		return
 	}
+	applyOfferingSourceFilters(req, existing)
+}
+
+func clearOfferingSourceFiltersWhenSourceMissing(req *updateTemplateRequest) {
+	// Preserve an explicitly submitted filter so model validation rejects it
+	// instead of returning success after silently discarding client input.
+	if hasSubmittedOfferingSourceFilter(req) {
+		return
+	}
+	req.SourceGradeLevels.Value = nil
+	req.SourceSchoolClasses.Value = nil
+}
+
+func hasSubmittedOfferingSourceFilter(req *updateTemplateRequest) bool {
+	return req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0 ||
+		req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0
+}
+
+func applyOfferingSourceFilters(req *updateTemplateRequest, existing templateResponse) {
 	// Grade and class filter are mutually exclusive (#2482), so an explicitly
 	// submitted non-empty filter also DROPS the other one instead of letting
 	// it be carried in from storage — switching a Regeltermin from Jahrgang
@@ -446,20 +458,30 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	// the client never sent.
 	submittedGrades := req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0
 	submittedClasses := req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0
-	if !req.SourceGradeLevels.Set {
-		if submittedClasses {
-			req.SourceGradeLevels.Value = nil
-		} else {
-			req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
-		}
+	inheritSourceGradeLevels(req, existing, submittedClasses)
+	inheritSourceSchoolClasses(req, existing, submittedGrades)
+}
+
+func inheritSourceGradeLevels(req *updateTemplateRequest, existing templateResponse, submittedClasses bool) {
+	if req.SourceGradeLevels.Set {
+		return
 	}
-	if !req.SourceSchoolClasses.Set {
-		if submittedGrades || len(req.SourceGradeLevels.Value) > 0 {
-			req.SourceSchoolClasses.Value = nil
-		} else {
-			req.SourceSchoolClasses.Value = slices.Clone(existing.SourceSchoolClasses)
-		}
+	if submittedClasses {
+		req.SourceGradeLevels.Value = nil
+		return
 	}
+	req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
+}
+
+func inheritSourceSchoolClasses(req *updateTemplateRequest, existing templateResponse, submittedGrades bool) {
+	if req.SourceSchoolClasses.Set {
+		return
+	}
+	if submittedGrades || len(req.SourceGradeLevels.Value) > 0 {
+		req.SourceSchoolClasses.Value = nil
+		return
+	}
+	req.SourceSchoolClasses.Value = slices.Clone(existing.SourceSchoolClasses)
 }
 
 // validateLegacyTemplateWorkdays permits an update to retain a weekend
