@@ -60,6 +60,8 @@ func roomColor(t *testing.T, db *bun.DB, roomID int64) *string {
 }
 
 func TestSchulhofRoomColorClearDefault(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

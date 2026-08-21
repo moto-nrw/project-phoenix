@@ -20,6 +20,8 @@ import (
 // snapshot integration tests; what needs pinning here is which of the three
 // binary labels may carry a room colour.
 func TestWithYardRoomColor(t *testing.T) {
+	t.Parallel()
+
 	yard := "#A3D977"
 
 	t.Run("stamps the color on the Schulhof label", func(t *testing.T) {
@@ -53,6 +55,8 @@ func TestWithYardRoomColor(t *testing.T) {
 // wiring: a Service implementation that predates YardRoomColorResolver must
 // degrade to "no colour", never panic.
 func TestResolveYardRoomColorWithoutCapability(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, ResolveYardRoomColor(t.Context(), nil))
 }
 
@@ -92,6 +96,8 @@ func schulhofRoom(color *string) *facilityModels.Room {
 // TestGetSchulhofRoomColor covers the resolver's own decision table: which
 // lookup results count as "no colour" and which ones have to stay errors.
 func TestGetSchulhofRoomColor(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("returns the configured color", func(t *testing.T) {
@@ -194,6 +200,8 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 // TestResolveYardRoomColorSuccess pins the happy path through the optional
 // interface: a Service that resolves a colour hands it straight to the caller.
 func TestResolveYardRoomColorSuccess(t *testing.T) {
+	t.Parallel()
+
 	color := "#A3D977"
 	svc := yardColorService(yardColorRepo(schulhofRoom(&color)))
 
@@ -207,6 +215,8 @@ func TestResolveYardRoomColorSuccess(t *testing.T) {
 // TestResolveYardRoomColorSwallowsErrors pins the fail-soft contract at the
 // call site: the error is logged, the student list still renders.
 func TestResolveYardRoomColorSwallowsErrors(t *testing.T) {
+	t.Parallel()
+
 	repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "list", Err: errors.New("connection refused")}}
 
 	assert.Nil(t, ResolveYardRoomColor(context.Background(), yardColorService(repo)))
@@ -215,6 +225,8 @@ func TestResolveYardRoomColorSwallowsErrors(t *testing.T) {
 // TestSnapshotBinaryYardColor covers the snapshot resolver end of the wiring
 // without touching the database.
 func TestSnapshotBinaryYardColor(t *testing.T) {
+	t.Parallel()
+
 	yard := "#A3D977"
 	const studentID int64 = 42
 
