@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
 
@@ -51,6 +51,8 @@ const afternoonOgs: StaffHistorySession = {
 
 function renderTable(props?: {
   sessions?: readonly StaffHistorySession[];
+  from?: Date;
+  to?: Date;
   onEditDay?: (
     date: Date,
     session: StaffHistorySession | null,
@@ -60,12 +62,17 @@ function renderTable(props?: {
   return render(
     <StaffSessionTable
       staffId="1"
-      from={from}
-      to={to}
+      from={props?.from ?? from}
+      to={props?.to ?? to}
       // Absichtlich verdreht übergeben — die Tabelle sortiert nach Check-in.
       sessions={props?.sessions ?? [afternoonOgs, morningHomeOffice]}
       schedule={schedule}
-      dailyTargets={new Map([["2026-01-05", 480]])}
+      dailyTargets={
+        new Map([
+          ["2026-01-05", 480],
+          ["2026-01-06", 480],
+        ])
+      }
       accountStartDate=""
       accountStartDatePending={false}
       accountStartDateError={false}
@@ -230,5 +237,63 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     });
 
     expect(screen.getAllByText("eingestempelt").length).toBeGreaterThan(0);
+  });
+
+  // Die Tagessegmente eines Nachtblocks enden dort, wo auch die gezeigten
+  // Minuten enden. Vergleicht die Aufteilung stattdessen mit einem rohen
+  // Checkout, findet kein Segment seinen letzten Tag und die letzte Zeile
+  // erfindet 23:59.
+  describe("gekappte Blöcke", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      // 06.01.2026, 09:00 Berlin.
+      vi.setSystemTime(new Date("2026-01-06T08:00:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("zeigt beim Checkout in der Zukunft das gekappte Ende statt 23:59", () => {
+      renderTable({
+        from: new Date(2026, 0, 5),
+        to: new Date(2026, 0, 6),
+        sessions: [
+          {
+            ...morningHomeOffice,
+            id: "capped",
+            date: "2026-01-05",
+            check_in_time: "2026-01-05T22:00:00+01:00",
+            // Fehleingabe: der Checkout liegt Tage in der Zukunft.
+            check_out_time: "2026-01-09T12:00:00+01:00",
+            net_minutes: 660,
+          },
+        ],
+      });
+
+      // Zweiter Tag des Blocks: 00:00 bis zur Kappung um 09:00.
+      const secondDay = screen.getByText("00:00").closest("tr");
+      expect(secondDay).toHaveTextContent("09:00");
+      expect(secondDay).not.toHaveTextContent("23:59");
+    });
+
+    it("behält einen Block ohne volle Minute in der Tabelle", () => {
+      renderTable({
+        from: new Date(2026, 0, 6),
+        to: new Date(2026, 0, 6),
+        sessions: [
+          {
+            ...morningHomeOffice,
+            id: "fresh",
+            date: "2026-01-06",
+            check_in_time: "2026-01-06T08:59:40+01:00",
+            check_out_time: null,
+            net_minutes: 0,
+          },
+        ],
+      });
+
+      expect(screen.getAllByText("eingestempelt").length).toBeGreaterThan(0);
+    });
   });
 });

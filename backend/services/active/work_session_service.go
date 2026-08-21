@@ -264,7 +264,14 @@ type WorkSessionService interface {
 	// finds a session that is still running even when it was opened on an
 	// earlier calendar day.
 	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// GetHistory reads by the stored session date: one block is one row, filed
+	// under the day it started. That is the export contract, where a night
+	// block must appear in exactly one period, never in two.
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
+	// GetHistoryIntersecting reads by interval and is what every reader needs
+	// that splits minutes onto Berlin calendar days: the history tables, the
+	// kiosk day state and the balances all have to see the block that started
+	// the evening before `from` and reaches into the range (#2402).
 	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
@@ -1578,9 +1585,10 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	return s.historyResponse(ctx, staffID, sessions)
 }
 
-// GetHistoryIntersecting returns blocks that overlap a calendar range. It is
-// reserved for live day state (kiosk and balances); the public history keeps
-// its start-date contract through GetHistory.
+// GetHistoryIntersecting returns blocks that overlap a calendar range. Every
+// consumer that lays minutes out on calendar days uses it: the history tables,
+// the kiosk day state, the balances. GetHistory keeps the stored-date contract
+// for the export, where a block is a single row under its start day.
 func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
 	end := to.AddDays(1).BerlinMidnight()
 	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
@@ -2337,6 +2345,11 @@ func timeTrackingHeaders() []string {
 // absences. CSV and XLSX stay plain data files (shared writers below);
 // PDF renders through the listexport design (#1568) as the print artifact.
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error) {
+	// Deliberately the stored-date read, not the intersecting one: an export
+	// row is a whole block, and a night block that reaches into the next month
+	// must be listed once, under the month it started in. Reading by interval
+	// would put it into both months' files and double it in any sum drawn from
+	// them. The absences below are clamped to the same range for that reason.
 	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)

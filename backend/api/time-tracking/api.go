@@ -317,8 +317,10 @@ func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get history with weekly aggregation
-	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Get history with weekly aggregation. Intersecting for the same reason as
+	// the admin-side history (api/staff): a night block that began before
+	// `from` still carries minutes inside the range (#2402).
+	historyResp, err := rs.WorkSessionService.GetHistoryIntersecting(r.Context(), staffID, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

@@ -51,7 +51,12 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Intersecting, not date-based: a block that started the evening before
+	// `from` reaches into the range, and the table splits its minutes onto the
+	// Berlin days they fall on (#2402). Reading by stored date would drop that
+	// first sliver of the range and the row would disagree with the server-side
+	// Saldo, which counts the same interval.
+	historyResp, err := rs.WorkSessionService.GetHistoryIntersecting(r.Context(), staffID, from, to)
 	if err != nil {
 		rs.getLogger().Error("failed to get staff history",
 			"staff_id", staffID,

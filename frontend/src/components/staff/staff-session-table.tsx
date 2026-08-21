@@ -39,6 +39,7 @@ import type {
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
 import {
+  balanceSessionEnd,
   formatDuration,
   indexWorkSessionMinutesByBerlinDate,
 } from "~/lib/time-tracking-helpers";
@@ -60,6 +61,19 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // Tooltip der beiden Zeit-Zellen auf einem Mehrblock-Tag (#2402).
 const multiBlockBoundsHint =
   "Tagesgrenzen über alle Blöcke — die Zeit zwischen zwei Blöcken zählt nicht als Arbeitszeit. Die gearbeiteten Zeiten stehen je Block darunter.";
+
+// Checkout des letzten Segments: der gespeicherte Wert, wenn er die gezeigten
+// Minuten deckt, sonst das gekappte Ende. Ein offener Block behält null und
+// rendert weiter als laufend.
+function cappedCheckOut(
+  stored: string | null,
+  checkOut: Date | null,
+  effectiveEnd: Date,
+): string | null {
+  if (stored === null || checkOut === null) return null;
+  if (checkOut.getTime() <= effectiveEnd.getTime()) return stored;
+  return effectiveEnd.toISOString();
+}
 
 function splitSessionByBerlinDate(
   session: StaffHistorySession,
@@ -108,8 +122,23 @@ function splitSessionByBerlinDate(
     [historySession],
     now,
   );
+  // Ein Block ohne volle Minute (gerade eingestempelt, Sekunden-Korrektur)
+  // liefert keine Tageswerte. Er bleibt trotzdem als eigene Zeile stehen,
+  // statt bis zur ersten vollen Minute aus der Tabelle zu verschwinden.
+  if (valuesByDate.size === 0) return [session];
+
   const start = new Date(session.check_in_time);
-  const end = new Date(session.check_out_time ?? now);
+  const checkOut = session.check_out_time
+    ? new Date(session.check_out_time)
+    : null;
+  // Dasselbe Ende, aus dem die Minuten oben stammen: ein offener Block und
+  // ein Checkout in der Zukunft werden gekappt. Vergliche man stattdessen mit
+  // dem rohen Checkout, fände kein Segment seinen letzten Tag und die letzte
+  // Zeile bekäme 23:59 statt der Zeit, an der die gezeigten Minuten enden.
+  const end = balanceSessionEnd(
+    { date: session.date, checkIn: start, checkOut },
+    now,
+  );
 
   return [...valuesByDate.entries()].map(([date, values]) => {
     const isFirstDay = date === berlinTodayISO(start);
@@ -121,8 +150,11 @@ function splitSessionByBerlinDate(
       : new Date(
           new Date(endOfBerlinDayISO(previousDay)).getTime() + 1_000,
         ).toISOString();
+    // Der letzte Tag trägt den gespeicherten Checkout, solange der innerhalb
+    // der Kappung liegt; ein offener Block bleibt offen (null), ein Checkout
+    // jenseits der Kappung wird auf sie zurückgeholt.
     const segmentEnd = isLastDay
-      ? session.check_out_time
+      ? cappedCheckOut(session.check_out_time, checkOut, end)
       : endOfBerlinDayISO(parseISODate(date));
     return {
       ...session,
