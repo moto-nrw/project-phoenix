@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
+import type { DayProjection } from "~/lib/time-tracking-helpers";
 
 import { StaffSessionTable } from "./staff-session-table";
 
@@ -61,6 +62,25 @@ interface TableProps {
   ) => void;
 }
 
+// Die Tabelle rechnet Gutschrift und Saldo nicht mehr selbst, sie zeigt die
+// servergerechnete Tagesprojektion (#2443). Der Helfer baut sie mit Nullen für
+// alles, was ein Testfall nicht ausdrücklich setzt.
+function dayProjection(
+  entries: Record<string, Partial<DayProjection> & { targetMinutes: number }>,
+): ReadonlyMap<string, DayProjection> {
+  return new Map(
+    Object.entries(entries).map(([date, values]) => [
+      date,
+      {
+        creditMinutes: 0,
+        actualMinutes: 0,
+        balanceMinutes: 0,
+        ...values,
+      },
+    ]),
+  );
+}
+
 function tableElement(props?: TableProps) {
   return (
     <StaffSessionTable
@@ -70,12 +90,10 @@ function tableElement(props?: TableProps) {
       // Absichtlich verdreht übergeben — die Tabelle sortiert nach Check-in.
       sessions={props?.sessions ?? [afternoonOgs, morningHomeOffice]}
       schedule={schedule}
-      dailyTargets={
-        new Map([
-          ["2026-01-05", 480],
-          ["2026-01-06", 480],
-        ])
-      }
+      dailyProjection={dayProjection({
+        "2026-01-05": { targetMinutes: 480 },
+        "2026-01-06": { targetMinutes: 480 },
+      })}
       accountStartDate=""
       accountStartDatePending={false}
       accountStartDateError={false}
@@ -102,6 +120,22 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     expect(screen.getAllByText("6h 10min").length).toBeGreaterThan(0);
     // Statuszelle der Tageszeile trägt den Block-Zähler.
     expect(screen.getByText("2 Blöcke")).toBeInTheDocument();
+  });
+
+  // Eine Blockzeile mit zu wenig Zellen rutscht als Ganzes eine Spalte nach
+  // links: das Ist des Blocks landet unter „Gutschrift", sein Arbeitsort unter
+  // „Saldo". Genau das passierte, als die Gutschrift-Spalte dazukam (#2443).
+  it("hält die Block-Zeilen spaltengleich zur Tageszeile", () => {
+    renderTable();
+
+    const headerCount = screen.getAllByRole("columnheader").length;
+    const dayRow = screen.getByText("05.01.").closest("tr");
+    const blockRow = screen.getByText("Block 1").closest("tr");
+    expect(dayRow).not.toBeNull();
+    expect(blockRow).not.toBeNull();
+
+    expect(within(dayRow!).getAllByRole("cell")).toHaveLength(headerCount);
+    expect(within(blockRow!).getAllByRole("cell")).toHaveLength(headerCount);
   });
 
   it("paart Status und Quelle nur in den Block-Zeilen, nie auf der Tageszeile", () => {

@@ -43,6 +43,7 @@ import {
   formatDuration,
   indexWorkSessionMinutesByBerlinDate,
 } from "~/lib/time-tracking-helpers";
+import type { DayProjection } from "~/lib/time-tracking-helpers";
 
 import {
   AdminSessionEditModal,
@@ -54,7 +55,7 @@ const logger = createLogger({ component: "StaffSessionTable" });
 
 // Number of columns in the table — the inline edit-history row spans all
 // of them. Keep in sync with the <thead> below.
-const COLUMN_COUNT = 11;
+const COLUMN_COUNT = 12;
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -200,9 +201,9 @@ export function StaffSessionTable({
   absences,
   absencesUnresolved,
   schedule,
-  dailyTargets,
-  dailyTargetsError,
-  dailyTargetsPending,
+  dailyProjection,
+  dailyProjectionError,
+  dailyProjectionPending,
   holidays,
   closingDays,
   accountStartDate,
@@ -221,25 +222,32 @@ export function StaffSessionTable({
   readonly absences?: readonly StaffAbsenceRow[];
   readonly absencesUnresolved?: boolean;
   readonly schedule: StaffSchedule | null;
-  // Server-resolved Soll je Tag (#1842), keyed YYYY-MM-DD. Wenn gesetzt, ist
-  // das die Quelle für die Soll-Spalte: `schedule` beschreibt NUR den heute
-  // gültigen Plan, angewendet auf vergangene Tage widerspricht er der
-  // Monatskarte, sobald jemand seine Stunden ändert.
-  readonly dailyTargets?: ReadonlyMap<string, number>;
-  // Fehler beim Laden der Targets. Dann bleibt die Soll-Spalte ungelöst ("?")
-  // statt auf `schedule` zurückzufallen: der heutige Plan als historisches
-  // Soll auszugeben wäre eine stille Falschaussage, die der Monatskarte
-  // widerspricht (die weiter mit datumsgültigen Versionen rechnet).
-  readonly dailyTargetsError?: boolean;
-  // Die Targets für den SICHTBAREN Zeitraum werden noch geladen. Die Fetches
-  // laufen mit keepPreviousData, `dailyTargets` hält nach einem Wechsel des
+  // Servergerechnete Tagesprojektion (#1842, #2443), keyed YYYY-MM-DD: Soll,
+  // Gutschrift, Ist und Saldo je Tag, aus derselben Rechnung wie die
+  // Monatskarte. Wenn gesetzt, ist das die Quelle für die Spalten Soll,
+  // Gutschrift und Saldo.
+  //
+  // `schedule` beschreibt NUR den heute gültigen Plan; angewendet auf
+  // vergangene Tage widerspricht er der Monatskarte, sobald jemand seine
+  // Stunden ändert. Und der Saldo lässt sich hier nicht selbst ableiten: „Ist
+  // minus Soll" kennt weder die Gutschrift eines Urlaubstags noch den vollen
+  // Abzug eines Freizeitausgleichs, und beide Tage haben oft gar keine
+  // Session, aus der die Zeile rechnen könnte (#2443).
+  readonly dailyProjection?: ReadonlyMap<string, DayProjection>;
+  // Fehler beim Laden der Projektion. Dann bleiben Soll, Gutschrift und Saldo
+  // ungelöst ("?") statt auf `schedule` zurückzufallen: der heutige Plan als
+  // historisches Soll auszugeben wäre eine stille Falschaussage, die der
+  // Monatskarte widerspricht (die weiter mit datumsgültigen Versionen rechnet).
+  readonly dailyProjectionError?: boolean;
+  // Die Projektion für den SICHTBAREN Zeitraum wird noch geladen. Die Fetches
+  // laufen mit keepPreviousData, `dailyProjection` hält nach einem Wechsel des
   // Zeitraums also noch die Keys des VORHERIGEN — die neuen Tage sind schlicht
   // nicht enthalten. Ohne dieses Flag fielen genau diese Tage auf `schedule`
   // (den heutigen Plan) zurück und zeigten kurzzeitig falsche historische
   // Soll-/Saldo-Werte, bis die Antwort eintrifft (#1842). Tage, die der
   // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
-  // liefert für dieselbe Person immer dasselbe Soll.
-  readonly dailyTargetsPending?: boolean;
+  // liefert für dieselbe Person immer dieselben Werte.
+  readonly dailyProjectionPending?: boolean;
   // Gesetzliche Feiertage im sichtbaren Zeitraum, keyed YYYY-MM-DD → Name
   // (#1418 3a). Feiertage tragen ein eigenes Status-Badge statt "Nicht
   // erfasst", und eine Session an einem Feiertag bekommt eine
@@ -376,18 +384,18 @@ export function StaffSessionTable({
   // läuft oder fehlgeschlagen ist (#1842).
   const resolveDayTarget = useCallback(
     (day: Date) => {
-      const resolved = dailyTargets?.get(toDateKey(day));
+      const resolved = dailyProjection?.get(toDateKey(day));
       const unresolved =
         resolved === undefined &&
-        (dailyTargetsError === true || dailyTargetsPending === true);
+        (dailyProjectionError === true || dailyProjectionPending === true);
       const planned = schedule ? resolveTargetForDate(schedule, day) : 0;
       return {
         unresolved,
         planned,
-        displayed: resolved ?? (unresolved ? 0 : planned),
+        displayed: resolved?.targetMinutes ?? (unresolved ? 0 : planned),
       };
     },
-    [dailyTargets, dailyTargetsError, dailyTargetsPending, schedule],
+    [dailyProjection, dailyProjectionError, dailyProjectionPending, schedule],
   );
 
   // Sa/So erscheinen nur, wenn es dort etwas zu zeigen gibt (#1967). Ein
@@ -474,7 +482,7 @@ export function StaffSessionTable({
 
   return (
     <div className="space-y-3">
-      {dailyTargetsError === true && (
+      {dailyProjectionError === true && (
         <Alert
           type="warning"
           message="Das Soll konnte für diesen Zeitraum nicht geladen werden. Betroffene Tage zeigen „?“ statt eines Soll- und Saldo-Werts — der aktuelle Arbeitszeitplan wird bewusst nicht auf vergangene Tage angewendet."
@@ -491,7 +499,7 @@ export function StaffSessionTable({
           durch die abgerundeten Ecken und über den unteren Rand hinaus. */}
       <div className="max-w-full overflow-hidden rounded-2xl border border-gray-100">
         <div className="max-w-full overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               <tr>
                 <th className="px-3 py-3">Datum</th>
@@ -504,6 +512,12 @@ export function StaffSessionTable({
                 <th className="px-3 py-3 text-right tabular-nums">Pause</th>
                 <th className="px-3 py-3 text-right tabular-nums">Soll</th>
                 <th className="px-3 py-3 text-right tabular-nums">Ist</th>
+                <th
+                  className="px-3 py-3 text-right tabular-nums"
+                  title="Zeit, die eine Abwesenheit dem Tagessoll gutschreibt: Krank, Urlaub, Fortbildung und Sonstige. Freizeitausgleich schreibt nichts gut."
+                >
+                  Gutschrift
+                </th>
                 <th className="px-3 py-3 text-right tabular-nums">Saldo</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Quelle</th>
@@ -562,7 +576,24 @@ export function StaffSessionTable({
                   key < accountStartDate;
                 const balanceUnresolved =
                   targetUnresolved || (target === 0 && accountStartDatePending);
-                const delta = session ? ist - target : 0;
+                // Gutschrift und Saldo kommen vom Server (#2443) — dieselbe
+                // Rechnung, die die Monatskarte summiert. Ohne Projektion
+                // (Storybook, Tests ohne Serverdaten) bleibt es beim alten
+                // Verhalten: nur Tage mit Session zeigen Ist minus Soll.
+                const projected = dailyProjection?.get(key);
+                const credit = projected?.creditMinutes ?? 0;
+                const delta =
+                  projected?.balanceMinutes ?? (session ? ist - target : 0);
+                // Ein Tag ohne Soll, ohne Gutschrift und ohne Session hat
+                // nichts zu verrechnen — dort bleibt die Spalte leer, statt
+                // ein „0min" zu behaupten. Fehlt die Projektion für diesen Tag
+                // ganz, bleibt es beim alten Verhalten: nur eine vorhandene
+                // Session trägt dann einen Saldo, denn ohne Serverwert wäre
+                // jede Zahl an einem session-losen Tag geraten.
+                const hasBalance =
+                  projected != null
+                    ? session != null || target > 0 || credit > 0
+                    : session != null;
                 const status = computeRowStatus(
                   daySessions,
                   absence,
@@ -719,12 +750,12 @@ export function StaffSessionTable({
                         {targetUnresolved ? (
                           <span
                             title={
-                              dailyTargetsError === true
+                              dailyProjectionError === true
                                 ? "Soll konnte nicht geladen werden"
                                 : "Soll wird geladen"
                             }
                           >
-                            {dailyTargetsError === true ? "?" : "…"}
+                            {dailyProjectionError === true ? "?" : "…"}
                           </span>
                         ) : target > 0 ? (
                           formatDuration(target)
@@ -732,11 +763,20 @@ export function StaffSessionTable({
                           "–"
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right font-medium text-gray-700 tabular-nums">
+                      <td className="px-3 py-3 text-right font-medium whitespace-nowrap text-gray-700 tabular-nums">
                         {session ? formatDuration(ist) : "–"}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums">
-                        {session &&
+                      <td className="px-3 py-3 text-right whitespace-nowrap text-gray-500 tabular-nums">
+                        {credit > 0 ? (
+                          <span title={creditHint(absence)}>
+                            {formatDuration(credit)}
+                          </span>
+                        ) : (
+                          "–"
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                        {hasBalance &&
                         !isFuture &&
                         !balanceUnresolved &&
                         !isBeforeAccountStart ? (
@@ -855,9 +895,14 @@ export function StaffSessionTable({
                             {formatDuration(block.break_minutes ?? 0)}
                           </td>
                           <td className="px-3 py-2" />
-                          <td className="px-3 py-2 text-right text-gray-600 tabular-nums">
+                          <td className="px-3 py-2 text-right whitespace-nowrap text-gray-600 tabular-nums">
                             {formatDuration(block.net_minutes ?? 0)}
                           </td>
+                          {/* Gutschrift und Saldo gehören dem TAG, nicht dem
+                              einzelnen Block — die beiden Zellen bleiben leer,
+                              müssen aber da sein, sonst rutscht die ganze
+                              Blockzeile eine Spalte nach links. */}
+                          <td className="px-3 py-2" />
                           <td className="px-3 py-2" />
                           <td className="px-3 py-2">
                             <RowStatusBadge
@@ -1291,6 +1336,16 @@ function HintBadges({
 // (#D97706) sat at 3.19:1 and missed AA for normal text, moto-amber-strong
 // (#92400E) reaches 7.09:1. Green is the brand green because it is legible and
 // unambiguous at this size.
+// Die Gutschrift-Zelle nennt die Abwesenheit, aus der sie stammt — sonst steht
+// dort eine Zahl ohne Herkunft.
+function creditHint(absence: StaffAbsenceRow | undefined): string {
+  if (!absence) return "Gutschrift auf das Tagessoll";
+  const label =
+    absence.absence_type_label ||
+    (ABSENCE_TYPE_LABEL[absence.absence_type] ?? ABSENCE_TYPE_LABEL.other!);
+  return `${label}: Das Tagessoll wird gutgeschrieben.`;
+}
+
 function deltaClass(delta: number): string {
   if (delta > 0) return "text-moto-amber-strong font-medium";
   if (delta < -15) return "text-moto-red-strong font-medium";

@@ -1161,13 +1161,16 @@ import { parseISODate, toISODate } from "./date-helpers";
 import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
+  mapDailyProjectionResponse,
   mapDailyTargetsResponse,
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
+  type BackendDailyProjection,
   type BackendDailyTarget,
+  type DayProjection,
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
   type BackendMonthSummary,
@@ -1230,6 +1233,29 @@ class StaffMonthSummaryService {
     }
     const json = (await response.json()) as { data: BackendMonthSummary };
     return mapMonthSummaryResponse(json.data);
+  }
+
+  // Admin counterpart to timeTrackingService.getDailyProjection (#2443): Soll,
+  // Gutschrift, Ist und Saldo je Tag, gerechnet wie die Monatskarte — so kann
+  // die Tageszeile der Karte darüber nicht widersprechen.
+  async getDailyProjection(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, DayProjection>> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch daily projection: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendDailyProjection[] | null;
+    };
+    return mapDailyProjectionResponse(json.data);
   }
 
   // Admin counterpart to timeTrackingService.getScheduleTargets — the same

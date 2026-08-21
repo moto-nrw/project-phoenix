@@ -1718,20 +1718,21 @@ function OwnZeiterfassungSection({
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
-  // Date-valid Soll for the visible range (#1842). Fetched in BOTH view modes:
-  // the table's `schedule` prop only ever describes the CURRENT plan, so after
-  // a contract change it would print today's hours onto historical rows and
-  // contradict the Monatskarte above it.
+  // Servergerechnete Tagesprojektion für den sichtbaren Zeitraum (#1842,
+  // #2443): Soll, Gutschrift, Ist und Saldo je Tag, aus derselben Rechnung wie
+  // die Monatskarte. In BEIDEN Ansichtsmodi geladen — die `schedule`-Prop
+  // beschreibt nur den AKTUELLEN Plan, und ein Saldo aus „Ist minus Soll"
+  // kennt weder Gutschriften noch Abwesenheitstage ohne Session.
   // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
   // SWR serves the PREVIOUS range's map while the new one is in flight, and the
   // table must not fall back to today's plan for the days it doesn't cover.
   const {
-    data: dailyTargets,
-    error: dailyTargetsError,
-    isLoading: dailyTargetsLoading,
+    data: dailyProjection,
+    error: dailyProjectionError,
+    isLoading: dailyProjectionLoading,
   } = useSWRAuth(
     `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
+    () => timeTrackingService.getDailyProjection(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
@@ -2029,9 +2030,9 @@ function OwnZeiterfassungSection({
               tableAbsenceData === undefined
             }
             schedule={schedule}
-            dailyTargets={dailyTargets}
-            dailyTargetsError={dailyTargetsError != null}
-            dailyTargetsPending={dailyTargetsLoading}
+            dailyProjection={dailyProjection}
+            dailyProjectionError={dailyProjectionError != null}
+            dailyProjectionPending={dailyProjectionLoading}
             holidays={tableHolidays}
             closingDays={tableClosingDays}
             accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
