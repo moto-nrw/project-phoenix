@@ -6,8 +6,6 @@ const allowedEvents = new Set([
   "login_success",
   "login_failed",
   "tenant_switched",
-  "suggestion_created",
-  "suggestion_voted",
   "group_created",
   "group_updated",
   "user_invited",
