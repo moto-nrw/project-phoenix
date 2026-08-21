@@ -133,6 +133,8 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 			AND "group".source_school_classes IS NOT NULL
 			AND enrollment.enrollment_request_child_id IS NOT NULL
 			AND "instance".date >= ?
+			AND enrollment.valid_from <= "instance".date
+			AND (enrollment.valid_until IS NULL OR enrollment.valid_until > "instance".date)
 			AND "instance".status = 'planned'
 			AND "instance".calendar_period_id IS NOT NULL
 			AND "instance".is_spontaneous = FALSE
@@ -151,7 +153,18 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 		WHERE enrollment.activity_group_id = "group".id
 			AND enrollment.tenant_id = "group".tenant_id
 			AND "group".source_school_classes IS NOT NULL
-			AND enrollment.enrollment_request_child_id IS NOT NULL;
+			AND enrollment.enrollment_request_child_id IS NOT NULL
+			AND enrollment.valid_from >= ?;
+
+		UPDATE activities.student_enrollments AS enrollment
+		SET valid_until = ?
+		FROM activities.groups AS "group"
+		WHERE enrollment.activity_group_id = "group".id
+			AND enrollment.tenant_id = "group".tenant_id
+			AND "group".source_school_classes IS NOT NULL
+			AND enrollment.enrollment_request_child_id IS NOT NULL
+			AND enrollment.valid_from < ?
+			AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?);
 
 		UPDATE activities.groups
 		SET source_care_offering_ids = NULL,
@@ -172,7 +185,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 					AND target_group_type = 'angebot'
 				)
 			);
-	`, timezone.TodayDate()).Exec(ctx)
+	`, timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate()).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping source_school_classes from activities.groups: %w", err)
 	}

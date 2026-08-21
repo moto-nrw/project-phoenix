@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) {
+func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
@@ -37,14 +37,15 @@ func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) 
 	for _, enrollmentInput := range []struct {
 		studentID      int64
 		requestChildID *int64
+		validFrom      timezone.Date
 	}{
-		{studentID: manualStudent.ID},
-		{studentID: sourcedStudent.ID, requestChildID: &requestChildID},
+		{studentID: manualStudent.ID, validFrom: timezone.TodayDate()},
+		{studentID: sourcedStudent.ID, requestChildID: &requestChildID, validFrom: timezone.TodayDate().AddDays(-1)},
 	} {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:                enrollmentInput.studentID,
 			ActivityGroupID:          group.ID,
-			ValidFrom:                timezone.TodayDate(),
+			ValidFrom:                enrollmentInput.validFrom,
 			EnrollmentRequestChildID: enrollmentInput.requestChildID,
 		}
 		enrollment.SetTenantID(tenantID)
@@ -76,7 +77,17 @@ func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) 
 		FROM activities.student_enrollments
 		WHERE activity_group_id = ?
 	`, group.ID).Scan(ctx, &remaining))
-	require.Equal(t, 1, remaining)
+	require.Equal(t, 2, remaining)
+
+	var historical activities.StudentEnrollment
+	require.NoError(t, db.NewSelect().
+		Model(&historical).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID).
+		Scan(ctx))
+	require.NotNil(t, historical.ValidUntil)
+	require.Equal(t, timezone.TodayDate(), *historical.ValidUntil)
 
 	var plannedRosterRows int
 	require.NoError(t, db.NewRaw(`
