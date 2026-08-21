@@ -183,7 +183,8 @@ an der OGS-Betreuung teilnimmt. Ab dem Folgetag ist seine Betreuung beendet.
 
 Eine **beendete OGS-Betreuung** bleibt für berechtigte Personen außerhalb der
 laufenden Arbeitslisten auffindbar. Ihr Austritt kann korrigiert oder
-zurückgenommen werden; Eltern sehen vergangene Inhalte dazu nur noch lesend.
+zurückgenommen werden; das ist keine Wiederherstellung gelöschter Daten.
+Eltern sehen vergangene Inhalte dazu nur noch lesend.
 
 Eine **Wiederaufnahme** beginnt die OGS-Betreuung eines ausgetretenen Kindes
 neu. Sie behält seine Stammdaten, übernimmt aber keine früheren Wochenpläne,
