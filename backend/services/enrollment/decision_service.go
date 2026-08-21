@@ -1317,6 +1317,13 @@ func (s *decisionService) validateApprovalOfferingSelection(
 	child *enrollmentModels.RequestChild,
 	phase *enrollmentModels.Phase,
 ) error {
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
 	if phase.CareOfferingSelectionMode == "" ||
 		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
 		return nil
@@ -1329,8 +1336,26 @@ func (s *decisionService) validateApprovalOfferingSelection(
 	if err != nil {
 		return fmt.Errorf("decision: validate child offerings: %w", err)
 	}
-	if len(links) == 0 {
-		return ErrCareOfferingMissing
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	choosableCount := 0
+	for _, offering := range offerings {
+		if offering != nil && !offering.IsRequired {
+			choosableCount++
+		}
+	}
+	switch phase.CareOfferingSelectionMode {
+	case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		if choosableCount == 0 {
+			return ErrCareOfferingMissing
+		}
+	case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		if choosableCount != 1 {
+			return ErrCareOfferingExactlyOneRequired
+		}
 	}
 	return nil
 }

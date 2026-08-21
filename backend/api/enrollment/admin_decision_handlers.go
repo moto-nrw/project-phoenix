@@ -24,6 +24,7 @@ import (
 )
 
 const errCodeApprovalCareOfferingMissing = "enrollment.approval_care_offering_missing"
+const errCodeApprovalCareOfferingExactlyOne = "enrollment.approval_care_offering_exactly_one"
 
 // AdminRequestSummary is the wire shape for admin list-style responses.
 // Carries the request + per-child overview + the phase name so the
@@ -609,6 +610,9 @@ var decideErrorRules = []common.ErrorRule{
 	}},
 	{Target: enrollmentService.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingMissing)
+	}},
+	{Target: enrollmentService.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingExactlyOne)
 	}},
 	{Target: enrollmentService.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch")

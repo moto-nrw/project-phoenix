@@ -56,6 +56,8 @@ import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -69,7 +71,6 @@ import {
   CHILD_STATUS_LABELS,
   ChildStatusBadge,
 } from "~/components/enrollment/child-status-badge";
-import { ApprovalWithoutOfferingModal } from "~/components/enrollment/approval-without-offering-modal";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
@@ -827,7 +828,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           </div>
         }
       />
-      <ApprovalWithoutOfferingModal
+      <ConfirmationModal
         isOpen={approvalWithoutOfferingRow !== null}
         onClose={() => setApprovalWithoutOfferingRow(null)}
         onConfirm={() => {
@@ -835,7 +836,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           setApprovalWithoutOfferingRow(null);
           if (row !== null) void handleQuickDecision(row, "approved");
         }}
-      />
+        title="Anmeldung bestätigen"
+        confirmText="Trotzdem bestätigen"
+      >
+        <Alert
+          type="warning"
+          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+        />
+      </ConfirmationModal>
     </div>
   );
 }

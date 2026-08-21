@@ -42,6 +42,17 @@ describe("enrollment-error-messages", () => {
     );
   });
 
+  it("explains that exactly-one approval needs a corrected selection", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "exactly one care offering must be selected for every child",
+        "enrollment.approval_care_offering_exactly_one",
+      ),
+    ).toBe(
+      "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
+    );
+  });
+
   it("maps an incompatible Regeltermin period to a German explanation", () => {
     expect(
       translateEnrollmentErrorMessage(

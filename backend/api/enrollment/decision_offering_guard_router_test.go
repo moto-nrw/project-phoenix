@@ -34,6 +34,8 @@ const (
 	effectiveOffering offeringLinkFixture = "effective"
 	expiredOffering   offeringLinkFixture = "expired"
 	futureOffering    offeringLinkFixture = "future"
+	requiredOnly      offeringLinkFixture = "required_only"
+	twoOfferings      offeringLinkFixture = "two_offerings"
 )
 
 type offeringGuardHarness struct {
@@ -59,14 +61,18 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 		link             offeringLinkFixture
 		offeringsEnabled bool
 		wantStatus       int
+		wantCode         string
 	}{
-		{"at least one missing", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, noOffering, true, http.StatusConflict},
-		{"exactly one missing", enrollmentModels.PhaseCareOfferingSelectionExactlyOne, noOffering, true, http.StatusConflict},
-		{"required while feature disabled", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, noOffering, false, http.StatusConflict},
-		{"expired link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, expiredOffering, true, http.StatusConflict},
-		{"future link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, futureOffering, true, http.StatusConflict},
-		{"optional missing", enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, true, http.StatusOK},
-		{"required effective", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, http.StatusOK},
+		{"at least one missing", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, noOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
+		{"at least one required only", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, requiredOnly, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
+		{"exactly one missing", enrollmentModels.PhaseCareOfferingSelectionExactlyOne, noOffering, true, http.StatusConflict, "enrollment.approval_care_offering_exactly_one"},
+		{"exactly one required only", enrollmentModels.PhaseCareOfferingSelectionExactlyOne, requiredOnly, true, http.StatusConflict, "enrollment.approval_care_offering_exactly_one"},
+		{"exactly one multiple", enrollmentModels.PhaseCareOfferingSelectionExactlyOne, twoOfferings, true, http.StatusConflict, "enrollment.approval_care_offering_exactly_one"},
+		{"required while feature disabled", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, noOffering, false, http.StatusOK, ""},
+		{"expired link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, expiredOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
+		{"future link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, futureOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
+		{"optional missing", enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, true, http.StatusOK, ""},
+		{"required effective", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, http.StatusOK, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -74,7 +80,7 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 			rec := executeApprovalDecision(t, harness)
 			require.Equal(t, tt.wantStatus, rec.Code)
 			if tt.wantStatus == http.StatusConflict {
-				assertDecisionErrorCode(t, rec, "enrollment.approval_care_offering_missing")
+				assertDecisionErrorCode(t, rec, tt.wantCode)
 			} else {
 				assert.Contains(t, rec.Body.String(), `"status":"approved"`)
 			}
@@ -171,12 +177,20 @@ func attachOfferingGuardLink(t *testing.T, repos *repositories.Factory, ctx cont
 	if fixture == noOffering {
 		return
 	}
-	offering := &enrollmentModels.CareOffering{
-		PhaseID: phaseID, Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
-		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true, CountsAsCare: true,
+	createLink := func(name string, required bool) *enrollmentModels.RequestChildOffering {
+		offering := &enrollmentModels.CareOffering{
+			PhaseID: phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
+			IsRequired: required, CountsAsCare: true,
+		}
+		require.NoError(t, repos.CareOffering.Create(ctx, offering))
+		return &enrollmentModels.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
-	require.NoError(t, repos.CareOffering.Create(ctx, offering))
-	link := &enrollmentModels.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
+	link := createLink("Ganztag", fixture == requiredOnly)
+	if fixture == twoOfferings {
+		require.NoError(t, repos.RequestChildOffering.Create(ctx, link))
+		link = createLink("Spätbetreuung", false)
+	}
 	today := timezone.TodayDate()
 	if fixture == expiredOffering {
 		link.ValidFrom, link.ValidUntil = datePointers(today.AddDays(-10), today)
