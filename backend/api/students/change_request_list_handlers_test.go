@@ -259,7 +259,17 @@ func aggCarePending(id int64, first, last string, createdAt time.Time) *schedule
 		RequestKind: "weekly_schedule",
 		Status:      "pending",
 	}
-	return &scheduleService.CareRequestReviewItem{Request: req, FirstName: first, LastName: last}
+	return &scheduleService.CareRequestReviewItem{
+		Request: req, FirstName: first, LastName: last,
+		ImpactAvailable: true,
+		ImpactToken:     "test-token",
+		AffectedBlocks: []scheduleModels.PartialAbsenceBlock{{
+			ID:        81,
+			Title:     "Nachmittags-AG",
+			StartTime: time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		}},
+	}
 }
 
 func aggOfferingPending(id int64, name string, createdAt time.Time) *enrollmentService.OfferingChangeView {
@@ -366,6 +376,20 @@ func aggTypes(page aggPage) []string {
 	return types
 }
 
+func assertCareAffectedBlocks(t *testing.T, data json.RawMessage) {
+	t.Helper()
+	var care struct {
+		AffectedBlocks []AffectedCareBlock `json:"affected_blocks"`
+		ImpactToken    string              `json:"impact_token"`
+	}
+	require.NoError(t, json.Unmarshal(data, &care))
+	require.Len(t, care.AffectedBlocks, 1)
+	assert.Equal(t, AffectedCareBlock{
+		ID: "81", Title: "Nachmittags-AG", StartTime: "15:00", EndTime: "16:00",
+	}, care.AffectedBlocks[0])
+	assert.Equal(t, "test-token", care.ImpactToken)
+}
+
 func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 	t.Parallel()
 
@@ -391,6 +415,8 @@ func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 	assert.Equal(t, "1", master.ID)
 	assert.Equal(t, "Anna", master.FirstName)
 	assert.Equal(t, "first_name", master.FieldKey)
+
+	assertCareAffectedBlocks(t, page.Items[3].Data)
 }
 
 func TestAggregatedChangeRequests_OpenSearchFiltersByChildName(t *testing.T) {

@@ -37,6 +37,9 @@ function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
     last_name: "Beispiel",
     status: "pending",
     request_kind: "weekly_schedule",
+    affected_blocks: [],
+    impact_available: true,
+    impact_token: "impact-v1",
     diff: [
       {
         label: "Montag · Abholzeit",
@@ -60,6 +63,32 @@ function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
   };
 }
 
+function pickupRow(
+  overrides: Partial<StaffCareRequest> = {},
+): StaffCareRequest {
+  return row({
+    request_kind: "pickup_change",
+    request_reason: "Arzttermin",
+    affected_blocks: [
+      {
+        id: "81",
+        title: "Nachmittags-AG",
+        start_time: "15:00",
+        end_time: "16:00",
+      },
+    ],
+    diff: [
+      {
+        label: "17.08.2026 · Abholzeit",
+        old: "15:30",
+        new: "14:30",
+        care_kind: "pickup",
+      },
+    ],
+    ...overrides,
+  });
+}
+
 describe("CareRequestReviewItem", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,19 +101,102 @@ describe("CareRequestReviewItem", () => {
 
     render(<CareRequestReviewItem row={row()} onDecided={onDecided} />);
 
-    // Collapsed summary: the distinct change kinds from the diff labels.
-    expect(screen.getByText("Abholzeit + Abholart")).toBeInTheDocument();
+    // Collapsed summary: Geltungstag vorn, dahinter die Arten aus den
+    // Diff-Labels.
+    expect(
+      screen.getByText("Montag · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
     expand();
     expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
     expect(screen.getByText("15:00")).toBeInTheDocument();
     expect(screen.getByText("Geht alleine")).toBeInTheDocument();
+    expect(screen.queryByText("Nach dem Freigeben")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("200", true, undefined),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "200",
+        true,
+        undefined,
+        "impact-v1",
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen");
+  });
+
+  it("preserves the request kind in an empty collapsed summary", () => {
+    const { rerender } = render(
+      <CareRequestReviewItem row={row({ diff: [] })} onDecided={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Betreuungszeiten\. Betreuungszeiten\./,
+      }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <CareRequestReviewItem
+        row={pickupRow({ diff: [] })}
+        onDecided={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Einzelner Tag\. Abholzeit\./,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt bei einer Tages-Anfrage den Geltungstag und kennzeichnet sie als einzelnen Tag", () => {
+    render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
+
+    // Ohne Klick muss die Zeile sagen, dass die Änderung nur für diesen einen
+    // Tag gilt — sonst liest sie sich wie eine dauerhafte Änderung (#2480).
+    expect(screen.getByText("17.08.2026 · Abholzeit")).toBeInTheDocument();
+    expect(screen.getByText("Einzelner Tag")).toBeInTheDocument();
+    expect(screen.queryByText("Betreuungszeiten")).not.toBeInTheDocument();
+  });
+
+  it("fasst mehrere Wochentage einer dauerhaften Anfrage zu einer Zeile zusammen", () => {
+    render(
+      <CareRequestReviewItem
+        row={row({
+          diff: [
+            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Montag · Abholart", old: "—", new: "Geht alleine" },
+            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Montag, Dienstag · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
+  });
+
+  it("kürzt ab drei Wochentagen auf die Anzahl, damit die Änderungsart nicht abgeschnitten wird", () => {
+    render(
+      <CareRequestReviewItem
+        row={row({
+          diff: [
+            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Mittwoch · Abholzeit", old: "—", new: "15:00" },
+            { label: "Donnerstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Freitag · Abholart", old: "—", new: "Geht alleine" },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("5 Wochentage · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
   });
 
   it("requires a reason before rejecting", async () => {
@@ -111,7 +223,12 @@ describe("CareRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("200", false, "zu kurzfristig"),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "200",
+        false,
+        "zu kurzfristig",
+        "impact-v1",
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith("Betreuungszeit-Anfrage abgelehnt");
   });
@@ -120,33 +237,59 @@ describe("CareRequestReviewItem", () => {
     mockDecide.mockResolvedValue(row({ status: "approved" }));
     const onDecided = vi.fn();
 
-    render(
-      <CareRequestReviewItem
-        row={row({
-          request_kind: "pickup_change",
-          request_reason: "Arzttermin",
-          diff: [
-            {
-              label: "17.08.2026 · Abholzeit",
-              old: "15:30",
-              new: "16:30",
-              care_kind: "pickup",
-            },
-          ],
-        })}
-        onDecided={onDecided}
-      />,
-    );
+    render(<CareRequestReviewItem row={pickupRow()} onDecided={onDecided} />);
 
     expand();
     expect(screen.getByText("Grund der Eltern:")).toBeInTheDocument();
     expect(screen.getByText("Arzttermin")).toBeInTheDocument();
+    expect(screen.getByText("Nach dem Freigeben")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Im Betreuungsplan wird das Kind von diesen Terminen abgemeldet:",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Nachmittags-AG, 15:00–16:00 Uhr"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
       expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
     );
+  });
+
+  it("states when a pickup change removes no timetable blocks", () => {
+    render(
+      <CareRequestReviewItem
+        row={pickupRow({ affected_blocks: [] })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expand();
+    expect(
+      screen.getByText(
+        "Das Kind bleibt im Betreuungsplan für alle Termine eingeplant.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("blocks approval when the affected blocks could not be loaded", () => {
+    render(
+      <CareRequestReviewItem
+        row={pickupRow({ impact_available: false, affected_blocks: [] })}
+        onDecided={vi.fn()}
+      />,
+    );
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+    expect(mockDecide).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Die Anfrage kann nicht freigegeben werden. Bitte laden Sie die Seite neu.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows a generic decision error without calling onDecided", async () => {
@@ -165,6 +308,22 @@ describe("CareRequestReviewItem", () => {
     ).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
+  });
+
+  it("asks for a reload when the pickup impact changed", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new CareRequestApiError("changed", "pickup_change_impact_changed"),
+    );
+    render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
+
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    expect(
+      await screen.findByText(
+        "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("surfaces the recovery action when approval is blocked by messaging_disabled", async () => {

@@ -41,6 +41,9 @@ function mkRequest(
     status: "pending",
     request_kind: "weekly_schedule",
     diff: [mkDiff()],
+    affected_blocks: [],
+    impact_available: true,
+    impact_token: "impact-v1",
     created_at: "2026-07-01T10:00:00Z",
     ...overrides,
   };
@@ -75,13 +78,22 @@ describe("decideCareScheduleChangeRequest", () => {
       return jsonResponse({ data: mkRequest({ status: "approved" }) });
     });
 
-    const out = await decideCareScheduleChangeRequest("r1", true);
+    const out = await decideCareScheduleChangeRequest(
+      "r1",
+      true,
+      undefined,
+      "impact-v1",
+    );
 
     expect(seenMethod).toBe("POST");
     expect(seenURL).toBe(
       "/api/students/care-schedule-change-requests/r1/decide",
     );
-    expect(JSON.parse(seenBody)).toEqual({ approve: true, reason: "" });
+    expect(JSON.parse(seenBody)).toEqual({
+      approve: true,
+      reason: "",
+      impact_token: "impact-v1",
+    });
     expect(out.status).toBe("approved");
   });
 
@@ -92,11 +104,17 @@ describe("decideCareScheduleChangeRequest", () => {
       return jsonResponse({ data: mkRequest({ status: "rejected" }) });
     });
 
-    await decideCareScheduleChangeRequest("r1", false, "Zeiten kollidieren");
+    await decideCareScheduleChangeRequest(
+      "r1",
+      false,
+      "Zeiten kollidieren",
+      "impact-v1",
+    );
 
     expect(JSON.parse(seenBody)).toEqual({
       approve: false,
       reason: "Zeiten kollidieren",
+      impact_token: "impact-v1",
     });
   });
 
@@ -106,7 +124,12 @@ describe("decideCareScheduleChangeRequest", () => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({ data: mkRequest() });
     });
-    await decideCareScheduleChangeRequest("a/b 1", true);
+    await decideCareScheduleChangeRequest(
+      "a/b 1",
+      true,
+      undefined,
+      "impact-v1",
+    );
     expect(seenURL).toContain("a%2Fb%201");
   });
 
@@ -121,9 +144,12 @@ describe("decideCareScheduleChangeRequest", () => {
       ),
     );
 
-    const err = await decideCareScheduleChangeRequest("r1", true).catch(
-      (e: unknown) => e,
-    );
+    const err = await decideCareScheduleChangeRequest(
+      "r1",
+      true,
+      undefined,
+      "impact-v1",
+    ).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CareRequestApiError);
     expect((err as CareRequestApiError).code).toBe(
       "change_request_not_pending",
@@ -132,9 +158,12 @@ describe("decideCareScheduleChangeRequest", () => {
 
   it("falls back to the German decision message on a non-JSON error", async () => {
     mockFetch(async () => new Response("", { status: 500 }));
-    const err = await decideCareScheduleChangeRequest("r1", false).catch(
-      (e: unknown) => e,
-    );
+    const err = await decideCareScheduleChangeRequest(
+      "r1",
+      false,
+      undefined,
+      "impact-v1",
+    ).catch((e: unknown) => e);
     expect((err as CareRequestApiError).message).toBe(
       "Entscheidung konnte nicht gespeichert werden",
     );

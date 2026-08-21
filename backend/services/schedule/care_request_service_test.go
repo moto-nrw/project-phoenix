@@ -48,6 +48,7 @@ type careFixture struct {
 	chain        testpkg.ParentChain
 	staffAccount int64
 	staffID      int64
+	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
 func newCareFixture(t *testing.T) *careFixture {
@@ -57,6 +58,12 @@ func newCareFixture(t *testing.T) *careFixture {
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 
+	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		repos.StudentPickupSchedule,
+		repos.InstanceStudent,
+		db,
+	)
 	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
@@ -65,6 +72,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.PickupSchedule,
 		repos.StudentPickupException,
 		repos.Attendance,
+		autoExcusal,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
@@ -75,7 +83,16 @@ func newCareFixture(t *testing.T) *careFixture {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
 
-	return &careFixture{db: db, svc: svc, sf: sf, repos: repos, chain: chain, staffAccount: staffAccount.ID, staffID: staff.ID}
+	return &careFixture{
+		db:           db,
+		svc:          svc,
+		sf:           sf,
+		repos:        repos,
+		chain:        chain,
+		staffAccount: staffAccount.ID,
+		staffID:      staff.ID,
+		autoExcusal:  autoExcusal,
+	}
 }
 
 // staffCtx carries the fixture's tenant, admin permissions (so the per-child
@@ -86,6 +103,29 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
 	return ctx
+}
+
+func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.Date, pickupTime time.Time) {
+	t.Helper()
+	ctx := f.staffCtx(f.staffAccount)
+	require.NoError(t, tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := schedule.LockCareExceptionDay(txCtx, f.db, f.chain.StudentID, date); err != nil {
+			return err
+		}
+		exception := &scheduleModels.StudentPickupException{
+			TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+			StudentID:         f.chain.StudentID,
+			ExceptionDate:     date,
+			PickupTime:        &pickupTime,
+			Source:            scheduleModels.ExceptionSourceGuardian,
+			CreatedByGuardian: &f.chain.AccountID,
+		}
+		if err := f.repos.StudentPickupException.Create(txCtx, exception); err != nil {
+			return err
+		}
+		_, err := f.autoExcusal.Sync(txCtx, exception.ID)
+		return err
+	}))
 }
 
 // nonAdminCtx carries a caller with users:update but NO admin wildcard. Whether

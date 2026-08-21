@@ -21,6 +21,10 @@ export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+  "enrollment.approval_care_offering_missing":
+    "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+  "enrollment.approval_care_offering_exactly_one":
+    "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
   "enrollment.care_offering_exactly_one":
     "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
   "enrollment.care_offering_unavailable":
