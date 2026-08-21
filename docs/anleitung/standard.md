@@ -36,7 +36,6 @@ Die wichtigsten Bereiche sind:
 - `Vertretungen`
 - `Stundenplan`
 - `Zeiterfassung`
-- `Feedback`
 - `Einstellungen`
 - `Datenverwaltung`
 - `Anmeldungen`
@@ -359,10 +358,7 @@ Je nach freigeschalteter Funktion können diese Verläufe sichtbar sein:
 
 - `Anwesenheits-Historie`
 - `Anwesenheitsprotokoll`
-- `Feedbackhistorie`
 - `Mensaverlauf`
-
-In der `Feedbackhistorie` stehen Filter wie `Alle`, `Heute`, `Diese Woche`, `Letzte 7 Tage` und `Diesen Monat` zur Verfügung.
 
 ## 5. Anmeldungen
 
@@ -456,27 +452,9 @@ Prüfen Sie vor dem Teilen des Links:
 - Die Bestätigung ist verständlich.
 - Die Anmeldung erscheint danach im Überblick.
 
-## 6. Feedback
+## 6. Weitere Funktionen und Einstellungen
 
-### 6.1 Feedback lesen und sortieren
-
-1. Öffnen Sie `Feedback`.
-2. Nutzen Sie die Suche `Feedback durchsuchen...`.
-3. Wählen Sie bei `Sortierung` zwischen `Beliebteste` und `Neueste`.
-4. Filtern Sie bei Bedarf nach `Status`.
-
-### 6.2 Beitrag erstellen
-
-1. Klicken Sie auf `Neuer Beitrag`.
-2. Tragen Sie einen kurzen Titel ein.
-3. Beschreiben Sie den Wunsch oder das Problem.
-4. Speichern Sie den Beitrag.
-
-Eigene Beiträge können bearbeitet oder gelöscht werden, wenn die Schaltflächen angezeigt werden.
-
-## 7. Weitere Funktionen und Einstellungen
-
-### 7.1 Datenverwaltung Übersicht
+### 6.1 Datenverwaltung Übersicht
 
 Die `Datenverwaltung` enthält diese Bereiche:
 
@@ -491,7 +469,7 @@ Die `Datenverwaltung` enthält diese Bereiche:
 
 Nutzen Sie den Button `Verwalten`, um einen Bereich zu öffnen.
 
-### 7.2 Rollen und Berechtigungen
+### 6.2 Rollen und Berechtigungen
 
 `Rollen` legen fest, welche Aufgaben eine Person in moto ausführen darf.
 
@@ -504,7 +482,7 @@ Wichtige Felder:
 
 `Berechtigungen` zeigen genauer, welche Aktionen erlaubt sind. Ändern Sie Rollen nur, wenn klar ist, welche Personen dadurch Zugriff bekommen oder verlieren.
 
-### 7.3 Geräte
+### 6.3 Geräte
 
 Der Bereich `Geräte` ist vor allem relevant, wenn Terminals oder Tablets verwaltet werden.
 
@@ -520,7 +498,7 @@ Wichtige Felder:
 
 Statuswerte können unter anderem `Aktiv`, `Inaktiv`, `Wartung` oder `Offline` sein.
 
-### 7.4 Einstellungen prüfen
+### 6.4 Einstellungen prüfen
 
 1. Öffnen Sie `Einstellungen`.
 2. Öffnen Sie den passenden Bereich.
@@ -536,7 +514,7 @@ Wichtige Bereiche:
 - `System`
 - `Allgemein`
 
-### 7.5 Profil bearbeiten
+### 6.5 Profil bearbeiten
 
 1. Öffnen Sie `Profil`.
 2. Klicken Sie auf `Bearbeiten`.
@@ -557,7 +535,7 @@ Passwort ändern:
 2. Tragen Sie die geforderten Angaben ein.
 3. Speichern Sie das neue Passwort.
 
-## 8. Was zuerst fertig sein sollte
+## 7. Was zuerst fertig sein sollte
 
 Vor dem ersten vollständigen Nutzungstag sollten diese Punkte erledigt sein:
 

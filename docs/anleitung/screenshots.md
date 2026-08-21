@@ -81,7 +81,6 @@ Diese Liste beschreibt die Screenshots, die später für die Web-Dokumentation e
 - Dialog `Tag bearbeiten`
 - `Anwesenheits-Historie`
 - `Anwesenheitsprotokoll`
-- `Feedbackhistorie`
 - Filter `Alle`, `Heute`, `Diese Woche`, `Letzte 7 Tage`, `Diesen Monat`
 
 ## Zeiterfassung
@@ -113,18 +112,6 @@ Diese Liste beschreibt die Screenshots, die später für die Web-Dokumentation e
 - öffentliche Anmeldung Schritt `Formular`
 - öffentliche Anmeldung Schritt `Bestätigung`
 - Anmeldedetail mit Entscheidung
-
-## Feedback
-
-- `Feedback` Übersicht
-- Suche `Feedback durchsuchen...`
-- Sortierung `Beliebteste`
-- Sortierung `Neueste`
-- Statusfilter
-- Dialog `Neuer Beitrag`
-- Feedbackkarte mit Stimmen
-- Feedbackkarte mit Kommentaren
-- Dialog `Beitrag löschen?`
 
 ## Weitere Funktionen und Einstellungen
 

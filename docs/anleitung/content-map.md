@@ -47,7 +47,7 @@ Karten tragen das jeweilige Seitenleisten-Icon statt einer Nummer. Kapitel:
 1. Alltag und Aufsicht (Alle Kinder, Meine Gruppen, Aktuelle Aufsicht)
 2. Räume, Team und Vertretung (Aktivitäten, Räume, Mitarbeiter, Vertretungen)
 3. Planung und Zeit (Stundenplan, Zeiterfassung)
-4. Verwaltung und Austausch (Datenverwaltung, Anmeldungen, Feedback)
+4. Verwaltung und Austausch (Datenverwaltung, Anmeldungen)
 
 ### `/help/nfc`
 
