@@ -5,6 +5,7 @@ import type {
   BackendPickupData,
   PickupSchedule,
   PickupException,
+  DayData,
 } from "./pickup-schedule-helpers";
 import {
   mapPickupScheduleResponse,
@@ -33,6 +34,7 @@ import {
   formatDateISO,
   getDayData,
   pickupScheduleSourceLabel,
+  hasOfferingPickupContext,
 } from "./pickup-schedule-helpers";
 
 // Sample backend data for testing
@@ -130,6 +132,68 @@ describe("pickupScheduleSourceLabel", () => {
         source: "staff",
       }),
     ).toBe("von Hand");
+  });
+});
+
+describe("hasOfferingPickupContext", () => {
+  const day = (overrides: Partial<DayData>): DayData =>
+    ({
+      date: new Date("2026-08-24"),
+      weekday: 1,
+      isToday: false,
+      showSick: false,
+      showClassTrip: false,
+      showExcused: false,
+      isException: false,
+      notes: [],
+      ...overrides,
+    }) as DayData;
+
+  it("is false when every day is maintained by hand", () => {
+    const staffRow = {
+      ...mapPickupScheduleResponse(sampleBackendSchedule),
+      source: "staff",
+    };
+    expect(
+      hasOfferingPickupContext([
+        day({ baseSchedule: staffRow }),
+        day({ baseSchedule: staffRow }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("is true when a day comes from an offering", () => {
+    expect(
+      hasOfferingPickupContext([
+        day({
+          baseSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "care_offering",
+          },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("is true when an offering time sits under a manual override", () => {
+    expect(
+      hasOfferingPickupContext([
+        day({
+          baseSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "staff",
+          },
+          offeringSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "care_offering",
+          },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("is false for a week without any pickup time", () => {
+    expect(hasOfferingPickupContext([day({}), day({})])).toBe(false);
   });
 });
 

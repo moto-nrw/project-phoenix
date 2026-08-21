@@ -206,8 +206,36 @@ describe("PickupDayEditModal", () => {
           {...defaultProps}
         />,
       );
+      expect(screen.getByText("Reguläre Zeit: 15:30 Uhr")).toBeInTheDocument();
+    });
+
+    it("names the source only when the week knows an offering pickup time", () => {
+      render(
+        <PickupDayEditModal
+          isOpen={true}
+          day={createMockDayData()}
+          showSource
+          {...defaultProps}
+        />,
+      );
       expect(
         screen.getByText("Reguläre Zeit: 15:30 Uhr (von Hand)"),
+      ).toBeInTheDocument();
+    });
+
+    it("states that no pickup time is on file", () => {
+      render(
+        <PickupDayEditModal
+          isOpen={true}
+          day={createMockDayData({
+            baseSchedule: undefined,
+            effectiveTime: undefined,
+          })}
+          {...defaultProps}
+        />,
+      );
+      expect(
+        screen.getByText("Für diesen Tag ist keine Gehzeit hinterlegt."),
       ).toBeInTheDocument();
     });
   });

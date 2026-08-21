@@ -27,6 +27,7 @@ import {
   formatDateISO,
   getDayData,
   pickupScheduleSourceLabel,
+  hasOfferingPickupContext,
 } from "@/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -125,6 +126,12 @@ export default function PickupScheduleManager({
       pickupData.effectiveSchedules,
       statusByDate,
     ],
+  );
+
+  // Ohne Angebots-Gehzeit in der Woche unterscheidet die Herkunftsangabe nichts
+  const showScheduleSource = useMemo(
+    () => hasOfferingPickupContext(dayDataList),
+    [dayDataList],
   );
 
   // Load pickup data
@@ -355,6 +362,7 @@ export default function PickupScheduleManager({
               day={day}
               readOnly={readOnly}
               onEditDay={handleOpenDayEdit}
+              showSource={showScheduleSource}
             />
           ))}
         </div>
@@ -380,6 +388,7 @@ export default function PickupScheduleManager({
                   day={day}
                   readOnly={readOnly}
                   onEditDay={handleOpenDayEdit}
+                  showSource={showScheduleSource}
                 />
               ))}
             </div>
@@ -411,6 +420,7 @@ export default function PickupScheduleManager({
         onSaveException={handleSaveException}
         onDeleteException={handleDeleteException}
         onResetToOffering={handleResetToOffering}
+        showSource={showScheduleSource}
         onCreateNote={handleCreateNote}
         onUpdateNote={handleUpdateNote}
         onDeleteNote={handleDeleteNote}
@@ -427,9 +437,11 @@ interface DayComponentProps {
   readonly day: DayData;
   readonly readOnly: boolean;
   readonly onEditDay: (day: DayData) => void;
+  /** Herkunft nur zeigen, wenn die Woche überhaupt eine Angebots-Gehzeit kennt */
+  readonly showSource: boolean;
 }
 
-function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
+function DayRow({ day, readOnly, onEditDay, showSource }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
@@ -472,7 +484,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
               {effectiveTime ?? "-"}
             </div>
-            {!day.isException && day.baseSchedule ? (
+            {!day.isException && day.baseSchedule && showSource ? (
               <span
                 className="flex-shrink-0 text-[10px] text-gray-400"
                 title={
@@ -482,6 +494,11 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
                 }
               >
                 {pickupScheduleSourceLabel(day.baseSchedule)}
+              </span>
+            ) : null}
+            {!day.isException && !day.baseSchedule ? (
+              <span className="flex-shrink-0 text-[10px] text-gray-400">
+                keine Gehzeit
               </span>
             ) : null}
 
@@ -540,7 +557,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
 // Day Cell Component (Desktop)
 // ============================================
 
-function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
+function DayCell({ day, readOnly, onEditDay, showSource }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
@@ -593,17 +610,22 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           <div className="mt-1 text-sm font-semibold text-gray-900">
             {effectiveTime ?? "-"}
           </div>
-          {!day.isException && day.baseSchedule ? (
+          {!day.isException && day.baseSchedule && showSource ? (
+            // Die Spalte ist zu schmal fuer den Angebotsnamen; er steht im Titel
             <div
               className="text-[10px] text-gray-400"
               title={
-                day.baseSchedule.source === "care_offering"
-                  ? "Gehzeit aus dem Betreuungsangebot"
-                  : "Gehzeit von Hand gepflegt"
+                pickupScheduleSourceLabel(day.baseSchedule) ??
+                "Gehzeit von Hand gepflegt"
               }
             >
-              {pickupScheduleSourceLabel(day.baseSchedule)}
+              {day.baseSchedule.source === "care_offering"
+                ? "aus Angebot"
+                : "von Hand"}
             </div>
+          ) : null}
+          {!day.isException && !day.baseSchedule ? (
+            <div className="text-[10px] text-gray-400">keine Gehzeit</div>
           ) : null}
 
           {/* Schedule note (recurring weekly) */}

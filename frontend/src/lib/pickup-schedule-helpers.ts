@@ -200,6 +200,20 @@ export function pickupScheduleSourceLabel(
     : "aus Angebot";
 }
 
+/**
+ * Die Herkunft einer Gehzeit zu benennen hilft nur, wenn in der Woche
+ * überhaupt eine Angebots-Gehzeit vorkommt. An Schulen ohne Betreuungsangebote
+ * ist jede Zeit von Hand gepflegt; dort stünde unter jedem Tag dasselbe Wort,
+ * ohne etwas zu unterscheiden.
+ */
+export function hasOfferingPickupContext(days: DayData[]): boolean {
+  return days.some(
+    (day) =>
+      day.baseSchedule?.source === "care_offering" ||
+      Boolean(day.offeringSchedule),
+  );
+}
+
 export function mapPickupExceptionResponse(
   data: BackendPickupException,
 ): PickupException {
