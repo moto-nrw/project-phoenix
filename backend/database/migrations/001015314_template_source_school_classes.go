@@ -114,6 +114,36 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_offering_source;
 
+		-- Mirror the offering-source reconciler before removing the source:
+		-- only purely planned future rows lose their stale roster membership.
+		-- Observed attendance and manual per-occurrence decisions stay intact.
+		DELETE FROM schedule.instance_students AS "instance_student"
+		USING schedule.activity_instances AS "instance",
+			activities.student_enrollments AS enrollment,
+			activities.groups AS "group"
+		WHERE "instance_student".instance_id = "instance".id
+			AND "instance_student".tenant_id = "instance".tenant_id
+			AND "instance".activity_group_id = "group".id
+			AND "instance".tenant_id = "group".tenant_id
+			AND enrollment.activity_group_id = "group".id
+			AND enrollment.tenant_id = "group".tenant_id
+			AND "instance_student".student_id = enrollment.student_id
+			AND "group".source_school_classes IS NOT NULL
+			AND enrollment.enrollment_request_child_id IS NOT NULL
+			AND "instance".date >= CURRENT_DATE
+			AND "instance".status = 'planned'
+			AND "instance".calendar_period_id IS NOT NULL
+			AND "instance".is_spontaneous = FALSE
+			AND "instance_student".is_unplanned = FALSE
+			AND "instance_student".checked_in_at IS NULL
+			AND "instance_student".checked_out_at IS NULL
+			AND "instance_student".manual_status_at IS NULL
+			AND (
+				"instance_student".status = 'expected'
+				OR "instance_student".student_status_day_id IS NOT NULL
+				OR "instance_student".pickup_exception_id IS NOT NULL
+			);
+
 		DELETE FROM activities.student_enrollments AS enrollment
 		USING activities.groups AS "group"
 		WHERE enrollment.activity_group_id = "group".id

@@ -55,7 +55,6 @@ func createClassSourcedTemplate(
 		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
-	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 	return result
 }
 
@@ -147,7 +146,6 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -173,7 +171,6 @@ func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], " 1B ")
@@ -191,7 +188,6 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -216,7 +212,6 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -261,7 +256,6 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -273,18 +267,6 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 	)
 	require.NoError(t, err)
 	require.NotNil(t, mat)
-	s.extraCleanups = append([]func(){func() {
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_students
-			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
-			s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_staff
-			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
-			s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(
-			`DELETE FROM schedule.activity_instances WHERE tenant_id = ?`, s.tenantID).Exec(s.ctx)
-	}}, s.extraCleanups...)
 
 	instanceID := singleInstanceID(t, s, result.TemplateID, monday)
 	require.Equal(t, []int64{s.students[0]}, instanceStudentIDs(t, s, instanceID))
@@ -304,7 +286,6 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -329,7 +310,6 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
-	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 	require.ElementsMatch(t, []int64{s.students[0], s.students[1]}, sourcedStudentIDs(t, s, result.TemplateID))
 
 	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
@@ -366,7 +346,6 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 
@@ -485,7 +464,6 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 	monday := futureMonday(1)
 	friday := monday.AddDays(4)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -511,15 +489,12 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
-	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
 	mat, err := s.factory.Materialization.MaterializeForTenant(
 		s.ctx, monday, friday, scheduleSvc.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, mat)
-	registerInstanceCleanup(t, s)
-
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]},
 		instanceStudentIDs(t, s, singleInstanceID(t, s, result.TemplateID, monday)),
 		"beide 1b-Kinder haben Montag gebucht")
@@ -535,7 +510,6 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 
 	monday := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -566,7 +540,6 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
-	defer s.runCleanup(t)
 
 	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -588,7 +561,6 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 		GradeLevelMax:         schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
-	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
 	today := timezone.TodayDate()
 	require.ElementsMatch(t,
@@ -615,22 +587,4 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today.AddDays(-1)),
 		"die Historie vor der Änderung bleibt unangetastet")
-}
-
-// registerInstanceCleanup tears down the tenant's materialized occurrences —
-// MaterializeForTenant is tenant-wide and also fills the scenario baseline.
-func registerInstanceCleanup(t *testing.T, s *scenarioSetup) {
-	t.Helper()
-	s.extraCleanups = append([]func(){func() {
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_students
-			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
-			s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_staff
-			WHERE instance_id IN (SELECT id FROM schedule.activity_instances WHERE tenant_id = ?)`,
-			s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(
-			`DELETE FROM schedule.activity_instances WHERE tenant_id = ?`, s.tenantID).Exec(s.ctx)
-	}}, s.extraCleanups...)
 }

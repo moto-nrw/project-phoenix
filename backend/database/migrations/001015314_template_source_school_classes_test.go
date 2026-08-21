@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -21,6 +22,8 @@ func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) 
 	phaseID := insertRequestChildSourcePhase(t, db, tenantID)
 	requestID := insertRequestChildSourceRequest(t, db, tenantID, phaseID)
 	requestChildID := insertRequestChildSourceChild(t, db, tenantID, requestID, sourcedStudent.ID)
+	period := testpkg.CreateTestCalendarPeriod(t, db, "class-filter rollback", timezone.TodayDate(), timezone.TodayDate().AddDays(1))
+	room := testpkg.CreateTestRoom(t, db, "class-filter rollback")
 
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
@@ -48,6 +51,19 @@ func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) 
 		_, err = db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 		require.NoError(t, err)
 	}
+	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &group.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	testpkg.CreateTestInstanceStudent(t, db, instance.ID, sourcedStudent.ID, "")
+	observedInstance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &group.ID,
+		CalendarPeriodID: &period.ID,
+	})
+	checkedInAt := time.Now()
+	testpkg.CreateTestInstanceStudent(t, db, observedInstance.ID, sourcedStudent.ID, "present", testpkg.InstanceStudentOpts{
+		CheckedInAt: &checkedInAt,
+	})
 
 	require.NoError(t, templateSourceSchoolClassesDown(ctx, db))
 	t.Cleanup(func() {
@@ -61,4 +77,20 @@ func TestTemplateSourceSchoolClassesDownRemovesSourcedEnrollments(t *testing.T) 
 		WHERE activity_group_id = ?
 	`, group.ID).Scan(ctx, &remaining))
 	require.Equal(t, 1, remaining)
+
+	var plannedRosterRows int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*)
+		FROM schedule.instance_students
+		WHERE instance_id = ?
+	`, instance.ID).Scan(ctx, &plannedRosterRows))
+	require.Zero(t, plannedRosterRows)
+
+	var observedRosterRows int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*)
+		FROM schedule.instance_students
+		WHERE instance_id = ?
+	`, observedInstance.ID).Scan(ctx, &observedRosterRows))
+	require.Equal(t, 1, observedRosterRows)
 }
