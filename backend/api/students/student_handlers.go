@@ -85,9 +85,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params.slimView = slimView
-	careStatus, careErr := parseCareStatus(r.URL.Query().Get("care_status"))
+	careStatus, careErr := careStatusFromRequest(r)
 	if careErr != nil {
-		renderError(w, r, common.ErrorInvalidRequest(careErr))
+		renderError(w, r, careErr)
 		return
 	}
 	params.careStatus = careStatus

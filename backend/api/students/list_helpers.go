@@ -2,6 +2,7 @@ package students
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -10,7 +11,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -86,15 +92,30 @@ const (
 	CareStatusAll     = "all"
 )
 
+// ErrCareStatusForbidden refuses the departed side of the list to a caller who
+// may not manage exits. The archive view sits behind users:delete, and this
+// parameter opens the same set of children on the ordinary list endpoint — a
+// caller with plain users:read must not be able to reach it by adding a query
+// parameter (#2487).
+//
+//nolint:staticcheck // ST1005: user-facing German message
+var ErrCareStatusForbidden = errors.New("Beendete Betreuungen dürfen nur Personen mit der Berechtigung „Benutzer löschen“ sehen.")
+
 // parseCareStatus resolves the care_status query parameter. An unknown value
 // is rejected rather than silently serving the operational list: a caller
 // asking for the archive and getting the ordinary roster would look like data
 // loss.
-func parseCareStatus(value string) (string, error) {
+//
+// canReadEnded is the caller's users:delete verdict: without it only the
+// running side exists.
+func parseCareStatus(value string, canReadEnded bool) (string, error) {
 	switch value {
 	case "", CareStatusRunning:
 		return CareStatusRunning, nil
 	case CareStatusEnded, CareStatusAll:
+		if !canReadEnded {
+			return "", ErrCareStatusForbidden
+		}
 		return value, nil
 	default:
 		return "", fmt.Errorf("invalid care_status %q: must be %q, %q or %q",
@@ -552,5 +573,28 @@ func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezon
 		running.IsNull("enrolled_until")
 		running.Or(*base.NewFilter().GreaterThanOrEqual("enrolled_until", today))
 		filter.And(*running)
+	}
+}
+
+// careStatusFromRequest resolves the care_status parameter together with the
+// permission guarding its departed side, and returns the response to render
+// when either says no (#2487).
+//
+// Extracted from listStudents so the handler keeps one branch instead of
+// three: a parameter with a permission and two different status codes is
+// exactly the orchestration that does not belong in a handler body
+// (backend-conventions rule 4).
+func careStatusFromRequest(r *http.Request) (string, render.Renderer) {
+	// The departed side of the list is the same set of children the archive
+	// view shows, so it needs the same permission.
+	canReadEnded := authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context()))
+	careStatus, err := parseCareStatus(r.URL.Query().Get("care_status"), canReadEnded)
+	switch {
+	case err == nil:
+		return careStatus, nil
+	case errors.Is(err, ErrCareStatusForbidden):
+		return "", common.ErrorForbidden(err)
+	default:
+		return "", common.ErrorInvalidRequest(err)
 	}
 }

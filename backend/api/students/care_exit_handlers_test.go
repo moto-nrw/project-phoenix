@@ -211,6 +211,22 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, response.Code)
 	})
+
+	// The archive view sits behind users:delete. Without this the same set of
+	// children is one query parameter away for anybody who may read the list
+	// at all (#2487).
+	t.Run("plain users:read cannot reach the departed side", func(t *testing.T) {
+		readOnly := []string{"users:read"}
+		for _, query := range []string{"?care_status=ended", "?care_status=all"} {
+			request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/"+query, nil)
+			response := authExec(t, tc, request, claims, readOnly)
+			assert.Equal(t, http.StatusForbidden, response.Code, "query %s", query)
+		}
+
+		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?page_size=500", nil)
+		response := authExec(t, tc, request, claims, readOnly)
+		require.Equal(t, http.StatusOK, response.Code, "the ordinary list stays open")
+	})
 }
 
 // The list has to say WHY a child carries an end date: a recorded exit can be
