@@ -345,4 +345,12 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: userModels.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},
 	{Target: userModels.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
 	{Target: userModels.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
-}, common.ErrorInternalServer)
+}, func(cause error) render.Renderer {
+	// Alles Unerwartete (DB-Fehler, Sperren, Timeouts) bekommt EINEN ruhigen
+	// Satz. Der Dialog zeigt diese Meldung wörtlich an, und interne Details
+	// gehören dort nicht hin — die volle Fehlerkette geht an slog und Sentry.
+	return common.ErrorInternalServerWrap(
+		"Die Betreuung wurde nicht beendet. Bitte versuchen Sie es noch einmal.",
+		cause,
+	)
+})

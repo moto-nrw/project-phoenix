@@ -158,6 +158,32 @@ type ClassRosterFilters struct {
 	SkipGuardianData bool `json:"-"`
 }
 
+// careDate is the day this roster describes. It decides which children still
+// belong to the class for care purposes (#2487): the class day view pages
+// through the week and passes the day it renders, every other caller means
+// today.
+func (f ClassRosterFilters) careDate() timezone.Date {
+	if f.OfferingDate != nil {
+		return *f.OfferingDate
+	}
+	return timezone.TodayDate()
+}
+
+// filterCareRunningOn drops the children whose care at the OGS had already
+// ended on that day (#2487). FindBySchoolClass only filters graduates, so
+// without this a departed child would keep showing up on the Lehrkraft class
+// day sheet and on every Klassenliste export.
+func filterCareRunningOn(students []*userModels.Student, day timezone.Date) []*userModels.Student {
+	kept := make([]*userModels.Student, 0, len(students))
+	for _, student := range students {
+		if student == nil || student.CareEndedOn(day) {
+			continue
+		}
+		kept = append(kept, student)
+	}
+	return kept
+}
+
 type ClassRosterReport struct {
 	Phase   CareUsagePhase            `json:"phase"`
 	Filters ClassRosterAppliedFilters `json:"filters"`
@@ -1137,7 +1163,7 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students: %w", err)
 		}
-		return students, nil
+		return filterCareRunningOn(students, filters.careDate()), nil
 	}
 	classes, err := s.StudentRepo.ListSchoolClasses(ctx)
 	if err != nil {
@@ -1158,7 +1184,7 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
 		}
-		students = append(students, classStudents...)
+		students = append(students, filterCareRunningOn(classStudents, filters.careDate())...)
 		if len(students) > maxReportRows {
 			return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
 		}

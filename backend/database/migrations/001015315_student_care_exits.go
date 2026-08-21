@@ -115,6 +115,20 @@ func studentCareExitsUp(ctx context.Context, db *bun.DB) error {
 			return err
 		}
 	}
+
+	// The permanent deletion gains one reason that only exists for a child
+	// whose care already ended: the school's retention period for the record
+	// has run out. Without widening the audit CHECK the deletion would roll
+	// back at the very last step, with a constraint error nobody can read.
+	if _, err := db.ExecContext(ctx, `
+		ALTER TABLE audit.student_deletions
+			DROP CONSTRAINT IF EXISTS student_deletions_reason_check,
+			ADD CONSTRAINT student_deletions_reason_check
+			CHECK (reason IN ('test_data', 'incorrect_entry', 'duplicate',
+				'privacy_request', 'graduate_purge', 'retention_expired'));
+	`); err != nil {
+		return fmt.Errorf("failed widening audit.student_deletions reason check: %w", err)
+	}
 	return nil
 }
 
@@ -192,6 +206,23 @@ func studentCareExitsDown(ctx context.Context, db *bun.DB) error {
 		if err := widenStatusCheck(ctx, db, target.Schema, target.Table, target.Existing); err != nil {
 			return err
 		}
+	}
+
+	if _, err := db.ExecContext(ctx, `
+		DO $$
+		BEGIN
+			IF EXISTS (SELECT 1 FROM audit.student_deletions WHERE reason = 'retention_expired') THEN
+				RAISE EXCEPTION 'cannot narrow audit.student_deletions.reason while retention_expired rows exist';
+			END IF;
+		END $$;
+
+		ALTER TABLE audit.student_deletions
+			DROP CONSTRAINT IF EXISTS student_deletions_reason_check,
+			ADD CONSTRAINT student_deletions_reason_check
+			CHECK (reason IN ('test_data', 'incorrect_entry', 'duplicate',
+				'privacy_request', 'graduate_purge'));
+	`); err != nil {
+		return fmt.Errorf("failed narrowing audit.student_deletions reason check: %w", err)
 	}
 
 	if _, err := db.NewRaw(`
