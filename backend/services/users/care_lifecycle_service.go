@@ -148,6 +148,11 @@ type CareLifecycleService interface {
 	Resume(ctx context.Context, input CareResumeInput) error
 	// ListEnded is the archive view.
 	ListEnded(ctx context.Context, filter userModels.CareExitListFilter) ([]*userModels.EndedCare, int, error)
+	// RecordedExitStudentIDs reports which of the given children carry a
+	// recorded exit. The child management needs to tell a manual "Betreuung
+	// beenden" apart from the ordinary end of an enrolment phase — both write
+	// the same interval, only the first can be changed or cancelled here.
+	RecordedExitStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	// ApplyDueEffects performs the effect-day housekeeping for every child
 	// whose care ended before asOf: closing what is still open, freeing the
 	// bracelet, closing the open parent requests. Idempotent.
@@ -419,6 +424,32 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 		slog.Int64("actor_account_id", input.ActorAccountID),
 	)
 	return nil
+}
+
+// RecordedExitStudentIDs reduces the exit rows to their bare existence. The
+// reason and its note stay in the service: they are readable with users:delete
+// only, while the fact that an exit was recorded travels on the ordinary
+// student payload so the list can label and the header can offer "Ende ändern"
+// / "Ende stornieren" for exactly those children (#2487).
+func (s *careLifecycleService) RecordedExitStudentIDs(
+	ctx context.Context,
+	studentIDs []int64,
+) (map[int64]bool, error) {
+	ids := dedupeSortedIDs(studentIDs)
+	recorded := make(map[int64]bool, len(ids))
+	if len(ids) == 0 {
+		return recorded, nil
+	}
+	exits, err := s.careExitRepo.FindByStudentIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for id, exit := range exits {
+		if exit != nil {
+			recorded[id] = true
+		}
+	}
+	return recorded, nil
 }
 
 func (s *careLifecycleService) ListEnded(

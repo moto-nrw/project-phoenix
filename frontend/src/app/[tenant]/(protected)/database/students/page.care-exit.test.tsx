@@ -129,6 +129,22 @@ const PLANNED = {
   ...RUNNING,
   care_ends_on: isoInDays(14),
   care_ended: false,
+  care_exit_recorded: true,
+};
+// Ein Ende weit voraus, das die Schule selbst eingetragen hat. Es muss sich
+// genauso ändern und stornieren lassen wie ein nahes (#2487).
+const PLANNED_FAR_AHEAD = {
+  ...RUNNING,
+  care_ends_on: isoInDays(200),
+  care_ended: false,
+  care_exit_recorded: true,
+};
+// Kein eingetragener Austritt, nur das Ende der Anmeldephase. Das gehört der
+// Anmeldung und wird hier nicht zum Stornieren angeboten.
+const PHASE_END_ONLY = {
+  ...RUNNING,
+  care_ends_on: isoInDays(200),
+  care_ended: false,
 };
 const ENDED = { ...RUNNING, care_ends_on: isoInDays(-3), care_ended: true };
 
@@ -185,6 +201,24 @@ describe("Datenverwaltung Kinder — Betreuung beenden", () => {
     expect(
       screen.getByRole("button", { name: "Ende stornieren" }),
     ).toBeVisible();
+  });
+
+  it("keeps change and cancel for an exit planned far ahead", () => {
+    renderWith(PLANNED_FAR_AHEAD);
+    expect(screen.getByRole("button", { name: /Ende ändern/ })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Ende stornieren" }),
+    ).toBeVisible();
+  });
+
+  it("offers no cancellation for a mere end of the enrolment phase", () => {
+    renderWith(PHASE_END_ONLY);
+    expect(
+      screen.getByRole("button", { name: /Betreuung beenden/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Ende stornieren" }),
+    ).toBeNull();
   });
 
   it("cancels the planned exit and says so", async () => {

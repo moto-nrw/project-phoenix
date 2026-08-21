@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -488,6 +489,46 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 	}
 
 	return supervisor
+}
+
+// enrichWithCareExitFlag marks the children whose end of care was entered by
+// the school (#2487). Batched over the page that is actually being returned:
+// the flag decides whether the child management offers "Ende ändern" and
+// "Ende stornieren", which must not depend on how far the date lies ahead.
+//
+// A failure is logged and left non-fatal — the list is still correct without
+// the flag, it just offers no correction for a planned exit, and losing the
+// whole page over it would be the worse answer.
+func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []StudentResponse) {
+	if rs.CareLifecycleService == nil {
+		return
+	}
+	ids := make([]int64, 0, len(responses))
+	for i := range responses {
+		// Only children that carry an end date at all can have an exit row —
+		// asking for the others would be a query for nothing.
+		if responses[i].CareEndsOn == "" {
+			continue
+		}
+		ids = append(ids, responses[i].ID)
+	}
+	if len(ids) == 0 {
+		return
+	}
+	recorded, err := rs.CareLifecycleService.RecordedExitStudentIDs(ctx, ids)
+	if err != nil {
+		if rs.Logger != nil {
+			rs.Logger.ErrorContext(ctx, "failed to load recorded care exits",
+				slog.String("error", err.Error()),
+			)
+		}
+		return
+	}
+	for i := range responses {
+		if recorded[responses[i].ID] {
+			responses[i].CareExitRecorded = true
+		}
+	}
 }
 
 // enrichWithPickupTimes adds today's effective pickup time to each student response.

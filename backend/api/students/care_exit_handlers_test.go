@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -210,6 +211,82 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, response.Code)
 	})
+}
+
+// The list has to say WHY a child carries an end date: a recorded exit can be
+// changed and cancelled here, the mere end of an enrolment phase cannot. Told
+// apart by the exit row, never by how far the date lies ahead — a school that
+// plans a departure for the end of the school year must still be able to take
+// it back (#2487).
+func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
+
+	recorded := testpkg.CreateTestStudent(t, tc.db, "Flagged", "Recorded", "4a")
+	phaseEnd := testpkg.CreateTestStudent(t, tc.db, "Flagged", "PhaseEnd", "4a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-flag@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	today := timezone.TodayDate()
+
+	// Both carry the same end date, far ahead. Only one of them was entered
+	// through "Betreuung beenden".
+	farAhead := today.AddDays(200)
+	setEnrolledUntil(t, tc, phaseEnd.ID, farAhead)
+	confirmCareExitVia(t, tc, claims, recorded.ID, farAhead)
+
+	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?page_size=500", nil)
+	response := authExec(t, tc, request, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+
+	var body struct {
+		Data []struct {
+			ID               int64  `json:"id"`
+			CareEndsOn       string `json:"care_ends_on"`
+			CareExitRecorded bool   `json:"care_exit_recorded"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+
+	flags := map[int64]bool{}
+	dates := map[int64]string{}
+	for _, row := range body.Data {
+		flags[row.ID] = row.CareExitRecorded
+		dates[row.ID] = row.CareEndsOn
+	}
+	require.Contains(t, flags, recorded.ID, "a planned exit stays in the ordinary list")
+	require.Contains(t, flags, phaseEnd.ID)
+	assert.Equal(t, farAhead.String(), dates[recorded.ID])
+	assert.Equal(t, farAhead.String(), dates[phaseEnd.ID])
+	assert.True(t, flags[recorded.ID], "an entered exit can be changed and cancelled")
+	assert.False(t, flags[phaseEnd.ID], "the end of an enrolment phase is not an exit")
+}
+
+// confirmCareExitVia ends a child's care through the real HTTP surface, so the
+// exit row is written exactly the way the product writes it.
+func confirmCareExitVia(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, lastCareDay timezone.Date) {
+	t.Helper()
+	body := map[string]any{
+		"student_ids":   []string{fmt.Sprintf("%d", studentID)},
+		"last_care_day": lastCareDay.String(),
+		"reason":        userModels.CareExitReasonNoCareNeed,
+	}
+	previewRequest := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", body)
+	previewResponse := authExec(t, tc, previewRequest, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, previewResponse.Code, "Body: %s", previewResponse.Body.String())
+
+	var preview struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(previewResponse.Body.Bytes(), &preview))
+	body["token"] = preview.Data.Token
+
+	confirmRequest := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end", body)
+	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
 }
 
 func setEnrolledUntil(t *testing.T, tc *testContext, studentID int64, day timezone.Date) {

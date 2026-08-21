@@ -1,5 +1,3 @@
-import { parseISODate } from "~/lib/date-helpers";
-
 // Client-side API für "Betreuung beenden" (#2487).
 //
 // Ein regulärer Austritt ist keine Datenlöschung: Er setzt einen letzten
@@ -289,34 +287,22 @@ export async function fetchEndedCare(params: {
 }
 
 /**
- * Wie weit voraus ein Betreuungsende in der Kinderverwaltung angekündigt wird.
+ * Ist für dieses Kind ein Austritt hinterlegt, der noch nicht gegriffen hat?
  *
- * Ein Ende, das Monate entfernt liegt, ist in aller Regel das reguläre Ende
- * der Anmeldephase und keine Nachricht: In der Demo-Schule tragen alle über
- * die Anmeldung erfassten Kinder denselben Tag im übernächsten Sommer. Würde
- * die Liste das melden, stünde bei jedem zweiten Kind "Betreuung endet am ..."
- * — und der eine echte Austritt ginge darin unter.
+ * Entscheidend ist, ob die Schule das Ende eingetragen hat, nicht wie weit es
+ * entfernt liegt: Ein Ende Monate voraus ist in aller Regel das reguläre Ende
+ * der Anmeldephase (in der Demo-Schule tragen alle über die Anmeldung
+ * erfassten Kinder denselben Tag im übernächsten Sommer). Nur ein
+ * eingetragener Austritt bekommt den Hinweis in der Liste und die Knöpfe
+ * "Ende ändern" und "Ende stornieren" — und der bekommt sie immer, sonst
+ * ließe sich ein früh geplanter Austritt nicht mehr zurücknehmen.
  */
-export const CARE_EXIT_NOTICE_DAYS = 90;
-
-/**
- * Ist für dieses Kind ein Betreuungsende hinterlegt, das bald greift und noch
- * nicht gegriffen hat? Nur dann zeigt die Liste einen Hinweis und nur dann
- * bietet die Detailansicht "Ende ändern" und "Ende stornieren" an.
- */
-export function hasUpcomingCareExit(
-  student: { care_ends_on?: string; care_ended?: boolean },
-  today: Date = new Date(),
-): boolean {
-  if (student.care_ended || !student.care_ends_on) return false;
-  const end = parseISODate(student.care_ends_on);
-  const midnight = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
+export function hasPlannedCareExit(student: {
+  care_ends_on?: string;
+  care_ended?: boolean;
+  care_exit_recorded?: boolean;
+}): boolean {
+  return Boolean(
+    student.care_exit_recorded && student.care_ends_on && !student.care_ended,
   );
-  const days = Math.round(
-    (end.getTime() - midnight.getTime()) / (24 * 60 * 60 * 1000),
-  );
-  return days >= 0 && days <= CARE_EXIT_NOTICE_DAYS;
 }

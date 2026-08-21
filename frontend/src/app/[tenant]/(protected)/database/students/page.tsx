@@ -38,7 +38,7 @@ import {
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
-import { cancelCareExit, hasUpcomingCareExit } from "~/lib/care-exit-api";
+import { cancelCareExit, hasPlannedCareExit } from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -177,11 +177,9 @@ function StudentsPageContent() {
     setSelectedStudentIds(new Set());
   }, []);
 
-  // "Alle angezeigten auswählen" (#2487): Suche und Filter bestimmen, was
-  // angezeigt wird — die Auswahl folgt genau dem, nicht der ganzen Kartei.
   // Storniert ein noch nicht wirksames Betreuungsende (#2487). Ein bereits
-  // wirksamer Austritt kann nur über "Wieder aufnehmen" zurückgenommen werden
-  // — mit neuem Beginn und ausdrücklicher Prüfung.
+  // wirksamer Austritt kann nur über "Wieder aufnehmen" zurückgenommen werden,
+  // mit neuem Beginn und ausdrücklicher Prüfung.
   const cancelPlannedExit = useCallback(
     async (student: Student) => {
       setCancellingExit(true);
@@ -208,6 +206,8 @@ function StudentsPageContent() {
     [tenantMutate, toastError, toastSuccess],
   );
 
+  // "Alle angezeigten auswählen" (#2487): Suche und Filter bestimmen, was
+  // angezeigt wird, und die Auswahl folgt genau dem, nicht der ganzen Kartei.
   const selectAllVisible = useCallback(
     (studentIds: string[]) => {
       if (studentIds.length > 500) {
@@ -505,11 +505,11 @@ function StudentsPageContent() {
               onClick={() => setCareExitIds([String(selectedStudent.id)])}
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              {hasUpcomingCareExit(selectedStudent)
+              {hasPlannedCareExit(selectedStudent)
                 ? "Ende ändern"
                 : "Betreuung beenden"}
             </Button>
-            {hasUpcomingCareExit(selectedStudent) ? (
+            {hasPlannedCareExit(selectedStudent) ? (
               <Button
                 type="button"
                 variant="ghost"

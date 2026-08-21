@@ -141,13 +141,34 @@ describe("StudentsMasterDetail — Betreuung beenden", () => {
       <StudentsMasterDetail
         {...baseProps}
         students={[
-          makeStudent("1", { care_ends_on: "2026-09-30", care_ended: false }),
+          makeStudent("1", {
+            care_ends_on: "2026-09-30",
+            care_ended: false,
+            care_exit_recorded: true,
+          }),
         ]}
       />,
     );
     expect(screen.getByTestId("subtitle-First1 Last1").textContent).toContain(
       "Betreuung endet am 30.09.2026",
     );
+  });
+
+  it("says nothing about a mere end of the enrolment phase", () => {
+    // Ohne eingetragenen Austritt ist das Datum nur die Laufzeit der
+    // Anmeldung. Stünde es in der Liste, hätte fast jedes Kind den Hinweis
+    // und der eine echte Austritt ginge darin unter (#2487).
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[
+          makeStudent("1", { care_ends_on: "2027-07-31", care_ended: false }),
+        ]}
+      />,
+    );
+    expect(
+      screen.getByTestId("subtitle-First1 Last1").textContent,
+    ).not.toContain("Betreuung endet");
   });
 
   it("says nothing about a child without a planned exit", () => {

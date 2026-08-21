@@ -175,6 +175,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	enrichPaginatedPlanningTimes(responses, params, dataSnapshot, planningTimes, isToday)
 
+	// After pagination: only the page that is actually returned needs to know
+	// which of its children carry a recorded exit (#2487).
+	rs.enrichWithCareExitFlag(r.Context(), responses)
+
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must
 	// resolve the links of that date. Fatal by design (see enrichWithCompanions)
@@ -498,6 +502,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	rs.enrichWithCareExitFlag(r.Context(), single)
 	response.StudentResponse = single[0]
 
 	// Add supervisor contacts for users without full access
