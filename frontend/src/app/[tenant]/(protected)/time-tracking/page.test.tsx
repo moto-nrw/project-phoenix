@@ -1436,6 +1436,83 @@ describe("TimeTrackingPage", () => {
   // (code: "reopen_status_conflict"), prompt for an audit reason, then
   // route the change through CheckIn(existingStatus) + UpdateSession.
 
+  // Both fixes below keep the page's own arithmetic on the same footing as the
+  // server: it caps a block that was never checked out, and it reads the blocks
+  // of a range by intersection instead of by stored date.
+  describe("abgelaufene und übergreifende Blöcke (#2402)", () => {
+    it("stops counting a block whose live limit has passed", () => {
+      const threeDaysAgo = new Date(today);
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const staleISO = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`;
+
+      setupDefaultMocks({
+        currentSession: {
+          ...mockActiveSession,
+          date: staleISO,
+          checkInTime: testTimestamp(staleISO, "08:00"),
+        },
+      });
+      const { container } = render(<TimeTrackingPage />);
+
+      // The block ended at the end of its own Berlin day — server-side too, so
+      // running it through `now` would print days of work the Saldo denies.
+      expect(container.querySelector(".text-4xl")).toHaveTextContent("0min");
+    });
+
+    it("keeps counting a block that is still inside its live window", () => {
+      // Relative to the clock the component reads, so the assertion holds
+      // whatever time of day (or faked timer) the suite runs under.
+      const startedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const startedISO = `${startedAt.getFullYear()}-${String(startedAt.getMonth() + 1).padStart(2, "0")}-${String(startedAt.getDate()).padStart(2, "0")}`;
+
+      setupDefaultMocks({
+        currentSession: {
+          ...mockActiveSession,
+          date: startedISO,
+          checkInTime: startedAt.toISOString(),
+        },
+      });
+      const { container } = render(<TimeTrackingPage />);
+
+      expect(container.querySelector(".text-4xl")).not.toHaveTextContent(
+        "0min",
+      );
+    });
+
+    // The table's history key is shared with usePeriodMetrics so SWR dedupes
+    // the two fetches into one request. Both must keep the same head start —
+    // not because the range decides which blocks are visible (/history bounds
+    // `from` against check_out_time), but because two keys mean two requests.
+    it("shares one history key with the period metrics", () => {
+      setupDefaultMocks();
+      render(<TimeTrackingPage />);
+
+      const monday = new Date(today);
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      const iso = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const headStart = new Date(monday);
+      headStart.setDate(headStart.getDate() - 1);
+
+      const tableKeys = vi
+        .mocked(useSWRAuth)
+        .mock.calls.map(([key]) => key)
+        .filter(
+          (key): key is string =>
+            typeof key === "string" &&
+            key.startsWith("time-tracking-table-") &&
+            !key.startsWith("time-tracking-table-absences") &&
+            !key.startsWith("time-tracking-table-shifts"),
+        );
+
+      expect(new Set(tableKeys)).toEqual(
+        new Set([`time-tracking-table-${iso(headStart)}-${iso(sunday)}`]),
+      );
+    });
+  });
+
   describe("erneutes Einstempeln nach Checkout (#2402)", () => {
     function makePlannedStartError(): Error & {
       code?: string;

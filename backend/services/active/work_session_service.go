@@ -543,8 +543,10 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	// afternoon, an edited checkout in the future, a night block from
 	// yesterday that ran into this morning). A new block starting inside that
 	// interval would double-count the overlap in every sum built from the
-	// day's rows, so it is rejected like any other overlap.
-	if err := s.assertNoBlockOverlap(ctx, staffID, 0, now, nil); err != nil {
+	// day's rows, so it is rejected like any other overlap. An open block whose
+	// live limit has passed is the one exception — see
+	// assertNoRunningBlockOverlap.
+	if err := s.assertNoRunningBlockOverlap(ctx, staffID, now); err != nil {
 		return nil, err
 	}
 
@@ -1364,7 +1366,9 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 // overlaps another block of the same staff member (#2402). Overlapping blocks
 // would double-count work time in every sum built from the day's rows.
 // Touching boundaries (one block ends exactly when the next starts) are
-// allowed; an open sibling block occupies [check-in, ∞).
+// allowed; an open sibling block occupies [check-in, ∞) — including one whose
+// live limit has passed. Only live stamping softens that, see
+// assertNoRunningBlockOverlap.
 //
 // The siblings are selected by their timestamps, not by the date column: a
 // block is filed on the day of its check-in but may reach into later days (a
@@ -1378,6 +1382,50 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
 	}
 	return assertNoBlockOverlapIn(siblings, excludeID, checkIn, checkOut)
+}
+
+// assertNoRunningBlockOverlap is the check-in twin of assertNoBlockOverlap: it
+// rejects a stamp that lands inside another block, but lets a block whose live
+// limit has passed end there instead of reaching into today
+// (expireStaleOpenBlocks).
+//
+// The asymmetry is deliberate. A forgotten checkout stops counting as work at
+// its limit — the balance no longer credits it, the presence map no longer
+// reports its owner as present — so it must not reject the stamp of somebody
+// who is demonstrably not at work since days: they would be locked out of the
+// clock entirely, with no way to repair the row themselves (#2402). An
+// administrative write is the opposite case: it is made by the person who CAN
+// repair the row, and a Nachtrag must not be layered on top of an unresolved
+// open block, so there the full open interval keeps blocking.
+func (s *workSessionService) assertNoRunningBlockOverlap(ctx context.Context, staffID int64, at time.Time) error {
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, at, nil)
+	if err != nil {
+		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
+	}
+	return assertNoBlockOverlapIn(expireStaleOpenBlocks(siblings, at), 0, at, nil)
+}
+
+// expireStaleOpenBlocks ends every open block that has passed its live limit
+// at exactly that limit (BalanceSessionEnd), leaving still-running blocks
+// untouched. The originals are not modified — only the copies handed to the
+// overlap arithmetic are.
+func expireStaleOpenBlocks(siblings []*activeModels.WorkSession, now time.Time) []*activeModels.WorkSession {
+	expired := make([]*activeModels.WorkSession, len(siblings))
+	for i, sibling := range siblings {
+		if sibling.CheckOutTime != nil {
+			expired[i] = sibling
+			continue
+		}
+		end := BalanceSessionEnd(sibling, now)
+		if !end.Before(now) {
+			expired[i] = sibling // still running
+			continue
+		}
+		clamped := *sibling
+		clamped.CheckOutTime = &end
+		expired[i] = &clamped
+	}
+	return expired
 }
 
 // assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, kept
@@ -1582,7 +1630,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
-	return s.historyResponse(ctx, staffID, sessions)
+	return s.historyResponse(ctx, staffID, sessions, from, to)
 }
 
 // GetHistoryIntersecting returns blocks that overlap a calendar range. Every
@@ -1595,10 +1643,14 @@ func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID
 	if err != nil {
 		return nil, fmt.Errorf("failed to get intersecting session history: %w", err)
 	}
-	return s.historyResponse(ctx, staffID, sessions)
+	return s.historyResponse(ctx, staffID, sessions, from, to)
 }
 
-func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*activeModels.WorkSession) (*HistoryResponse, error) {
+// historyResponse builds the wire response for the blocks of [from, to]. The
+// range is carried through because the weekly summaries are aggregated per
+// calendar day: a block that reaches beyond the requested range (a night block
+// at either border) must not contribute the minutes it spends outside it.
+func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*activeModels.WorkSession, from, to timezone.Date) (*HistoryResponse, error) {
 
 	// Collect session IDs for batch edit count query
 	sessionIDs := make([]int64, len(sessions))
@@ -1627,11 +1679,14 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 			return nil, fmt.Errorf("failed to get breaks for session %d: %w", session.ID, err)
 		}
 
-		effectiveSession := *session
-		end := BalanceSessionEnd(session, now)
-		if session.CheckOutTime == nil && end.Before(now) {
-			effectiveSession.CheckOutTime = &end
-		}
+		// The as-of clock of a block is its own end, not the wall clock: an
+		// open block that has passed its live limit stopped counting there
+		// (BalanceSessionEnd), and work AND break time have to be measured
+		// against that same instant. Pinning a fake check-out on a copy
+		// instead would silence totalBreakMinutes — it treats a checked-out
+		// block's cache as complete — and a break still running across the
+		// limit would be booked as work (#2402).
+		asOf := BalanceSessionEnd(session, now)
 		responses[i] = &SessionResponse{
 			WorkSession: session,
 			// A running break is NOT in the BreakMinutes cache, so netMinutes
@@ -1639,10 +1694,10 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 			// would climb while the Monatskarte and the week KPI (which both
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
-			BreakMinutes:     totalBreakMinutes(&effectiveSession, breaks, now),
-			NetMinutes:       netMinutesWithBreaks(&effectiveSession, breaks, now),
-			IsOvertime:       isOvertime(&effectiveSession, breaks, now),
-			IsBreakCompliant: isBreakCompliant(&effectiveSession, breaks, now),
+			BreakMinutes:     totalBreakMinutes(session, breaks, asOf),
+			NetMinutes:       netMinutesWithBreaks(session, breaks, asOf),
+			IsOvertime:       isOvertime(session, breaks, asOf),
+			IsBreakCompliant: isBreakCompliant(session, breaks, asOf),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
@@ -1652,7 +1707,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	targetsByWeek := s.getWeeklyTargetsForSummaries(ctx, staffID, responses)
 
 	// Build weekly summaries
-	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek)
+	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek, from, to)
 
 	return &HistoryResponse{
 		Sessions:        responses,
@@ -1660,8 +1715,16 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	}, nil
 }
 
-// buildWeeklySummaries aggregates session data by ISO week
-func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int) []WeeklySummary {
+// buildWeeklySummaries aggregates session data by ISO week, restricted to the
+// requested [from, to] range.
+//
+// A block is laid out on the Berlin days its minutes actually fall on, and it
+// may reach past either border of the range: the intersecting query returns a
+// night block that began before `from`, and a block started on `to` runs into
+// the next morning. Aggregating it whole would credit weeks the caller never
+// asked about — including ISO weeks with no visible row to explain them — so
+// only the days inside the range are counted (#2402).
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to timezone.Date) []WeeklySummary {
 	weekMap := make(map[summaryWeekKey]*WeeklySummary)
 	var weekOrder []summaryWeekKey
 	now := time.Now()
@@ -1669,7 +1732,14 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
-		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, session.Date, timezone.DateFromTime(end)) {
+		firstDay, lastDay := session.Date, timezone.DateFromTime(end)
+		if firstDay.Before(from) {
+			firstDay = from
+		}
+		if lastDay.After(to) {
+			lastDay = to
+		}
+		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
 

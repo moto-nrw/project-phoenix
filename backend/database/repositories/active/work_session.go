@@ -85,19 +85,34 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 	return session, nil
 }
 
-// GetLatestOpenByStaffID returns the most recent not-checked-out session of a
+// GetLatestOpenByStaffID returns the most recent STILL RUNNING session of a
 // staff member, regardless of the day it was opened on. Unlike
 // GetCurrentByStaffID it does not filter on today, so a session that was opened
 // before Berlin midnight and is still running stays visible after the rollover
 // instead of looking like "no session today".
+//
+// "Still running" is the same live window the balance applies
+// (services/active.BalanceSessionEnd): a block filed on today (or later) always
+// counts, an older one only while its check-in is inside
+// active.MaxOpenWorkSessionDuration. Past that limit the block has stopped
+// counting as work everywhere else — the balance no longer credits it and the
+// presence map no longer reports its owner as present — so it must stop
+// counting as "clocked in" here too. Without the cutoff a single forgotten
+// checkout would be reported as the current session forever and would reject
+// every later check-in with "already checked in", leaving the staff member
+// unable to stamp at all (#2402). The expired row stays open on disk and is
+// resolved where it belongs: the auto-checkout job, or an admin edit.
 func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 
+	now := time.Now()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".check_out_time IS NULL`).
+		Where(`("work_session".date >= ? OR "work_session".check_in_time > ?)`,
+			timezone.DateFromTime(now), now.Add(-active.MaxOpenWorkSessionDuration)).
 		OrderExpr(`"work_session".date DESC, "work_session".check_in_time DESC`).
 		Limit(1)
 

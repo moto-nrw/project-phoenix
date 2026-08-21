@@ -1916,7 +1916,9 @@ func TestBuildWeeklySummaries_SplitsOvernightBlockAcrossISOWeeks(t *testing.T) {
 			CheckOutTime: &checkOut,
 		},
 		NetMinutes: 240,
-	}}, nil)
+		// The requested range spans both days the block touches, so the
+		// range clipping (#2402) leaves this split untouched.
+	}}, nil, sunday, sunday.AddDays(1))
 
 	require.Len(t, summaries, 2)
 	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
@@ -3940,4 +3942,147 @@ func TestWSSessionResponse_SerializesIDAsString(t *testing.T) {
 	assert.Equal(t, "9007199254740995", wire.StaffID)
 	assert.Equal(t, "9007199254740996", wire.CreatedBy)
 	assert.Equal(t, "9007199254740997", wire.UpdatedBy)
+}
+
+// A checkout that never happened must not occupy every following day. The
+// block stopped counting as work at its live limit (BalanceSessionEnd), so it
+// stops blocking the calendar there too — otherwise the staff member could
+// never stamp again without an admin cleaning up first (#2402).
+func TestWSCheckIn_ExpiredOpenBlockDoesNotOccupyToday(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	stampedAt := time.Date(2026, time.July, 22, 8, 0, 0, 0, timezone.Berlin)
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	// Friday's block is still open on disk; its live limit expired days ago.
+	// The repository's live window keeps it out of the "already checked in"
+	// lookup — mirrored here by the mock returning nothing.
+	forgotten := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        timezone.NewDate(2026, 7, 17),
+		CheckInTime: time.Date(2026, time.July, 17, 8, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.listOverlappingByStaffIDFunc = func(_ context.Context, _ int64, _ time.Time, _ *time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{forgotten}, nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 78
+		created = entity
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.NoError(t, err, "an expired block must not reject today's check-in")
+	require.NotNil(t, session)
+	require.NotNil(t, created)
+	assert.Nil(t, forgotten.CheckOutTime, "the stored row is left untouched for the auto-checkout or an admin")
+}
+
+// The counterpart: a block that is still inside its live window keeps
+// occupying the calendar without an end, so a stamp landing inside it is still
+// rejected.
+func TestExpireStaleOpenBlocks(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.July, 22, 12, 0, 0, 0, timezone.Berlin)
+	running := &activeModels.WorkSession{
+		Model:       base.Model{ID: 1},
+		Date:        timezone.NewDate(2026, 7, 22),
+		CheckInTime: time.Date(2026, time.July, 22, 8, 0, 0, 0, timezone.Berlin),
+	}
+	expired := &activeModels.WorkSession{
+		Model:       base.Model{ID: 2},
+		Date:        timezone.NewDate(2026, 7, 17),
+		CheckInTime: time.Date(2026, time.July, 17, 8, 0, 0, 0, timezone.Berlin),
+	}
+
+	clamped := expireStaleOpenBlocks([]*activeModels.WorkSession{running, expired}, now)
+
+	require.Len(t, clamped, 2)
+	assert.Nil(t, clamped[0].CheckOutTime, "a running block still reaches into the future")
+	require.NotNil(t, clamped[1].CheckOutTime, "an expired block ends at its live limit")
+	assert.Equal(t, BalanceSessionEnd(expired, now), *clamped[1].CheckOutTime)
+	assert.Nil(t, expired.CheckOutTime, "the original row is not modified")
+
+	// The clamped copies are what the check-in overlap arithmetic sees: the
+	// running block still blocks a later stamp, the expired one no longer does.
+	// The admin paths keep the unclamped list, so a Nachtrag on top of an
+	// unresolved open block stays rejected.
+	stamp := time.Date(2026, time.July, 22, 14, 0, 0, 0, timezone.Berlin)
+	require.Error(t, assertNoBlockOverlapIn(clamped[:1], 0, stamp, nil))
+	require.NoError(t, assertNoBlockOverlapIn(clamped[1:], 0, stamp, nil))
+	require.Error(t, assertNoBlockOverlapIn([]*activeModels.WorkSession{expired}, 0, stamp, nil),
+		"unclamped, the expired block would still occupy today")
+}
+
+// A break that is still running when the block hits its live limit is break
+// time up to that limit — not work. Pinning a synthetic check-out on the block
+// silenced the running-break math (totalBreakMinutes treats a checked-out
+// block's cache as complete) and booked the whole break as worked time (#2402).
+func TestWSGetHistory_RunningBreakIsCappedAtTheLiveLimit(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	// Two days back: BalanceSessionEnd cuts the block at the end of its own
+	// Berlin day, whatever the clock says while the test runs.
+	staleDay := timezone.TodayDate().AddDays(-2)
+	checkIn := staleDay.BerlinMidnight().Add(8 * time.Hour)
+	breakStart := staleDay.BerlinMidnight().Add(12 * time.Hour)
+	staleEnd := staleDay.EndOfDay()
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{Model: base.Model{ID: 1}, StaffID: staffID, Date: staleDay, CheckInTime: checkIn},
+		}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: breakStart},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+
+	resp, err := svc.GetHistory(context.Background(), staffID, staleDay, staleDay)
+	require.NoError(t, err)
+	require.Len(t, resp.Sessions, 1)
+
+	wantBreak := int(staleEnd.Sub(breakStart).Minutes())
+	wantGross := int(staleEnd.Sub(checkIn).Minutes())
+	assert.Equal(t, wantBreak, resp.Sessions[0].BreakMinutes,
+		"the running break counts up to the live limit, not through now")
+	assert.Equal(t, wantGross-wantBreak, resp.Sessions[0].NetMinutes,
+		"and those minutes are deducted from the work time")
+}
+
+// The weekly summaries are aggregated per calendar day, so a block reaching
+// past the requested range must not credit the days — and the ISO weeks —
+// outside it (#2402).
+func TestBuildWeeklySummaries_ClipsToRequestedRange(t *testing.T) {
+	t.Parallel()
+	service, _, _, _, _ := wsCreateTestService()
+	sunday := timezone.NewDate(2026, 8, 16)
+	checkIn := time.Date(2026, 8, 16, 20, 0, 0, 0, time.UTC) // 22:00 Berlin
+	checkOut := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC) // 02:00 Berlin
+
+	summaries := service.buildWeeklySummaries([]*SessionResponse{{
+		WorkSession: &activeModels.WorkSession{
+			Date:         sunday,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+		},
+		NetMinutes: 240,
+	}}, nil, sunday, sunday)
+
+	require.Len(t, summaries, 1, "the Monday half belongs to a week nobody asked for")
+	assert.Equal(t, 120, summaries[0].TotalNetMinutes)
 }

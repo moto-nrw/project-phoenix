@@ -107,6 +107,7 @@ import {
   formatTime,
   getWeekDays,
   getWeekNumber,
+  balanceSessionEnd,
   calculateNetMinutes,
   indexWorkSessionMinutesByBerlinDate,
   OPEN_MONTH_REFRESH_MS,
@@ -428,16 +429,24 @@ function getTodayDisplayValue(
 // before midnight keeps running past it, but its earlier minutes belong to
 // the previous Berlin day — the page books them there via the Berlin-date
 // split, so counting them again here would credit a whole night to today.
+//
+// `end` is the block's live limit (balanceSessionEnd), never the raw clock: a
+// block whose check-out never happened stopped counting there, server-side as
+// well, so counting it through `now` would print a live figure the Saldo, the
+// Monatskarte and the chart all contradict.
 function calcGrossMinutes(
   isCheckedIn: boolean,
   session: WorkSession | null,
   now: Date,
+  end: Date,
 ): number {
   if (!isCheckedIn || !session) return 0;
   const start = new Date(session.checkInTime);
   if (Number.isNaN(start.getTime())) return 0;
   const dayStart = berlinDayStart(now);
-  return calcElapsedMinutes(start > dayStart ? start : dayStart, now);
+  const from = start > dayStart ? start : dayStart;
+  if (end <= from) return 0;
+  return calcElapsedMinutes(from, end);
 }
 
 // Break minutes of the running block that fall inside [from, now]. Used for a
@@ -666,11 +675,32 @@ function ClockInCard({
     currentSession !== null &&
     new Date(currentSession.checkInTime).getTime() < dayStart.getTime();
 
+  // The block's own end: `now` while it is running, its live limit once it has
+  // passed it. Work AND break minutes are measured against this single instant
+  // so the live figure cannot drift away from the server-side Saldo, which
+  // caps the very same block (balanceSessionEnd).
+  const liveEnd =
+    isCheckedIn && currentSession !== null
+      ? balanceSessionEnd(
+          {
+            date: currentSession.date,
+            checkIn: new Date(currentSession.checkInTime),
+            checkOut: null,
+          },
+          now,
+        )
+      : now;
+
   // Calculate derived time values using extracted helpers
   const liveBreakMins = startedBeforeToday
-    ? calcBreakMinutesSince(breaks, dayStart, now)
-    : calcLiveBreakMins(breakMins, activeBreak, now);
-  const grossMinutes = calcGrossMinutes(isCheckedIn, currentSession, now);
+    ? calcBreakMinutesSince(breaks, dayStart, liveEnd)
+    : calcLiveBreakMins(breakMins, activeBreak, liveEnd);
+  const grossMinutes = calcGrossMinutes(
+    isCheckedIn,
+    currentSession,
+    now,
+    liveEnd,
+  );
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
   const dayNetMinutes = completedTodayMinutes + netMinutes;
   const dayBreakMinutes = completedTodayBreakMinutes + liveBreakMins;
@@ -1624,6 +1654,11 @@ function OwnZeiterfassungSection({
 
   const visibleFromKey = toISODate(visibleFrom);
   const visibleToKey = toISODate(visibleTo);
+  // One day of head start, shared with usePeriodMetrics so SWR dedupes the two
+  // fetches into one request. It is NOT what makes a block starting before the
+  // range visible — /history bounds `from` against check_out_time, so every
+  // block reaching into the range comes back however early it started
+  // (TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts).
   const tableHistoryFromKey = useMemo(() => {
     const previousDay = new Date(visibleFrom);
     previousDay.setDate(previousDay.getDate() - 1);
@@ -2045,7 +2080,11 @@ function WeekChart({
   const chartData = useMemo(() => {
     // Build last 10 workdays ending with today (or offset reference)
     // Today is always on the right, past days to the left
-    const referenceDate = new Date(today);
+    // Anchored on the BERLIN calendar day, not the browser's: the minutes are
+    // indexed by Berlin date below, so deriving the axis from a local date
+    // would look up the wrong key — zero or misplaced bars around midnight for
+    // anybody outside the Berlin timezone.
+    const referenceDate = parseISODate(berlinTodayISO(today));
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
 
     const allDays: Date[] = [];
