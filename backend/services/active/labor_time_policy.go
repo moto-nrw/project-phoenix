@@ -251,6 +251,12 @@ func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.W
 // netMinutesByDate splits a session's net time across the Berlin calendar days
 // it intersects. Breaks are deducted from the days on which they actually
 // occurred, rather than from the session's start day.
+//
+// [from, to] filters the RESULT, not the walk: a session that starts before
+// `from` is still walked from its own check-in day, because the cached break
+// total of a legacy row (see below) is consumed in session order. Filtering
+// the walk instead would carry that whole cache into the first included day
+// and understate it there (#2402).
 func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, end time.Time, from, to timezone.Date) map[timezone.Date]int {
 	minutesByDate := make(map[timezone.Date]int)
 	cachedBreakMinutes := session.BreakMinutes
@@ -258,9 +264,6 @@ func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.
 		return minutesByDate
 	}
 	for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
-		if day.Before(from) || day.After(to) {
-			continue
-		}
 		start := session.CheckInTime
 		if midnight := day.BerlinMidnight(); start.Before(midnight) {
 			start = midnight
@@ -292,6 +295,9 @@ func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.
 			deduct := min(minutes, cachedBreakMinutes)
 			minutes -= deduct
 			cachedBreakMinutes -= deduct
+		}
+		if day.Before(from) || day.After(to) {
+			continue
 		}
 		if minutes > 0 {
 			minutesByDate[day] = minutes

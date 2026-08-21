@@ -359,3 +359,31 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 		assert.Equal(t, 300, eval.NetMinutes, "only the hour after midnight belongs to this day")
 	})
 }
+
+func TestNetMinutesByDateLegacyBreakAcrossRangeStart(t *testing.T) {
+	t.Parallel()
+
+	// Legacy row: only the aggregate BreakMinutes, no break intervals.
+	checkIn := time.Date(2024, 1, 1, 22, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2024, 1, 2, 4, 0, 0, 0, timezone.Berlin)
+	session := &activeModels.WorkSession{
+		Date:         timezone.NewDate(2024, time.January, 1),
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		BreakMinutes: 60,
+	}
+	firstDay := timezone.NewDate(2024, time.January, 1)
+	secondDay := timezone.NewDate(2024, time.January, 2)
+
+	t.Run("full span consumes the cache on the day it starts", func(t *testing.T) {
+		byDate := netMinutesByDate(session, nil, checkOut, firstDay, secondDay)
+		assert.Equal(t, map[timezone.Date]int{firstDay: 60, secondDay: 240}, byDate)
+	})
+
+	t.Run("range starting on the second day keeps that day whole", func(t *testing.T) {
+		// The pause belongs to the night segment before the range. Deducting
+		// it again here would understate 2 January by an hour.
+		byDate := netMinutesByDate(session, nil, checkOut, secondDay, secondDay)
+		assert.Equal(t, map[timezone.Date]int{secondDay: 240}, byDate)
+	})
+}
