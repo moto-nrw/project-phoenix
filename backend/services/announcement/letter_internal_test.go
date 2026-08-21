@@ -372,6 +372,7 @@ func (r *letterRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*user
 func ackedChild(id int64, name string, at *time.Time, by string) *usersModels.AnnouncementLetterChildStatus {
 	c := &usersModels.AnnouncementLetterChildStatus{
 		StudentID: id, FirstName: name, LastName: "Kind", SchoolClass: "2a",
+		CanConfirm:     true,
 		AcknowledgedAt: at,
 	}
 	if at != nil {
@@ -562,6 +563,75 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 	for _, req := range outbox.requests {
 		if addr, _ := req.Payload[emailPayloadRecipient].(string); addr == "" {
 			t.Error("queued a mail with an empty address")
+		}
+	}
+}
+
+// A child nobody can confirm for must NOT be counted as outstanding. Reminding
+// changes nothing for them — the fix is portal access, not another e-mail. This
+// is the split that stopped a school-wide letter to 116 children from reporting
+// "6 offen" as if it were nearly done.
+func TestLetterStatusSeparatesUnconfirmableChildrenFromOpenOnes(t *testing.T) {
+	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
+	unreachable := func(id int64, name string) *usersModels.AnnouncementLetterChildStatus {
+		return &usersModels.AnnouncementLetterChildStatus{
+			StudentID: id, FirstName: name, LastName: "Kind", SchoolClass: "1a",
+			CanConfirm: false,
+		}
+	}
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		children: []*usersModels.AnnouncementLetterChildStatus{
+			ackedChild(1, "Anna", &now, "Mama"), // bestätigt
+			ackedChild(2, "Ben", nil, ""),       // offen, bestätigbar
+			unreachable(3, "Cem"),               // kein Portalzugang
+			unreachable(4, "Dora"),              // kein Portalzugang
+		},
+	}
+	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
+
+	status, err := svc.LetterStatus(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("LetterStatus: %v", err)
+	}
+	s := status.Summary
+	if s.ChildrenTotal != 4 {
+		t.Errorf("ChildrenTotal = %d, want 4 — every reached child stays visible", s.ChildrenTotal)
+	}
+	if s.ChildrenConfirmable != 2 {
+		t.Errorf("ChildrenConfirmable = %d, want 2", s.ChildrenConfirmable)
+	}
+	if s.ChildrenFulfilled != 1 {
+		t.Errorf("ChildrenFulfilled = %d, want 1", s.ChildrenFulfilled)
+	}
+	if s.ChildrenOpen != 1 {
+		t.Errorf("ChildrenOpen = %d, want 1 — only the child a reminder can reach", s.ChildrenOpen)
+	}
+	if s.ChildrenWithoutPortal != 2 {
+		t.Errorf("ChildrenWithoutPortal = %d, want 2", s.ChildrenWithoutPortal)
+	}
+	// The two gaps must never be summed into one "offen" number again.
+	if s.ChildrenOpen+s.ChildrenFulfilled != s.ChildrenConfirmable {
+		t.Error("open + fulfilled must account for exactly the confirmable children")
+	}
+}
+
+// Outstanding is the predicate the reminder button and the "nur offene" filter
+// both hang on, so it gets its own pin.
+func TestLetterChildOutstanding(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		name     string
+		child    usersModels.AnnouncementLetterChildStatus
+		wantOpen bool
+	}{
+		{"bestätigt", usersModels.AnnouncementLetterChildStatus{CanConfirm: true, AcknowledgedAt: &now}, false},
+		{"offen", usersModels.AnnouncementLetterChildStatus{CanConfirm: true}, true},
+		{"kein Portalzugang", usersModels.AnnouncementLetterChildStatus{CanConfirm: false}, false},
+	}
+	for _, tc := range cases {
+		if got := tc.child.Outstanding(); got != tc.wantOpen {
+			t.Errorf("%s: Outstanding() = %v, want %v", tc.name, got, tc.wantOpen)
 		}
 	}
 }

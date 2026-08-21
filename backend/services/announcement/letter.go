@@ -272,18 +272,26 @@ type LetterStatus struct {
 	Summary    LetterSummary                                `json:"summary"`
 }
 
-// LetterSummary counts what a school actually acts on. ChildrenOpen is the
-// number that matters: those are the families to follow up with.
+// LetterSummary counts what a school actually acts on, and keeps the two very
+// different gaps apart.
+//
+// ChildrenOpen are children someone COULD confirm for and nobody has — those are
+// the families to remind. ChildrenWithoutPortal are children no guardian can
+// confirm for at all; reminding them changes nothing, the fix is to give a
+// guardian portal access. Reporting them as one number is what made a
+// school-wide letter to 116 children read as "6 offen".
 type LetterSummary struct {
-	ChildrenTotal     int `json:"children_total"`
-	ChildrenFulfilled int `json:"children_fulfilled"`
-	ChildrenOpen      int `json:"children_open"`
-	RecipientsTotal   int `json:"recipients_total"`
-	EmailsSent        int `json:"emails_sent"`
-	EmailsPending     int `json:"emails_pending"`
-	EmailsFailed      int `json:"emails_failed"`
-	WithoutEmail      int `json:"without_email"`
-	WithoutPortal     int `json:"without_portal"`
+	ChildrenTotal         int `json:"children_total"`
+	ChildrenConfirmable   int `json:"children_confirmable"`
+	ChildrenFulfilled     int `json:"children_fulfilled"`
+	ChildrenOpen          int `json:"children_open"`
+	ChildrenWithoutPortal int `json:"children_without_portal"`
+	RecipientsTotal       int `json:"recipients_total"`
+	EmailsSent            int `json:"emails_sent"`
+	EmailsPending         int `json:"emails_pending"`
+	EmailsFailed          int `json:"emails_failed"`
+	WithoutEmail          int `json:"without_email"`
+	WithoutPortal         int `json:"without_portal"`
 }
 
 // LetterStatus assembles the recipient matrix and the per-child fulfilment.
@@ -317,11 +325,17 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 	out.Summary.ChildrenTotal = len(children)
 	out.Summary.RecipientsTotal = len(recipients)
 	for _, c := range children {
-		if c.Fulfilled() {
+		switch {
+		case !c.CanConfirm:
+			out.Summary.ChildrenWithoutPortal++
+		case c.Fulfilled():
+			out.Summary.ChildrenConfirmable++
 			out.Summary.ChildrenFulfilled++
+		default:
+			out.Summary.ChildrenConfirmable++
+			out.Summary.ChildrenOpen++
 		}
 	}
-	out.Summary.ChildrenOpen = out.Summary.ChildrenTotal - out.Summary.ChildrenFulfilled
 	for _, r := range recipients {
 		switch r.EmailStatus {
 		case "sent":

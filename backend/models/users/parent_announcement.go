@@ -391,10 +391,16 @@ type AnnouncementDeliveryRecipient struct {
 // once the letter is fulfilled, who got there first is the answer to "wer hat
 // für dieses Kind bestätigt".
 type AnnouncementLetterChildStatus struct {
-	StudentID      int64      `bun:"student_id" json:"student_id"`
-	FirstName      string     `bun:"first_name" json:"first_name"`
-	LastName       string     `bun:"last_name" json:"last_name"`
-	SchoolClass    string     `bun:"school_class" json:"school_class"`
+	StudentID   int64  `bun:"student_id" json:"student_id"`
+	FirstName   string `bun:"first_name" json:"first_name"`
+	LastName    string `bun:"last_name" json:"last_name"`
+	SchoolClass string `bun:"school_class" json:"school_class"`
+	// CanConfirm is false when NO guardian of this child can acknowledge in moto
+	// (no portal access, no linked account, or no active membership). Such a
+	// child is reached by the letter but can never be fulfilled, so counting it
+	// as "offen" would report a gap the school cannot close by reminding — the
+	// fix is to give somebody portal access.
+	CanConfirm     bool       `bun:"can_confirm" json:"can_confirm"`
 	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 	AckFirstName   string     `bun:"ack_first_name" json:"ack_first_name,omitempty"`
 	AckLastName    string     `bun:"ack_last_name" json:"ack_last_name,omitempty"`
@@ -402,6 +408,14 @@ type AnnouncementLetterChildStatus struct {
 
 // Fulfilled reports whether someone has confirmed the letter for this child.
 func (c *AnnouncementLetterChildStatus) Fulfilled() bool { return c.AcknowledgedAt != nil }
+
+// Outstanding reports whether this child is still waiting for a confirmation
+// that could actually arrive. A child nobody can confirm for is NOT outstanding
+// — it is a data gap, and lumping the two together is what made a school-wide
+// letter look almost complete when nearly nobody could confirm.
+func (c *AnnouncementLetterChildStatus) Outstanding() bool {
+	return c.CanConfirm && !c.Fulfilled()
+}
 
 // AnnouncementRecipientStatus is one guardian account in an announcement's
 // live audience together with that account's read/ack state — the staff-facing
@@ -502,11 +516,12 @@ type ParentAnnouncementRepository interface {
 	// that nobody has confirmed the Elternbrief for yet — one row per person, not
 	// per child.
 	UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollReminderRecipient, error)
-	// LetterChildStatuses returns every child the announcement reaches with the
-	// derived fulfilment state: who confirmed the letter for that child and when,
-	// or nil while it is still open. The audience is the same portal-visible one
-	// the poll view uses, so a child nobody can reach in moto is visible rather
-	// than silently missing.
+	// LetterChildStatuses returns every child the announcement's targets reach —
+	// the FULL reach, not just the portal-visible subset — with the derived
+	// fulfilment state and a CanConfirm flag. A child with no portal-capable
+	// guardian must stay visible and be marked, never silently dropped: a
+	// school-wide letter that reports only the confirmable children reads as
+	// "almost everyone is done" when the opposite is true.
 	LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementLetterChildStatus, error)
 	// ResolveDeliveryRecipients returns EVERY guardian linked to a child the
 	// announcement's student-based targets reach — including those without an

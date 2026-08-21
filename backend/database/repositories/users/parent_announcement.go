@@ -578,6 +578,40 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	return rows, nil
 }
 
+// letterReachedStudentsSQL is every child the announcement's targets reach,
+// with NO guardian requirement at all.
+//
+// This is deliberately broader than the portal audience the poll view uses. A
+// letter to the whole school reaches every child in it; whether anyone can
+// confirm for a given child is a SEPARATE question, answered per row by
+// can_confirm. Collapsing the two — as the poll audience does — makes a
+// school-wide letter report "6 Kinder" when it went to 116, which reads as
+// "almost everyone confirmed" instead of "110 children have no portal contact".
+//
+// Bind order: tenant (students), tenant (activity-group sub-EXISTS), ann, tenant.
+func letterReachedStudentsSQL(annExpr, tenantExpr string) string {
+	return fmt.Sprintf(`
+		SELECT DISTINCT s.id AS student_id
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = %[2]s AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %[3]s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		AND s.status <> 'alumnus'
+		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr))
+}
+
+// letterReachedStudentArgs mirrors the placeholder order of
+// letterReachedStudentsSQL("?", "?").
+func letterReachedStudentArgs(announcementID, tenantID int64) []any {
+	return []any{tenantID, tenantID, announcementID, tenantID}
+}
+
 // LetterChildStatuses returns every reached child with the DERIVED fulfilment
 // state of an Elternbrief (#2384): who confirmed it for that child and when.
 //
@@ -594,18 +628,22 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 // Nothing here is stored: because acknowledgement lives on the account, one
 // confirmation covers every addressed sibling of that guardian automatically.
 func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementLetterChildStatus, error) {
-	audience := pollAudienceStudentsSQL("?", "?", "")
-	args := audienceStudentArgs(announcementID, tenantID, nil)
-	sqlStr := `WITH audience AS (` + audience + `)
+	reached := letterReachedStudentsSQL("?", "?")
+	confirmable := pollAudienceStudentsSQL("?", "?", "")
+	args := append(letterReachedStudentArgs(announcementID, tenantID),
+		audienceStudentArgs(announcementID, tenantID, nil)...)
+	sqlStr := `WITH reached AS (` + reached + `),
+		confirmable AS (` + confirmable + `)
 		SELECT s.id AS student_id,
 			COALESCE(p.first_name, '') AS first_name,
 			COALESCE(p.last_name, '')  AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
+			EXISTS (SELECT 1 FROM confirmable c WHERE c.student_id = s.id) AS can_confirm,
 			ack.acknowledged_at AS acknowledged_at,
 			COALESCE(ack.first_name, '') AS ack_first_name,
 			COALESCE(ack.last_name, '')  AS ack_last_name
-		FROM audience
-		JOIN users.students s ON s.id = audience.student_id
+		FROM reached
+		JOIN users.students s ON s.id = reached.student_id
 		JOIN users.persons p ON p.id = s.person_id
 		LEFT JOIN LATERAL (
 			SELECT par.acknowledged_at, gp.first_name, gp.last_name

@@ -95,8 +95,10 @@ type EmailDeliveryRepository interface {
 //
 // EmailStatus deliberately reports what we actually know:
 //
-//	no_email  — nothing queued, the profile has no address
-//	excluded  — nothing queued on purpose
+//	not_sent  — nothing was queued at all; Reachability says why (no address,
+//	            no portal access, or deliberately excluded). Kept as its own
+//	            value rather than reusing the reachability wording, so the two
+//	            columns stay independent
 //	pending   — queued, not handed over yet
 //	sent      — handed to the mail server. NOT "delivered": without provider
 //	            webhooks (#1937) we cannot know it reached the mailbox, and the

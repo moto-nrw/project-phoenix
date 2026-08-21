@@ -441,6 +441,7 @@ type letterChildResponse struct {
 	LastName       string     `json:"last_name"`
 	SchoolClass    string     `json:"school_class"`
 	Fulfilled      bool       `json:"fulfilled"`
+	CanConfirm     bool       `json:"can_confirm"`
 	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
 	AcknowledgedBy string     `json:"acknowledged_by,omitempty"`
 }
@@ -484,6 +485,7 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 			LastName:       child.LastName,
 			SchoolClass:    child.SchoolClass,
 			Fulfilled:      child.Fulfilled(),
+			CanConfirm:     child.CanConfirm,
 			AcknowledgedAt: child.AcknowledgedAt,
 		}
 		if item.Fulfilled {

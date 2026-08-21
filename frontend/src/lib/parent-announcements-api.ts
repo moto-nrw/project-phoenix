@@ -156,7 +156,12 @@ export interface LetterRecipient {
   first_name: string;
   last_name: string;
   email?: string;
-  email_status: "pending" | "sent" | "failed" | "no_email" | "excluded";
+  /**
+   * "not_sent" means nothing was queued — `reachability` says why. The two are
+   * separate vocabularies on purpose; collapsing them is what would let a
+   * school read "kein Portalzugang" as a delivery failure.
+   */
+  email_status: "not_sent" | "pending" | "sent" | "failed";
   reachability: "ok" | "no_email" | "no_portal" | "excluded";
   last_error?: string;
   sent_at?: string;
@@ -169,14 +174,22 @@ export interface LetterChild {
   last_name: string;
   school_class: string;
   fulfilled: boolean;
+  /**
+   * False when NO guardian of this child can acknowledge in moto. Such a child
+   * is reached by the letter but can never be confirmed — a data gap a reminder
+   * cannot close, so it must never be counted as "offen".
+   */
+  can_confirm: boolean;
   acknowledged_at?: string;
   acknowledged_by?: string;
 }
 
 export interface LetterSummary {
   children_total: number;
+  children_confirmable: number;
   children_fulfilled: number;
   children_open: number;
+  children_without_portal: number;
   recipients_total: number;
   emails_sent: number;
   emails_pending: number;
@@ -374,8 +387,10 @@ export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
       children: [],
       summary: {
         children_total: 0,
+        children_confirmable: 0,
         children_fulfilled: 0,
         children_open: 0,
+        children_without_portal: 0,
         recipients_total: 0,
         emails_sent: 0,
         emails_pending: 0,

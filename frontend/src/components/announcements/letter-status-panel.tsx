@@ -45,22 +45,26 @@ const EMAIL_LABELS: Record<
   },
   pending: { label: "In Warteschlange", tone: "blue" },
   failed: { label: "Fehlgeschlagen", tone: "red" },
+  not_sent: { label: "Nicht versendet", tone: "gray" },
+};
+
+/**
+ * Why nothing was sent. Shown NEXT TO the e-mail status, never instead of it —
+ * "kein Portalzugang" is a data gap, not a delivery failure, and a guardian can
+ * be reachable by mail while still having no portal access.
+ */
+const REACHABILITY_LABELS: Record<
+  LetterRecipient["reachability"],
+  { label: string; tone: StatusBadgeTone; title?: string } | null
+> = {
+  ok: null,
   no_email: { label: "Keine E-Mail-Adresse", tone: "orange" },
+  no_portal: { label: "Kein Portalzugang", tone: "orange" },
   excluded: {
     label: "Abbestellt",
     tone: "gray",
     title: "Diese Person hat E-Mail-Benachrichtigungen abbestellt.",
   },
-};
-
-const PORTAL_LABELS: Record<
-  LetterRecipient["reachability"],
-  { label: string; tone: StatusBadgeTone } | null
-> = {
-  ok: null,
-  no_email: null,
-  no_portal: { label: "Kein Portalzugang", tone: "orange" },
-  excluded: null,
 };
 
 type ChildFilter = "all" | "open";
@@ -110,7 +114,11 @@ export function LetterStatusPanel({
 
   const children = useMemo(() => {
     const all = status?.children ?? [];
-    return childFilter === "open" ? all.filter((c) => !c.fulfilled) : all;
+    // "Nur offene" means what the reminder button reaches: confirmable and not
+    // yet confirmed. A child nobody can confirm for is not "offen".
+    return childFilter === "open"
+      ? all.filter((c) => c.can_confirm && !c.fulfilled)
+      : all;
   }, [status, childFilter]);
 
   const runAction = async (action: "remind" | "resend") => {
@@ -172,15 +180,29 @@ export function LetterStatusPanel({
             {s.children_fulfilled}
           </span>
           <span className="text-lg text-gray-500 tabular-nums">
-            / {s.children_total}
+            / {s.children_confirmable}
           </span>
           <span className="text-sm text-gray-600">Kindern bestätigt</span>
         </div>
         <p className="mt-1 text-sm text-gray-600">
           {s.children_open === 0
-            ? "Alle erreichten Kinder sind bestätigt."
+            ? "Alle bestätigungsfähigen Kinder sind bestätigt."
             : `${s.children_open} ${s.children_open === 1 ? "Kind wartet" : "Kinder warten"} noch auf eine Bestätigung.`}
         </p>
+        {/* The denominator is the CONFIRMABLE children, not the reach. Without
+            this line a school-wide letter to 116 children reads "0 / 6" and
+            looks nearly done, when in truth 110 children have nobody who could
+            ever confirm. A reminder does not fix those — portal access does. */}
+        {s.children_without_portal > 0 && (
+          <p className="mt-1 text-sm text-gray-600">
+            Der Brief erreicht {s.children_total}{" "}
+            {s.children_total === 1 ? "Kind" : "Kinder"}. Für{" "}
+            {s.children_without_portal}{" "}
+            {s.children_without_portal === 1 ? "Kind" : "Kinder"} ist keine
+            Bestätigung möglich, weil keine Bezugsperson einen
+            Elternportal-Zugang hat.
+          </p>
+        )}
 
         <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <div>
@@ -282,7 +304,7 @@ export function LetterStatusPanel({
         {children.length === 0 ? (
           <p className="text-sm text-gray-500">
             {childFilter === "open"
-              ? "Alle erreichten Kinder sind bestätigt."
+              ? "Alle bestätigungsfähigen Kinder sind bestätigt."
               : "Dieser Brief erreicht derzeit kein Kind."}
           </p>
         ) : (
@@ -333,17 +355,29 @@ function ChildRow({ child }: { readonly child: LetterChild }) {
           </p>
         )}
       </div>
-      <StatusBadge
-        label={child.fulfilled ? "Bestätigt" : "Offen"}
-        tone={child.fulfilled ? "green" : "orange"}
-      />
+      {child.fulfilled ? (
+        <StatusBadge label="Bestätigt" tone="green" />
+      ) : child.can_confirm ? (
+        <StatusBadge label="Offen" tone="orange" />
+      ) : (
+        <StatusBadge
+          label="Keine Bestätigung möglich"
+          tone="gray"
+          title="Keine Bezugsperson dieses Kindes hat einen Elternportal-Zugang. Eine Erinnerung ändert daran nichts."
+        />
+      )}
     </li>
   );
 }
 
 function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
-  const email = EMAIL_LABELS[recipient.email_status];
-  const portal = PORTAL_LABELS[recipient.reachability];
+  // Fall back rather than crash: the backend may add a status this build does
+  // not know yet, and an unknown value must not take the whole page down.
+  const email = EMAIL_LABELS[recipient.email_status] ?? {
+    label: recipient.email_status,
+    tone: "gray" as StatusBadgeTone,
+  };
+  const portal = REACHABILITY_LABELS[recipient.reachability] ?? null;
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
       <div className="min-w-0">
@@ -368,7 +402,13 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
           tone={email.tone}
           title={email.title}
         />
-        {portal && <StatusBadge label={portal.label} tone={portal.tone} />}
+        {portal && (
+          <StatusBadge
+            label={portal.label}
+            tone={portal.tone}
+            title={portal.title}
+          />
+        )}
       </div>
     </li>
   );

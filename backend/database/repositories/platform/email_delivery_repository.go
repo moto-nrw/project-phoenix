@@ -105,8 +105,10 @@ func (r *EmailDeliveryRepository) ListForEntity(ctx context.Context, tenantID in
 			d.recipient_email,
 			d.reachability,
 			CASE
-				WHEN d.outbox_id IS NULL THEN
-					CASE WHEN d.reachability = 'ok' THEN 'pending' ELSE d.reachability END
+				-- No outbox row means no mail was queued. The REASON lives in
+				-- reachability; leaking it into email_status would collapse the two
+				-- columns this view exists to keep apart.
+				WHEN d.outbox_id IS NULL THEN 'not_sent'
 				WHEN o.status = 'sent'   THEN 'sent'
 				WHEN o.status = 'failed' THEN 'failed'
 				ELSE 'pending'

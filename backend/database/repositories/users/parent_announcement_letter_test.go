@@ -160,3 +160,52 @@ func recipientByProfile(recipients []*usersModels.AnnouncementDeliveryRecipient,
 	}
 	return nil
 }
+
+// TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor is the regression the
+// visual check surfaced: a school-wide letter reaches every child, but only the
+// ones with a portal-capable guardian can ever be confirmed. Dropping the rest
+// made a letter to 116 children report "6 Kinder" — which a school reads as
+// "almost everyone confirmed" rather than "110 children have no portal contact".
+func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		})
+
+	before, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	require.NoError(t, err)
+	linked := childByID(before, chain.StudentID)
+	require.NotNil(t, linked, "precondition: the linked child is reached")
+	assert.True(t, linked.CanConfirm, "a guardian with portal access can confirm")
+	assert.True(t, linked.Outstanding(), "and the child counts as outstanding")
+
+	// Strip portal access. The child is STILL reached by a school-wide letter and
+	// must stay in the list — only now nobody can confirm for it.
+	_, err = db.NewUpdate().
+		Table("users.students_guardians").
+		Set(`permissions = permissions - 'parent_portal.access'`).
+		Where("student_id = ?", chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	after, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	require.NoError(t, err)
+	still := childByID(after, chain.StudentID)
+	require.NotNil(t, still, "a child without a portal-capable guardian must stay visible")
+	assert.False(t, still.CanConfirm, "and must be marked as unconfirmable")
+	assert.False(t, still.Outstanding(), "reminding cannot help, so it is not outstanding")
+	assert.False(t, still.Fulfilled())
+
+	// The count must not shrink: losing a guardian permission changes WHO can
+	// confirm, never who the letter reached.
+	assert.GreaterOrEqual(t, len(after), len(before),
+		"revoking portal access must not remove children from the letter's reach")
+}
