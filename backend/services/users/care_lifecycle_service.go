@@ -253,6 +253,15 @@ func (s *careLifecycleService) Confirm(
 			return err
 		}
 
+		// A second run over the same child is a CHANGE, and a change applies to
+		// the untouched plan, not to the remains of the previous attempt: an
+		// exit moved from June to July must leave July's rosters and bookings
+		// in place. So the previous exit is undone first and the new last care
+		// day is applied to the baseline the preview counted (#2487).
+		if _, err := s.cleanupRepo.RestoreRemovals(txCtx, ids); err != nil {
+			return err
+		}
+
 		if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, ids, &normalized.LastCareDay); err != nil {
 			return err
 		}
@@ -343,6 +352,13 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 			}
 			before[id] = cloneCareFields(student)
 		}
+		// Cancelling gives the children their plan back. Without this the
+		// cancellation would only clear the date and leave every child active
+		// with the emptied timetable and the ended offerings of an exit that
+		// was called off (#2487).
+		if _, err := s.cleanupRepo.RestoreRemovals(txCtx, ids); err != nil {
+			return err
+		}
 		if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, ids, nil); err != nil {
 			return err
 		}
@@ -409,6 +425,12 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 			return err
 		}
 		if err := s.careExitRepo.DeleteByStudentIDs(txCtx, []int64{input.StudentID}); err != nil {
+			return err
+		}
+		// Nothing is switched back on automatically: the criteria have the
+		// school check group, offerings, weekly plan and times themselves, so
+		// the ledger of the old exit is dropped unreplayed (#2487).
+		if err := s.cleanupRepo.DiscardRemovals(txCtx, []int64{input.StudentID}); err != nil {
 			return err
 		}
 		return s.recordCareEndAudit(txCtx,
@@ -496,6 +518,11 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	}
 	releasedTags, err := s.tagReleaser.ReleaseStudentTagsByIDs(ctx, ids)
 	if err != nil {
+		return 0, err
+	}
+	// The exit is final now. What it removed from the plan stays removed, so
+	// the ledger that would have put it back is dropped (#2487).
+	if err := s.cleanupRepo.DiscardRemovals(ctx, ids); err != nil {
 		return 0, err
 	}
 

@@ -185,8 +185,11 @@ function StudentsPageContent() {
       setCancellingExit(true);
       try {
         await cancelCareExit([String(student.id)]);
+        // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
+        // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
+        // müssen (#2487).
         toastSuccess(
-          `Das geplante Betreuungsende von ${studentsConfig.list.item.title(student)} wurde storniert`,
+          `Das geplante Betreuungsende von ${studentsConfig.list.item.title(student)} wurde storniert. Termine und Angebote gelten wieder.`,
         );
         await tenantMutate("database-students-list");
       } catch (cancelError) {

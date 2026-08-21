@@ -169,6 +169,16 @@ type CareExitCleanupRepository interface {
 	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
 	// CapByStudentIDs ends those bookings at validUntil.
 	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
+
+	// RestoreRemovals puts back what the children's current exit removed from
+	// the plan and clears the ledger. It is what makes a planned exit
+	// changeable and cancellable; both counting methods above therefore count
+	// the restorable rows in, so the preview describes the baseline the
+	// confirmation actually works from.
+	RestoreRemovals(ctx context.Context, studentIDs []int64) (int, error)
+	// DiscardRemovals drops the ledger unreplayed — once the exit has taken
+	// effect, and on a resume, where nothing may switch itself back on.
+	DiscardRemovals(ctx context.Context, studentIDs []int64) error
 }
 
 // CareExitRepository owns access to the reason rows and the archive read model.

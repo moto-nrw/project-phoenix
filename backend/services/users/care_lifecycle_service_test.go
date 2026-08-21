@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -563,4 +564,221 @@ func TestStudentDeletion_RetentionReasonOnlyForEndedCare(t *testing.T) {
 	input.ExpectedFingerprint = fresh.Fingerprint
 	_, err = deletion.Delete(ctx, input)
 	require.NoError(t, err)
+}
+
+// A planned exit that has not taken effect can be CANCELLED — and a
+// cancellation that leaves the child active with an emptied timetable and
+// ended offerings is not one. The plan has to come back with the child
+// (#2487).
+func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+	repos := repositories.NewFactory(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")
+	room := testpkg.CreateTestRoom(t, db, "Atelier")
+	group := testpkg.CreateTestActivityGroup(t, db, "Theater")
+	today := timezone.TodayDate()
+
+	// A block after the planned exit, carrying a status somebody set by hand —
+	// the case a rebuild-from-enrollments restore would silently flatten.
+	manualAt := time.Now()
+	instance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(30), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
+	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
+		scheduleModels.AttendanceStatusAbsent,
+		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+
+	// One open-ended booking (gets capped) and one starting after the exit
+	// (gets deleted outright).
+	openEnded := &activityModels.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       today.AddDays(-30),
+	}
+	openEnded.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StudentEnrollment.Create(ctx, openEnded))
+
+	futureOnly := &activityModels.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       today.AddDays(40),
+		Weekday:         testpkg.IntPtr(3),
+	}
+	futureOnly.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StudentEnrollment.Create(ctx, futureOnly))
+	futureOnlyID := futureOnly.ID
+
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: today.AddDays(14),
+		Reason:      userModels.CareExitReasonMovedAway,
+	})
+
+	// Sanity: the exit really did take the plan apart.
+	rows, err := repos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows, "the exit removed the roster row")
+
+	cancelled, err := svc.Cancel(ctx, []int64{student.ID}, actorID)
+	require.NoError(t, err)
+	require.Equal(t, 1, cancelled)
+
+	t.Run("the roster row is back, with the hand-set status intact", func(t *testing.T) {
+		restored, err := repos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+		require.NoError(t, err)
+		require.Len(t, restored, 1)
+		assert.Equal(t, student.ID, restored[0].StudentID)
+		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restored[0].Status,
+			"a restore is the inverse of the deletion, not a rebuild from enrollments")
+		assert.NotNil(t, restored[0].ManualStatusAt)
+	})
+
+	t.Run("the capped booking is open-ended again", func(t *testing.T) {
+		active, err := repos.StudentEnrollment.FindActiveByStudentIDs(
+			ctx, []int64{student.ID}, today.AddDays(200))
+		require.NoError(t, err)
+		require.NotEmpty(t, active, "the offering runs on as if nothing happened")
+	})
+
+	t.Run("the deleted booking is back under its own id", func(t *testing.T) {
+		restored, err := repos.StudentEnrollment.FindByID(ctx, futureOnlyID)
+		require.NoError(t, err)
+		require.NotNil(t, restored)
+		assert.Equal(t, today.AddDays(40), restored.ValidFrom)
+		assert.Nil(t, restored.ValidUntil)
+	})
+}
+
+// Moving a planned exit to a LATER day must apply to the untouched plan. The
+// first run removed everything after June; if the second run only worked on
+// what was left, July would stay empty and the change would quietly be a
+// second cut rather than a correction (#2487).
+func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+	repos := repositories.NewFactory(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Tomke", "Ahrend", "1b")
+	room := testpkg.CreateTestRoom(t, db, "Musikraum")
+	group := testpkg.CreateTestActivityGroup(t, db, "Chor")
+	today := timezone.TodayDate()
+
+	early := testpkg.CreateTestActivityInstance(t, db, today.AddDays(10), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
+	late := testpkg.CreateTestActivityInstance(t, db, today.AddDays(40), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
+	testpkg.CreateTestInstanceStudent(t, db, early.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, late.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+
+	// First decision: the child leaves in five days. Both blocks go.
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: today.AddDays(5),
+		Reason:      userModels.CareExitReasonNoCareNeed,
+	})
+	rows, err := repos.InstanceStudent.FindByInstanceID(ctx, early.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+
+	// Correction: they stay until day 20 after all.
+	newLastDay := today.AddDays(20)
+	preview, err := svc.Preview(ctx, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: newLastDay,
+		Reason:      userModels.CareExitReasonNoCareNeed,
+	})
+	require.NoError(t, err)
+	require.Len(t, preview.Students, 1)
+	assert.Equal(t, 1, preview.Students[0].PlannedRosterRows,
+		"the preview counts the baseline: only the block after the NEW day is lost")
+	require.NotNil(t, preview.Students[0].PlannedEndsOn)
+
+	_, err = svc.Confirm(ctx, preview.Token, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: newLastDay,
+		Reason:      userModels.CareExitReasonNoCareNeed,
+	}, actorID)
+	require.NoError(t, err)
+
+	t.Run("the block inside the extended window is back", func(t *testing.T) {
+		restored, err := repos.InstanceStudent.FindByInstanceID(ctx, early.ID)
+		require.NoError(t, err)
+		require.Len(t, restored, 1)
+		assert.Equal(t, student.ID, restored[0].StudentID)
+	})
+
+	t.Run("the block after the new day stays removed", func(t *testing.T) {
+		gone, err := repos.InstanceStudent.FindByInstanceID(ctx, late.ID)
+		require.NoError(t, err)
+		assert.Empty(t, gone)
+	})
+}
+
+// A resume is not an undo: the criteria have the school check group,
+// offerings, weekly plan and times themselves, so nothing the exit removed may
+// switch itself back on (#2487).
+func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+	repos := repositories.NewFactory(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Malte", "Ruhnau", "2c")
+	room := testpkg.CreateTestRoom(t, db, "Turnhalle")
+	group := testpkg.CreateTestActivityGroup(t, db, "Turnen")
+	today := timezone.TodayDate()
+
+	instance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(30), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
+	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: today,
+		Reason:      userModels.CareExitReasonMovedAway,
+	})
+
+	// The exit takes effect, then the family comes back.
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", today.AddDays(-1)).
+		Where("id = ?", student.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Resume(ctx, userService.CareResumeInput{
+		StudentID:      student.ID,
+		NewStart:       today,
+		ActorAccountID: actorID,
+		Checked:        true,
+	}))
+
+	rows, err := repos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "the old plan stays off — the school sets it up again")
+
+	// And the ledger is gone, so a later exit cannot resurrect it either.
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: today.AddDays(3),
+		Reason:      userModels.CareExitReasonNoCareNeed,
+	})
+	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
+	require.NoError(t, err)
+
+	after, err := repos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Empty(t, after, "a discarded ledger stays discarded")
 }

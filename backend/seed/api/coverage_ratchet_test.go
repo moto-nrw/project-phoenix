@@ -155,6 +155,7 @@ var seedCoverageAllowlist = map[string]string{
 	"users.staff_master_data":             "GAP: prod has 9 rows",
 	"users.staff_qualifications":          "empty in prod too",
 	"users.student_companions":            "empty in prod too",
+	"users.student_care_exit_removals":    "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_data_change_requests":  "GAP: prod has 97 rows",
 	"users.student_document_file_cleanup": "empty in prod too",
 	"users.student_documents":             "empty in prod too",
