@@ -518,6 +518,7 @@ export function StepPersonalKinder({
                     <div className="mt-1">
                       <SegmentedControl<SourceFilterMode>
                         ariaLabel="Kinder eingrenzen"
+                        fullWidth
                         value={form.sourceFilterMode}
                         onChange={changeSourceFilterMode}
                         items={[

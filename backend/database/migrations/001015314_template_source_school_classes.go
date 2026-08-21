@@ -111,13 +111,20 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 	// dropped instead — the Termin falls back to its manual roster and the
 	// admin has to reselect a source, which is the visible outcome.
 	_, err := db.NewRaw(`
+		ALTER TABLE activities.groups
+			DROP CONSTRAINT IF EXISTS chk_activities_groups_offering_source;
+
+		DELETE FROM activities.student_enrollments AS enrollment
+		USING activities.groups AS "group"
+		WHERE enrollment.activity_group_id = "group".id
+			AND enrollment.tenant_id = "group".tenant_id
+			AND "group".source_school_classes IS NOT NULL
+			AND enrollment.enrollment_request_child_id IS NOT NULL;
+
 		UPDATE activities.groups
 		SET source_care_offering_ids = NULL,
 			source_grade_levels = NULL
 		WHERE source_school_classes IS NOT NULL;
-
-		ALTER TABLE activities.groups
-			DROP CONSTRAINT IF EXISTS chk_activities_groups_offering_source;
 
 		ALTER TABLE activities.groups
 			DROP COLUMN IF EXISTS source_school_classes;
