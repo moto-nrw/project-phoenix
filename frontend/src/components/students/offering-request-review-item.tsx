@@ -120,6 +120,10 @@ export function OfferingRequestReviewItem({
   // Gesetzt, wenn die Vorschau zum gewählten Datum nicht aufgeht. Freigeben ist
   // dann gesperrt, Ablehnen bleibt möglich.
   const [dateBlocked, setDateBlocked] = useState(false);
+  // Solange aus, steht das Datum der Anfrage nur da. Wer es verschieben will,
+  // sagt das erst — so verstellt niemand im Vorbeigehen, wann die Umstellung
+  // greift (#2484).
+  const [editingDate, setEditingDate] = useState(false);
 
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
@@ -219,6 +223,18 @@ export function OfferingRequestReviewItem({
     await loadPreview(excluded, iso);
   };
 
+  // Das Häkchen weg heisst: es bleibt beim Datum der Anfrage. Ein bereits
+  // gewähltes anderes Datum wird deshalb zurückgesetzt — sonst stünde ein Datum
+  // in der Freigabe, das die Karte gar nicht mehr anzeigt.
+  const toggleEditingDate = async () => {
+    if (!editingDate) {
+      setEditingDate(true);
+      return;
+    }
+    setEditingDate(false);
+    await chooseDate(row.effective_from);
+  };
+
   const unchanged = row.unchanged ?? [];
   const previewByOffering = new Map(
     preview?.map((selection) => [selection.offering_id, selection]),
@@ -237,6 +253,18 @@ export function OfferingRequestReviewItem({
   // Der Kalender sperrt Tage ausserhalb der Betreuungszeit stumm. Diese Zeile
   // sagt, warum — sonst sucht die OGS nach einem Weg, ein früheres Datum doch
   // noch einzutragen.
+  // Woher das Datum kommt. Ohne diese Zeile ist nicht zu sehen, ob dort der
+  // Wunsch der Eltern steht oder eine Entscheidung der OGS.
+  const dateOrigin = (() => {
+    if (row.requested_effective_from) {
+      return `Die Eltern wünschten den ${formatDate(row.requested_effective_from)}. Das geht nicht, deshalb steht hier der früheste mögliche Tag.`;
+    }
+    if (effectiveFrom !== row.effective_from) {
+      return `Die Eltern hatten den ${formatDate(row.effective_from)} eingetragen.`;
+    }
+    return "So haben es die Eltern eingetragen.";
+  })();
+
   const selectableRange =
     row.earliest_effective_from && row.latest_effective_from
       ? `Wählbar von ${formatDate(row.earliest_effective_from)} bis ${formatDate(row.latest_effective_from)}.`
@@ -282,129 +310,158 @@ export function OfferingRequestReviewItem({
           />
         </div>
       )}
-      <ReviewDiffPanel title="Änderungen">
-        {row.diff.length === 0 && (
-          <span className="text-sm text-gray-500">—</span>
-        )}
-        {row.diff.map((entry) => {
-          const previewSelection = previewByOffering.get(entry.offering_id);
-          const isExcluded = excluded.includes(entry.offering_id);
-          const isRemoved = removed.has(entry.offering_id);
-          const cascaded = isRemoved && !isExcluded;
-          const previewChanged =
-            previewSelection !== undefined &&
-            previewSelection.new !== entry.new;
-          const displayedNew = previewSelection?.new ?? entry.new;
-          return (
-            <div
-              key={entry.offering_id}
-              className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
-            >
-              <span className="text-xs text-gray-500">{entry.label}: </span>
-              {entry.automatic && (
-                <StatusBadge
-                  tone="blue"
-                  label="Automatisch mitgebucht"
-                  showDot={false}
-                />
-              )}
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-gray-400 line-through">{entry.old}</span>
-                <span className="text-gray-400" aria-hidden="true">
-                  →
-                </span>
-                <span
-                  className={
-                    isRemoved
-                      ? "font-medium text-gray-500 line-through"
-                      : "font-medium text-gray-900"
-                  }
-                >
-                  {displayedNew}
-                </span>
-              </div>
-              {entry.automatic &&
-                !previewChanged &&
-                !cascaded &&
-                !isExcluded && (
+      <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-x-3">
+        <ReviewDiffPanel title="Änderungen">
+          {row.diff.length === 0 && (
+            <span className="text-sm text-gray-500">—</span>
+          )}
+          {row.diff.map((entry) => {
+            const previewSelection = previewByOffering.get(entry.offering_id);
+            const isExcluded = excluded.includes(entry.offering_id);
+            const isRemoved = removed.has(entry.offering_id);
+            const cascaded = isRemoved && !isExcluded;
+            const previewChanged =
+              previewSelection !== undefined &&
+              previewSelection.new !== entry.new;
+            const displayedNew = previewSelection?.new ?? entry.new;
+            return (
+              <div
+                key={entry.offering_id}
+                className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
+              >
+                <span className="text-xs text-gray-500">{entry.label}: </span>
+                {entry.automatic && (
+                  <StatusBadge
+                    tone="blue"
+                    label="Automatisch mitgebucht"
+                    showDot={false}
+                  />
+                )}
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-gray-400 line-through">
+                    {entry.old}
+                  </span>
+                  <span className="text-gray-400" aria-hidden="true">
+                    →
+                  </span>
+                  <span
+                    className={
+                      isRemoved
+                        ? "font-medium text-gray-500 line-through"
+                        : "font-medium text-gray-900"
+                    }
+                  >
+                    {displayedNew}
+                  </span>
+                </div>
+                {entry.automatic &&
+                  !previewChanged &&
+                  !cascaded &&
+                  !isExcluded && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {automaticHint(entry)}
+                    </p>
+                  )}
+                {cascaded && (
                   <p className="mt-0.5 text-xs text-gray-500">
-                    {automaticHint(entry)}
+                    Entfällt, weil{" "}
+                    {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
+                    mitgebucht wird.
                   </p>
                 )}
-              {cascaded && (
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Entfällt, weil{" "}
-                  {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
-                  mitgebucht wird.
-                </p>
-              )}
-              {entry.optoutable && !cascaded && (
-                <label
-                  htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
-                  className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
-                >
-                  <Checkbox
-                    id={`mitbuchen-${row.id}-${entry.offering_id}`}
-                    checked={!isExcluded}
-                    onChange={() => {
-                      void toggleExcluded(entry.offering_id);
-                    }}
-                    disabled={busy}
-                    aria-label={`${entry.label} automatisch mitbuchen`}
-                  />
-                  Automatisch mitbuchen
-                </label>
-              )}
-              {isExcluded && (
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
-                </p>
-              )}
-            </div>
-          );
-        })}
-        {unchanged.length > 0 && (
-          <div className="mt-3 border-t border-gray-200 pt-2">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Bleibt gebucht
-            </p>
-            {unchanged.map((line) => (
-              <p key={line.offering_id} className="text-sm text-gray-700">
-                <span className="text-xs text-gray-500">{line.label}: </span>
-                {line.days}
+                {entry.optoutable && !cascaded && (
+                  <label
+                    htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
+                    className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+                  >
+                    <Checkbox
+                      id={`mitbuchen-${row.id}-${entry.offering_id}`}
+                      checked={!isExcluded}
+                      onChange={() => {
+                        void toggleExcluded(entry.offering_id);
+                      }}
+                      disabled={busy}
+                      aria-label={`${entry.label} automatisch mitbuchen`}
+                    />
+                    Automatisch mitbuchen
+                  </label>
+                )}
+                {isExcluded && (
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          {unchanged.length > 0 && (
+            <div className="mt-3 border-t border-gray-200 pt-2">
+              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Bleibt gebucht
               </p>
-            ))}
-          </div>
-        )}
-        {row.note && (
-          <p className="mt-2 text-xs text-gray-500">
-            Nachricht der Eltern: {row.note}
+              {unchanged.map((line) => (
+                <p key={line.offering_id} className="text-sm text-gray-700">
+                  <span className="text-xs text-gray-500">{line.label}: </span>
+                  {line.days}
+                </p>
+              ))}
+            </div>
+          )}
+          {row.note && (
+            <p className="mt-2 text-xs text-gray-500">
+              Nachricht der Eltern: {row.note}
+            </p>
+          )}
+        </ReviewDiffPanel>
+        <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Gültig ab
           </p>
-        )}
-      </ReviewDiffPanel>
-      <div className="mt-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <ISODatePicker
-            id={`gueltig-ab-${row.id}`}
-            label="Gültig ab"
-            value={effectiveFrom}
-            onChange={(iso) => void chooseDate(iso)}
-            min={row.earliest_effective_from}
-            max={row.latest_effective_from}
-            required
-            hideClearButton
-            controlSize="md"
-            disabled={busy}
-            invalid={dateBlocked}
-            className="w-44"
-          />
-          <span className="pb-3 text-sm text-gray-600">
-            KW {isoWeekNumber(effectiveFrom)}
-          </span>
+          {editingDate ? (
+            <>
+              <ISODatePicker
+                id={`gueltig-ab-${row.id}`}
+                ariaLabel="Gültig ab"
+                value={effectiveFrom}
+                onChange={(iso) => void chooseDate(iso)}
+                min={row.earliest_effective_from}
+                max={row.latest_effective_from}
+                required
+                hideClearButton
+                controlSize="md"
+                disabled={busy}
+                invalid={dateBlocked}
+                className="w-full"
+              />
+              <p className="text-sm text-gray-700">
+                KW {isoWeekNumber(effectiveFrom)}
+              </p>
+              {selectableRange && (
+                <p className="text-xs text-gray-500">{selectableRange}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-900">
+              <span className="font-medium">{formatDate(effectiveFrom)}</span>
+              <span className="text-gray-500">
+                {" · "}KW {isoWeekNumber(effectiveFrom)}
+              </span>
+            </p>
+          )}
+          <p className="text-xs text-gray-500">{dateOrigin}</p>
+          <label
+            htmlFor={`datum-aendern-${row.id}`}
+            className="flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+          >
+            <Checkbox
+              id={`datum-aendern-${row.id}`}
+              checked={editingDate}
+              onChange={() => void toggleEditingDate()}
+              disabled={busy}
+            />
+            Anderes Datum wählen
+          </label>
         </div>
-        {selectableRange && (
-          <p className="mt-1 text-xs text-gray-500">{selectableRange}</p>
-        )}
       </div>
       <div className="mt-3 rounded-lg bg-gray-50 p-3">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

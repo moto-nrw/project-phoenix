@@ -28,10 +28,14 @@ type OfferingRequestResponse struct {
 	// EarliestEffectiveFrom / LatestEffectiveFrom bound the date staff may
 	// confirm the switch for (#2484), so the review card cannot offer a date the
 	// approval refuses. Omitted when the care period could not be resolved.
-	EarliestEffectiveFrom string                        `json:"earliest_effective_from,omitempty"`
-	LatestEffectiveFrom   string                        `json:"latest_effective_from,omitempty"`
-	Note                  string                        `json:"note,omitempty"`
-	Diff                  []OfferingRequestDiffResponse `json:"diff"`
+	EarliestEffectiveFrom string `json:"earliest_effective_from,omitempty"`
+	LatestEffectiveFrom   string `json:"latest_effective_from,omitempty"`
+	// RequestedEffectiveFrom is the date the family asked for, sent only when it
+	// is not the date the queue offers — a request whose date passed while it
+	// waited applies at the earliest date left instead (#2484).
+	RequestedEffectiveFrom string                        `json:"requested_effective_from,omitempty"`
+	Note                   string                        `json:"note,omitempty"`
+	Diff                   []OfferingRequestDiffResponse `json:"diff"`
 	// Unchanged lists the bookings the request leaves as they are, so the review
 	// card shows the child's complete picture, not only the changed lines (#2434).
 	Unchanged []OfferingRequestUnchangedResponse `json:"unchanged,omitempty"`
@@ -138,6 +142,9 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 	}
 	if !item.LatestEffectiveFrom.IsZero() {
 		resp.LatestEffectiveFrom = item.LatestEffectiveFrom.String()
+	}
+	if !item.RequestedEffectiveFrom.IsZero() && item.RequestedEffectiveFrom != row.EffectiveFrom {
+		resp.RequestedEffectiveFrom = item.RequestedEffectiveFrom.String()
 	}
 	if len(unchanged) > 0 {
 		resp.Unchanged = unchanged

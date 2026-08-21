@@ -57,6 +57,12 @@ export interface StaffOfferingRequest {
    */
   readonly earliest_effective_from?: string;
   readonly latest_effective_from?: string;
+  /**
+   * Das Datum, das die Eltern eingetragen haben — nur gesetzt, wenn es nicht
+   * mehr geht (es ist vorbei oder liegt vor dem Beginn der Betreuungszeit) und
+   * `effective_from` deshalb der früheste noch mögliche Tag ist (#2484).
+   */
+  readonly requested_effective_from?: string;
   readonly note?: string;
   readonly diff: readonly OfferingRequestDiffLine[];
   /** Bookings this request does not touch, for the complete after picture. */

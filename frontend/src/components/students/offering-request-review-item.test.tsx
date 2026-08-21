@@ -575,11 +575,36 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     mockPreview.mockResolvedValue({ selections: [] });
   });
 
-  it("prefills the parents' date and names its calendar week", () => {
+  // Das Häkchen „Anderes Datum wählen" schaltet das Feld frei. Ohne es steht
+  // dort nur, was die Eltern eingetragen haben.
+  function unlockDate() {
+    fireEvent.click(screen.getByLabelText("Anderes Datum wählen"));
+  }
+
+  it("shows the parents' date read-only with its calendar week", () => {
     renderItem();
 
-    expect(screen.getByLabelText("Gültig ab")).toHaveValue("2027-02-01");
-    expect(screen.getByText("KW 5")).toBeInTheDocument();
+    expect(screen.getByText("01.02.2027")).toBeInTheDocument();
+    expect(screen.getByText(/KW 5/)).toBeInTheDocument();
+    expect(
+      screen.getByText("So haben es die Eltern eingetragen."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Gültig ab")).not.toBeInTheDocument();
+  });
+
+  it("names the date the parents wanted when it can no longer be used", () => {
+    renderItem(
+      request({
+        effective_from: "2026-08-22",
+        requested_effective_from: "2026-08-15",
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Die Eltern wünschten den 15.08.2026. Das geht nicht, deshalb steht hier der früheste mögliche Tag.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("bounds the field to the range the backend reports", () => {
@@ -589,16 +614,49 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
         latest_effective_from: "2027-07-31",
       }),
     );
+    unlockDate();
 
     const field = screen.getByLabelText("Gültig ab");
     expect(field).toHaveAttribute("min", "2026-08-21");
     expect(field).toHaveAttribute("max", "2027-07-31");
   });
 
+  it("returns to the parents' date when the tick is taken back", async () => {
+    renderItem();
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-03-01"),
+    );
+
+    fireEvent.click(screen.getByLabelText("Anderes Datum wählen"));
+
+    await waitFor(() =>
+      expect(screen.getByText("01.02.2027")).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText("Gültig ab")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-02-01",
+      ),
+    );
+  });
+
   it("approves with the date the office confirmed, not the parents' wish", async () => {
     mockDecide.mockResolvedValue(undefined);
     const onDecided = vi.fn();
     renderItem(request(), onDecided);
+
+    unlockDate();
 
     fireEvent.change(screen.getByLabelText("Gültig ab"), {
       target: { value: "2027-03-01" },
@@ -628,6 +686,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
   it("keeps the approval usable when the preview fails transiently", async () => {
     mockPreview.mockRejectedValue(new Error("network"));
     renderItem();
+    unlockDate();
 
     fireEvent.change(screen.getByLabelText("Gültig ab"), {
       target: { value: "2027-03-01" },
@@ -647,6 +706,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
         latest_effective_from: "2027-07-31",
       }),
     );
+    unlockDate();
 
     expect(
       screen.getByText("Wählbar von 20.10.2026 bis 31.07.2027."),
@@ -658,6 +718,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       new OfferingRequestApiError("range", "offering_change_date_out_of_range"),
     );
     renderItem();
+    unlockDate();
 
     fireEvent.change(screen.getByLabelText("Gültig ab"), {
       target: { value: "2020-01-06" },

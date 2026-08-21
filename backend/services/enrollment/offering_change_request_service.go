@@ -195,6 +195,13 @@ type OfferingChangeView struct {
 	// the decision then validates alone. Staff queue only.
 	EarliestEffectiveFrom timezone.Date
 	LatestEffectiveFrom   timezone.Date
+	// RequestedEffectiveFrom is the date the family actually asked for. It
+	// differs from EffectiveFrom once that date has passed (or falls before the
+	// care period starts) while the request waited, and the queue then shows the
+	// earliest date an approval can still use. The card names both, so the
+	// reviewer is not left wondering where the date came from (#2484). Staff
+	// queue only.
+	RequestedEffectiveFrom timezone.Date
 	// LastDecision is the most recent decided request inside the recency window,
 	// so a guardian learns the outcome (and a rejection's reason) on the page
 	// they submitted from instead of only in the chat.
@@ -1017,7 +1024,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		if review != nil {
 			reviewRow.EffectiveFrom = review.AppliedDate
 		}
-		view := &OfferingChangeView{Request: &reviewRow}
+		view := &OfferingChangeView{Request: &reviewRow, RequestedEffectiveFrom: row.EffectiveFrom}
 		if review != nil {
 			view.EarliestEffectiveFrom = review.EarliestDate
 			view.LatestEffectiveFrom = review.LatestDate
@@ -1706,8 +1713,9 @@ func (s *offeringChangeRequestService) applyApproved(
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
 	// after the switch succeeds, so a client error leaves the pending row intact.
+	requestedFrom := row.EffectiveFrom
 	row.EffectiveFrom = effectiveFrom
-	reason := offeringChangeAdjustmentReason(row, input.Reason)
+	reason := offeringChangeAdjustmentReason(row, requestedFrom, input.Reason)
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:                request.ID,
 		ChildID:                  row.RequestChildID,
@@ -2601,11 +2609,24 @@ func (s *offeringChangeRequestService) emitPillAfterCommit(
 	})
 }
 
-func offeringChangeAdjustmentReason(row *enrollmentModels.OfferingChangeRequest, staffReason string) string {
+// offeringChangeAdjustmentReason writes the line the Änderungsprotokoll shows
+// for an approved request. A date the office confirmed instead of the one the
+// family asked for is named at the end: the request row only keeps the
+// confirmed date, so without this the shift would leave no trace anywhere
+// (#2484). The generated prefix keeps its exact shape — migration 1.15.309
+// identifies request-applied rows by it.
+func offeringChangeAdjustmentReason(
+	row *enrollmentModels.OfferingChangeRequest,
+	requested timezone.Date,
+	staffReason string,
+) string {
 	reason := fmt.Sprintf("Elternanfrage #%d freigegeben (gültig ab %s)",
 		row.ID, row.EffectiveFrom.Format("02.01.2006"))
 	if trimmed := strings.TrimSpace(staffReason); trimmed != "" {
 		reason += ": " + trimmed
+	}
+	if requested != row.EffectiveFrom {
+		reason += " · Wunschdatum der Eltern war " + requested.Format("02.01.2006")
 	}
 	return reason
 }

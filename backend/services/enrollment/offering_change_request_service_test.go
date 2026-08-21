@@ -438,6 +438,80 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	require.NotNil(t, queued, "the pending request must stay in the queue")
 	assert.Equal(t, phaseStart, queued.Request.EffectiveFrom,
 		"the queue must show the date an approval would actually apply")
+	assert.Equal(t, fx.pastSwitchAt, queued.RequestedEffectiveFrom,
+		"the queue must keep the date the family asked for, so the card can name it")
+}
+
+// Ein Datum, das die OGS selbst gewählt hat, überschreibt das der Eltern in der
+// Anfragezeile. Ohne die Zeile im Änderungsprotokoll bliebe von deren Wunsch
+// nichts übrig (#2484).
+func TestOfferingChangeRequestService_Decide_LogsTheDateTheFamilyAskedFor(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "LogWish")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := fx.switchDate.AddDays(7)
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	}))
+
+	adjustments, err := env.decision.ListOfferingAdjustments(ctx, fx.requestID, fx.childID)
+	require.NoError(t, err)
+	require.Len(t, adjustments, 1)
+	assert.Contains(t, adjustments[0].Reason,
+		"gültig ab "+confirmed.Format("02.01.2006"))
+	assert.Contains(t, adjustments[0].Reason,
+		"Wunschdatum der Eltern war "+fx.switchDate.Format("02.01.2006"))
+}
+
+// Bleibt es beim Wunsch der Eltern, hat das Protokoll nichts zu ergänzen.
+func TestOfferingChangeRequestService_Decide_LogsNoWishWhenTheDateIsKept(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "LogNoWish")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &fx.switchDate,
+	}))
+
+	adjustments, err := env.decision.ListOfferingAdjustments(ctx, fx.requestID, fx.childID)
+	require.NoError(t, err)
+	require.Len(t, adjustments, 1)
+	assert.NotContains(t, adjustments[0].Reason, "Wunschdatum der Eltern")
 }
 
 func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAreDisabled(t *testing.T) {
