@@ -108,6 +108,10 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 	if err != nil {
 		sourceCareOfferingIDs = nil
 	}
+	sourceSchoolClasses, err := row.ParseSourceSchoolClasses()
+	if err != nil {
+		sourceSchoolClasses = nil
+	}
 	return templateResponse{
 		ID:                          row.TemplateID,
 		Name:                        row.Name,
@@ -131,6 +135,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		Targets:                     templateTargetsFromRow(row),
 		SourceCareOfferingIDs:       sourceCareOfferingIDs,
 		SourceGradeLevels:           sourceGradeLevels,
+		SourceSchoolClasses:         sourceSchoolClasses,
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
 		ShiftTypeName:               row.ShiftTypeName,
@@ -268,6 +273,9 @@ type templateResponse struct {
 	// Jahrgangsauswahl on edit.
 	SourceCareOfferingIDs []int64 `json:"source_care_offering_ids,omitempty"`
 	SourceGradeLevels     []int   `json:"source_grade_levels,omitempty"`
+	// SourceSchoolClasses is the Klassenfilter (#2482); mutually exclusive
+	// with SourceGradeLevels.
+	SourceSchoolClasses []string `json:"source_school_classes,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil when the template has no list kind.
 	ListKind *string `json:"list_kind,omitempty"`

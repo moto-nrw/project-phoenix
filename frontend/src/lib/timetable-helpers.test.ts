@@ -1937,8 +1937,18 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [
-          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
-          { id: "8", name: "Frühbetreuung alle", gradeLevels: [] },
+          {
+            id: "7",
+            name: "Frühbetreuung Jg. 1",
+            gradeLevels: [1],
+            schoolClasses: [],
+          },
+          {
+            id: "8",
+            name: "Frühbetreuung alle",
+            gradeLevels: [],
+            schoolClasses: [],
+          },
         ],
         legacyLinkedTemplateId: "7",
       },
@@ -2003,10 +2013,12 @@ describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
       mapCombinedOfferingCounts({
         total_count: 18,
         grade_counts: { "0": 2, "1": 9, "2": 7 },
+        students: [{ student_id: 5, school_class: "1b" }],
       }),
     ).toEqual({
       totalCount: 18,
       gradeCounts: { 0: 2, 1: 9, 2: 7 },
+      students: [{ studentId: "5", schoolClass: "1b" }],
     });
   });
 
@@ -2016,6 +2028,6 @@ describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
         total_count: undefined as never,
         grade_counts: undefined as never,
       }),
-    ).toEqual({ totalCount: 0, gradeCounts: {} });
+    ).toEqual({ totalCount: 0, gradeCounts: {}, students: [] });
   });
 });

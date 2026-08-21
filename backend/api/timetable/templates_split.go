@@ -89,6 +89,24 @@ func (n *nullableInt64Slice) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &n.Value)
 }
 
+// nullableStringSlice is the []string member of the tri-state family: it
+// tells an omitted source_school_classes ("keep the stored Klassenfilter")
+// apart from an explicit null or empty list ("clear the filter") on the
+// template PUT and the split body (#2482).
+type nullableStringSlice struct {
+	Set   bool
+	Value []string
+}
+
+func (n *nullableStringSlice) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // nullableStr is the string analogue of nullableInt: it tells an omitted note
 // ("inherit the source Wochennotiz") apart from an explicit null ("clear the
 // series note") for the split flow (#1837 follow-up). (Named nullableStr to
@@ -343,6 +361,8 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		SourceCareOfferingIDsProvided: req.SourceCareOfferingIDs.Set,
 		SourceGradeLevels:             req.SourceGradeLevels.Value,
 		SourceGradeLevelsProvided:     req.SourceGradeLevels.Set,
+		SourceSchoolClasses:           req.SourceSchoolClasses.Value,
+		SourceSchoolClassesProvided:   req.SourceSchoolClasses.Set,
 		Targets:                       targetModels(req.Targets),
 		StudentIDs:                    req.StudentIDs,
 		StaffIDs:                      req.StaffIDs,

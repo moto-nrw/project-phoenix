@@ -23,6 +23,7 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 		name               string
 		sourceOfferingIDs  []int64
 		gradeLevels        []int
+		schoolClasses      []string
 		targetGroupType    string
 		studentIDs         []int64
 		weekdayAssignments []WeekdayRosterAssignment
@@ -95,6 +96,33 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			wantErr:           "source_grade_levels must not contain duplicates",
 		},
 		{
+			name:              "source with class filter on an Angebot is valid",
+			sourceOfferingIDs: []int64{12},
+			schoolClasses:     []string{"1a", "1b"},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+		},
+		{
+			name:            "class filter without a source is rejected",
+			schoolClasses:   []string{"1a"},
+			targetGroupType: activitiesModel.TargetGroupTypeAngebot,
+			wantErr:         "source_school_classes requires source_care_offering_ids",
+		},
+		{
+			name:              "class and grade filter together are rejected",
+			sourceOfferingIDs: []int64{12},
+			gradeLevels:       []int{1},
+			schoolClasses:     []string{"1a"},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_school_classes and source_grade_levels cannot be combined",
+		},
+		{
+			name:              "duplicate class filter entries are rejected",
+			sourceOfferingIDs: []int64{12},
+			schoolClasses:     []string{"1a", " 1A "},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			wantErr:           "source_school_classes must not contain duplicates",
+		},
+		{
 			name:              "manual child list next to a source is rejected",
 			sourceOfferingIDs: []int64{12},
 			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
@@ -117,6 +145,7 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			err := validateOfferingSourceInput(
 				tc.sourceOfferingIDs,
 				tc.gradeLevels,
+				tc.schoolClasses,
 				tc.targetGroupType,
 				tc.studentIDs,
 				tc.weekdayAssignments,

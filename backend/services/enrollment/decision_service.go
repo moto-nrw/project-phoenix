@@ -2968,6 +2968,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
+			SchoolClasses:        tmpl.SourceSchoolClasses,
 			CalendarPeriodID:     tmpl.CalendarPeriodID,
 			EffectiveFrom:        effectiveFrom,
 			ScopeRequestChildIDs: scopeRequestChildIDs,
