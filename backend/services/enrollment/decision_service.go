@@ -1331,7 +1331,7 @@ func (s *decisionService) validateApprovalOfferingSelection(
 	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
 		ctx,
 		child.ID,
-		currentOfferingSelectionDate(phase),
+		phase.ServiceStartDate,
 	)
 	if err != nil {
 		return fmt.Errorf("decision: validate child offerings: %w", err)
@@ -1343,7 +1343,7 @@ func (s *decisionService) validateApprovalOfferingSelection(
 	}
 	choosableCount := 0
 	for _, offering := range offerings {
-		if offering != nil && !offering.IsRequired {
+		if offering != nil && offering.PhaseID == phase.ID && !offering.IsRequired {
 			choosableCount++
 		}
 	}

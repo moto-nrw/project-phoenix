@@ -30,12 +30,14 @@ import (
 type offeringLinkFixture string
 
 const (
-	noOffering        offeringLinkFixture = "none"
-	effectiveOffering offeringLinkFixture = "effective"
-	expiredOffering   offeringLinkFixture = "expired"
-	futureOffering    offeringLinkFixture = "future"
-	requiredOnly      offeringLinkFixture = "required_only"
-	twoOfferings      offeringLinkFixture = "two_offerings"
+	noOffering         offeringLinkFixture = "none"
+	effectiveOffering  offeringLinkFixture = "effective"
+	expiredOffering    offeringLinkFixture = "expired"
+	futureOffering     offeringLinkFixture = "future"
+	historicalOffering offeringLinkFixture = "historical"
+	requiredOnly       offeringLinkFixture = "required_only"
+	twoOfferings       offeringLinkFixture = "two_offerings"
+	crossPhaseOffering offeringLinkFixture = "cross_phase"
 )
 
 type offeringGuardHarness struct {
@@ -71,6 +73,8 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 		{"required while feature disabled", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, noOffering, false, http.StatusOK, ""},
 		{"expired link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, expiredOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
 		{"future link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, futureOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
+		{"historical link active at service start", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, historicalOffering, true, http.StatusOK, ""},
+		{"cross-phase link", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, crossPhaseOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
 		{"optional missing", enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, true, http.StatusOK, ""},
 		{"required effective", enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, http.StatusOK, ""},
 	}
@@ -112,7 +116,7 @@ func setupOfferingGuardRouterTest(
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)
 	request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
-	attachOfferingGuardLink(t, repos, ctx, phase.ID, child.ID, linkFixture)
+	attachOfferingGuardLink(t, repos, ctx, phase, child.ID, linkFixture)
 	offeringRepo := enrollmentModels.RequestChildOfferingRepository(repos.RequestChildOffering)
 	if failOfferingLookup {
 		offeringRepo = failingAtDateOfferingRepo{offeringRepo}
@@ -172,12 +176,27 @@ func createOfferingGuardChild(t *testing.T, repos *repositories.Factory, ctx con
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos *repositories.Factory, ctx context.Context, phaseID, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos *repositories.Factory, ctx context.Context, phase *enrollmentModels.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
 	}
 	createLink := func(name string, required bool) *enrollmentModels.RequestChildOffering {
+		phaseID := phase.ID
+		if fixture == crossPhaseOffering {
+			otherPhase := &enrollmentModels.Phase{
+				Name:                      phase.Name + " Fremd",
+				Kind:                      phase.Kind,
+				ServiceStartDate:          phase.ServiceStartDate,
+				ServiceEndDate:            phase.ServiceEndDate,
+				CareOverflowMode:          phase.CareOverflowMode,
+				CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+				IsActive:                  true,
+			}
+			otherPhase.SetTenantID(testpkg.Tenant(t))
+			require.NoError(t, repos.Phase.Create(ctx, otherPhase))
+			phaseID = otherPhase.ID
+		}
 		offering := &enrollmentModels.CareOffering{
 			PhaseID: phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
@@ -197,6 +216,9 @@ func attachOfferingGuardLink(t *testing.T, repos *repositories.Factory, ctx cont
 	}
 	if fixture == futureOffering {
 		link.ValidFrom, link.ValidUntil = datePointers(today.AddDays(1), today.AddDays(10))
+	}
+	if fixture == historicalOffering {
+		link.ValidFrom, link.ValidUntil = datePointers(phase.ServiceStartDate, today)
 	}
 	require.NoError(t, repos.RequestChildOffering.Create(ctx, link))
 }
