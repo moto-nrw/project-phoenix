@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	templateSourceSchoolClassesVersion     = "1.15.313"
+	templateSourceSchoolClassesVersion     = "1.15.314"
 	templateSourceSchoolClassesDescription = "Add activities.groups.source_school_classes so an offering-sourced Regeltermin can be narrowed to concrete Schulklassen (#2482)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.313: Adding activities.groups.source_school_classes...")
+	fmt.Println("Migration 1.15.314: Adding activities.groups.source_school_classes...")
 
 	// OGS am Berg runs ONE Betreuungsangebot "Randstunde" and six Regeltermine,
 	// one per Schulklasse (1a…2c), each on its own weekdays (#2482). The
@@ -97,14 +97,14 @@ func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed extending offering-source check constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.313: Completed successfully")
+	fmt.Println("Migration 1.15.314: Completed successfully")
 	return nil
 }
 
 func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.313: Dropping activities.groups.source_school_classes...")
+	fmt.Println("Rolling back migration 1.15.314: Dropping activities.groups.source_school_classes...")
 
-	// Class-filtered templates lose their filter on rollback: the pre-1.15.313
+	// Class-filtered templates lose their filter on rollback: the pre-1.15.314
 	// shape cannot express it, and keeping the column while restoring the old
 	// CHECK is not an option either. Widening them to "all children of the
 	// offering" would silently plan the wrong children, so the whole source is
