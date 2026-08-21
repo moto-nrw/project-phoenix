@@ -267,6 +267,9 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // ChildFeaturesResponse tells the parent UI which write actions the child's
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
+	// CareEnded is state, not a capability: the child has left the OGS, so
+	// every write flag below is false (#2487).
+	CareEnded                    bool `json:"care_ended"`
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	SickRequiresApproval         bool `json:"sick_requires_approval"`
 	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
@@ -306,6 +309,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
+		CareEnded:                    flags.CareEnded,
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,

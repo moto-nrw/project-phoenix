@@ -1,3 +1,5 @@
+import { parseISODate } from "~/lib/date-helpers";
+
 // Client-side API für "Betreuung beenden" (#2487).
 //
 // Ein regulärer Austritt ist keine Datenlöschung: Er setzt einen letzten
@@ -284,4 +286,37 @@ export async function fetchEndedCare(params: {
     page: envelope.data.page,
     pageSize: envelope.data.page_size,
   };
+}
+
+/**
+ * Wie weit voraus ein Betreuungsende in der Kinderverwaltung angekündigt wird.
+ *
+ * Ein Ende, das Monate entfernt liegt, ist in aller Regel das reguläre Ende
+ * der Anmeldephase und keine Nachricht: In der Demo-Schule tragen alle über
+ * die Anmeldung erfassten Kinder denselben Tag im übernächsten Sommer. Würde
+ * die Liste das melden, stünde bei jedem zweiten Kind "Betreuung endet am ..."
+ * — und der eine echte Austritt ginge darin unter.
+ */
+export const CARE_EXIT_NOTICE_DAYS = 90;
+
+/**
+ * Ist für dieses Kind ein Betreuungsende hinterlegt, das bald greift und noch
+ * nicht gegriffen hat? Nur dann zeigt die Liste einen Hinweis und nur dann
+ * bietet die Detailansicht "Ende ändern" und "Ende stornieren" an.
+ */
+export function hasUpcomingCareExit(
+  student: { care_ends_on?: string; care_ended?: boolean },
+  today: Date = new Date(),
+): boolean {
+  if (student.care_ended || !student.care_ends_on) return false;
+  const end = parseISODate(student.care_ends_on);
+  const midnight = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const days = Math.round(
+    (end.getTime() - midnight.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  return days >= 0 && days <= CARE_EXIT_NOTICE_DAYS;
 }

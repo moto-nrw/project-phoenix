@@ -193,6 +193,7 @@ export function ChildPage({
 function ChildSections({ child }: Readonly<{ child: Child }>) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const t = useTranslations("parentChild");
   const care = useChildCare(child.student_id);
   const [today, setToday] = useState<ChildToday | null>(null);
   const [modal, setModal] = useState<null | "sick" | "pickup">(null);
@@ -254,8 +255,22 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
     child.student_id,
   ]);
 
+  // Betreuung beendet (#2487): das Backend schaltet dafür jede Schreib-Fähigkeit
+  // ab, die Karten und Reiter bauen ihre Knöpfe aus genau diesen Flags. Ohne
+  // diesen einen Satz bliebe ein Profil zurück, dem still alle Aktionen fehlen
+  // — und niemand wüsste warum.
+  const careEnded = care.features.care_ended === true;
+
   return (
     <>
+      {careEnded && !care.loading ? (
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-semibold text-gray-900">
+            {t("careEnded.title")}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">{t("careEnded.body")}</p>
+        </div>
+      ) : null}
       <ChildDayCard
         child={{
           studentId: child.student_id,

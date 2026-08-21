@@ -37,6 +37,7 @@ import { StudentEnrollmentsTab } from "./student-enrollments-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
+import { hasUpcomingCareExit } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
 import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
@@ -282,9 +283,10 @@ export function StudentsMasterDetail({
 
     const subtitleParts: string[] = [];
     if (student.group_name) subtitleParts.push(student.group_name);
-    // Ein geplantes Ende steht vorne: es ändert, was mit dem Kind noch
-    // geplant werden kann (#2487).
-    if (student.care_ends_on && !student.care_ended) {
+    // Ein bald greifendes Ende steht vorne: es ändert, was mit dem Kind noch
+    // geplant werden kann (#2487). Ein Ende Monate voraus ist dagegen das
+    // reguläre Ende der Anmeldephase und keine Nachricht.
+    if (student.care_ends_on && hasUpcomingCareExit(student)) {
       subtitleParts.unshift(
         `Betreuung endet am ${formatDate(student.care_ends_on)}`,
       );

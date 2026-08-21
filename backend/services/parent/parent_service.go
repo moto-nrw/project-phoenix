@@ -336,6 +336,11 @@ type Service interface {
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
+	// CareEnded says the child has left the OGS (#2487). It is STATE, not a
+	// capability: when it is true every write flag below is false, and the
+	// portal shows a read-only profile with one sentence explaining why
+	// instead of buttons that would all fail the same way.
+	CareEnded       bool
 	SickNoteEnabled bool
 	// SickRequiresApproval is true when a Krankmeldung stays pending until the
 	// OGS confirms it (operations.parent_sick_requires_approval, #2449).

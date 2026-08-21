@@ -642,6 +642,23 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	canManagePickup := child.hasPermission(authorize.GuardianPermissionPickupManage)
 	canManageGuardianContacts := child.hasPermission(authorize.GuardianPermissionGuardianEdit)
+
+	// The child has left the OGS (#2487). Every WRITE capability goes off in
+	// this one place rather than in each screen: the portal builds its buttons
+	// from these flags, so a family sees a read-only profile instead of
+	// affordances that would all end in the same 403. CareEnded travels
+	// alongside so the portal can say why, and the read flags (meal plan, news)
+	// stay untouched — what happened stays readable.
+	if child.careEnded {
+		return ChildFeatureFlags{
+			CareEnded:               true,
+			SickRequiresApproval:    sickApproval,
+			ExcusedRequiresApproval: excusedApproval,
+			MealPlanEnabled:         mealPlan,
+			NewsEnabled:             news,
+		}, nil
+	}
+
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),

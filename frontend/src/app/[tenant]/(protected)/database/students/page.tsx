@@ -38,7 +38,7 @@ import {
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
-import { cancelCareExit } from "~/lib/care-exit-api";
+import { cancelCareExit, hasUpcomingCareExit } from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -505,11 +505,11 @@ function StudentsPageContent() {
               onClick={() => setCareExitIds([String(selectedStudent.id)])}
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              {selectedStudent.care_ends_on
+              {hasUpcomingCareExit(selectedStudent)
                 ? "Ende ändern"
                 : "Betreuung beenden"}
             </Button>
-            {selectedStudent.care_ends_on ? (
+            {hasUpcomingCareExit(selectedStudent) ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -698,7 +698,12 @@ function StudentsPageContent() {
           }
           description={
             searchTerm || groupFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
+              ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse: das
+                // Kind KANN es geben, es ist nur nicht mehr in Betreuung
+                // (#2487).
+                canDeleteStudents
+                ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
+                : "Versuchen Sie andere Suchkriterien oder Filter."
               : "Es wurden noch keine Kinder erstellt."
           }
         />

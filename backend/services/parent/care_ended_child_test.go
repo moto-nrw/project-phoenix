@@ -64,6 +64,22 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		assert.NotNil(t, days)
 	})
 
+	t.Run("every write capability goes off, reading stays on", func(t *testing.T) {
+		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.True(t, flags.CareEnded, "the portal is told why the buttons are gone")
+		assert.False(t, flags.SickNoteEnabled)
+		assert.False(t, flags.NotesEnabled)
+		assert.False(t, flags.RequestSubmitEnabled)
+		assert.False(t, flags.PickupChangeEnabled)
+		assert.False(t, flags.PickupManageAllowed)
+		assert.False(t, flags.GuardianContactManageAllowed)
+		assert.False(t, flags.MasterDataEditEnabled)
+		assert.False(t, flags.MasterDataRequestEnabled)
+		assert.False(t, flags.RelatedAccountsInviteEnabled)
+		assert.False(t, flags.RelatedAccountsRemoveEnabled)
+	})
+
 	t.Run("the child list marks the care as ended", func(t *testing.T) {
 		children, err := svc.ListChildrenForAccount(ctx, chain.AccountID)
 		require.NoError(t, err)

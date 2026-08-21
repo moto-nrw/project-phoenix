@@ -105,6 +105,8 @@ const subPageLabels: Record<string, string> = {
   "opening-balances": "Eröffnungssalden",
   // Klassenlisteneinträge (#2382): Kinder ohne OGS-Datensatz.
   "class-list": "Klassenliste",
+  // Archiv der regulär beendeten Betreuungen (#2487).
+  "ended-care": "Beendete Betreuungen",
 };
 
 /**
