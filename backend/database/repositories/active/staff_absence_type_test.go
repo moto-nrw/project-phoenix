@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -25,20 +24,13 @@ func absenceTypeUnique() string {
 	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), absenceTypeTestCounter.Add(1))
 }
 
-func cleanupAbsenceTypes(t *testing.T, repo activeModels.StaffAbsenceTypeRepository, ctx context.Context, ids ...int64) {
-	t.Helper()
-	for _, id := range ids {
-		_ = repo.Delete(ctx, id)
-	}
-}
-
 func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
@@ -46,7 +38,6 @@ func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
 	alpha := &activeModels.StaffAbsenceType{Name: "  Alpha-" + suffix + "  ", IsActive: true}
 	require.NoError(t, repo.Create(ctx, zebra))
 	require.NoError(t, repo.Create(ctx, alpha))
-	defer cleanupAbsenceTypes(t, repo, ctx, zebra.ID, alpha.ID)
 
 	require.NotZero(t, zebra.ID)
 	assert.Equal(t, tenantID, zebra.TenantID, "tenant_id must be stamped from context")
@@ -67,18 +58,17 @@ func TestStaffAbsenceTypeRepository_CreateAndListSorted(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeRepository_RejectsDuplicateNameCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
 	first := &activeModels.StaffAbsenceType{Name: "Regenerationstag-" + suffix, IsActive: true}
 	require.NoError(t, repo.Create(ctx, first))
-	defer cleanupAbsenceTypes(t, repo, ctx, first.ID)
 
 	duplicate := &activeModels.StaffAbsenceType{Name: "REGENERATIONSTAG-" + suffix, IsActive: true}
 	err := repo.Create(ctx, duplicate)
@@ -88,27 +78,24 @@ func TestStaffAbsenceTypeRepository_RejectsDuplicateNameCaseInsensitively(t *tes
 }
 
 func TestStaffAbsenceTypeRepository_IsolatesTenants(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTestTenant(t, db, otherTenantID)
 
 	tenantAID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTestTenant(t, db, tenantAID)
 	ctxA := testpkg.TenantContext(tenantAID)
 	ctxB := testpkg.TenantContext(otherTenantID)
 
 	suffix := absenceTypeUnique()
 	own := &activeModels.StaffAbsenceType{Name: "Ferienzeit-" + suffix, IsActive: true}
 	require.NoError(t, repo.Create(ctxA, own))
-	defer cleanupAbsenceTypes(t, repo, ctxA, own.ID)
 
 	// Same name, other school: not a duplicate — the uniqueness is per tenant.
 	other := &activeModels.StaffAbsenceType{Name: "Ferienzeit-" + suffix, IsActive: true}
 	require.NoError(t, repo.Create(ctxB, other))
-	defer cleanupAbsenceTypes(t, repo, ctxB, other.ID)
 
 	listB, err := repo.ListAll(ctxB)
 	require.NoError(t, err)
@@ -118,18 +105,17 @@ func TestStaffAbsenceTypeRepository_IsolatesTenants(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeRepository_DeactivateKeepsRowReadable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsenceType
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 	ctx := testpkg.TenantContext(tenantID)
 
 	suffix := absenceTypeUnique()
 	at := &activeModels.StaffAbsenceType{Name: "Sonderurlaub-" + suffix, IsActive: true}
 	require.NoError(t, repo.Create(ctx, at))
-	defer cleanupAbsenceTypes(t, repo, ctx, at.ID)
 
 	at.IsActive = false
 	require.NoError(t, repo.Update(ctx, at))

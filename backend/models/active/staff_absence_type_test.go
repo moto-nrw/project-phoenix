@@ -6,6 +6,8 @@ import (
 )
 
 func TestStaffAbsenceTypeValidateTrimsName(t *testing.T) {
+	t.Parallel()
+
 	at := &StaffAbsenceType{Name: "  Regenerationstag  "}
 	if err := at.Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -16,6 +18,8 @@ func TestStaffAbsenceTypeValidateTrimsName(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeValidateDefaultsBaseTypeToOther(t *testing.T) {
+	t.Parallel()
+
 	at := &StaffAbsenceType{Name: "Ferienzeit"}
 	if err := at.Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -26,6 +30,8 @@ func TestStaffAbsenceTypeValidateDefaultsBaseTypeToOther(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeValidateRejectsEmptyName(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"", "   ", "\t\n"} {
 		at := &StaffAbsenceType{Name: name}
 		if err := at.Validate(); err == nil {
@@ -35,6 +41,8 @@ func TestStaffAbsenceTypeValidateRejectsEmptyName(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeValidateRejectsOverlongName(t *testing.T) {
+	t.Parallel()
+
 	at := &StaffAbsenceType{Name: strings.Repeat("ä", 101)}
 	if err := at.Validate(); err == nil {
 		t.Error("expected error for a 101-character name")
@@ -47,6 +55,8 @@ func TestStaffAbsenceTypeValidateRejectsOverlongName(t *testing.T) {
 }
 
 func TestStaffAbsenceTypeValidateRejectsUnknownBaseType(t *testing.T) {
+	t.Parallel()
+
 	at := &StaffAbsenceType{Name: "Regenerationstag", BaseType: "regeneration"}
 	if err := at.Validate(); err == nil {
 		t.Error("expected error for an unknown base type")

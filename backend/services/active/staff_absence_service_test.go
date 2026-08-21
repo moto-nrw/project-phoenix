@@ -23,6 +23,8 @@ import (
 )
 
 func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
+	t.Parallel()
+
 	const id = "9007199254740993"
 
 	var create CreateAbsenceRequest
@@ -37,6 +39,8 @@ func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
 }
 
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
+	t.Parallel()
+
 	id := int64(9007199254740993)
 	value := strconv.FormatInt(id, 10)
 	payload, err := json.Marshal(StaffAbsenceResponse{
@@ -48,6 +52,8 @@ func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 }
 
 func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
 	existing := &activeModels.StaffAbsence{
@@ -76,6 +82,8 @@ func TestAbsUpdateAbsenceExplicitNullClearsCustomType(t *testing.T) {
 }
 
 func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
 	existing := &activeModels.StaffAbsence{
@@ -103,6 +111,8 @@ func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
 }
 
 func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
 	existing := &activeModels.StaffAbsence{
@@ -130,6 +140,8 @@ func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
 }
 
 func TestAbsUpdateAbsenceRejectsSickToCustomType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
 	existing := &activeModels.StaffAbsence{
@@ -155,6 +167,8 @@ func TestAbsUpdateAbsenceRejectsSickToCustomType(t *testing.T) {
 }
 
 func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := absSetupService()
 	customID := int64(42)
 	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{

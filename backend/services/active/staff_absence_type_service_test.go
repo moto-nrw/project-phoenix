@@ -81,6 +81,8 @@ func newAbsenceTypeService() (StaffAbsenceTypeService, *absTypeRepoMock) {
 }
 
 func TestCreateAbsenceTypeTrimsAndPinsBaseType(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 
 	created, err := svc.CreateAbsenceType(context.Background(), "  Regenerationstag ")
@@ -99,6 +101,8 @@ func TestCreateAbsenceTypeTrimsAndPinsBaseType(t *testing.T) {
 }
 
 func TestCreateAbsenceTypeRejectsDuplicateIgnoringCaseAndSpace(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -111,6 +115,8 @@ func TestCreateAbsenceTypeRejectsDuplicateIgnoringCaseAndSpace(t *testing.T) {
 }
 
 func TestCreateAbsenceTypeRejectsStandardTypeNames(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -124,6 +130,8 @@ func TestCreateAbsenceTypeRejectsStandardTypeNames(t *testing.T) {
 }
 
 func TestCreateAbsenceTypeRejectsEmptyName(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	if _, err := svc.CreateAbsenceType(context.Background(), "   "); !errors.Is(err, ErrAbsenceTypeInvalid) {
 		t.Errorf("expected ErrAbsenceTypeInvalid, got %v", err)
@@ -131,6 +139,8 @@ func TestCreateAbsenceTypeRejectsEmptyName(t *testing.T) {
 }
 
 func TestUpdateAbsenceTypeRenamesWithoutTouchingActiveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -157,6 +167,8 @@ func TestUpdateAbsenceTypeRenamesWithoutTouchingActiveFlag(t *testing.T) {
 }
 
 func TestUpdateAbsenceTypeRejectsRenameOntoAnotherName(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -175,6 +187,8 @@ func TestUpdateAbsenceTypeRejectsRenameOntoAnotherName(t *testing.T) {
 }
 
 func TestUpdateAbsenceTypeAllowsRenamingToItsOwnName(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -189,6 +203,8 @@ func TestUpdateAbsenceTypeAllowsRenamingToItsOwnName(t *testing.T) {
 }
 
 func TestUpdateAbsenceTypeRejectsRenamingUsedType(t *testing.T) {
+	t.Parallel()
+
 	svc, repo := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -202,6 +218,8 @@ func TestUpdateAbsenceTypeRejectsRenamingUsedType(t *testing.T) {
 }
 
 func TestResolveForAbsenceRejectsDeactivatedArt(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -220,6 +238,8 @@ func TestResolveForAbsenceRejectsDeactivatedArt(t *testing.T) {
 }
 
 func TestResolveForAbsenceRejectsUnknownID(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	if _, err := svc.ResolveForAbsence(context.Background(), 4711); !errors.Is(err, ErrAbsenceTypeNotFound) {
 		t.Errorf("expected ErrAbsenceTypeNotFound, got %v", err)
@@ -227,6 +247,8 @@ func TestResolveForAbsenceRejectsUnknownID(t *testing.T) {
 }
 
 func TestStampAbsenceTypeLabelsFillsOnlyCustomRows(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	ctx := context.Background()
 
@@ -248,6 +270,8 @@ func TestStampAbsenceTypeLabelsFillsOnlyCustomRows(t *testing.T) {
 }
 
 func TestStampAbsenceTypeLabelsIsNilSafe(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newAbsenceTypeService()
 	created, err := svc.CreateAbsenceType(context.Background(), "Regenerationstag")
 	if err != nil {

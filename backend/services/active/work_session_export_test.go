@@ -370,6 +370,8 @@ func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
 }
 
 func TestDayExportRowsByStaffIDsStampsCustomAbsenceLabels(t *testing.T) {
+	t.Parallel()
+
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffID := int64(100)

@@ -20,6 +20,8 @@ type recordingAbsenceDeletionAuditRepo struct {
 }
 
 func TestWriteAbsenceDeletionAuditIncludesCustomLabel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupService()
 	customID := int64(42)
 	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{

@@ -442,6 +442,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	})
 
 	t.Run("uses the same ID tie-breaker for type and label maps", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "Tie Breaker")
 		today := timezone.TodayDate()
 		absenceType := &active.StaffAbsenceType{
 			Name:     "Regenerationstag",
@@ -449,7 +450,6 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 			IsActive: true,
 		}
 		require.NoError(t, repositories.NewFactory(db).StaffAbsenceType.Create(ctx, absenceType))
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absence_types", absenceType.ID)
 
 		customAbsence := &active.StaffAbsence{
 			StaffID:       staff1.ID,
@@ -470,8 +470,6 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 		}
 		require.NoError(t, repo.Create(ctx, customAbsence))
 		require.NoError(t, repo.Create(ctx, standardAbsence))
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", customAbsence.ID)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", standardAbsence.ID)
 
 		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
