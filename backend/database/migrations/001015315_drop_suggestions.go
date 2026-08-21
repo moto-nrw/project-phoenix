@@ -71,13 +71,16 @@ func dropSuggestionsUp(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error deleting suggestions permissions: %w", err)
 		}
 
-		// The operator audit trail referenced suggestion posts by a resource
-		// type that no longer exists. The rows describe operator actions on
+		// The operator audit trail referenced the board under two resource
+		// types: 'suggestion' for the posts and 'operator_comment' for the
+		// operator replies. Both were written exclusively by the removed
+		// operator-suggestions service. The rows describe operator actions on
 		// content that is gone; keeping them would point at nothing.
 		if _, err := tx.ExecContext(ctx, `
-			DELETE FROM platform.operator_audit_log WHERE resource_type = 'suggestion'
+			DELETE FROM platform.operator_audit_log
+			WHERE resource_type IN ('suggestion', 'operator_comment')
 		`); err != nil {
-			return fmt.Errorf("error deleting suggestion operator audit rows: %w", err)
+			return fmt.Errorf("error deleting suggestions operator audit rows: %w", err)
 		}
 
 		return nil

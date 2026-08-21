@@ -39,7 +39,6 @@ Enthält:
 - Vertretung zuweisen
 - Arbeitszeit und Pause erfassen
 - Anmeldung prüfen und entscheiden
-- Feedback melden
 - Statuswerte verstehen
 
 ## NFC & Geräte

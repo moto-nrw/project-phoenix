@@ -116,7 +116,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     points: [
       "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
       "Planung: Betreuungsplan, Dienstplan und Vertretung",
-      "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
+      "Datenverwaltung, Anmeldungen, Einstellungen",
     ],
   },
   {
@@ -510,7 +510,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Eine Gruppe öffnen und die Kinderzuordnung prüfen.",
           "Eine spontane Aktivität starten und wieder beenden.",
           "Ein Kind als `Entschuldigt` markieren und mit `Zurück auf erwartet` korrigieren.",
-          "Das Team kurz einweisen: Suche, Aufsicht, Räume, Zeiterfassung, Feedback.",
+          "Das Team kurz einweisen: Suche, Aufsicht, Räume und Zeiterfassung.",
         ],
         screenshot:
           "Go-live-Übersicht mit den Bereichen Alle Kinder, Aktuelle Aufsicht und Räume.",
