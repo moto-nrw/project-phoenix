@@ -24,12 +24,7 @@ func ResetDatabase() error {
 	}
 
 	// List of schemas to drop and recreate.
-	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations —
-	// INCLUDING schemas a later migration drops again. A reset replays the
-	// full history, so 1.5.2 recreates feedback and 1.9.1 recreates
-	// suggestions long before 1.15.312 drops them; leaving a stale copy of
-	// either in place makes the intervening CREATE TABLE IF NOT EXISTS a
-	// no-op and the migration after it fails on a missing column (#2326).
+	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations.
 	schemas := []string{
 		"auth",
 		"users",
@@ -41,16 +36,13 @@ func ResetDatabase() error {
 		"active",
 		"config",
 		"meta",
-		"audit",      // created by migration 1.3.7
-		"platform",   // created by migration 1.11.1
-		"enrollment", // created by migration 1.15.59
-		"calendar",   // created by migration 1.15.173
-		"display",    // created by migration 1.15.175
-
-		// Dropped again by migration 1.15.312 (#2326), but recreated on the
-		// way there by 1.5.2 / 1.9.1 — see the note above.
+		"audit",       // created by migration 1.3.7
+		"suggestions", // created by migration 1.9.1
+		"platform",    // created by migration 1.11.1
+		"enrollment",  // created by migration 1.15.59
+		"calendar",    // created by migration 1.15.173
+		"display",     // created by migration 1.15.175
 		"feedback",
-		"suggestions",
 	}
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them
