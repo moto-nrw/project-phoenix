@@ -1785,22 +1785,6 @@ export const appChapters: readonly GuideChapter[] = [
           "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
         image: "/help/screens/essensplan.webp",
       },
-      {
-        id: "feedback",
-        title: "Feedback",
-        icon: MessageSquare,
-        summary:
-          "Probleme, Wünsche und Ideen melden und über bestehende Beiträge abstimmen.",
-        steps: [
-          "`Feedback` öffnen.",
-          "`Feedback durchsuchen...` nutzen, um Dubletten zu vermeiden.",
-          "Über `Neuer Beitrag` einen klaren Titel und eine Beschreibung erfassen.",
-          "Bei einem bestehenden Beitrag kommentieren oder abstimmen.",
-        ],
-        screenshot:
-          "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
-        image: "/help/screens/feedback.webp",
-      },
     ],
   },
   {
