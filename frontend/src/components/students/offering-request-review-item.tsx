@@ -302,7 +302,11 @@ export function OfferingRequestReviewItem({
             >
               <span className="text-xs text-gray-500">{entry.label}: </span>
               {entry.automatic && (
-                <StatusBadge tone="blue" label="Automatisch mitgebucht" />
+                <StatusBadge
+                  tone="blue"
+                  label="Automatisch mitgebucht"
+                  showDot={false}
+                />
               )}
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="text-gray-400 line-through">{entry.old}</span>

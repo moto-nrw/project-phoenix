@@ -365,6 +365,7 @@ export function RequestReviewCard({
           <div className="mt-4 space-y-2">
             <Input
               aria-label="Begründung"
+              controlSize="compact"
               value={reason ?? ""}
               placeholder={reasonPlaceholder}
               disabled={busy}
