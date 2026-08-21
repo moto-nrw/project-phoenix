@@ -24,9 +24,7 @@ import (
 	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -473,59 +471,6 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, catA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
-}
-
-// ============================================================================
-// Suggestions Domain
-// ============================================================================
-
-func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
-	t.Parallel()
-
-	db := SetupTestDB(t)
-	tenantA, tenantB := isolationTenants(t, db)
-
-	// Posts require an author (account_id). Accounts are not tenant-scoped.
-	acctA := CreateTestAccount(t, db, "suggestion-isolation-a")
-	acctB := CreateTestAccount(t, db, "suggestion-isolation-b")
-
-	postA := CreateTestSuggestionPostForTenant(t, db, tenantA, acctA.ID)
-	postB := CreateTestSuggestionPostForTenant(t, db, tenantB, acctB.ID)
-
-	repo := repoSuggestions.NewPostRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	resultA, err := repo.FindByID(ctx42, postB.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err, "PostRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, resultA,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B post %d", postB.ID)
-
-	// List has unusual signature (accountID, readerType, sortBy, status)
-	posts, err := repo.List(ctx42, acctA.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantA, p.TenantID,
-			"cross-tenant leak: tenant B post visible to tenant A (List)")
-	}
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	resultB, err := repo.FindByID(ctx43, postA.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err)
-	assert.Nil(t, resultB,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A post %d", postA.ID)
-
-	posts, err = repo.List(ctx43, acctB.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantB, p.TenantID,
-			"cross-tenant leak: tenant A post visible to tenant B (List)")
-	}
 }
 
 // ============================================================================

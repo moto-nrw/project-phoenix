@@ -24,7 +24,6 @@ type Resource struct {
 	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
-	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
 	invitationsResource     *InvitationsResource
@@ -44,7 +43,6 @@ type ResourceConfig struct {
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
-	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
@@ -113,7 +111,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 		passkeyService:        cfg.PasskeyService,
 		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
-		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
@@ -227,7 +224,6 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 		rs.mountTagScanRoutes(r)
 		rs.mountAccountMFARoutes(r)
 		rs.mountAccountTenantAccessRoutes(r)
-		rs.mountSuggestionRoutes(r)
 		rs.mountProfileRoutes(r)
 		rs.mountTrustedDeviceRoutes(r)
 		rs.mountInvitationRoutes(r)
@@ -368,23 +364,6 @@ func (rs *Resource) mountAccountTenantAccessRoutes(r chi.Router) {
 	r.Get("/accounts/{accountId}/tenants/{tenantId}/roles", rs.provisioningResource.ListAssignableSchoolRoles)
 	r.Put("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.UpdateAccountTenantRole)
 	r.Delete("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.RevokeAccountTenantAccess)
-}
-
-// mountSuggestionRoutes registers suggestions management.
-func (rs *Resource) mountSuggestionRoutes(r chi.Router) {
-	r.Route("/suggestions", func(r chi.Router) {
-		r.Get("/", rs.suggestionsResource.ListSuggestions)
-		r.Get("/unread-count", rs.suggestionsResource.GetUnreadCount)
-		r.Get("/unviewed-count", rs.suggestionsResource.GetUnviewedCount)
-		r.Get("/{id}", rs.suggestionsResource.GetSuggestion)
-		r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
-		r.Put("/{id}/hidden", rs.suggestionsResource.HidePost)
-		r.Delete("/{id}", rs.suggestionsResource.DeletePost)
-		r.Post("/{id}/view", rs.suggestionsResource.MarkPostViewed)
-		r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
-		r.Post("/{id}/comments/read", rs.suggestionsResource.MarkCommentsRead)
-		r.Delete("/{id}/comments/{commentId}", rs.suggestionsResource.DeleteComment)
-	})
 }
 
 // mountProfileRoutes registers operator profile management.

@@ -147,7 +147,6 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			markStudentsSickStep{},
 			seedPrivacyConsentsStep{},
 			seedAnnouncementsStep{},
-			seedSuggestionsStep{},
 			seedTimeTrackingHistoryStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			buildStateStep{seeder: seeder},

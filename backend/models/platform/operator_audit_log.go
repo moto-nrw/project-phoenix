@@ -50,7 +50,6 @@ const (
 // Common resource type constants
 const (
 	ResourceAnnouncement = "announcement"
-	ResourceSuggestion   = "suggestion"
 	ResourceComment      = "operator_comment"
 	ResourceOperator     = "operator"
 	ResourceOrganization = "organization"
