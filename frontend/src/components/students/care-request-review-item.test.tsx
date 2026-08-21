@@ -122,6 +122,29 @@ describe("CareRequestReviewItem", () => {
     expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen");
   });
 
+  it("preserves the request kind in an empty collapsed summary", () => {
+    const { rerender } = render(
+      <CareRequestReviewItem row={row({ diff: [] })} onDecided={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Betreuungszeiten\. Betreuungszeiten\./,
+      }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <CareRequestReviewItem
+        row={pickupRow({ diff: [] })}
+        onDecided={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Betreuungszeiten\. Abholzeit\./,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("requires a reason before rejecting", async () => {
     mockDecide.mockResolvedValue(row({ status: "rejected" }));
     const onDecided = vi.fn();

@@ -45,16 +45,19 @@ function decideErrorMessage(code: string | undefined): string {
 
 // One-line summary for the collapsed card: the distinct change kinds (e.g.
 // "Abholzeit + Abholart"), taken from the part after "·" in each diff label.
-function careSummary(diff: StaffCareRequest["diff"]): string {
+function careSummary(row: StaffCareRequest): string {
   const kinds = [
     ...new Set(
-      diff.map((entry) => {
+      row.diff.map((entry) => {
         const parts = entry.label.split("·");
         return (parts.at(-1) ?? entry.label).trim();
       }),
     ),
   ];
-  return kinds.join(" + ") || "Änderung";
+  if (kinds.length > 0) return kinds.join(" + ");
+  return row.request_kind === "pickup_change"
+    ? "Abholzeit"
+    : "Betreuungszeiten";
 }
 
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
@@ -78,7 +81,7 @@ export function CareRequestReviewItem({
   onDecided: (notice: string) => void;
 }>) {
   const decision = useCareRequestDecision(row, onDecided);
-  const summary = careSummary(row.diff);
+  const summary = careSummary(row);
   return (
     <RequestReviewCard
       type="care_schedule"
