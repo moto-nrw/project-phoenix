@@ -110,7 +110,7 @@ func (e *StudentFieldEdit) Validate() error {
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
-		StudentFieldDepartureCompanionNote, StudentFieldDocument:
+		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument:
 		// Valid field names
 	default:
 		// Document fields carry their category in the name. The vocabulary of
