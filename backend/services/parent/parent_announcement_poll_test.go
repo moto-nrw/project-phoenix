@@ -70,6 +70,7 @@ func seedPublishedPoll(
 func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -125,6 +126,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	_, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -159,6 +161,7 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -187,6 +190,7 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -213,6 +217,7 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Mila", "Fremd", "2b")
@@ -228,6 +233,7 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -243,6 +249,7 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
 	t.Parallel()
 
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 

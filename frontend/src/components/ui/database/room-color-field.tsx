@@ -24,17 +24,25 @@ export function RoomColorField(props: {
   onChange: (value: unknown) => void;
   label: string;
   required?: boolean;
+  /**
+   * Colour previewed while none is set. Defaults to the OTHER_ROOM blue that
+   * an ordinary room's badge falls back to; the Schulhof passes its own
+   * default so the preview matches what the badge actually renders (#2405).
+   */
+  defaultHex?: string;
+  /** Overrides the hint below the picker. */
+  hint?: string;
 }) {
-  const { value, onChange, label, required } = props;
+  const { value, onChange, label, required, defaultHex, hint } = props;
   const inputId = useId();
 
   const stringValue =
     typeof value === "string" && value.length > 0 ? value.toUpperCase() : null;
 
-  // Show OTHER_ROOM blue as the fallback preview so picking it intentionally
-  // is impossible (the backend reserves it anyway) and the unset state still
-  // looks like the badge users see today.
-  const displayHex = stringValue ?? LOCATION_COLORS.OTHER_ROOM;
+  // Show the badge's own fallback as the preview so picking it intentionally
+  // is impossible (the backend reserves every such hex anyway) and the unset
+  // state still looks like the badge users see today.
+  const displayHex = stringValue ?? defaultHex ?? LOCATION_COLORS.OTHER_ROOM;
 
   return (
     <div>
@@ -78,8 +86,8 @@ export function RoomColorField(props: {
         )}
       </div>
       <p className="mt-1 text-xs text-gray-500">
-        Damit kannst du das Badge dieses Raums einfärben. Wähle eine Farbe, die
-        du noch nicht für einen anderen Raum benutzt.
+        {hint ??
+          "Damit kannst du das Badge dieses Raums einfärben. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt."}
       </p>
     </div>
   );

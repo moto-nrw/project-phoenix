@@ -678,6 +678,69 @@ describe("DatabaseForm", () => {
     expect(screen.getByLabelText(/Test Field/)).toBeInTheDocument();
   });
 
+  // componentProps ist der Weg, eine geteilte Custom-Feld-Komponente mit
+  // Presets zu benutzen (#2405: derselbe Farb-Picker, für den Schulhof mit
+  // orangener Vorschau), statt sie in eine zweite Komponente zu wickeln.
+  // Fällt die Durchreichung weg, rendert das Feld still den Standard.
+  describe("componentProps", () => {
+    const CustomField = ({ label, hint }: { label: string; hint?: string }) => (
+      <div>
+        <span>{label}</span>
+        <span>{hint ?? "Standardhinweis"}</span>
+      </div>
+    );
+
+    const sectionsWithCustom = (
+      componentProps?: Record<string, unknown>,
+    ): FormSection[] => [
+      {
+        title: "Test Section",
+        fields: [
+          {
+            name: "custom_field",
+            label: "Farbe",
+            type: "custom",
+            component: CustomField,
+            componentProps,
+          },
+        ],
+      },
+    ];
+
+    it("reicht sie an das Custom-Feld durch", () => {
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsWithCustom({ hint: "Eigener Hinweis" })}
+        />,
+      );
+
+      expect(screen.getByText("Eigener Hinweis")).toBeInTheDocument();
+    });
+
+    it("fällt ohne sie auf die Defaults der Komponente zurück", () => {
+      render(
+        <DatabaseForm {...defaultProps} sections={sectionsWithCustom()} />,
+      );
+
+      expect(screen.getByText("Standardhinweis")).toBeInTheDocument();
+    });
+
+    it("lässt die formeigenen Props gewinnen", () => {
+      // Sonst könnte ein Preset value/onChange/label überschreiben und das
+      // Feld vom Formularzustand abkoppeln.
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsWithCustom({ label: "Überschrieben" })}
+        />,
+      );
+
+      expect(screen.getByText("Farbe")).toBeInTheDocument();
+      expect(screen.queryByText("Überschrieben")).not.toBeInTheDocument();
+    });
+  });
+
   // sectionLevel existiert, weil dieses Formular in zwei Kontexten laeuft:
   // im Master-Detail-Bereich (Default 2) und ueber DatabaseFormModal in
   // einem Modal, dessen Titel h3 ist (dort 4). Ohne diese Tests koennte die

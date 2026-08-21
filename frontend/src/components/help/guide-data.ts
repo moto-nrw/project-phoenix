@@ -337,6 +337,11 @@ export const setupChapters: readonly GuideChapter[] = [
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
         ],
+        callout: {
+          title: "Systemräume: Schulhof und WC",
+          body: "`Schulhof` und `WC` legt moto selbst an. Sie lassen sich weder umbenennen noch löschen. Die `Farbe` des Schulhofs kann jedoch frei gewählt werden, damit er zum Farbschema Ihrer Räume und Tablets passt. Ohne eigene Farbe erscheint der Schulhof weiterhin in Orange. Das WC hat kein eigenes Farbfeld, weil es nirgends farbig angezeigt wird.",
+          tone: "blue",
+        },
         screenshot:
           "Räume-Liste in der Datenverwaltung mit Beispiel-Einträgen.",
         image: "/help/screens/raeume-anlegen.webp",

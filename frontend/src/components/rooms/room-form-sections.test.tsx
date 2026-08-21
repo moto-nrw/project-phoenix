@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { type ComponentProps } from "react";
+import { RoomColorField } from "@/components/ui/database/room-color-field";
+import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";
 
@@ -59,20 +63,49 @@ describe("buildRoomFormSections", () => {
 
   // ===========================================================================
   // Issue #1324 — system rooms must NOT show the color picker. Backend
-  // rejects color changes on Schulhof/WC with a 403, so leaving the picker
-  // visible would let admins pick a color, hit save, and see a confusing
-  // German error toast for what looks like a normal field. This filter is
-  // a UX guard, not a security one — the backend stays the source of truth.
+  // rejects color changes with a 403, so leaving the picker visible would let
+  // admins pick a color, hit save, and see a confusing German error toast for
+  // what looks like a normal field. This filter is a UX guard, not a security
+  // one — the backend stays the source of truth.
+  //
+  // Issue #2405 narrowed that rule to the toilet rooms: the Schulhof's color
+  // IS admin-configurable now (schools color-code rooms and tablets), so its
+  // picker must be present while name/delete protection stays.
   // ===========================================================================
-  it("strips the color field for system rooms (Schulhof)", () => {
+  it("keeps the color field for the Schulhof and binds its orange default", () => {
     const sections = buildRoomFormSections({
       ...baseRoom,
       name: "Schulhof",
     });
-    const fieldNames = sections.flatMap((section) =>
-      section.fields.map((f) => f.name),
+    const colorField = sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.name === "color");
+
+    expect(colorField).toBeDefined();
+    // Same shared kit component as every other room; only its preset props
+    // differ, bound through the field config.
+    expect(colorField?.component).toBe(RoomColorField);
+
+    // With no colour set the swatch must show the orange the yard badge
+    // actually renders, not the generic room blue, and the hint has to say so.
+    const preset = colorField?.componentProps as ComponentProps<
+      typeof RoomColorField
+    >;
+    render(
+      <RoomColorField
+        {...preset}
+        value={null}
+        onChange={vi.fn()}
+        label="Farbe"
+      />,
     );
-    expect(fieldNames).not.toContain("color");
+
+    expect(screen.getByLabelText("Farbe")).toHaveValue(
+      LOCATION_COLORS.SCHOOLYARD.toLowerCase(),
+    );
+    expect(
+      screen.getByText(/Ohne eigene Farbe erscheint der Schulhof in Orange/),
+    ).toBeInTheDocument();
   });
 
   it("strips the color field for system rooms (WC)", () => {
@@ -84,6 +117,29 @@ describe("buildRoomFormSections", () => {
       section.fields.map((f) => f.name),
     );
     expect(fieldNames).not.toContain("color");
+  });
+
+  it("strips the color field for system rooms (Toilette)", () => {
+    const sections = buildRoomFormSections({
+      ...baseRoom,
+      name: "Toilette",
+    });
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).not.toContain("color");
+  });
+
+  it("uses the plain color picker for regular rooms", () => {
+    // Only the Schulhof gets the orange-default binding; every other room
+    // keeps the unbound picker with its blue fallback preview.
+    const sections = buildRoomFormSections({ ...baseRoom, name: "Werkraum" });
+    const colorField = sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.name === "color");
+
+    expect(colorField?.component).toBe(RoomColorField);
+    expect(colorField?.componentProps).toBeUndefined();
   });
 
   it("keeps the color field for regular rooms", () => {

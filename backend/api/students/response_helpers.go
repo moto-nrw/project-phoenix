@@ -301,7 +301,11 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	}
 
 	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
-		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		info := common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		if info.Location == common.YardLocationLabel {
+			info.RoomColor = common.ResolveYardRoomColor(ctx, activeService)
+		}
+		return info
 	}
 
 	// Handle non-checked-in states (checked_out or other)

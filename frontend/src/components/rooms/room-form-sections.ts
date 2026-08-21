@@ -2,8 +2,23 @@
 
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
-import { isSystemRoom, type Room } from "@/lib/room-helpers";
+import { LOCATION_COLORS } from "@/lib/location-helper";
+import { isColorLockedRoom, isSystemRoom, type Room } from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";
+
+/**
+ * Preview and hint for the schoolyard's colour picker (#2405): without a
+ * chosen colour the Schulhof badge renders orange, not the generic room blue,
+ * so "Standard" has to preview orange and the copy has to say so.
+ *
+ * Bound through the field config, so the shared RoomColorField is reused as
+ * is. The copy travels as a prop because custom fields do not render
+ * `helperText`.
+ */
+const SCHULHOF_COLOR_FIELD_PROPS = {
+  defaultHex: LOCATION_COLORS.SCHOOLYARD,
+  hint: "Ohne eigene Farbe erscheint der Schulhof in Orange. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt.",
+};
 
 const STANDARD_CATEGORIES = new Set([
   "Normaler Raum",
@@ -45,24 +60,30 @@ export function buildRoomFormSections(
   }
 
   if (isSystemRoom(room)) {
+    // Colour stays editable for the Schulhof (#2405) — schools colour-code
+    // rooms and tablets and need the yard in that scheme; without a chosen
+    // colour it keeps rendering in the orange Schulhof default. Only the
+    // toilet rooms drop the picker: they have no badge of their own, so a
+    // colour there would configure nothing, and the backend rejects the
+    // change anyway. Name stays locked for every system room.
+    const dropColor = isColorLockedRoom(room);
     sections = sections.map((section) => ({
       ...section,
       fields: section.fields
-        // Drop the color picker for system rooms — Schulhof and WC have
-        // semantically fixed badges (Schulhof = orange via the parser,
-        // WC has no badge), so letting an admin pick a color would just
-        // mislead. Backend rejects color changes here too, so this is
-        // strictly a UX guard.
-        .filter((field) => field.name !== "color")
-        .map((field) =>
-          field.name === "name"
-            ? {
-                ...field,
-                disabled: true,
-                helperText: "Systemraum: Name kann nicht geändert werden",
-              }
-            : field,
-        ),
+        .filter((field) => !(dropColor && field.name === "color"))
+        .map((field) => {
+          if (field.name === "name") {
+            return {
+              ...field,
+              disabled: true,
+              helperText: "Systemraum: Name kann nicht geändert werden",
+            };
+          }
+          if (field.name === "color") {
+            return { ...field, componentProps: SCHULHOF_COLOR_FIELD_PROPS };
+          }
+          return field;
+        }),
     }));
   }
 
