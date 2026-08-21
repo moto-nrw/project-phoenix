@@ -167,7 +167,6 @@ type Factory struct {
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
 
-
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
@@ -380,7 +379,6 @@ func NewFactory(db *bun.DB) *Factory {
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
 		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
-
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
