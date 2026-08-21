@@ -56,7 +56,12 @@ import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  useCareOfferingsEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
@@ -124,6 +129,7 @@ const DAY_LABELS: Record<string, string> = {
 const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -147,6 +153,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
+  const [approvalWithoutOfferingRow, setApprovalWithoutOfferingRow] =
+    useState<CareUsageRow | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
   const [exportingReportFormat, setExportingReportFormat] =
@@ -404,6 +412,26 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [loadData, loadReport, reportFilters, toast],
   );
 
+  const requestQuickDecision = useCallback(
+    (row: CareUsageRow, status: DecisionStatus) => {
+      if (
+        status === "approved" &&
+        careOfferingsEnabled &&
+        phase?.care_offering_selection_mode === "optional" &&
+        row.offerings.length === 0
+      ) {
+        setApprovalWithoutOfferingRow(row);
+        return;
+      }
+      void handleQuickDecision(row, status);
+    },
+    [
+      careOfferingsEnabled,
+      handleQuickDecision,
+      phase?.care_offering_selection_mode,
+    ],
+  );
+
   const columns = useMemo<DataTableColumn<CareUsageRow>[]>(
     () => [
       {
@@ -493,12 +521,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             row={row}
             href={requestHref(row.request_id)}
             busy={busyChildId === row.child_id}
-            onDecide={(status) => void handleQuickDecision(row, status)}
+            onDecide={(status) => requestQuickDecision(row, status)}
           />
         ),
       },
     ],
-    [busyChildId, handleQuickDecision, requestHref],
+    [busyChildId, requestHref, requestQuickDecision],
   );
 
   if (loading) {
@@ -809,6 +837,22 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           </div>
         }
       />
+      <ConfirmationModal
+        isOpen={approvalWithoutOfferingRow !== null}
+        onClose={() => setApprovalWithoutOfferingRow(null)}
+        onConfirm={() => {
+          const row = approvalWithoutOfferingRow;
+          setApprovalWithoutOfferingRow(null);
+          if (row !== null) void handleQuickDecision(row, "approved");
+        }}
+        title="Anmeldung bestätigen"
+        confirmText="Trotzdem bestätigen"
+      >
+        <Alert
+          type="warning"
+          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+        />
+      </ConfirmationModal>
     </div>
   );
 }

@@ -60,14 +60,18 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	child.ActivationMode = "auto"
 
 	in := &enrollmentService.RequestSummary{
-		Request:  req,
-		Phase:    &enrollmentModels.Phase{Name: "Schuljahr 2026/27"},
+		Request: req,
+		Phase: &enrollmentModels.Phase{
+			Name:                      "Schuljahr 2026/27",
+			CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+		},
 		Children: []*enrollmentModels.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
 	assert.Equal(t, "5678", out.PhaseID)
 	assert.Equal(t, "Schuljahr 2026/27", out.PhaseName)
+	assert.Equal(t, enrollmentModels.PhaseCareOfferingSelectionOptional, out.CareOfferingSelectionMode)
 	assert.Equal(t, "anna@example.test", out.GuardianEmail)
 	require.NotNil(t, out.GuardianPhone)
 	assert.Equal(t, phone, *out.GuardianPhone)

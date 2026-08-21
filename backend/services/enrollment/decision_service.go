@@ -1216,6 +1216,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	if input.Status == DecisionApproved {
+		if err := s.validateApprovalOfferingSelection(ctx, target, phase); err != nil {
+			return nil, err
+		}
+	}
 
 	reason := strings.TrimSpace(input.Reason)
 	var reasonPtr *string
@@ -1305,6 +1310,54 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = target
 	return outcome, nil
+}
+
+func (s *decisionService) validateApprovalOfferingSelection(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx,
+		child.ID,
+		phase.ServiceStartDate,
+	)
+	if err != nil {
+		return fmt.Errorf("decision: validate child offerings: %w", err)
+	}
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	choosableCount := 0
+	for _, offering := range offerings {
+		if offering != nil && offering.PhaseID == phase.ID && !offering.IsRequired {
+			choosableCount++
+		}
+	}
+	switch phase.CareOfferingSelectionMode {
+	case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		if choosableCount == 0 {
+			return ErrCareOfferingMissing
+		}
+	case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		if choosableCount != 1 {
+			return ErrCareOfferingExactlyOneRequired
+		}
+	}
+	return nil
 }
 
 func isParentVisibleDecision(status DecisionStatus) bool {
