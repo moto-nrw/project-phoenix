@@ -50,6 +50,13 @@ export interface StaffOfferingRequest {
   readonly status: OfferingRequestStatus;
   /** Date the switch would take effect (YYYY-MM-DD). */
   readonly effective_from: string;
+  /**
+   * Range staff may confirm the switch for (YYYY-MM-DD, #2484). Absent when the
+   * backend could not resolve the care period; the date field is then unbounded
+   * and the decision validates alone.
+   */
+  readonly earliest_effective_from?: string;
+  readonly latest_effective_from?: string;
   readonly note?: string;
   readonly diff: readonly OfferingRequestDiffLine[];
   /** Bookings this request does not touch, for the complete after picture. */
@@ -128,6 +135,7 @@ export async function decideOfferingChangeRequest(
   approve: boolean,
   reason?: string,
   excludedOfferingIds?: readonly string[],
+  effectiveFrom?: string,
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -138,6 +146,7 @@ export async function decideOfferingChangeRequest(
         approve,
         reason: reason ?? "",
         excluded_offering_ids: excludedOfferingIds,
+        effective_from: effectiveFrom,
       }),
     },
   );
@@ -153,6 +162,7 @@ export async function decideOfferingChangeRequest(
 export async function previewOfferingChangeRequest(
   requestId: string,
   excludedOfferingIds: readonly string[],
+  effectiveFrom?: string,
 ): Promise<OfferingRequestPreview> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/preview`,
@@ -161,6 +171,7 @@ export async function previewOfferingChangeRequest(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         excluded_offering_ids: excludedOfferingIds,
+        effective_from: effectiveFrom,
       }),
     },
   );

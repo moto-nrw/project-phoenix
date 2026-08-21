@@ -7,7 +7,8 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
-import { formatDate } from "~/lib/date-helpers";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -33,8 +34,25 @@ function decideErrorMessage(code: string | undefined): string {
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
     case "offering_changes_no_enrollment":
       return "Für dieses Kind liegt keine gültige Anmeldung mehr vor, auf die die Änderung angewendet werden könnte. Bitte die Anfrage ablehnen.";
+    case "offering_change_date_out_of_range":
+      return "Zu diesem Datum kann die Änderung nicht gelten. Bitte ein Datum innerhalb der Betreuungszeit wählen, frühestens heute.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
+  }
+}
+
+// Eine Vorschau speichert nichts. Was sie meldet, ist trotzdem der Grund, aus
+// dem die Freigabe scheitern würde — bekannte Gründe stehen deshalb im Klartext
+// an der Karte, alles andere bleibt ein Hinweis auf die Vorschau selbst.
+function previewErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case "offering_change_capacity_full":
+    case "offering_change_date_out_of_range":
+    case "change_request_not_pending":
+    case "offering_changes_no_enrollment":
+      return decideErrorMessage(code);
+    default:
+      return "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.";
   }
 }
 
@@ -95,6 +113,12 @@ export function OfferingRequestReviewItem({
   const [preview, setPreview] = useState<
     readonly OfferingRequestPreviewSelection[] | undefined
   >(undefined);
+  // Das Datum, ab dem die Umstellung gilt (#2484). Vorbelegt mit dem Wunsch der
+  // Eltern; die OGS entscheidet, ob es dabei bleibt.
+  const [effectiveFrom, setEffectiveFrom] = useState(row.effective_from);
+  // Gesetzt, wenn die Vorschau zum gewählten Datum nicht aufgeht. Freigeben ist
+  // dann gesperrt, Ablehnen bleibt möglich.
+  const [dateBlocked, setDateBlocked] = useState(false);
 
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
@@ -106,23 +130,16 @@ export function OfferingRequestReviewItem({
     setError(null);
     const excludedIds = approve ? excluded : [];
     try {
-      if (excludedIds.length > 0) {
-        await decideOfferingChangeRequest(
-          row.id,
-          approve,
-          trimmed || undefined,
-          excludedIds,
-        );
-      } else {
-        await decideOfferingChangeRequest(
-          row.id,
-          approve,
-          trimmed || undefined,
-        );
-      }
+      await decideOfferingChangeRequest(
+        row.id,
+        approve,
+        trimmed || undefined,
+        excludedIds,
+        approve ? effectiveFrom : undefined,
+      );
       onDecided(
         approve
-          ? `Änderung übernommen, gültig ab ${formatDate(row.effective_from)}`
+          ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}`
           : "Angebots-Anfrage abgelehnt",
       );
     } catch (err) {
@@ -139,31 +156,60 @@ export function OfferingRequestReviewItem({
     }
   };
 
-  const toggleExcluded = async (offeringId: string) => {
-    const next = excluded.includes(offeringId)
-      ? excluded.filter((id) => id !== offeringId)
-      : [...excluded, offeringId];
+  // Vorschau für die aktuelle Abwahl UND das aktuelle Datum: beides verändert,
+  // was die Freigabe tatsächlich bucht (#2370, #2484). Meldet, ob die Vorschau
+  // aufging — der Aufrufer entscheidet, was er dann übernimmt.
+  const loadPreview = async (
+    nextExcluded: readonly string[],
+    nextDate: string,
+  ): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
       const nextPreview =
-        next.length > 0
-          ? await previewOfferingChangeRequest(row.id, next)
+        nextExcluded.length > 0 || nextDate !== row.effective_from
+          ? await previewOfferingChangeRequest(row.id, nextExcluded, nextDate)
           : undefined;
-      setExcluded(next);
       setPreview(nextPreview?.selections);
+      setDateBlocked(false);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const code =
+        err instanceof OfferingRequestApiError ? err.code : undefined;
       logger.warn("offering_request_review_preview_failed", {
         error: message,
         request_id: row.id,
+        ...(code ? { code } : {}),
       });
-      setError(
-        "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
-      );
+      // Was die Vorschau meldet, meldet die Freigabe genauso: sie bleibt
+      // gesperrt, bis Datum oder Auswahl passen.
+      setDateBlocked(true);
+      setError(previewErrorMessage(code));
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggleExcluded = async (offeringId: string) => {
+    const next = excluded.includes(offeringId)
+      ? excluded.filter((id) => id !== offeringId)
+      : [...excluded, offeringId];
+    // Nur übernehmen, wenn die Vorschau aufging: sonst stünde in der Karte eine
+    // Abwahl, deren Folgen niemand berechnet hat (#2370).
+    if (await loadPreview(next, effectiveFrom)) {
+      setExcluded(next);
+    }
+  };
+
+  const chooseDate = async (iso: string) => {
+    if (iso === "" || iso === effectiveFrom) return;
+    // Das gewählte Datum bleibt stehen, auch wenn es nicht aufgeht: sonst
+    // springt das Feld zurück und die Meldung hat keinen Bezug mehr. Freigeben
+    // ist so lange gesperrt.
+    setEffectiveFrom(iso);
+    await loadPreview(excluded, iso);
   };
 
   const unchanged = row.unchanged ?? [];
@@ -185,7 +231,7 @@ export function OfferingRequestReviewItem({
     <RequestReviewCard
       type="offering"
       childName={row.student_name}
-      summary={`ab ${formatDate(row.effective_from)}`}
+      summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (
           <StatusBadge tone="red" label="Komplett-Abmeldung" />
@@ -204,6 +250,7 @@ export function OfferingRequestReviewItem({
           : undefined
       }
       busy={busy}
+      approveDisabled={dateBlocked}
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
@@ -316,6 +363,33 @@ export function OfferingRequestReviewItem({
           </p>
         )}
       </ReviewDiffPanel>
+      <div className="mt-3">
+        <label
+          htmlFor={`gueltig-ab-${row.id}`}
+          className="mb-2 block text-sm font-medium text-gray-700"
+        >
+          Gültig ab
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <ISODatePicker
+            id={`gueltig-ab-${row.id}`}
+            ariaLabel="Gültig ab"
+            value={effectiveFrom}
+            onChange={(iso) => void chooseDate(iso)}
+            min={row.earliest_effective_from}
+            max={row.latest_effective_from}
+            required
+            hideClearButton
+            controlSize="md"
+            disabled={busy}
+            invalid={dateBlocked}
+            className="w-44"
+          />
+          <span className="text-sm text-gray-600">
+            KW {isoWeekNumber(effectiveFrom)}
+          </span>
+        </div>
+      </div>
       <div className="mt-3 rounded-lg bg-gray-50 p-3">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Nach dem Freigeben bitte prüfen

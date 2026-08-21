@@ -776,3 +776,220 @@ func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *test
 	require.NoError(t, err)
 	assert.Nil(t, view, "a guardian's own withdrawal needs no status message")
 }
+
+// The school confirms the date the switch takes effect on (#2484). Parents pick
+// a wish, the office decides — and what the office confirmed is what applies
+// and what every later view reports.
+func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "ConfirmDate")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := fx.switchDate.AddDays(7)
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	}))
+
+	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, confirmed, decided.EffectiveFrom,
+		"the request must record the date the office confirmed, not the parents' wish")
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
+	byGroup := map[int64]activitiesModels.StudentEnrollment{}
+	for _, enrollment := range rows {
+		byGroup[enrollment.ActivityGroupID] = enrollment
+	}
+	oldRow, ok := byGroup[fx.oldGroupID]
+	require.True(t, ok, "the attended group must survive as history")
+	require.NotNil(t, oldRow.ValidUntil)
+	assert.Equal(t, confirmed, *oldRow.ValidUntil)
+	newRow, ok := byGroup[fx.newGroupID]
+	require.True(t, ok, "the requested group must be materialized")
+	assert.Equal(t, confirmed, newRow.ValidFrom)
+}
+
+// A confirmed date before today would rewrite weeks that already happened.
+// Refused outright: a silent shift to today would hand the office a different
+// switch than the one it confirmed.
+func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeToday(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PastDate")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := timezone.TodayDate().AddDays(-1)
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
+
+	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status,
+		"a refused date leaves the request open")
+}
+
+// The switch cannot start after the care period it belongs to has ended.
+func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateAfterTheCarePeriod(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "AfterPeriod")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := env.sourcePhase.ServiceEndDate.AddDays(1)
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       true,
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
+
+	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+}
+
+// Nothing takes effect on a rejection, so a date on one is a caller mistake.
+func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateOnARejection(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "RejectDate")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := fx.switchDate
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:     row.ID,
+		Approve:       false,
+		Reason:        "Kein Platz",
+		ReviewedBy:    env.creatorID,
+		EffectiveFrom: &confirmed,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+}
+
+// The card bounds its date field from the queue, so staff cannot pick a date
+// the approval would refuse.
+func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "DateRange")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	pending, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
+	require.NoError(t, err)
+	var queued *enrollmentService.OfferingChangeView
+	for _, view := range pending {
+		if view.Request != nil && view.Request.ID == row.ID {
+			queued = view
+		}
+	}
+	require.NotNil(t, queued)
+	earliest := env.sourcePhase.ServiceStartDate
+	if today := timezone.TodayDate(); earliest.Before(today) {
+		earliest = today
+	}
+	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,
+		"the office may switch from today, but never before the care period starts")
+	assert.Equal(t, env.sourcePhase.ServiceEndDate, queued.LatestEffectiveFrom)
+}
+
+// The preview is what the office decides from. A date the approval would refuse
+// must fail here too, or the card offers a switch that cannot happen.
+func TestOfferingChangeRequestService_PreviewDecision_RefusesADateOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PreviewRange")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	confirmed := timezone.TodayDate().AddDays(-1)
+	_, err = svc.PreviewDecision(ctx, row.ID, nil, &confirmed)
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
+}

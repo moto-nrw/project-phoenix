@@ -249,6 +249,21 @@ describe("parentEventI18nDescriptor", () => {
     ).toEqual({ key: "eventRequestConfirmedCareOffering" });
   });
 
+  it("names the confirmed date of a care-offering approval (#2484)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "care_offering",
+        payload: { effective_from: "2026-09-01" },
+      }),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "01.09.2026" },
+    });
+  });
+
   it("returns null for sick_note / care_exception pills so the raw German body renders (#1803)", () => {
     for (const eventType of [
       "sick_note",

@@ -1354,7 +1354,8 @@
     "eventRequestRejectedReason": "Запрос отклонён: {reason}",
     "eventRequestWithdrawn": "Запрос отозван",
     "eventRequestCreatedCareOffering": "Запрошено изменение забронированного ухода",
-    "eventRequestConfirmedCareOffering": "Запрос подтверждён, забронированный уход будет изменён"
+    "eventRequestConfirmedCareOffering": "Запрос подтверждён, забронированный уход будет изменён",
+    "eventRequestConfirmedCareOfferingDated": "Запрос подтверждён, забронированный уход будет изменён с {date}"
   },
   "parentFeedback": {
     "kicker": "Обратная связь",

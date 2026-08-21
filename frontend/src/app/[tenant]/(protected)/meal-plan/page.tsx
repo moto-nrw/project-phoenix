@@ -22,7 +22,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useToast } from "~/contexts/ToastContext";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { isoWeekNumber, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getMealPlanWeek,
@@ -75,24 +75,6 @@ function shortDateWithYear(iso: string): string {
     month: "2-digit",
     year: "numeric",
   });
-}
-
-// ISO-8601 calendar week number (Mon-based, week 1 contains the first Thursday).
-function isoWeek(iso: string): number {
-  const date = parseISODate(iso);
-  date.setHours(0, 0, 0, 0);
-  // Thursday of the current week decides the year/week.
-  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
-  const week1 = new Date(date.getFullYear(), 0, 4);
-  return (
-    1 +
-    Math.round(
-      ((date.getTime() - week1.getTime()) / 86_400_000 -
-        3 +
-        ((week1.getDay() + 6) % 7)) /
-        7,
-    )
-  );
 }
 
 // Normalised, comparable form of a day: blank dishes dropped, fields trimmed.
@@ -441,7 +423,7 @@ export default function MealPlanPage() {
     }
   };
 
-  const weekNumber = isoWeek(mondayISO);
+  const weekNumber = isoWeekNumber(mondayISO);
   // A work week can straddle New Year (e.g. 28.12.2026 – 01.01.2027). Only
   // append a single trailing year when both endpoints share it; otherwise label
   // each endpoint with its own year so the range is unambiguous.

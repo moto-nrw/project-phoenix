@@ -1354,7 +1354,8 @@
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",
     "eventRequestCreatedCareOffering": "Care offering change requested",
-    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched"
+    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched",
+    "eventRequestConfirmedCareOfferingDated": "Request confirmed, care offerings will be switched from {date}"
   },
   "parentFeedback": {
     "kicker": "Feedback",

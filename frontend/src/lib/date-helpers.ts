@@ -81,6 +81,28 @@ export function parseISODate(s: string): Date {
  * this before feeding untrusted input (URL params, legacy deep links) into
  * parseISODate.
  */
+/**
+ * ISO-8601 calendar week number of a "YYYY-MM-DD" date (Mon-based; week 1 is
+ * the week holding the first Thursday). Schools plan in calendar weeks, so a
+ * date field that decides a school week shows its KW beside the date.
+ */
+export function isoWeekNumber(s: string): number {
+  const date = parseISODate(s);
+  date.setHours(0, 0, 0, 0);
+  // Thursday of the current week decides the year and the week.
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86_400_000 -
+        3 +
+        ((week1.getDay() + 6) % 7)) /
+        7,
+    )
+  );
+}
+
 export function isValidISODate(s: string): boolean {
   return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
 }

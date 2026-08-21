@@ -1354,7 +1354,8 @@
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "eventRequestCreatedCareOffering": "U kërkua ndryshimi i kujdesit të rezervuar",
-    "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet"
+    "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet",
+    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}"
   },
   "parentFeedback": {
     "kicker": "Reagim",

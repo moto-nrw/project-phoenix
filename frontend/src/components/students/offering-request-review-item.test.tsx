@@ -11,6 +11,13 @@ import {
 
 // Mock only the network functions; keep the real error class so the
 // component's `err instanceof OfferingRequestApiError` branch resolves.
+// Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
+// Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
 vi.mock("~/lib/offering-request-review-api", async (importActual) => {
   const actual =
     await importActual<typeof import("~/lib/offering-request-review-api")>();
@@ -79,7 +86,13 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-02-01",
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith(
       "Änderung übernommen, gültig ab 01.02.2027",
@@ -111,7 +124,13 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        false,
+        "Kein Bedarf",
+        [],
+        undefined,
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith("Angebots-Anfrage abgelehnt");
   });
@@ -297,11 +316,19 @@ describe("OfferingRequestReviewItem", () => {
         name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
       }),
     );
-    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", ["9"], "2027-02-01"),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined, ["9"]),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        ["9"],
+        "2027-02-01",
+      ),
     );
   });
 
@@ -317,7 +344,9 @@ describe("OfferingRequestReviewItem", () => {
         name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
       }),
     );
-    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", ["9"], "2027-02-01"),
+    );
     fireEvent.change(
       screen.getByPlaceholderText("Begründung (Pflicht bei Ablehnung)"),
       { target: { value: "Kein Bedarf" } },
@@ -325,7 +354,13 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        false,
+        "Kein Bedarf",
+        [],
+        undefined,
+      ),
     );
   });
 
@@ -529,5 +564,84 @@ describe("OfferingRequestReviewItem", () => {
       expect(screen.getByText("Zuordnung im Stundenplan")).toBeInTheDocument();
       expect(screen.getByText("Listen und Ausdrucke")).toBeInTheDocument();
     });
+  });
+});
+
+// Gültigkeitsdatum bei der Freigabe (#2484): Die Schule bestätigt, ab wann die
+// Umstellung gilt — vorbelegt mit dem Wunsch der Eltern.
+describe("OfferingRequestReviewItem — Gültig ab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPreview.mockResolvedValue({ selections: [] });
+  });
+
+  it("prefills the parents' date and names its calendar week", () => {
+    renderItem();
+
+    expect(screen.getByLabelText("Gültig ab")).toHaveValue("2027-02-01");
+    expect(screen.getByText("KW 5")).toBeInTheDocument();
+  });
+
+  it("bounds the field to the range the backend reports", () => {
+    renderItem(
+      request({
+        earliest_effective_from: "2026-08-21",
+        latest_effective_from: "2027-07-31",
+      }),
+    );
+
+    const field = screen.getByLabelText("Gültig ab");
+    expect(field).toHaveAttribute("min", "2026-08-21");
+    expect(field).toHaveAttribute("max", "2027-07-31");
+  });
+
+  it("approves with the date the office confirmed, not the parents' wish", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-03-01"),
+    );
+    expect(screen.getByText("KW 9")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-03-01",
+      ),
+    );
+    expect(onDecided).toHaveBeenCalledWith(
+      "Änderung übernommen, gültig ab 01.03.2027",
+    );
+  });
+
+  it("blocks the approval while the chosen date does not work out", async () => {
+    mockPreview.mockRejectedValue(
+      new OfferingRequestApiError("range", "offering_change_date_out_of_range"),
+    );
+    renderItem();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2020-01-06" },
+    });
+
+    expect(
+      await screen.findByText(/Zu diesem Datum kann die Änderung nicht gelten/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Freigeben/ })).toBeDisabled();
+    // Ablehnen bleibt möglich: eine so nicht umsetzbare Anfrage muss aus der
+    // Liste kommen können.
+    expect(screen.getByRole("button", { name: /Ablehnen/ })).toBeEnabled();
+    expect(mockDecide).not.toHaveBeenCalled();
   });
 });

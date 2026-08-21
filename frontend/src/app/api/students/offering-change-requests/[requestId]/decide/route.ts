@@ -6,6 +6,8 @@ interface DecideBody {
   reason?: string;
   /** Rule-added offerings staff unticked for this one approval (#2370). */
   excluded_offering_ids?: string[];
+  /** Date staff confirmed the switch takes effect on (#2484). */
+  effective_from?: string;
 }
 
 interface BackendEnvelope<T> {

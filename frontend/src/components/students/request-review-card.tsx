@@ -182,6 +182,7 @@ export function RequestReviewCard({
   reasonPlaceholder,
   reasonError,
   busy,
+  approveDisabled,
   onApprove,
   onReject,
 }: Readonly<{
@@ -213,6 +214,12 @@ export function RequestReviewCard({
   reasonPlaceholder?: string;
   reasonError?: string;
   busy?: boolean;
+  /**
+   * Sperrt allein „Freigeben", etwa solange das gewählte Gültigkeitsdatum nicht
+   * anwendbar ist (#2484). Ablehnen bleibt möglich: eine Anfrage, die so nicht
+   * umsetzbar ist, muss abgelehnt werden können.
+   */
+  approveDisabled?: boolean;
   onApprove?: () => void;
   onReject?: () => void;
 }>) {
@@ -380,7 +387,7 @@ export function RequestReviewCard({
                 type="button"
                 variant="primary"
                 size="md"
-                disabled={busy}
+                disabled={busy === true || approveDisabled === true}
                 onClick={onApprove}
               >
                 Freigeben

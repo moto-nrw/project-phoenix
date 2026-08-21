@@ -1354,7 +1354,8 @@
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "eventRequestCreatedCareOffering": "Anfrage zur gebuchten Betreuung gestellt",
-    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt"
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt",
+    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt"
   },
   "parentFeedback": {
     "kicker": "Rückmeldung",
