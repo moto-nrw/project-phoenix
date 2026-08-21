@@ -184,10 +184,19 @@ an der OGS-Betreuung teilnimmt. Ab dem Folgetag ist seine Betreuung beendet.
 Eine **beendete OGS-Betreuung** bleibt für berechtigte Personen außerhalb der
 laufenden Arbeitslisten auffindbar. Ihr Austritt kann korrigiert oder
 zurückgenommen werden; das ist keine Wiederherstellung gelöschter Daten.
+Eltern sehen vergangene Inhalte dazu nur noch lesend.
+
+Eine **Wiederaufnahme** beginnt die OGS-Betreuung eines ausgetretenen Kindes
+neu. Sie behält seine Stammdaten, übernimmt aber keine früheren Wochenpläne,
+Angebote oder Gruppen ungeprüft.
 
 Der **Austrittsgrund** ordnet ein Ende als Umzug, entfallenen Betreuungsbedarf
 oder anderen Grund ein. Nur der andere Grund wird durch einen kurzen Freitext
 erläutert.
+
+Ein **Jahrgangs-Abgang** beendet die OGS-Zugehörigkeit im Rahmen eines
+Jahrgangswechsels. Er bleibt von einem einzelnen Austritt getrennt, weil der
+gesamte Jahrgangswechsel gemeinsam zurückgesetzt werden kann.
 
 ## Regelmäßiger Wochenplan
 
