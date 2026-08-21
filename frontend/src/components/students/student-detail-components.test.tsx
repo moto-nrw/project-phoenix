@@ -1007,6 +1007,13 @@ describe("StudentHistorySection", () => {
     ).toBeDisabled();
   });
 
+  it("renders meal history button as disabled", () => {
+    render(<StudentHistorySection {...defaultProps} />);
+    expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
+    expect(screen.getByText("Mahlzeiten und Bestellungen")).toBeInTheDocument();
+    expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
+  });
+
   it("disables change history without supervisor access", () => {
     render(
       <StudentHistorySection {...defaultProps} canViewChangeHistory={false} />,

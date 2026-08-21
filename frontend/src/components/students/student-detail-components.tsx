@@ -1082,6 +1082,12 @@ export function StudentHistorySection({
           }
         />
         <HistoryButton
+          concept="mealPlan"
+          title="Mensaverlauf"
+          description="Mahlzeiten und Bestellungen"
+          disabled
+        />
+        <HistoryButton
           concept="changeHistory"
           title="Änderungsverlauf"
           description={
