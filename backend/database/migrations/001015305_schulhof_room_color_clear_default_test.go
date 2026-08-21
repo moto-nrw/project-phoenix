@@ -72,7 +72,6 @@ func TestSchulhofRoomColorClearDefault(t *testing.T) {
 	newTenant := func() int64 {
 		t.Helper()
 		id, _ := testpkg.CreateTestTenant(t, db)
-		t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, id) })
 		return id
 	}
 

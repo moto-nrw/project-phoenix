@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -106,7 +107,9 @@ func init() {
 // The original values go into audit.room_color_migration_backup, same table
 // and same shape as 1.15.45 / 1.15.272.
 func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.305: Backing up + clearing the auto-provisioned Schulhof room color...")
+	slog.InfoContext(ctx, "clearing auto-provisioned yard room color",
+		"migration_version", schulhofRoomColorClearDefaultVersion,
+	)
 
 	// 1.15.45 creates this table, and DependsOn pins that ordering. Recreating
 	// it defensively costs nothing and keeps this migration runnable against a
@@ -141,7 +144,10 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
 	if backed, raErr := backupRes.RowsAffected(); raErr == nil && backed > 0 {
-		fmt.Printf("Migration 1.15.305: backed up %d Schulhof room(s) into audit.room_color_migration_backup before clearing\n", backed)
+		slog.InfoContext(ctx, "backed up auto-provisioned yard room colors",
+			"migration_version", schulhofRoomColorClearDefaultVersion,
+			"room_count", backed,
+		)
 	}
 
 	res, err := db.NewRaw(`
@@ -152,7 +158,10 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed clearing the auto-provisioned Schulhof room color: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.305: cleared the auto-provisioned color from %d Schulhof room(s) (audit.room_color_migration_backup retains the original values)\n", affected)
+		slog.InfoContext(ctx, "cleared auto-provisioned yard room colors",
+			"migration_version", schulhofRoomColorClearDefaultVersion,
+			"room_count", affected,
+		)
 	}
 
 	return nil
@@ -170,7 +179,9 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 //	FROM audit.room_color_migration_backup b
 //	WHERE r.id = b.room_id
 //	  AND r.color IS NULL;
-func schulhofRoomColorClearDefaultDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.305: the cleared Schulhof color is NOT auto-restored — see audit.room_color_migration_backup")
+func schulhofRoomColorClearDefaultDown(ctx context.Context, _ *bun.DB) error {
+	slog.InfoContext(ctx, "migration rollback leaves cleared yard room colors unchanged",
+		"migration_version", schulhofRoomColorClearDefaultVersion,
+	)
 	return nil
 }
