@@ -703,7 +703,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Angebote, die eine Mitbuchungs-Regel ergänzt, tragen die Markierung `Automatisch mitgebucht` und nennen das Angebot, das die Mitbuchung auslöst. So erkennen Sie, was die Eltern selbst gewählt haben. Über den Haken `Automatisch mitbuchen` können Sie ein solches Angebot für genau diese Anfrage abwählen; die Regel bleibt für alle anderen Anfragen eingeschaltet.",
           "Bei Betreuungsangeboten steht unter den Änderungen `Bleibt gebucht`: die Angebote, die diese Anfrage nicht anfasst. So sehen Sie vor der Entscheidung, was das Kind danach insgesamt gebucht hat.",
           "Meldet eine Anfrage das Kind von allen Angeboten ab, steht `Komplett-Abmeldung` schon in der zugeklappten Zeile, und in der Karte erscheint eine rote Warnung mit dem Namen des Kindes. Bitte vor dem Freigeben mit der Familie klären.",
-          "Unter jeder Angebots-Anfrage steht `Nach dem Freigeben bitte prüfen`: Gehzeiten des Kindes, Zuordnung im Stundenplan sowie Listen und Ausdrucke. Diese Punkte passt die App nicht automatisch mit an.",
+          "Nach dem Freigeben einer Angebots-Anfrage erinnert die Meldung oben an drei Punkte, die die App nicht automatisch mit anpasst: Gehzeiten des Kindes, Zuordnung im Stundenplan sowie Listen und Ausdrucke.",
           "Mit `Freigeben` wird der neue Wert übernommen.",
           "Freigegebene Betreuungszeiten ändern den Wochenplan des Kindes.",
           "Eine Abwesenheit gilt dann als `Krank` oder `Entschuldigt`.",

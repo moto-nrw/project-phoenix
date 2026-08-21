@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useToast } from "~/contexts/ToastContext";
 import {
   ExcusedRequestApiError,
   type StaffExcusedRequest,
@@ -77,10 +77,10 @@ export function ExcusedRequestReviewItem({
   row: StaffExcusedRequest;
   onDecided: (notice: string) => void;
 }>) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
@@ -91,7 +91,6 @@ export function ExcusedRequestReviewItem({
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       await decideExcusedAbsenceRequest(row.id, approve, trimmed || undefined);
       onDecided(
@@ -107,7 +106,7 @@ export function ExcusedRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      setError(decideErrorMessage(code));
+      toast.error(decideErrorMessage(code), { duration: 8000 });
       setBusy(false);
     }
   };
@@ -134,11 +133,6 @@ export function ExcusedRequestReviewItem({
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
-      {error && (
-        <div className="mb-2">
-          <Alert type="error" message={error} />
-        </div>
-      )}
       <ReviewDiffPanel title="Änderungen">
         <div className="text-sm">
           <span className="text-xs text-gray-500">Tage: </span>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -10,6 +9,7 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { CONTACT_METHODS, LANGUAGE_PREFERENCES } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
+import { useToast } from "~/contexts/ToastContext";
 import {
   type StaffMasterDataChange,
   decideMasterDataChangeRequest,
@@ -115,13 +115,12 @@ export function MasterDataReviewItem({
   row: StaffMasterDataChange;
   onDecided: (notice: string) => void;
 }>) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const decide = async (approve: boolean) => {
     setBusy(true);
-    setError(null);
     try {
       await decideMasterDataChangeRequest(
         row.id,
@@ -135,7 +134,9 @@ export function MasterDataReviewItem({
         error: message,
         request_id: row.id,
       });
-      setError("Die Entscheidung konnte nicht gespeichert werden.");
+      toast.error("Die Entscheidung konnte nicht gespeichert werden.", {
+        duration: 8000,
+      });
       setBusy(false);
     }
   };
@@ -153,11 +154,6 @@ export function MasterDataReviewItem({
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
-      {error && (
-        <div className="mb-2">
-          <Alert type="error" message={error} />
-        </div>
-      )}
       <ReviewDiffPanel title="Änderungen">
         {/* Field name lives in the collapsed summary; the expanded panel
             shows only the value change. */}

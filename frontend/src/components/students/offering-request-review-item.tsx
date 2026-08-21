@@ -10,6 +10,7 @@ import {
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useToast } from "~/contexts/ToastContext";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -56,6 +57,30 @@ function decideErrorMessage(
       return fallback;
   }
 }
+
+// Kurzform des Grundes. Sie bleibt an der Karte stehen, solange „Freigeben"
+// gesperrt ist — ein ausgegrauter Knopf ohne Grund ist eine Sackgasse. Der
+// vollständige Text mit dem nächsten Schritt läuft als Toast.
+function blockedReason(code: string | undefined): string {
+  switch (code) {
+    case "offering_change_capacity_full":
+      return "Zu diesem Datum ist ein Angebot voll.";
+    case "offering_change_date_out_of_range":
+      return "Zu diesem Datum kann die Änderung nicht gelten.";
+    case "offering_changes_no_enrollment":
+      return "Für dieses Kind liegt keine gültige Anmeldung mehr vor.";
+    case "change_request_not_pending":
+      return "Diese Anfrage wurde bereits entschieden.";
+    default:
+      return "Mit diesem Datum ist keine Freigabe möglich.";
+  }
+}
+
+// Die Freigabe passt drei Dinge NICHT mit an. Der Hinweis gehört an die
+// Erfolgsmeldung, nicht als Dauer-Kasten in jede offene Anfrage: vor der
+// Entscheidung ist er nichts, was jemand tun kann (#2484).
+const AFTER_APPROVAL_HINT =
+  "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.";
 
 // joinNames renders trigger names as „A“ und „B“ for the explanation line.
 function joinNames(names: readonly string[]): string {
@@ -105,10 +130,10 @@ export function OfferingRequestReviewItem({
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
 }>) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Rule-added offerings the reviewer unticked for this request (#2370).
   const [excluded, setExcluded] = useState<readonly string[]>([]);
   const [preview, setPreview] = useState<
@@ -117,9 +142,9 @@ export function OfferingRequestReviewItem({
   // Das Datum, ab dem die Umstellung gilt (#2484). Vorbelegt mit dem Wunsch der
   // Eltern; die OGS entscheidet, ob es dabei bleibt.
   const [effectiveFrom, setEffectiveFrom] = useState(row.effective_from);
-  // Gesetzt, wenn die Vorschau zum gewählten Datum nicht aufgeht. Freigeben ist
-  // dann gesperrt, Ablehnen bleibt möglich.
-  const [dateBlocked, setDateBlocked] = useState(false);
+  // Gesetzt, wenn die Vorschau zum gewählten Datum nicht aufgeht: der Grund in
+  // Kurzform. Freigeben ist dann gesperrt, Ablehnen bleibt möglich.
+  const [blocked, setBlocked] = useState<string | null>(null);
   // Solange aus, steht das Datum der Anfrage nur da. Wer es verschieben will,
   // sagt das erst — so verstellt niemand im Vorbeigehen, wann die Umstellung
   // greift (#2484).
@@ -132,7 +157,6 @@ export function OfferingRequestReviewItem({
       return;
     }
     setBusy(true);
-    setError(null);
     const excludedIds = approve ? excluded : [];
     try {
       await decideOfferingChangeRequest(
@@ -144,7 +168,7 @@ export function OfferingRequestReviewItem({
       );
       onDecided(
         approve
-          ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}`
+          ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. ${AFTER_APPROVAL_HINT}`
           : "Angebots-Anfrage abgelehnt",
       );
     } catch (err) {
@@ -156,7 +180,7 @@ export function OfferingRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      setError(decideErrorMessage(code));
+      toast.error(decideErrorMessage(code), { duration: 8000 });
       setBusy(false);
     }
   };
@@ -169,14 +193,13 @@ export function OfferingRequestReviewItem({
     nextDate: string,
   ): Promise<boolean> => {
     setBusy(true);
-    setError(null);
     try {
       const nextPreview =
         nextExcluded.length > 0 || nextDate !== row.effective_from
           ? await previewOfferingChangeRequest(row.id, nextExcluded, nextDate)
           : undefined;
       setPreview(nextPreview?.selections);
-      setDateBlocked(false);
+      setBlocked(null);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -190,12 +213,13 @@ export function OfferingRequestReviewItem({
       // Nur ein echter Konflikt sperrt die Freigabe: er besteht fort, bis Datum
       // oder Auswahl geändert sind. Ein Netz- oder Serverfehler ist gleich
       // wieder weg — die Karte muss dann bedienbar bleiben.
-      setDateBlocked(CONFLICT_CODES.has(code ?? ""));
-      setError(
+      setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
+      toast.error(
         decideErrorMessage(
           code,
           "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
         ),
+        { duration: 8000 },
       );
       return false;
     } finally {
@@ -293,15 +317,10 @@ export function OfferingRequestReviewItem({
           : undefined
       }
       busy={busy}
-      approveDisabled={dateBlocked}
+      approveDisabled={blocked !== null}
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
-      {error && (
-        <div className="mb-2">
-          <Alert type="error" message={error} />
-        </div>
-      )}
       {fullWithdrawal && (
         <div className="mt-3">
           <Alert
@@ -430,7 +449,7 @@ export function OfferingRequestReviewItem({
                 hideClearButton
                 controlSize="md"
                 disabled={busy}
-                invalid={dateBlocked}
+                invalid={blocked !== null}
                 className="w-full"
               />
               <p className="text-sm text-gray-700">
@@ -448,6 +467,11 @@ export function OfferingRequestReviewItem({
               </span>
             </p>
           )}
+          {blocked && (
+            <p className="text-moto-red-strong text-xs">
+              {blocked} Freigeben ist gesperrt.
+            </p>
+          )}
           <p className="text-xs text-gray-500">{dateOrigin}</p>
           <label
             htmlFor={`datum-aendern-${row.id}`}
@@ -462,16 +486,6 @@ export function OfferingRequestReviewItem({
             Anderes Datum wählen
           </label>
         </div>
-      </div>
-      <div className="mt-3 rounded-lg bg-gray-50 p-3">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Nach dem Freigeben bitte prüfen
-        </p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
-          <li>Gehzeiten des Kindes</li>
-          <li>Zuordnung im Stundenplan</li>
-          <li>Listen und Ausdrucke</li>
-        </ul>
       </div>
     </RequestReviewCard>
   );

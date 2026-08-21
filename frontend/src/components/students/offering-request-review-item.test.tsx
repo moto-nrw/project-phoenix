@@ -1,6 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => mockToast,
+}));
+
+// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+async function expectErrorToast(pattern: RegExp) {
+  await waitFor(() =>
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringMatching(pattern),
+      expect.anything(),
+    ),
+  );
+}
+
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
   OfferingRequestApiError,
@@ -95,7 +116,7 @@ describe("OfferingRequestReviewItem", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.02.2027",
+      "Änderung übernommen, gültig ab 01.02.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
     );
   });
 
@@ -144,7 +165,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(await screen.findByText(/kein Platz mehr frei/)).toBeInTheDocument();
+    await expectErrorToast(/kein Platz mehr frei/);
     // The card survives a failed approval: the switch was not applied.
     expect(screen.getByText(/Lara Beispiel/)).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
@@ -158,9 +179,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(/bereits entschieden oder von den Eltern/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/bereits entschieden oder von den Eltern/);
   });
 
   it("explains a missing enrollment", async () => {
@@ -171,9 +190,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(/keine gültige Anmeldung mehr vor/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/keine gültige Anmeldung mehr vor/);
   });
 
   it("falls back to a generic message for unknown decide errors", async () => {
@@ -182,11 +199,9 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(
-        "Die Entscheidung konnte nicht gespeichert werden.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Entscheidung konnte nicht gespeichert werden\./,
+    );
   });
 
   it("shows the parent note when one was added", () => {
@@ -490,11 +505,9 @@ describe("OfferingRequestReviewItem", () => {
       }),
     );
 
-    expect(
-      await screen.findByText(
-        "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Vorschau konnte nicht aktualisiert werden\. Bitte versuchen Sie es noch einmal\./,
+    );
     // The opt-out did not take effect: the hint is still shown.
     expect(
       screen.getByText(/Die Tage Di kommen automatisch dazu/),
@@ -554,15 +567,33 @@ describe("OfferingRequestReviewItem", () => {
       expect(screen.getByText("Mittagessen:")).toBeInTheDocument();
     });
 
-    it("names what to check after the approval", () => {
+    // Was die Freigabe nicht mit anpasst, gehört an die Erfolgsmeldung: vor der
+    // Entscheidung ist es nichts, was jemand tun kann.
+    it("keeps the after-approval checks out of the open request", () => {
       renderItem();
 
       expect(
-        screen.getByText("Nach dem Freigeben bitte prüfen"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Gehzeiten des Kindes")).toBeInTheDocument();
-      expect(screen.getByText("Zuordnung im Stundenplan")).toBeInTheDocument();
-      expect(screen.getByText("Listen und Ausdrucke")).toBeInTheDocument();
+        screen.queryByText(/Nach dem Freigeben bitte prüfen/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Gehzeiten des Kindes/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names what to check in the notice after an approval", async () => {
+      mockDecide.mockResolvedValue(undefined);
+      const onDecided = vi.fn();
+      renderItem(request(), onDecided);
+
+      fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+      await waitFor(() =>
+        expect(onDecided).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
+          ),
+        ),
+      );
     });
   });
 });
@@ -679,7 +710,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.03.2027",
+      "Änderung übernommen, gültig ab 01.03.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
     );
   });
 
@@ -692,9 +723,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       target: { value: "2027-03-01" },
     });
 
-    expect(
-      await screen.findByText(/Vorschau konnte nicht aktualisiert werden/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
     // Ein Netzfehler ist gleich wieder weg: die Karte darf nicht verriegeln.
     expect(screen.getByRole("button", { name: /Freigeben/ })).toBeEnabled();
   });
@@ -724,10 +753,15 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       target: { value: "2020-01-06" },
     });
 
-    expect(
-      await screen.findByText(/Zu diesem Datum kann die Änderung nicht gelten/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/Zu diesem Datum kann die Änderung nicht gelten/);
     expect(screen.getByRole("button", { name: /Freigeben/ })).toBeDisabled();
+    // Ein ausgegrauter Knopf ohne Grund ist eine Sackgasse: der Grund bleibt an
+    // der Karte stehen, auch wenn der Toast längst weg ist.
+    expect(
+      screen.getByText(
+        "Zu diesem Datum kann die Änderung nicht gelten. Freigeben ist gesperrt.",
+      ),
+    ).toBeInTheDocument();
     // Ablehnen bleibt möglich: eine so nicht umsetzbare Anfrage muss aus der
     // Liste kommen können.
     expect(screen.getByRole("button", { name: /Ablehnen/ })).toBeEnabled();
