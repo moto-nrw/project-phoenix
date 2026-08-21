@@ -174,6 +174,21 @@ Die **OGS-Betreuung** ist die grundsätzliche Anmeldung eines Kindes bei einer
 OGS. Sie besteht unabhängig davon, ob zusätzliche Betreuungsangebote ausgewählt
 sind.
 
+Ein **Austritt** beendet die OGS-Betreuung eines Kindes, ohne seine historischen
+Daten zu löschen. Umzug und entfallener Betreuungsbedarf sind Austrittsgründe,
+keine Löschgründe.
+
+Der **letzte Betreuungstag** ist der letzte Kalendertag, an dem das Kind noch
+an der OGS-Betreuung teilnimmt. Ab dem Folgetag ist seine Betreuung beendet.
+
+Eine **beendete OGS-Betreuung** bleibt für berechtigte Personen außerhalb der
+laufenden Arbeitslisten auffindbar. Ihr Austritt kann korrigiert oder
+zurückgenommen werden; das ist keine Wiederherstellung gelöschter Daten.
+
+Der **Austrittsgrund** ordnet ein Ende als Umzug, entfallenen Betreuungsbedarf
+oder anderen Grund ein. Nur der andere Grund wird durch einen kurzen Freitext
+erläutert.
+
 ## Regelmäßiger Wochenplan
 
 Der **regelmäßige Wochenplan** beschreibt für jeden Wochentag, ob ein Kind an

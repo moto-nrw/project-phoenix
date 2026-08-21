@@ -72,7 +72,13 @@ export function careSummary(
   if (kinds.size === 0)
     return requestKind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten";
   const what = [...kinds].join(" + ");
-  return days.size > 0 ? `${[...days].join(", ")} · ${what}` : what;
+  if (days.size === 0) return what;
+  // Ab drei Tagen nur noch die Anzahl: ausgeschrieben ("Montag, Dienstag,
+  // Mittwoch, Donnerstag, Freitag · …") wird die Spalte hinten abgeschnitten,
+  // und abgeschnitten würde ausgerechnet die Änderungsart. „3 Wochentage"
+  // hält den Unterschied zu einem Datum, um den es hier geht.
+  const when = days.size > 2 ? `${days.size} Wochentage` : [...days].join(", ");
+  return `${when} · ${what}`;
 }
 
 /**

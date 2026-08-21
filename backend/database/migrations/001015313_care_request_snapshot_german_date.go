@@ -41,7 +41,7 @@ func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
 		           (
 		               SELECT jsonb_agg(
 		                          CASE
-		                            WHEN entry->>'label' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} · '
+		                            WHEN entry->>'label' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]) · '
 		                            THEN jsonb_set(
 		                                     entry,
 		                                     '{label}',
@@ -65,7 +65,7 @@ func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
 		   AND EXISTS (
 		       SELECT 1
 		         FROM jsonb_array_elements(r.decision_snapshot->'diff') AS e(entry)
-		        WHERE e.entry->>'label' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} · '
+		        WHERE e.entry->>'label' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]) · '
 		   );
 	`)
 	if err != nil {

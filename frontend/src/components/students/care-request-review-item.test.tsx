@@ -178,6 +178,27 @@ describe("CareRequestReviewItem", () => {
     expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
   });
 
+  it("kürzt ab drei Wochentagen auf die Anzahl, damit die Änderungsart nicht abgeschnitten wird", () => {
+    render(
+      <CareRequestReviewItem
+        row={row({
+          diff: [
+            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Mittwoch · Abholzeit", old: "—", new: "15:00" },
+            { label: "Donnerstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Freitag · Abholart", old: "—", new: "Geht alleine" },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("5 Wochentage · Abholzeit + Abholart"),
+    ).toBeInTheDocument();
+  });
+
   it("requires a reason before rejecting", async () => {
     mockDecide.mockResolvedValue(row({ status: "rejected" }));
     const onDecided = vi.fn();
