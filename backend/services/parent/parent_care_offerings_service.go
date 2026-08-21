@@ -237,11 +237,6 @@ func (s *service) CreateOfferingChangeRequest(
 	if err != nil {
 		return nil, err
 	}
-	// A child whose care at this school has ended keeps read access to
-	// what happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
-		return nil, err
-	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
 	if err := child.requireCareRunning(); err != nil {
