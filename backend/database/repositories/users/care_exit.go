@@ -38,7 +38,7 @@ func (r *CareExitRepository) FindByStudentIDs(ctx context.Context, studentIDs []
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprCareExits).
-		Where(`"care_exit".student_id IN (?)`, bun.In(studentIDs))
+		Where(`"care_exit".student_id IN (?)`, bun.List(studentIDs))
 	query = base.WithTenantFilter(ctx, query, "care_exit")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find care exits by student ids", Err: err}
@@ -76,7 +76,7 @@ func (r *CareExitRepository) DeleteByStudentIDs(ctx context.Context, studentIDs 
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*userModels.CareExit)(nil)).
 		ModelTableExpr(tableExprCareExits).
-		Where(`"care_exit".student_id IN (?)`, bun.In(studentIDs))
+		Where(`"care_exit".student_id IN (?)`, bun.List(studentIDs))
 	query = base.WithTenantFilter(ctx, query, "care_exit")
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "delete care exits", Err: err}
@@ -111,7 +111,7 @@ func (r *CareExitRepository) ListEnded(
 			)
 		}
 		if len(filter.SchoolClasses) > 0 {
-			query = query.Where(`"student".school_class IN (?)`, bun.In(filter.SchoolClasses))
+			query = query.Where(`"student".school_class IN (?)`, bun.List(filter.SchoolClasses))
 		}
 		return query
 	}

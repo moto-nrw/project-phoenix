@@ -66,7 +66,7 @@ func (r *CareExitCleanupRepository) CountOpenRequests(
 		sql := `SELECT student_id, COUNT(*)::int AS total FROM ` + queue.Table + `
 			WHERE tenant_id = ? AND student_id IN (?) AND status = ?
 			GROUP BY student_id`
-		if err := base.GetDB(ctx, r.db).NewRaw(sql, tenantID, bun.In(studentIDs), queue.Pending).Scan(ctx, &rows); err != nil {
+		if err := base.GetDB(ctx, r.db).NewRaw(sql, tenantID, bun.List(studentIDs), queue.Pending).Scan(ctx, &rows); err != nil {
 			return nil, &modelBase.DatabaseError{Op: "count open parent requests", Err: err}
 		}
 		for _, row := range rows {
@@ -101,28 +101,28 @@ func (r *CareExitCleanupRepository) CloseOpenRequests(
 			 SET status = ?, review_reason = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 			 WHERE tenant_id = ? AND student_id IN (?) AND status = ?`,
 			[]any{userModels.DataChangeStatusCareEnded, userModels.CareEndedDecisionReason, reviewedBy, at, at,
-				tenantID, bun.In(studentIDs), userModels.DataChangeStatusPending},
+				tenantID, bun.List(studentIDs), userModels.DataChangeStatusPending},
 		},
 		{
 			`UPDATE active.excused_absence_requests
 			 SET status = ?, decision_reason = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 			 WHERE tenant_id = ? AND student_id IN (?) AND status = ?`,
 			[]any{activeModels.ExcusedRequestStatusCareEnded, userModels.CareEndedDecisionReason, reviewedBy, at, at,
-				tenantID, bun.In(studentIDs), activeModels.ExcusedRequestStatusPending},
+				tenantID, bun.List(studentIDs), activeModels.ExcusedRequestStatusPending},
 		},
 		{
 			`UPDATE enrollment.offering_change_requests
 			 SET status = ?, decision_reason = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 			 WHERE tenant_id = ? AND student_id IN (?) AND status = ?`,
 			[]any{enrollmentModels.OfferingChangeStatusCareEnded, userModels.CareEndedDecisionReason, reviewedBy, at, at,
-				tenantID, bun.In(studentIDs), enrollmentModels.OfferingChangeStatusPending},
+				tenantID, bun.List(studentIDs), enrollmentModels.OfferingChangeStatusPending},
 		},
 		{
 			`UPDATE schedule.care_schedule_change_requests
 			 SET status = ?, decision_reason = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 			 WHERE tenant_id = ? AND student_id IN (?) AND status = ?`,
 			[]any{scheduleModels.CareRequestStatusCareEnded, userModels.CareEndedDecisionReason, reviewedBy, at, at,
-				tenantID, bun.In(studentIDs), scheduleModels.CareRequestStatusPending},
+				tenantID, bun.List(studentIDs), scheduleModels.CareRequestStatusPending},
 		},
 	}
 
@@ -155,8 +155,8 @@ func (r *CareExitCleanupRepository) FindOpenPresence(
 		UNION
 		SELECT student_id FROM active.visits
 		WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL
-	`, tenant.FromContext(ctx), bun.In(studentIDs),
-		tenant.FromContext(ctx), bun.In(studentIDs)).Scan(ctx, &rows); err != nil {
+	`, tenant.FromContext(ctx), bun.List(studentIDs),
+		tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: err}
 	}
 	for _, row := range rows {
@@ -185,7 +185,7 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(
 		`UPDATE schedule.instance_students SET checked_out_at = ?, updated_at = ?
 		 WHERE tenant_id = ? AND student_id IN (?) AND checked_in_at IS NOT NULL AND checked_out_at IS NULL`,
 	} {
-		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement, at, at, tenantID, bun.In(studentIDs))
+		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement, at, at, tenantID, bun.List(studentIDs))
 		if err != nil {
 			return 0, &modelBase.DatabaseError{Op: "close open presence", Err: err}
 		}
@@ -232,7 +232,7 @@ func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
 		WHERE s.student_id IN (?)` + carePlannedRosterPredicate + `
 		GROUP BY s.student_id`
 	if err := base.GetDB(ctx, r.db).NewRaw(sql,
-		bun.In(studentIDs), after, tenant.FromContext(ctx),
+		bun.List(studentIDs), after, tenant.FromContext(ctx),
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: err}
 	}
@@ -290,7 +290,7 @@ func (r *CareExitCleanupRepository) CountRunningByStudentIDsAfter(
 		WHERE tenant_id = ? AND student_id IN (?)
 		  AND (valid_until IS NULL OR valid_until > ?)
 		GROUP BY student_id
-	`, tenant.FromContext(ctx), bun.In(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
+	`, tenant.FromContext(ctx), bun.List(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "count running bookings after care end", Err: err}
 	}
 	for _, row := range rows {
@@ -316,7 +316,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 	deleted, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
 		DELETE FROM activities.student_enrollments
 		WHERE tenant_id = ? AND student_id IN (?) AND valid_from >= ?
-	`, tenantID, bun.In(studentIDs), validUntil)
+	`, tenantID, bun.List(studentIDs), validUntil)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: err}
 	}
@@ -327,7 +327,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		SET valid_until = ?, updated_at = NOW()
 		WHERE tenant_id = ? AND student_id IN (?) AND valid_from < ?
 		  AND (valid_until IS NULL OR valid_until > ?)
-	`, validUntil, tenantID, bun.In(studentIDs), validUntil, validUntil)
+	`, validUntil, tenantID, bun.List(studentIDs), validUntil, validUntil)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "cap bookings after care end", Err: err}
 	}
