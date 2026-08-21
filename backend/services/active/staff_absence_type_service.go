@@ -15,7 +15,7 @@ import (
 )
 
 // staffAbsenceTypeNameUniqueIndex is the case-insensitive unique index from
-// migration 1.15.308 (active.staff_absence_types on (tenant_id, LOWER(name))).
+// migration 1.15.311 (active.staff_absence_types on (tenant_id, LOWER(name))).
 // Two concurrent creates can both pass the nameTaken pre-check and then race on
 // INSERT; the loser must surface as ErrAbsenceTypeNameTaken (409), not a 500.
 const staffAbsenceTypeNameUniqueIndex = "uniq_staff_absence_types_tenant_name"

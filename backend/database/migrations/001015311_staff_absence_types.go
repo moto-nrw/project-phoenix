@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	staffAbsenceTypesVersion     = "1.15.308"
+	staffAbsenceTypesVersion     = "1.15.311"
 	staffAbsenceTypesDescription = "Create active.staff_absence_types (schulbezogene Abwesenheitsarten) and link active.staff_absences via absence_type_id (#2403)"
 )
 
@@ -31,7 +31,7 @@ func init() {
 }
 
 func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.308: Creating active.staff_absence_types + staff_absences.absence_type_id...")
+	fmt.Println("Migration 1.15.311: Creating active.staff_absence_types + staff_absences.absence_type_id...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -118,7 +118,7 @@ func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffAbsenceTypesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.308: Dropping active.staff_absence_types + staff_absences.absence_type_id...")
+	fmt.Println("Rolling back migration 1.15.311: Dropping active.staff_absence_types + staff_absences.absence_type_id...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
