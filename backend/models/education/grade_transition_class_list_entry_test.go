@@ -19,6 +19,8 @@ func validClassListEntryLedgerRow() *GradeTransitionClassListEntry {
 }
 
 func TestGradeTransitionClassListEntryValidate(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, validClassListEntryLedgerRow().Validate())
 
 	created := validClassListEntryLedgerRow()

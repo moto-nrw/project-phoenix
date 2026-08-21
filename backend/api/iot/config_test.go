@@ -18,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockDeviceTenantID is an arbitrary tenant id for the fully mocked
+// getDeviceConfig tests. They never touch the database, so they must not
+// request a real per-test tenant: doing so would load the project .env
+// mid-test and undo the os.Unsetenv these tests rely on.
+const mockDeviceTenantID int64 = 987654
+
 // newConfigMock builds a configtest.Mock reproducing the behavior of the
 // former hand-rolled configMockSettings stub for testing getDeviceConfig:
 // string values take precedence over bool values in Resolve, and missing
@@ -60,6 +66,9 @@ func newConfigMock(boolValues map[string]bool, stringValues map[string]string) *
 	}
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -74,7 +83,7 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -100,6 +109,9 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	assert.Equal(t, "detailed", data["presence_mode"])
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -116,7 +128,7 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -131,6 +143,9 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	assert.Equal(t, "binary", data["presence_mode"], "binary-mode tenants must advertise binary so the kiosk branches its UX")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -145,7 +160,7 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -163,6 +178,9 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	assert.Equal(t, true, checkout["wc_enabled"])
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -179,7 +197,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -195,6 +213,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	assert.Equal(t, "16:30", checkout["daily_checkout_time"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
@@ -210,7 +229,7 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -226,6 +245,7 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
@@ -237,7 +257,7 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -254,6 +274,8 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 }
 
 func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -265,13 +287,16 @@ func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
 	assert.NotEqual(t, http.StatusOK, w.Code)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: nil}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 

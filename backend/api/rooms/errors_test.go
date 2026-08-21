@@ -11,6 +11,8 @@ import (
 )
 
 func TestErrorRenderer_SystemRoomProtected(t *testing.T) {
+	t.Parallel()
+
 	facErr := &facilities.FacilitiesError{
 		Op:  "delete room",
 		Err: facilities.ErrSystemRoomProtected,
@@ -23,6 +25,8 @@ func TestErrorRenderer_SystemRoomProtected(t *testing.T) {
 }
 
 func TestErrorRenderer_SystemRoomNameReserved(t *testing.T) {
+	t.Parallel()
+
 	facErr := &facilities.FacilitiesError{
 		Op:  "create room",
 		Err: facilities.ErrSystemRoomNameReserved,
@@ -36,6 +40,8 @@ func TestErrorRenderer_SystemRoomNameReserved(t *testing.T) {
 }
 
 func TestErrorRenderer_RoomRequiredByCareOffering(t *testing.T) {
+	t.Parallel()
+
 	facErr := &facilities.FacilitiesError{
 		Op:  "delete room",
 		Err: facilities.ErrRoomRequiredByCareOffering,
@@ -48,6 +54,8 @@ func TestErrorRenderer_RoomRequiredByCareOffering(t *testing.T) {
 }
 
 func TestErrorRenderer_DuplicateToiletRoom(t *testing.T) {
+	t.Parallel()
+
 	facErr := &facilities.FacilitiesError{
 		Op:  "CreateRoom",
 		Err: facilities.ErrDuplicateToiletRoom,
@@ -62,6 +70,8 @@ func TestErrorRenderer_DuplicateToiletRoom(t *testing.T) {
 }
 
 func TestErrorRenderer_DuplicateRoom(t *testing.T) {
+	t.Parallel()
+
 	facErr := &facilities.FacilitiesError{
 		Op:  "CreateRoom",
 		Err: facilities.ErrDuplicateRoom,

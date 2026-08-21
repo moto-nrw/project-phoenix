@@ -650,11 +650,10 @@ describe("PickupDayEditModal", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Save failed")).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
   });

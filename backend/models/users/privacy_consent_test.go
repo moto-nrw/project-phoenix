@@ -8,6 +8,8 @@ import (
 )
 
 func TestPrivacyConsent_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	future := now.AddDate(0, 0, 30) // 30 days in the future
 	past := now.AddDate(0, 0, -30)  // 30 days in the past
@@ -144,6 +146,8 @@ func TestPrivacyConsent_Validate(t *testing.T) {
 }
 
 func TestPrivacyConsent_SetStudent(t *testing.T) {
+	t.Parallel()
+
 	student := &Student{
 		Model: base.Model{
 			ID: 123,
@@ -169,6 +173,8 @@ func TestPrivacyConsent_SetStudent(t *testing.T) {
 }
 
 func TestPrivacyConsent_UpdateDetails(t *testing.T) {
+	t.Parallel()
+
 	pc := &PrivacyConsent{
 		StudentID:     1,
 		PolicyVersion: "1.0",
@@ -224,6 +230,8 @@ func TestPrivacyConsent_UpdateDetails(t *testing.T) {
 }
 
 func TestPrivacyConsent_GetDetails(t *testing.T) {
+	t.Parallel()
+
 	t.Run("get details when nil", func(t *testing.T) {
 		pc := &PrivacyConsent{}
 
@@ -254,6 +262,8 @@ func TestPrivacyConsent_GetDetails(t *testing.T) {
 }
 
 func TestPrivacyConsent_SetStudent_Nil(t *testing.T) {
+	t.Parallel()
+
 	pc := &PrivacyConsent{
 		StudentID:     10,
 		PolicyVersion: "1.0",
@@ -271,6 +281,8 @@ func TestPrivacyConsent_SetStudent_Nil(t *testing.T) {
 }
 
 func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		renewalRequired bool
@@ -302,6 +314,8 @@ func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
 }
 
 func TestPrivacyConsent_GetID(t *testing.T) {
+	t.Parallel()
+
 	pc := &PrivacyConsent{
 		Model:             base.Model{ID: 42},
 		StudentID:         1,
@@ -315,6 +329,8 @@ func TestPrivacyConsent_GetID(t *testing.T) {
 }
 
 func TestPrivacyConsent_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	pc := &PrivacyConsent{
 		Model:             base.Model{CreatedAt: now},
@@ -329,6 +345,8 @@ func TestPrivacyConsent_GetCreatedAt(t *testing.T) {
 }
 
 func TestPrivacyConsent_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	pc := &PrivacyConsent{
 		Model:             base.Model{UpdatedAt: now},

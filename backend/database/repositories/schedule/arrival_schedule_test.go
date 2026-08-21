@@ -21,11 +21,12 @@ import (
 // =============================================================================
 
 func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -66,11 +67,12 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -102,11 +104,12 @@ func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -141,11 +144,12 @@ func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -177,11 +181,12 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T
 }
 
 func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedules for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
@@ -214,11 +219,12 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.
 }
 
 func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule when doesn't exist", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -273,11 +279,12 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -328,11 +335,12 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -365,11 +373,12 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 }
 
 func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -407,11 +416,12 @@ func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -439,11 +449,12 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -474,11 +485,12 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -511,11 +523,12 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 }
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -547,25 +560,17 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 }
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exceptions for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
 		staff := testpkg.CreateTestStaff(t, db, "ArrStaff", "BulkLookup")
-		exceptionIDs := make([]int64, 0, 2)
-		defer func() {
-			testpkg.CleanupScheduleFixturesB11(t, db, nil, exceptionIDs, nil, nil, nil, nil)
-			testpkg.CleanupActivityFixtures(t, db,
-				student1.ID, student1.PersonID,
-				student2.ID, student2.PersonID,
-				staff.ID, staff.PersonID,
-			)
-		}()
 
 		exceptionDate := timezone.NewDate(2024, 4, 10)
 
@@ -578,7 +583,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
-			exceptionIDs = append(exceptionIDs, exception.ID)
 		}
 
 		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{student1.ID, student2.ID}, exceptionDate)
@@ -596,18 +600,14 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 }
 
 func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "ArrStudent", "BerlinTZ", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "ArrStaff", "BerlinTZ")
-	var exceptionID int64
-	defer func() {
-		testpkg.CleanupScheduleFixturesB11(t, db, nil, []int64{exceptionID}, nil, nil, nil, nil)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID, staff.ID, staff.PersonID)
-	}()
 
 	// timezone.Date binds as a 'YYYY-MM-DD' literal, so the DB session
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
@@ -629,7 +629,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 		if err := repo.Create(txCtx, exception); err != nil {
 			return err
 		}
-		exceptionID = exception.ID
 
 		results, err := repo.FindByStudentIDsAndDate(txCtx, []int64{student.ID}, day)
 		if err != nil {
@@ -659,11 +658,12 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 }
 
 func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -694,11 +694,12 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -751,11 +752,12 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -788,11 +790,12 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -820,11 +823,12 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -880,11 +884,12 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalNoteRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -925,11 +930,12 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -960,11 +966,12 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1004,11 +1011,12 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1057,11 +1065,12 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
@@ -1096,11 +1105,12 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1148,11 +1158,12 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1185,11 +1196,12 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
@@ -1223,11 +1235,12 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")

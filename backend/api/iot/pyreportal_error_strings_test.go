@@ -77,6 +77,7 @@ var pyreportalErrorStrings = []string{
 	"no active session",
 
 	// Visit / room / activity (POST /checkin)
+	"no room available for this activity",
 	"failed to end visit record",
 	"failed to create visit record",
 	"failed to get room information",
@@ -155,6 +156,8 @@ var extraGuardSources = []string{
 // contains "PyrePortal" so failures in CI logs land the reader directly on
 // this file — and the file-top comment explains the coupling.
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
+	t.Parallel()
+
 	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
 	iotDir := filepath.Dir(thisFile)                  // backend/api/iot

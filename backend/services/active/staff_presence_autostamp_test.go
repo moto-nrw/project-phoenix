@@ -36,17 +36,17 @@ func todayWorkSession(t *testing.T, db *bun.DB, staffID int64) *active.WorkSessi
 // TestToggleStudentAttendance_IoTAutoOpensWorkSession verifies that a
 // kiosk-driven attendance toggle opens the acting staff member's work session.
 func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "AutoStamp", "Student", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, dev.ID)
 
-	ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)
@@ -63,17 +63,17 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 // member, recorded with the app source channel — this is the binary-mode
 // "Betreuer markiert Kind als anwesend" path (issue #1439).
 func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "WebStamp", "Student", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "WebStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-2")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, dev.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)
@@ -86,8 +86,9 @@ func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) 
 // TestCreateGroupSupervisor_AutoOpensWorkSession verifies that assigning a
 // supervision starting today via the web app opens the staff work session.
 func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
 
@@ -95,9 +96,8 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "AutoStamp Room")
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "WebSupervisor")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, room.ID, staff.ID, activeGroup.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	supervisor := &active.GroupSupervisor{
 		StaffID:   staff.ID,

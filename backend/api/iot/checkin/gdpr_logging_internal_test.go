@@ -20,6 +20,8 @@ import (
 // student_name response field are built right next to the log call, so this is
 // the guard that keeps them from sliding into it.
 func TestProcessBinaryModeCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
+	t.Parallel()
+
 	const (
 		firstName = "Loggingprobe"
 		lastName  = "Namenspruefung"

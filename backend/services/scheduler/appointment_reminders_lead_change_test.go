@@ -11,6 +11,8 @@ import (
 )
 
 func TestRunAppointmentRemindersForTenantDecreasedLeadUsesActiveWindow(t *testing.T) {
+	t.Parallel()
+
 	scanFrom := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	scanTo := scanFrom.Add(appointmentReminderInterval)
 	queuer := &fakeReminderQueuer{}

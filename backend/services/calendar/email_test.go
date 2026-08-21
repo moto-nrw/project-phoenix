@@ -35,6 +35,8 @@ func appointmentOutboxRow(kind string) *platformModels.EmailOutbox {
 // prefix glued on by the template, which read "die OGS Musterschule: ein Termin
 // wurde abgesagt."
 func TestAppointmentRenderer_IntroIsOneSentence(t *testing.T) {
+	t.Parallel()
+
 	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
 
 	for _, kind := range []string{
@@ -57,6 +59,8 @@ func TestAppointmentRenderer_IntroIsOneSentence(t *testing.T) {
 }
 
 func TestAppointmentRenderer_IntroWithoutSchoolName(t *testing.T) {
+	t.Parallel()
+
 	// Branding is best-effort; without a school name the sentence still has to
 	// stand on its own rather than starting with a dangling "die ".
 	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
@@ -84,6 +88,8 @@ func TestAppointmentRenderer_IntroWithoutSchoolName(t *testing.T) {
 }
 
 func TestAppointmentRenderer_PerKindCopy(t *testing.T) {
+	t.Parallel()
+
 	render := NewAppointmentRenderer(EmailConfig{DefaultFrom: email.NewEmail("moto", "no-reply@example.com")})
 
 	cases := []struct {
@@ -114,6 +120,8 @@ func TestAppointmentRenderer_PerKindCopy(t *testing.T) {
 }
 
 func TestAppointmentWhenText(t *testing.T) {
+	t.Parallel()
+
 	clock := func(h, m int) time.Time {
 		return timezone.WallClock(time.Date(2026, 1, 1, h, m, 0, 0, time.UTC))
 	}
@@ -149,6 +157,8 @@ func TestAppointmentWhenText(t *testing.T) {
 }
 
 func TestAppointmentRenderer_MissingRecipient(t *testing.T) {
+	t.Parallel()
+
 	render := NewAppointmentRenderer(EmailConfig{})
 	row := appointmentOutboxRow(platformModels.EmailKindAppointmentPublished)
 	delete(row.Payload, apptPayloadRecipient)
@@ -158,6 +168,8 @@ func TestAppointmentRenderer_MissingRecipient(t *testing.T) {
 }
 
 func TestAppointmentRenderer_SubjectWithoutSchool(t *testing.T) {
+	t.Parallel()
+
 	render := NewAppointmentRenderer(EmailConfig{})
 	row := appointmentOutboxRow(platformModels.EmailKindAppointmentPublished)
 	delete(row.Payload, apptPayloadSchoolName)

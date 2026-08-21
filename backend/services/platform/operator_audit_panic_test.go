@@ -40,6 +40,8 @@ func (r *panickingOperatorAuditLogRepo) Create(_ context.Context, _ *platformMod
 // recovery pattern — we panic in a fake repo and confirm the goroutine
 // dies quietly without taking the test runner with it.
 func TestOperatorMFAService_RecordAudit_PanicInGoroutineRecovers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	_, repos, db := newTestOperatorMFAService(t)
 

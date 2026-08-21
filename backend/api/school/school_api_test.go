@@ -41,10 +41,8 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 	t.Helper()
 
 	db, factory := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 
 	return db, factory, tenantID, subdomain
 }
@@ -68,13 +66,13 @@ func registerLehrkraft(t *testing.T, db *bun.DB, factory *services.Factory, tena
 	email = fmt.Sprintf("%s-%d@test.local", prefix, unique)
 	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
 }
 
 func TestSchoolPortalTokenMatrix(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "School", fmt.Sprintf("Matrix-%d", time.Now().UnixNano()))
@@ -83,8 +81,6 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	t.Cleanup(func() {
 		tenantCtx := testpkg.TenantContext(tenantID)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
@@ -138,6 +134,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 }
 
 func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 	schoolRouter := newSchoolRouter(db, factory, nil)
 
@@ -145,7 +142,6 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
 	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, testPassword)
@@ -180,6 +176,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 }
 
 func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
+	t.Parallel()
 	// The whole school MFA lifecycle must be scope-tight: a challenge or
 	// enrollment token minted for the tenant portal is refused at every
 	// school MFA endpoint — verify, resend (its code budget must not be
@@ -245,6 +242,7 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 // the challenge for a SCHOOL-scope session — and it must ask the MFA
 // service for the school scope while doing it.
 func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 
 	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-verify")
@@ -286,6 +284,7 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 // terminal "you no longer belong here", not a server fault — a 500 would tell
 // the frontend to retry forever.
 func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 
 	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-revoked")
@@ -315,6 +314,7 @@ func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 // hands the school scope down to the service — that check is what keeps a
 // foreign-portal challenge's code budget unburnable from here.
 func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
+	t.Parallel()
 	db, factory, _, _ := setupSchoolTest(t)
 
 	var requestedScope string
@@ -346,6 +346,7 @@ func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 // 500 tells the client the endpoint is broken and stops the retry that would
 // have worked a second later.
 func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 
 	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-unavailable")
@@ -388,6 +389,7 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 // is enough — so the confirm must go through the scope- and id-bound verify
 // and must reject a challenge belonging to another account or school.
 func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
+	t.Parallel()
 	db, factory, tenantID, _ := setupSchoolTest(t)
 
 	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-enroll")

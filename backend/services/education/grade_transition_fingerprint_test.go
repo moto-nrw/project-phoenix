@@ -22,14 +22,15 @@ import (
 )
 
 func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGraduation(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-fingerprint-sentinel@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("4fp-%s", suffix)
@@ -37,11 +38,9 @@ func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGr
 	targetClass := "graduate"
 
 	student := testpkg.CreateTestStudent(t, db, "Fingerprint", "Child", fromClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &targetClass)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	// What the admin reviewed: a PROMOTION into the class named "graduate".
 	promotePreview, err := service.Preview(ctx, transition.ID)

@@ -21,6 +21,8 @@ func validModel() *configModels.WorkTimeModel {
 }
 
 func TestValidateModelWithEntries_RejectsInvalidEntries(t *testing.T) {
+	t.Parallel()
+
 	svc := &configSvc.WorkTimeModelService{}
 
 	tests := []struct {
@@ -70,6 +72,8 @@ func TestValidateModelWithEntries_RejectsInvalidEntries(t *testing.T) {
 }
 
 func TestValidateModelWithEntries_RejectsDuplicateEntries(t *testing.T) {
+	t.Parallel()
+
 	svc := &configSvc.WorkTimeModelService{}
 
 	err := svc.ValidateModelWithEntries(validModel(), []*configModels.WorkTimeModelEntry{

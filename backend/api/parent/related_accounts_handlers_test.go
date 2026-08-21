@@ -6,9 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -73,8 +71,6 @@ func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ authServi
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -92,10 +88,10 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 }
 
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 	token := parentToken(t, chain.AccountID)
@@ -109,13 +105,13 @@ func TestRelatedAccountsEndpoint_List(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
+	t.Parallel()
+
 	sid := func(c testpkg.ParentChain) string { return strconv.FormatInt(c.StudentID, 10) }
 
 	t.Run("disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDisabled, false)
 		token := parentToken(t, chain.AccountID)
 
@@ -126,9 +122,7 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 
 	t.Run("direct → 201", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 
@@ -139,11 +133,11 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("removal disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
@@ -155,9 +149,7 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 
 	t.Run("removal enabled → 200", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
-		defer func() { _ = db.Close() }()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, true)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
@@ -183,8 +175,6 @@ func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req authServi
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.GuardianInvitationService) http.Handler {
 	t.Helper()
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -202,10 +192,10 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.G
 }
 
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	invites := &relAcctCaptureInvites{result: &authService.InviteToStudentResult{
 		Outcome:           authService.InviteOutcomeExistingContactRestricted,
@@ -227,10 +217,10 @@ func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	router := newRelAcctRouterWithInvites(t, db, relAcctSocialWorkerInvites{})
 	token := parentToken(t, chain.AccountID)

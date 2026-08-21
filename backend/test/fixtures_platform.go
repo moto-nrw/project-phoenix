@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 func CreateTestOperator(tb testing.TB, db *bun.DB) *platform.Operator {
 	tb.Helper()
 	return CreateTestOperatorWithEmail(tb, db,
-		fmt.Sprintf("op-%d@test.local", time.Now().UnixNano()), "Test Operator")
+		fmt.Sprintf("op-%d@test.local", uniqueFixtureSuffix()), "Test Operator")
 }
 
 // CreateTestOperatorWithEmail inserts a platform operator with the given email

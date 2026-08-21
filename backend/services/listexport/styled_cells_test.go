@@ -42,6 +42,8 @@ func planDocument() Document {
 // The markers are an encoding detail of the cell string: they must survive a
 // round trip and never reach a reader.
 func TestStyledCellRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	lines := []Line{
 		{Text: "07:30–14:00", Style: LineStrong, Accent: "#83CD2D"},
 		{Text: "Mensa", Style: LineNormal},
@@ -75,6 +77,8 @@ func TestStyledCellRoundTrip(t *testing.T) {
 // document without accents keeps the old full-width cells and every existing
 // export is untouched.
 func TestAccentGutterOnlyWhenAccentsExist(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(planDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -98,6 +102,8 @@ func TestAccentGutterOnlyWhenAccentsExist(t *testing.T) {
 // A heading long enough to wrap keeps one bar: the accent opens the group and
 // runs on, rather than restarting on the heading's own second line.
 func TestWrapStyledKeepsRanksAndOpensOneAccentGroup(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(planDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -141,6 +147,8 @@ func TestWrapStyledKeepsRanksAndOpensOneAccentGroup(t *testing.T) {
 // store "#RRGGBB" or the "#RGB" shorthand. Anything else is ignored rather than
 // guessed at — a broken value costs the bar, never the row.
 func TestParseHexColor(t *testing.T) {
+	t.Parallel()
+
 	if got, ok := parseHexColor(" #83CD2D "); !ok || got != (rgb{0x83, 0xCD, 0x2D}) {
 		t.Fatalf("parseHexColor = %v, %v", got, ok)
 	}
@@ -162,6 +170,8 @@ func TestParseHexColor(t *testing.T) {
 // End to end on the PDF path: a plan renders, and a broken accent value takes
 // the bar with it and nothing else.
 func TestPlanDocumentRendersToPDF(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(planDocument(), FormatPDF, "dienstplan")
 	if err != nil {
 		t.Fatalf("Render: %v", err)
@@ -184,6 +194,8 @@ func TestPlanDocumentRendersToPDF(t *testing.T) {
 // structure survives, which is what makes a plan cell readable in a
 // spreadsheet at all.
 func TestPlanDocumentRendersToXLSXWithoutMarkers(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(planDocument(), FormatXLSX, "dienstplan")
 	if err != nil {
 		t.Fatalf("Render: %v", err)
@@ -221,6 +233,8 @@ func TestPlanDocumentRendersToXLSXWithoutMarkers(t *testing.T) {
 
 // A cell holding only whitespace is one empty line, not a dropped row.
 func TestWrapBlankCellKeepsOneLine(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(planDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -238,6 +252,8 @@ func TestWrapBlankCellKeepsOneLine(t *testing.T) {
 // one and assign it to a category it does not belong to — the colour coding
 // would then be actively wrong rather than merely absent.
 func TestAnchorWithoutColourEndsTheAccentGroup(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(planDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -268,6 +284,8 @@ func TestAnchorWithoutColourEndsTheAccentGroup(t *testing.T) {
 // The same across a page break: a slice starting inside a group re-opens it,
 // but only with the colour of the anchor it actually sits under.
 func TestSplitRenderRowDoesNotCarryAccentPastAnUncolouredAnchor(t *testing.T) {
+	t.Parallel()
+
 	row := renderRow{cells: [][]styledLine{{
 		{text: "07:30–14:00", style: LineStrong, accent: "#83CD2D", opens: true},
 		{text: "Mensa", style: LineNormal},

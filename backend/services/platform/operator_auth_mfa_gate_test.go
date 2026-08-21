@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -32,24 +31,6 @@ func randomOperatorGatePassword() string {
 		panic(err)
 	}
 	return "Aa1!" + hex.EncodeToString(b)
-}
-
-// withJWTSecret seeds viper with a stable HMAC key for the duration of
-// the test, mirroring the convention used by the sibling operator-auth
-// tests. Token-issuing paths fail with "missing key" without it.
-func withJWTSecret(t *testing.T) {
-	t.Helper()
-	old := viper.GetString("auth_jwt_secret")
-	oldExpiry := viper.Get("auth_jwt_expiry")
-	oldRefreshExpiry := viper.Get("auth_jwt_refresh_expiry")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", time.Hour)
-	t.Cleanup(func() {
-		viper.Set("auth_jwt_secret", old)
-		viper.Set("auth_jwt_expiry", oldExpiry)
-		viper.Set("auth_jwt_refresh_expiry", oldRefreshExpiry)
-	})
 }
 
 // stubOperatorMFAService is a minimal OperatorMFAService implementation
@@ -146,8 +127,11 @@ func newOperatorAuthServiceForGate(t *testing.T, mfa *stubOperatorMFAService) (p
 	return svc, op
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
-	withJWTSecret(t)
 	svc, op := newOperatorAuthServiceForGate(t, nil)
 
 	result, err := svc.LoginWithMFAGate(
@@ -163,6 +147,10 @@ func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
 	assert.False(t, result.MFAEnrollmentRequired)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T) {
 	// Post-#1430 review (Item #1) contract: an unenrolled operator must
 	// receive a narrow enrollment-scoped JWT (no refresh token), NOT a
@@ -170,7 +158,6 @@ func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T
 	// + MFAEnrollmentRequired flag — an advisory-only signal that any
 	// direct API client could ignore, bypassing the mandatory operator
 	// MFA entirely.
-	withJWTSecret(t)
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
 	}
@@ -195,6 +182,10 @@ func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T
 	require.NotNil(t, result.Operator)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T) {
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn:  func(context.Context, int64) (bool, error) { return true, nil },
@@ -216,8 +207,11 @@ func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T
 	assert.Positive(t, result.TrustedDeviceDays)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledValidCookie_SkipsMFA(t *testing.T) {
-	withJWTSecret(t)
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
 		verifyTrustedDeviceFn: func(_ context.Context, _ int64, cookie string) (bool, error) {
@@ -240,6 +234,10 @@ func TestOperatorLoginWithMFAGate_EnrolledValidCookie_SkipsMFA(t *testing.T) {
 	assert.Empty(t, result.ChallengeToken)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledInvalidCookie_FallsThroughToChallenge(t *testing.T) {
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn:       func(context.Context, int64) (bool, error) { return true, nil },
@@ -259,6 +257,10 @@ func TestOperatorLoginWithMFAGate_EnrolledInvalidCookie_FallsThroughToChallenge(
 	assert.Equal(t, "fresh-challenge", result.ChallengeToken)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_WrongPassword_NoMFACalls(t *testing.T) {
 	// The stub methods panic on call; if the password gate fails before
 	// the MFA branch the test passes silently.
@@ -277,6 +279,10 @@ func TestOperatorLoginWithMFAGate_WrongPassword_NoMFACalls(t *testing.T) {
 	require.Error(t, err)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_UnknownEmail_ReturnsInvalidCreds(t *testing.T) {
 	mfa := &stubOperatorMFAService{} // every call would panic
 	svc, _ := newOperatorAuthServiceForGate(t, mfa)
@@ -290,6 +296,10 @@ func TestOperatorLoginWithMFAGate_UnknownEmail_ReturnsInvalidCreds(t *testing.T)
 	require.ErrorAs(t, err, &ic)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestOperatorLoginWithMFAGate_InactiveOperator_ReturnsInactiveError(t *testing.T) {
 	hash, err := userpass.HashPassword(operatorGatePassword, nil)
 	require.NoError(t, err)

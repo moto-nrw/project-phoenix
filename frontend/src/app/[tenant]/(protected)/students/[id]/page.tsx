@@ -49,6 +49,11 @@ import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
 import {
+  AggregatedRequestList,
+  type AggregatedRequestFilters,
+} from "~/components/students/aggregated-request-list";
+import { SectionCard } from "~/components/ui/section-card";
+import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
@@ -109,6 +114,7 @@ type StudentTabId =
   | "betreuungszeiten"
   | "anmeldungen"
   | "dokumente"
+  | "aenderungsprotokoll"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
@@ -119,6 +125,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
   dokumente: "Dokumente",
+  aenderungsprotokoll: "Änderungsprotokoll",
   historie: "Historie",
 };
 
@@ -132,11 +139,13 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "betreuungsplan",
   "betreuungszeiten",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
+  "aenderungsprotokoll",
   "historie",
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
@@ -147,12 +156,14 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "betreuungszeiten",
   "anmeldungen",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "anmeldungen",
+  "aenderungsprotokoll",
   "historie",
 ];
 
@@ -177,6 +188,7 @@ function studentTabs(
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
   canViewDocuments: boolean,
+  canViewRequestLog: boolean,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -208,9 +220,15 @@ function studentTabs(
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
-  return canViewDocuments
+  const withDocuments = canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
+  // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
+  // RequiresAnyPermission(users:update, users:absence). Without either, the
+  // list would only answer 403, so the tab stays away.
+  return canViewRequestLog
+    ? withDocuments
+    : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -384,6 +402,11 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
+  // Same gate the aggregate request route uses (#2437).
+  const canViewRequestLog =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "users:absence"));
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -391,8 +414,15 @@ function StudentDetailPageContent() {
         canViewEnrollments,
         canViewCarePlan,
         canViewDocuments,
+        canViewRequestLog,
       ),
-    [canViewEnrollments, canViewCarePlan, hasFullAccess, canViewDocuments],
+    [
+      canViewEnrollments,
+      canViewCarePlan,
+      hasFullAccess,
+      canViewDocuments,
+      canViewRequestLog,
+    ],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
@@ -1452,6 +1482,23 @@ function LimitedAccessView({
   plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
+  // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
@@ -1521,6 +1568,27 @@ function LimitedAccessView({
             <StudentEnrollmentsTab studentId={student.id} />
           </TabsContent>
         ) : null}
+
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
@@ -1604,6 +1672,16 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
   const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
     studentId,
     true,
@@ -1628,6 +1706,14 @@ function FullAccessView({
   );
   useEffect(() => {
     if (activeTab === "dokumente") setDocumentsTabSeen(true);
+  }, [activeTab]);
+  // Das Änderungsprotokoll fragt fünf Historien-Quellen ab (#2437) — erst beim
+  // ersten Öffnen laden, danach gemountet lassen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
   return (
     <>
@@ -1758,6 +1844,27 @@ function FullAccessView({
         <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
           {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
         </TabsContent>
+
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

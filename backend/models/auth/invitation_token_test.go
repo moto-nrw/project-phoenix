@@ -10,6 +10,8 @@ import (
 // NOTE: base package is used for StringPtr helper and Model struct
 
 func TestInvitationToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	futureTime := time.Now().Add(48 * time.Hour)
 
 	tests := []struct {
@@ -142,6 +144,8 @@ func TestInvitationToken_Validate(t *testing.T) {
 }
 
 func TestInvitationToken_IsUsed(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -176,6 +180,8 @@ func TestInvitationToken_IsUsed(t *testing.T) {
 }
 
 func TestInvitationToken_SetExpiry(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -214,6 +220,8 @@ func TestInvitationToken_SetExpiry(t *testing.T) {
 }
 
 func TestInvitationToken_EmailTracking(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	errMsg := "SMTP connection failed"
 
@@ -248,6 +256,8 @@ func TestInvitationToken_EmailTracking(t *testing.T) {
 }
 
 func TestInvitationToken_GetID(t *testing.T) {
+	t.Parallel()
+
 	token := &InvitationToken{
 		Model: base.Model{ID: 42},
 	}
@@ -259,6 +269,8 @@ func TestInvitationToken_GetID(t *testing.T) {
 }
 
 func TestInvitationToken_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &InvitationToken{
 		Model: base.Model{CreatedAt: now},
@@ -270,6 +282,8 @@ func TestInvitationToken_GetCreatedAt(t *testing.T) {
 }
 
 func TestInvitationToken_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &InvitationToken{
 		Model: base.Model{UpdatedAt: now},

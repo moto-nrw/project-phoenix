@@ -190,15 +190,16 @@ type CareScheduleRequestService interface {
 	// GetPendingForStudent returns the child's open request (nil when none)
 	// with its live "current → requested" diff, for the parent read view.
 	GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, []RequestDiffEntry, error)
-	// ListPending returns every pending request for the current tenant,
-	// newest-first, enriched with child names and live diffs — the staff
-	// review queue on the Änderungsanfragen page.
-	ListPending(ctx context.Context) ([]*CareRequestReviewItem, error)
+	// ListPending returns pending requests of both kinds for the current
+	// tenant, newest submission first, enriched with child names and live
+	// diffs — the working list of the Anfragen module. The filters narrow and
+	// page the query in SQL; their zero value returns the whole queue.
+	ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*CareRequestReviewItem, next *usersService.HistoryCursor, err error)
 	// ListHistory returns decided care-schedule requests
 	// newest-decision-first, keyset paginated on (updated_at, id). A zero
-	// beforeUpdatedAt returns the first page; next is nil when no older rows
+	// BeforeInstant returns the first page; next is nil when no older rows
 	// exist beyond this page.
-	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*CareRequestHistoryItem, next *usersService.HistoryCursor, err error)
+	ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) (items []*CareRequestHistoryItem, next *usersService.HistoryCursor, err error)
 	CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
 	ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error)
 	ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error)
@@ -439,42 +440,46 @@ func (s *careScheduleRequestService) GetPendingForStudent(ctx context.Context, s
 	return req, diff, nil
 }
 
-func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRequestReviewItem, error) {
-	weekly, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindWeeklySchedule)
+func (s *careScheduleRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestReviewItem, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.requestRepo.ListPendingForTenant(ctx, probeLimit(filters))
 	if err != nil {
-		return nil, fmt.Errorf("schedule: list pending care requests: %w", err)
+		return nil, nil, fmt.Errorf("schedule: list pending care requests: %w", err)
 	}
-	pickups, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange)
-	if err != nil {
-		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
-	}
-	rows := append(weekly, pickups...)
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
-			return rows[i].ID > rows[j].ID
-		}
-		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *scheduleModels.CareScheduleChangeRequest) (time.Time, int64) {
+		return r.CreatedAt, r.ID
 	})
-	return s.buildPendingItems(ctx, rows)
+	items, err := s.buildPendingItems(ctx, rows)
+	if err != nil {
+		return nil, nil, err
+	}
+	return items, next, nil
 }
 
-func (s *careScheduleRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*CareRequestHistoryItem, *usersService.HistoryCursor, error) {
+// probeLimit asks the repository for one row more than the caller wants, so a
+// present extra row proves an older page exists. An unbounded page stays
+// unbounded.
+func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFilters {
+	if filters.Limit > 0 {
+		filters.Limit++
+	}
+	return filters
+}
+
+func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, probeLimit(filters))
 	if err != nil {
 		return nil, nil, fmt.Errorf("schedule: list decided care requests: %w", err)
 	}
 	// The cursor points at the last DB row (not the last visible item): the
 	// per-child scope filters after the DB limit, so a cursor built from the
 	// filtered page would skip rows.
-	var next *usersService.HistoryCursor
-	if len(rows) > limit {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
-	}
+	rows, next := usersService.NextCursor(rows, filters.Limit, func(r *scheduleModels.CareScheduleChangeRequest) (time.Time, int64) {
+		return r.UpdatedAt, r.ID
+	})
 	if len(rows) == 0 {
-		return []*CareRequestHistoryItem{}, nil, nil
+		return []*CareRequestHistoryItem{}, next, nil
 	}
 
 	studentIDs := make([]int64, 0, len(rows))
@@ -654,7 +659,7 @@ func careDiffEntriesFromSnapshot(snapshot *scheduleModels.CareRequestDecisionSna
 }
 
 func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {
-	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange)
+	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
 	}

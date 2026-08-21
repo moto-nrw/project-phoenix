@@ -17,6 +17,8 @@ import (
 // =============================================================================
 
 func TestTime_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		time     time.Time
@@ -56,6 +58,8 @@ func TestTime_MarshalJSON(t *testing.T) {
 }
 
 func TestTime_MarshalJSON_ZeroTime(t *testing.T) {
+	t.Parallel()
+
 	ct := common.Time(time.Time{})
 	data, err := ct.MarshalJSON()
 
@@ -69,6 +73,8 @@ func TestTime_MarshalJSON_ZeroTime(t *testing.T) {
 // =============================================================================
 
 func TestNewResponse(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		data    interface{}
@@ -113,6 +119,8 @@ func TestNewResponse(t *testing.T) {
 }
 
 func TestResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	resp := common.NewResponse("test", "message")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -127,6 +135,8 @@ func TestResponse_Render(t *testing.T) {
 // =============================================================================
 
 func TestRespond_Success(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 	data := map[string]string{"key": "value"}
@@ -143,6 +153,8 @@ func TestRespond_Success(t *testing.T) {
 }
 
 func TestRespond_Created(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/test", nil)
 	data := struct {
@@ -161,6 +173,8 @@ func TestRespond_Created(t *testing.T) {
 }
 
 func TestRespond_NilData(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -181,6 +195,8 @@ func TestRespond_NilData(t *testing.T) {
 // =============================================================================
 
 func TestRespondWithError_BadRequest(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -196,6 +212,8 @@ func TestRespondWithError_BadRequest(t *testing.T) {
 }
 
 func TestRespondWithError_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -211,6 +229,8 @@ func TestRespondWithError_Unauthorized(t *testing.T) {
 }
 
 func TestRespondWithError_InternalServerError(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 
@@ -230,6 +250,8 @@ func TestRespondWithError_InternalServerError(t *testing.T) {
 // =============================================================================
 
 func TestRespondNoContent(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("DELETE", "/test/1", nil)
 
@@ -244,6 +266,8 @@ func TestRespondNoContent(t *testing.T) {
 // =============================================================================
 
 func TestRespondWithJSON_Success(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 	data := map[string]interface{}{
@@ -262,6 +286,8 @@ func TestRespondWithJSON_Success(t *testing.T) {
 }
 
 func TestRespondWithJSON_CustomStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		status int
@@ -290,6 +316,8 @@ func TestRespondWithJSON_CustomStatus(t *testing.T) {
 // =============================================================================
 
 func TestPagination_Struct(t *testing.T) {
+	t.Parallel()
+
 	p := common.Pagination{
 		CurrentPage:  2,
 		PageSize:     25,
@@ -311,6 +339,8 @@ func TestPagination_Struct(t *testing.T) {
 }
 
 func TestPaginationParams(t *testing.T) {
+	t.Parallel()
+
 	params := common.PaginationParams{
 		Page:     3,
 		PageSize: 50,
@@ -327,6 +357,8 @@ func TestPaginationParams(t *testing.T) {
 // =============================================================================
 
 func TestNewPaginatedResponse_StandardCase(t *testing.T) {
+	t.Parallel()
+
 	data := []string{"item1", "item2", "item3"}
 
 	resp := common.NewPaginatedResponse(data, 1, 10, 25, "Items retrieved")
@@ -342,6 +374,8 @@ func TestNewPaginatedResponse_StandardCase(t *testing.T) {
 }
 
 func TestNewPaginatedResponse_TotalPages_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		total              int
@@ -365,6 +399,8 @@ func TestNewPaginatedResponse_TotalPages_EdgeCases(t *testing.T) {
 }
 
 func TestNewPaginatedResponse_ZeroPageSize(t *testing.T) {
+	t.Parallel()
+
 	// Zero page size should not cause division by zero
 	resp := common.NewPaginatedResponse(nil, 1, 0, 100, "")
 
@@ -373,6 +409,8 @@ func TestNewPaginatedResponse_ZeroPageSize(t *testing.T) {
 }
 
 func TestNewPaginatedResponse_EmptyData(t *testing.T) {
+	t.Parallel()
+
 	resp := common.NewPaginatedResponse([]int{}, 1, 50, 0, "No items found")
 
 	assert.Equal(t, "success", resp.Status)
@@ -382,6 +420,8 @@ func TestNewPaginatedResponse_EmptyData(t *testing.T) {
 }
 
 func TestPaginatedResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	resp := common.NewPaginatedResponse(nil, 1, 10, 0, "")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -396,6 +436,8 @@ func TestPaginatedResponse_Render(t *testing.T) {
 // =============================================================================
 
 func TestRespondPaginated_Success(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 	data := []map[string]int{{"id": 1}, {"id": 2}}
@@ -418,6 +460,8 @@ func TestRespondPaginated_Success(t *testing.T) {
 }
 
 func TestRespondPaginated_EmptyResults(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 	params := common.PaginationParams{Page: 1, PageSize: 50, Total: 0}
@@ -434,6 +478,8 @@ func TestRespondPaginated_EmptyResults(t *testing.T) {
 }
 
 func TestRespondPaginated_LastPage(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
 	data := []string{"item"} // Single item on last page

@@ -79,25 +79,6 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 	}
 }
 
-// listCareScheduleChangeRequests returns the tenant's pending parent
-// care-schedule change requests for the staff review queue.
-func (rs *Resource) listCareScheduleChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.CareRequestService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
-		return
-	}
-	items, err := rs.CareRequestService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]CareRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toCareRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Care schedule change requests retrieved")
-}
-
 // DecideCareRequestBody is the body of POST
 // .../care-schedule-change-requests/{requestId}/decide.
 type DecideCareRequestBody struct {

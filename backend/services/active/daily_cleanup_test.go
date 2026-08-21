@@ -50,28 +50,27 @@ import (
 //
 // Hermetic Pattern: Creates real database records instead of hardcoded IDs.
 func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create real test fixtures
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 1")
 	device := testpkg.CreateTestDevice(t, db, "cleanup-test-device-1")
+	// The room is passed explicitly because the service falls back to the
+	// hardcoded room ID 1 when none is given or planned, and that room belongs
+	// to the bootstrap tenant (#2419).
+	room := testpkg.CreateTestRoom(t, db, "Cleanup Room 1")
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor1")
 	student := testpkg.CreateTestStudent(t, db, "Test", "Student1", "1a")
 
 	// Cleanup fixtures after test completes (or fails)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		activityGroup.ID, device.ID, staff.ID, student.ID)
 
 	// Start a group session using real IDs
-	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, nil)
+	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
@@ -127,15 +126,12 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 // Hermetic Pattern: Creates multiple sessions with real fixtures to test
 // batch cleanup behavior.
 func TestEndDailySessionsConsistency(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	}()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create real test fixtures for multiple sessions
 	// Use SEPARATE devices to avoid ForceStart ending session1 prematurely
@@ -143,20 +139,23 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	activity2 := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 3")
 	device1 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2a")
 	device2 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2b")
+	// Rooms are passed explicitly: without one the service falls back to the
+	// hardcoded room ID 1, which belongs to the bootstrap tenant (#2419).
+	// Separate rooms because a second session in the same room is a conflict.
+	room1 := testpkg.CreateTestRoom(t, db, "Cleanup Room 2a")
+	room2 := testpkg.CreateTestRoom(t, db, "Cleanup Room 2b")
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor2")
 	student1 := testpkg.CreateTestStudent(t, db, "Test", "Student2", "2a")
 	student2 := testpkg.CreateTestStudent(t, db, "Test", "Student3", "2b")
 
 	// Cleanup all fixtures after test
-	defer testpkg.CleanupActivityFixtures(t, db,
-		activity1.ID, activity2.ID, device1.ID, device2.ID, staff.ID, student1.ID, student2.ID)
 
 	// Start two group sessions with real IDs on SEPARATE devices
-	session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, nil)
+	session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &room1.ID)
 	require.NoError(t, err)
 
 	// Start second session on separate device (no conflict)
-	session2, err := service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, nil)
+	session2, err := service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, &room2.ID)
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs

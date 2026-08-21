@@ -31,6 +31,7 @@ export interface OgsLiveWireStudent {
   class_trip: boolean;
   class_trip_since?: string;
   day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
   arrival_time?: string;

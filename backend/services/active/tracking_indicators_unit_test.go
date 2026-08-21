@@ -11,6 +11,8 @@ import (
 )
 
 func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{}, []string{"Mensa"})
@@ -20,6 +22,8 @@ func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_EmptyLabels(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100}, []string{})
@@ -29,6 +33,8 @@ func TestGetTrackingIndicators_EmptyLabels(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_RepoError(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return nil, errors.New("database connection lost")
@@ -45,6 +51,8 @@ func TestGetTrackingIndicators_RepoError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_NoVisits(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return nil, nil
@@ -63,6 +71,8 @@ func TestGetTrackingIndicators_NoVisits(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_SubstringMatching(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{
@@ -80,6 +90,8 @@ func TestGetTrackingIndicators_SubstringMatching(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{
@@ -97,6 +109,8 @@ func TestGetTrackingIndicators_CaseInsensitive(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_MatchesRoomName(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{
@@ -114,6 +128,8 @@ func TestGetTrackingIndicators_MatchesRoomName(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_MultipleLabelsPartialMatch(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{
@@ -136,6 +152,8 @@ func TestGetTrackingIndicators_MultipleLabelsPartialMatch(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_MultipleStudents(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{
@@ -160,6 +178,8 @@ func TestGetTrackingIndicators_MultipleStudents(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_StudentWithNoVisits(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			// Only student 100 has visits, student 200 has none
@@ -183,6 +203,8 @@ func TestGetTrackingIndicators_StudentWithNoVisits(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_WhitespaceInLabels(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getTodayVisitNamesFunc: func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
 			return []active.VisitGroupNames{

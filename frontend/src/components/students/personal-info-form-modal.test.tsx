@@ -14,12 +14,9 @@ vi.mock("~/components/ui/date-picker", async (importOriginal) => {
 });
 
 const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
-  // Unreachable by default, exactly like the un-mocked network call these
-  // tests used to make: the stored links stay unknown, which is the state
-  // every suite below assumes.
   fetchStudentCompanionsMock: vi.fn<
     (studentId: string) => Promise<StudentCompanion[]>
-  >(() => Promise.reject(new Error("companions unavailable"))),
+  >(() => new Promise(() => undefined)),
 }));
 
 vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
@@ -103,6 +100,9 @@ describe("PersonalInfoFormModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchStudentCompanionsMock.mockImplementation(
+      () => new Promise(() => undefined),
+    );
   });
 
   describe("Modal open/close behavior", () => {
@@ -684,6 +684,9 @@ describe("PersonalInfoFormModal — companion plan conflicts", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchStudentCompanionsMock.mockImplementation(
+      () => new Promise(() => undefined),
+    );
   });
 
   it("drops the conflicts when the question is dismissed", async () => {

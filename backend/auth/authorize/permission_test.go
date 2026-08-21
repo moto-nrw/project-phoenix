@@ -12,6 +12,8 @@ import (
 )
 
 func TestRequiresPermission(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		requiredPerm     string
@@ -96,6 +98,8 @@ func TestRequiresPermission(t *testing.T) {
 }
 
 func TestRequiresAnyPermission(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		requiredPerms   []string
@@ -152,6 +156,8 @@ func TestRequiresAnyPermission(t *testing.T) {
 }
 
 func TestRequiresAllPermissions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		requiredPerms   []string
@@ -209,6 +215,8 @@ func TestRequiresAllPermissions(t *testing.T) {
 
 // Test permission validation with wildcard patterns
 func TestHasPermission(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		required    string

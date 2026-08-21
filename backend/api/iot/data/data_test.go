@@ -55,8 +55,8 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestGetAvailableTeachers_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.TeachersRouter()
 
@@ -69,8 +69,8 @@ func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 }
 
 func TestGetAvailableTeachers_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-1")
 
@@ -87,22 +87,14 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 }
 
 func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
 	linkedTeacher, linkedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
-	unmappedTeacher, unmappedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
-	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, linkedTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, legacyTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, unmappedTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, linkedAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, legacyAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, unmappedAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
+	_, _ = testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
+	_, _ = testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
+	_, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
 
 	tenantID := linkedTeacher.GetTenantID()
 	testpkg.EnsureAccountTenant(t, ctx.db, linkedAccount.ID, tenantID)
@@ -152,8 +144,8 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 // =============================================================================
 
 func TestGetTeacherStudents_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -166,8 +158,8 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 }
 
 func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
 	student := testpkg.CreateTestStudent(t, ctx.db, "AllVis", "Student", "2c")
@@ -203,8 +195,8 @@ func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 }
 
 func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-3")
 
@@ -221,8 +213,8 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 }
 
 func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4")
 	// Create a student to verify it is NOT returned
@@ -248,8 +240,8 @@ func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 }
 
 func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-5")
 
@@ -271,8 +263,8 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 // =============================================================================
 
 func TestGetTeacherActivities_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -285,8 +277,8 @@ func TestGetTeacherActivities_NoDevice(t *testing.T) {
 }
 
 func TestGetTeacherActivities_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-6")
 
@@ -302,13 +294,12 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 }
 
 func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
-	defer func() { _ = tc.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, tc.db, "data-test-device-occ")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "occ-test-activity")
 	room := testpkg.CreateTestRoom(t, tc.db, "occ-test-room")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.CategoryID, room.ID)
 
 	// Create an active session for this activity group
 	bgCtx := context.Background()
@@ -321,7 +312,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 	}
-	activeGroup.SetTenantID(1)
+	activeGroup.SetTenantID(testpkg.Tenant(t))
 	err := tc.db.NewInsert().
 		Model(activeGroup).
 		ModelTableExpr(`active.groups AS "active_group"`).
@@ -366,8 +357,8 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableRooms_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -380,8 +371,8 @@ func TestGetAvailableRooms_NoDevice(t *testing.T) {
 }
 
 func TestGetAvailableRooms_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-7")
 
@@ -397,8 +388,8 @@ func TestGetAvailableRooms_Success(t *testing.T) {
 }
 
 func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-8")
 
@@ -415,8 +406,8 @@ func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 }
 
 func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-9")
 
@@ -438,8 +429,8 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 // =============================================================================
 
 func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -452,8 +443,8 @@ func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
 }
 
 func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-10")
 
@@ -471,8 +462,8 @@ func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 }
 
 func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-11")
 
@@ -490,8 +481,8 @@ func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 }
 
 func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-12")
 	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Student", "2a")
@@ -510,8 +501,8 @@ func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 }
 
 func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-13")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff")
@@ -538,8 +529,8 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 // left over from earlier graduations the lookup must report the bracelet as free
 // so it can be handed to a current child.
 func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-alumnus")
 	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Alumnus", "4a")

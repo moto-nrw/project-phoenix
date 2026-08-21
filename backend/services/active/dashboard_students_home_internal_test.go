@@ -7,6 +7,8 @@ import "testing"
 // children never check in, and counting them here as well would show the same
 // child twice.
 func TestCalculateStudentsHome(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                          string
 		total, present, sick, excused int

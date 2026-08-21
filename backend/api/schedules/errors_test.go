@@ -13,6 +13,8 @@ import (
 )
 
 func TestErrorRenderer_DateframeNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "GetDateframe",
 		Err: scheduleSvc.ErrDateframeNotFound,
@@ -29,6 +31,8 @@ func TestErrorRenderer_DateframeNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "GetTimeframe",
 		Err: scheduleSvc.ErrTimeframeNotFound,
@@ -45,6 +49,8 @@ func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "UpdateTimeframe",
 		Err: scheduleSvc.ErrTimeframeRequiredByCareOffering,
@@ -60,6 +66,8 @@ func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 }
 
 func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "GetRecurrenceRule",
 		Err: scheduleSvc.ErrRecurrenceRuleNotFound,
@@ -76,6 +84,8 @@ func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidDateRange(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "ValidateDateRange",
 		Err: scheduleSvc.ErrInvalidDateRange,
@@ -92,6 +102,8 @@ func TestErrorRenderer_InvalidDateRange(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "ValidateTimeRange",
 		Err: scheduleSvc.ErrInvalidTimeRange,
@@ -108,6 +120,8 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidDuration(t *testing.T) {
+	t.Parallel()
+
 	err := &scheduleSvc.ScheduleError{
 		Op:  "ValidateDuration",
 		Err: scheduleSvc.ErrInvalidDuration,
@@ -124,6 +138,8 @@ func TestErrorRenderer_InvalidDuration(t *testing.T) {
 }
 
 func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	err := &activeSvc.RoomCapacityError{
 		RoomID:           12,
 		RoomName:         "Mensa",
@@ -138,6 +154,8 @@ func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownScheduleError(t *testing.T) {
+	t.Parallel()
+
 	// ScheduleError with unknown underlying error should fall to default case
 	unknownErr := errors.New("unknown schedule error")
 	err := &scheduleSvc.ScheduleError{
@@ -156,6 +174,8 @@ func TestErrorRenderer_UnknownScheduleError(t *testing.T) {
 }
 
 func TestErrorRenderer_NonScheduleError(t *testing.T) {
+	t.Parallel()
+
 	// Non-ScheduleError should be treated as internal server error
 	err := errors.New("some random error")
 
@@ -170,6 +190,8 @@ func TestErrorRenderer_NonScheduleError(t *testing.T) {
 }
 
 func TestErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
+	t.Parallel()
+
 	// ScheduleError with nil Err (Unwrap returns nil) should fall to default case
 	err := &scheduleSvc.ScheduleError{
 		Op:  "SomeOperation",

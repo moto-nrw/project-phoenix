@@ -8,29 +8,30 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-// SetupTestDB creates a test database connection using the standard configuration.
-// The first call in a test binary initializes the whole test-database
-// lifecycle (server up, template current, package clone created and
-// bootstrapped — see db_clone.go and internal/testdb); every call opens a
-// small per-test pool against the package clone.
+// SetupTestDB returns the package-wide test database pool. The first call in
+// a test binary initializes the whole test-database lifecycle (server up,
+// template current, package clone created and bootstrapped — see db_clone.go
+// and internal/testdb) and opens one shared pool against the package clone;
+// every later call returns that same pool.
 //
-// The per-test path performs no t.Setenv or viper writes, so tests using it
-// may call t.Parallel().
+// Tests MUST NOT close the returned handle — it is shared by every test in
+// the binary and dies with the process. The per-test path performs no
+// t.Setenv or viper writes, so tests using it may call t.Parallel().
 //
 // This is the preferred way to get a database connection in tests:
 //
 //	func TestSomething(t *testing.T) {
 //	    db := testpkg.SetupTestDB(t)
-//	    defer db.Close()
 //	    // ... test code
 //	}
-func SetupTestDB(t *testing.T) *bun.DB {
+func SetupTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 
 	// -short überspringt alle DB-Integrationstests: `go test -short ./...` ist
@@ -52,21 +53,33 @@ func SetupTestDB(t *testing.T) *bun.DB {
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
 	// without this, every later test in the package would lose test_db_dsn.
-	// Read-then-repair keeps the parallel path write-free while the config
-	// is intact (viper is not thread-safe; resetters run sequentially today).
+	// viper's maps are not thread-safe, so the read and the repair are taken
+	// under one lock — otherwise a package that both resets viper and runs
+	// parallel tests would race here under -race.
+	viperHealMu.Lock()
 	if viper.GetString("test_db_dsn") != packageClone.DSN {
 		applyViperTestConfig()
 	}
+	viperHealMu.Unlock()
+
+	if leftoverMode() == "test" {
+		perTestLeftoverCheck(t)
+	}
+
+	return sharedTestDB
+}
+
+// SetupClosableTestDB returns a PRIVATE pool against the package clone for
+// tests that deliberately close their database to provoke errors. Closing
+// the shared SetupTestDB pool would kill every later test in the binary;
+// closing this one affects nobody else. The caller owns the close.
+func SetupClosableTestDB(t *testing.T) *bun.DB {
+	t.Helper()
+
+	SetupTestDB(t) // ensure the lifecycle ran and viper points at the clone
 
 	db, err := database.DBConn()
-	require.NoError(t, err, "Failed to connect to test database")
-
-	// Set search_path to include all project schemas.
-	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
-	// which fails when the target schema isn't in search_path.
-	_, _ = db.ExecContext(context.Background(),
-		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, config, meta, audit`)
-
+	require.NoError(t, err, "Failed to open private test database pool")
 	return db
 }
 
@@ -77,31 +90,15 @@ func SetupTestDB(t *testing.T) *bun.DB {
 // CleanupTableRecords removes records from a schema-qualified table by ID.
 // Use this for simple single-table cleanup without FK dependencies.
 //
+// The ID type is generic because the suite has both: most tables use bigint
+// keys, RFID cards use strings. Two copies of this function drifted apart
+// once already.
+//
 // Usage:
 //
-//	defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-//	defer testpkg.CleanupTableRecords(t, db, "iot.devices", device1.ID, device2.ID)
-func CleanupTableRecords(tb testing.TB, db *bun.DB, table string, ids ...int64) {
-	tb.Helper()
-	if len(ids) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr(table).
-		Where("id IN (?)", bun.List(ids)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
-	}
-}
-
-// CleanupTableRecordsByStringID removes records from a table by string ID.
-// Use this for tables with string primary keys (e.g., RFID cards).
-func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids ...string) {
+//	testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+//	testpkg.CleanupTableRecords(t, db, "users.rfid_cards", card.ID)
+func CleanupTableRecords[ID int64 | string](tb testing.TB, db *bun.DB, table string, ids ...ID) {
 	tb.Helper()
 	if len(ids) == 0 {
 		return
@@ -166,7 +163,10 @@ type TenantScope struct {
 func NewTenantScope(tb testing.TB, db *bun.DB) TenantScope {
 	tb.Helper()
 
-	tenantID := UniqueTestTenantID(tb)
+	// JWT-safe band, not UniqueTestTenantID: a scope tenant travels through
+	// minted test JWTs, and JSON decodes numbers as float64 — a nanosecond
+	// timestamp ID exceeds 2^53 and comes back corrupted.
+	tenantID := uniqueJWTSafeTenantID()
 	EnsureTestTenant(tb, db, tenantID)
 
 	return TenantScope{TenantID: tenantID}
@@ -180,13 +180,12 @@ func (s TenantScope) Context() context.Context {
 var uniqueTestTenantCounter int64
 
 const (
-	// Tenant IDs handed out by CreateTestTenant live in
-	// [testTenantIDBase, testTenantIDCeiling). The band is high enough not to
-	// collide with the literal IDs older fixtures hardcode (1, 42, …) and low
-	// enough that the ID survives a JWT round-trip — JSON numbers decode as
-	// float64, which is exact only below 2^53.
-	testTenantIDBase    int64 = 1_000_000_000
-	testTenantIDCeiling int64 = 2_000_000_000
+	// Tenant IDs handed out here live in [testTenantIDBase,
+	// testTenantIDCeiling). The values come from internal/testdb because the
+	// leftover gate reads the same floor to tell a test's own tenant from
+	// shared state — two copies of the number would drift apart silently.
+	testTenantIDBase    = testdb.TenantIDBase
+	testTenantIDCeiling = testdb.TenantIDCeiling
 )
 
 // uniqueJWTSafeTenantID hands out a distinct tenant ID inside the band above.
@@ -199,10 +198,13 @@ func uniqueJWTSafeTenantID() int64 {
 }
 
 // UniqueTestTenantID returns a high, process-local tenant ID for tests that
-// assert aggregate counts and therefore must not share tenant_id=1.
+// assert aggregate counts and therefore must not share tenant_id=1. It hands
+// out IDs from the JWT-safe band: a nanosecond-timestamp ID exceeds 2^53 and
+// comes back corrupted once it travels through a minted test token, because
+// JSON decodes numbers as float64.
 func UniqueTestTenantID(tb testing.TB) int64 {
 	tb.Helper()
-	return time.Now().UnixNano() + int64(os.Getpid()) + atomic.AddInt64(&uniqueTestTenantCounter, 1)
+	return uniqueJWTSafeTenantID()
 }
 
 // ============================================================================

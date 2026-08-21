@@ -7,6 +7,8 @@ import (
 )
 
 func TestWithinWindow(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		now, start, end int

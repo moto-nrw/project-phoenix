@@ -28,6 +28,8 @@ func (r *retryAttendanceRepository) FindForDateByStudentIDs(_ context.Context, d
 }
 
 func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
+	t.Parallel()
+
 	existingCheckIn := time.Date(2026, 7, 15, 7, 15, 0, 0, time.UTC)
 	retryTime := existingCheckIn.Add(30 * time.Minute)
 	existing := &activeModels.Attendance{

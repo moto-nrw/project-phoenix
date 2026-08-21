@@ -85,6 +85,24 @@ vi.mock("~/components/settings/passkey-settings-section", () => ({
   PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
 }));
 
+vi.mock("~/components/settings/trusted-devices-section", () => ({
+  TrustedDevicesSection: () => <div data-testid="trusted-devices" />,
+}));
+
+vi.mock("~/components/settings/notification-preferences-section", () => ({
+  NotificationPreferencesSection: () => (
+    <div data-testid="notification-preferences" />
+  ),
+}));
+
+vi.mock("~/components/settings/birthday-visibility-section", () => ({
+  BirthdayVisibilitySection: () => <div data-testid="birthday-visibility" />,
+}));
+
+vi.mock("~/components/settings/push-notification-section", () => ({
+  PushNotificationSection: () => <div data-testid="push-notifications" />,
+}));
+
 // Mock Button component
 vi.mock("~/components/ui/button", () => ({
   Button: ({

@@ -15,6 +15,8 @@ import (
 )
 
 func TestPayrollNumberAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Payroll", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	path := fmt.Sprintf("/staff/%d/payroll-number", target.ID)
@@ -36,6 +38,8 @@ func TestPayrollNumberAPI_PermissionSplit(t *testing.T) {
 }
 
 func TestPayrollNumberAPI_StableErrorCodes(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	suffix := time.Now().UnixNano()
 	first := testpkg.CreateTestStaff(t, ctx.tc.db, "Payroll", fmt.Sprintf("Erste-%d", suffix))

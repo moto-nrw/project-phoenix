@@ -54,6 +54,8 @@ func int64PtrEligibility(v int64) *int64 { return &v }
 // exists) must be rejected rather than silently taking the fresh-create path,
 // which would add a third duplicate to the colliding records (#1663).
 func TestResolveMatchedStudentID_AmbiguousRejected(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchStudentRepo{matchID: nil, exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
@@ -68,6 +70,8 @@ func TestResolveMatchedStudentID_AmbiguousRejected(t *testing.T) {
 // A genuine zero match (no enrolled student) stays nil so the fresh-create path
 // runs — legitimate for admin-manual / late-invite which bypass the gate.
 func TestResolveMatchedStudentID_ZeroMatchAllowsFreshCreate(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchStudentRepo{matchID: nil, exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
@@ -80,6 +84,8 @@ func TestResolveMatchedStudentID_ZeroMatchAllowsFreshCreate(t *testing.T) {
 
 // An unambiguous single match pins the concrete student so approval renews it.
 func TestResolveMatchedStudentID_SingleMatchReturnsID(t *testing.T) {
+	t.Parallel()
+
 	want := int64PtrEligibility(555)
 	repo := &stubMatchStudentRepo{matchID: want}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
@@ -95,6 +101,8 @@ func TestResolveMatchedStudentID_SingleMatchReturnsID(t *testing.T) {
 // Non-existing_students audiences never resolve a match (and never probe the
 // repo), so the child always takes the fresh-create path.
 func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubMatchStudentRepo{matchID: int64PtrEligibility(1), exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
@@ -110,6 +118,8 @@ func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
 // student's status underneath the submission. Approving it would create a
 // duplicate Person/Student, so the submission must be rejected instead (#1663).
 func TestAssertExistingStudentMatchResolved_RejectsRacedZeroMatch(t *testing.T) {
+	t.Parallel()
+
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
 
 	err := assertExistingStudentMatchResolved(phase, nil, true, 1)
@@ -120,6 +130,8 @@ func TestAssertExistingStudentMatchResolved_RejectsRacedZeroMatch(t *testing.T) 
 // Admin-manual / late-invite submissions skip the enrolled gate on purpose and
 // may create a fresh record, so an unpinned match stays legal for them.
 func TestAssertExistingStudentMatchResolved_TrustedPathKeepsFreshCreate(t *testing.T) {
+	t.Parallel()
+
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
 
 	require.NoError(t, assertExistingStudentMatchResolved(phase, nil, false, 0))
@@ -127,6 +139,8 @@ func TestAssertExistingStudentMatchResolved_TrustedPathKeepsFreshCreate(t *testi
 
 // A pinned match, and any non-existing_students audience, are unaffected.
 func TestAssertExistingStudentMatchResolved_PinnedAndOtherAudiencesPass(t *testing.T) {
+	t.Parallel()
+
 	existing := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
 	require.NoError(t, assertExistingStudentMatchResolved(existing, int64PtrEligibility(42), true, 0))
 
@@ -144,6 +158,8 @@ func eligibilityTestPhase(audience string, eligibleClasses ...string) *enrollmen
 func strPtrEligibility(s string) *string { return &s }
 
 func TestValidatePhaseEligibility_LinkedParentsRejectsAnonymous(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
 
@@ -152,6 +168,8 @@ func TestValidatePhaseEligibility_LinkedParentsRejectsAnonymous(t *testing.T) {
 }
 
 func TestValidatePhaseEligibility_LinkedParentsRequiresSubmitEligibility(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
 	accountID := int64(4711)
@@ -171,6 +189,8 @@ func TestValidatePhaseEligibility_LinkedParentsRequiresSubmitEligibility(t *test
 }
 
 func TestValidatePhaseEligibility_TrustedPathsBypass(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents, "2a")
 
@@ -184,6 +204,8 @@ func TestValidatePhaseEligibility_TrustedPathsBypass(t *testing.T) {
 }
 
 func TestValidatePhaseEligibility_EligibleClassesEnforced(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen, "2a", " 3b ")
 
@@ -208,6 +230,8 @@ func TestValidatePhaseEligibility_EligibleClassesEnforced(t *testing.T) {
 }
 
 func TestValidatePhaseEligibility_EmptyClassListMeansNoRestriction(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
 
@@ -218,6 +242,8 @@ func TestValidatePhaseEligibility_EmptyClassListMeansNoRestriction(t *testing.T)
 }
 
 func TestValidatePhaseEligibility_NewStudentsRejectsEnrolledChild(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
@@ -232,6 +258,8 @@ func TestValidatePhaseEligibility_NewStudentsRejectsEnrolledChild(t *testing.T) 
 }
 
 func TestValidatePhaseEligibility_NewStudentsAcceptsUnknownChild(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
@@ -250,6 +278,8 @@ func TestValidatePhaseEligibility_NewStudentsAcceptsUnknownChild(t *testing.T) {
 // when concrete-class collection is off) BEFORE validatePhaseEligibility, so
 // the gate sees the persisted nil and rejects (#1663).
 func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		Audience:               enrollmentModels.PhaseAudienceOpen,
 		EligibleSchoolClasses:  []string{"2a"},
@@ -275,6 +305,8 @@ func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
 }
 
 func TestValidatePhaseEligibility_ExistingStudentsRejectsUnknownChild(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
@@ -293,6 +325,8 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsUnknownChild(t *testing
 }
 
 func TestValidatePhaseEligibility_ExistingStudentsAcceptsEnrolledChild(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
@@ -313,6 +347,8 @@ func TestValidatePhaseEligibility_ExistingStudentsAcceptsEnrolledChild(t *testin
 // linked_parents; account-less parents come in through a late invite or admin
 // manual enrollment, both of which set AllowClosedPhase (#1663).
 func TestValidatePhaseEligibility_ExistingStudentsRejectsAnonymous(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
@@ -349,6 +385,8 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsAnonymous(t *testing.T)
 // passed that when it was created, so an anonymous-looking edit request (no
 // guardian account) still passes the child gate for a linked_parents phase.
 func TestValidatePhaseChildEligibility_SkipsLinkedParentsAudienceGate(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
 
@@ -363,6 +401,8 @@ func TestValidatePhaseChildEligibility_SkipsLinkedParentsAudienceGate(t *testing
 // The child gate keeps enforcing eligible_school_classes regardless of
 // audience, so an edit that swaps in an ineligible class is rejected.
 func TestValidatePhaseChildEligibility_EnforcesClassRegardlessOfAudience(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents, "2a")
 
@@ -375,6 +415,8 @@ func TestValidatePhaseChildEligibility_EnforcesClassRegardlessOfAudience(t *test
 // The child gate keeps enforcing the new_students already-enrolled check, so
 // an edit that swaps in an enrolled child's identity is rejected.
 func TestValidatePhaseChildEligibility_EnforcesNewStudents(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
@@ -391,6 +433,8 @@ func TestValidatePhaseChildEligibility_EnforcesNewStudents(t *testing.T) {
 // override rather than newly rejecting an edit; every self-service source
 // must re-run the child gate.
 func TestIsTrustedEnrollmentSource(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isTrustedEnrollmentSource(enrollmentModels.RequestSourceLateInvite))
 	assert.True(t, isTrustedEnrollmentSource(enrollmentModels.RequestSourceAdminManual))
 	assert.True(t, isTrustedEnrollmentSource("  "+enrollmentModels.RequestSourceLateInvite+"  "))
@@ -399,6 +443,8 @@ func TestIsTrustedEnrollmentSource(t *testing.T) {
 }
 
 func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEligibilityStudentRepo{err: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
@@ -455,6 +501,8 @@ func portalSubmitter(accountID int64) reEnrollmentSubmitter {
 // A guardian holding parent_portal.enrollment.submit on the MATCHED student may
 // re-enroll it; the probe is called with the exact (account, student, tenant).
 func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -474,6 +522,8 @@ func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
 // WOULD pass must not rescue the denied account: the account is the identity
 // approval attaches, so it is the identity that has to hold the permission.
 func TestAssertGuardianMayReEnrollStudent_NotGrantedRejected(t *testing.T) {
+	t.Parallel()
+
 	emailGranted := true
 	auth := &stubGuardianAuthorizer{granted: false, emailGranted: &emailGranted}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
@@ -487,6 +537,8 @@ func TestAssertGuardianMayReEnrollStudent_NotGrantedRejected(t *testing.T) {
 
 // No matched student (fresh create) skips the probe entirely.
 func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -501,6 +553,8 @@ func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
 // EMAIL the request is bound to: the invited parent may renew a child they are
 // already a permitted guardian of.
 func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -519,6 +573,8 @@ func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.
 // is rejected. The invite opens the phase, but the submitted email still has to
 // prove authority over the enrolled child.
 func TestAssertGuardianMayReEnrollStudent_EmailIdentityNotGrantedRejected(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -531,6 +587,8 @@ func TestAssertGuardianMayReEnrollStudent_EmailIdentityNotGrantedRejected(t *tes
 // A submission carrying NO identity at all cannot be authorized against
 // anything, so it may not pin a live student.
 func TestAssertGuardianMayReEnrollStudent_NoIdentityFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -545,6 +603,8 @@ func TestAssertGuardianMayReEnrollStudent_NoIdentityFailsClosed(t *testing.T) {
 // authorization and must be able to re-enroll a child whose guardian is not yet
 // recorded, exactly like the paper form.
 func TestAssertGuardianMayReEnrollStudent_AdminManagedBypasses(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{granted: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -558,6 +618,8 @@ func TestAssertGuardianMayReEnrollStudent_AdminManagedBypasses(t *testing.T) {
 
 // A late invite is NOT an admin override: it stays subject to the per-child gate.
 func TestReEnrollmentSubmitterFor_OnlyAdminManualOverrides(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourceAdminManual, nil, "a@b.test").AdminManaged)
 	assert.False(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourceLateInvite, nil, "a@b.test").AdminManaged)
 	assert.False(t, reEnrollmentSubmitterFor(enrollmentModels.RequestSourcePublic, nil, "a@b.test").AdminManaged)
@@ -569,6 +631,8 @@ func TestReEnrollmentSubmitterFor_OnlyAdminManualOverrides(t *testing.T) {
 // Fail closed: a submission that resolved an existing student with no authorizer
 // wired is a misconfiguration, never a silent bypass.
 func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
@@ -578,6 +642,8 @@ func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosed(t *testing.T)
 
 // Same for the accountless identity: no authorizer, no pin.
 func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosedForEmail(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{}
 
 	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
@@ -587,6 +653,8 @@ func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosedForEmail(t *te
 
 // A repository error propagates and is NOT mistaken for a denial.
 func TestAssertGuardianMayReEnrollStudent_ProbeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{err: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 
@@ -599,6 +667,8 @@ func TestAssertGuardianMayReEnrollStudent_ProbeErrorPropagates(t *testing.T) {
 // The email probe's errors get the same treatment: unknown is not "denied", and
 // never silently "allowed" either.
 func TestAssertGuardianMayReEnrollStudent_EmailProbeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	auth := &stubGuardianAuthorizer{emailErr: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
 

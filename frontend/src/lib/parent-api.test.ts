@@ -749,6 +749,7 @@ describe("listExcusedRequests", () => {
           {
             id: "req-1",
             student_id: "84",
+            absence_status: "excused",
             status: "pending",
             dates: ["2026-06-02"],
             note: "Zahnarzt",
@@ -760,6 +761,7 @@ describe("listExcusedRequests", () => {
     const out = await listExcusedRequests("84");
     expect(out).toHaveLength(1);
     expect(out[0]!.status).toBe("pending");
+    expect(out[0]!.absence_status).toBe("excused");
     expect(seenURL).toContain("/api/parent/me/children/84/excused-requests");
   });
 });
@@ -775,6 +777,7 @@ describe("withdrawExcusedRequest", () => {
         data: {
           id: "req-1",
           student_id: "84",
+          absence_status: "excused",
           status: "withdrawn",
           dates: ["2026-06-02"],
           note: "Zahnarzt",
@@ -800,6 +803,8 @@ describe("getChildFeatures", () => {
       return jsonResponse({
         data: {
           sick_note_enabled: true,
+          sick_requires_approval: true,
+          excused_requires_approval: true,
           notes_enabled: false,
           pickup_change_enabled: true,
           related_accounts_invite_enabled: false,
@@ -812,6 +817,7 @@ describe("getChildFeatures", () => {
     });
     const out = await getChildFeatures("84");
     expect(out.sick_note_enabled).toBe(true);
+    expect(out.sick_requires_approval).toBe(true);
     expect(out.notes_enabled).toBe(false);
     expect(out.master_data_contact_edit_enabled).toBe(false);
     expect(seenURL).toContain("/api/parent/me/children/84/features");

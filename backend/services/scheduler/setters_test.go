@@ -31,6 +31,8 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestScheduler_SetWorkSessionCleaner(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	cleaner := &fakeWorkSessionCleaner{}
 	s.SetWorkSessionCleaner(cleaner)
@@ -38,6 +40,8 @@ func TestScheduler_SetWorkSessionCleaner(t *testing.T) {
 }
 
 func TestScheduler_SetBreakAutoEnder(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	ender := &mockBreakAutoEnder{}
 	s.SetBreakAutoEnder(ender)
@@ -45,6 +49,8 @@ func TestScheduler_SetBreakAutoEnder(t *testing.T) {
 }
 
 func TestScheduler_SetDB(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	// Passing nil is legitimate at test time — the field is only consulted
 	// by forEachTenant, and a nil db falls back to the plain-ctx branch.
@@ -53,12 +59,16 @@ func TestScheduler_SetDB(t *testing.T) {
 }
 
 func TestScheduler_SetSchoolRepo(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	s.SetSchoolRepo(nil)
 	assert.Nil(t, s.schoolRepo)
 }
 
 func TestScheduler_SetSettingsService(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	resolver := &stubSettingsResolver{}
 	s.SetSettingsService(resolver)
@@ -66,6 +76,8 @@ func TestScheduler_SetSettingsService(t *testing.T) {
 }
 
 func TestScheduler_SetAutoStartService(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	autoStart := &fakeAutoStartService{}
 	s.SetAutoStartService(autoStart)
@@ -98,6 +110,8 @@ func (c *countingBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, e
 }
 
 func TestCheckAndRunBreakAutoEnd_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	ender := &countingBreakAutoEnder{count: 3}
 	s := &Scheduler{
 		breakAutoEnder: ender,
@@ -111,6 +125,8 @@ func TestCheckAndRunBreakAutoEnd_HappyPath(t *testing.T) {
 }
 
 func TestCheckAndRunBreakAutoEnd_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	ender := &countingBreakAutoEnder{err: errors.New("db broke")}
 	s := &Scheduler{
 		breakAutoEnder: ender,
@@ -128,6 +144,8 @@ func TestCheckAndRunBreakAutoEnd_ServiceError(t *testing.T) {
 }
 
 func TestCheckAndRunBreakAutoEnd_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	ender := &countingBreakAutoEnder{}
 	s := &Scheduler{
 		breakAutoEnder: ender,
@@ -141,6 +159,8 @@ func TestCheckAndRunBreakAutoEnd_AlreadyRunning(t *testing.T) {
 }
 
 func TestCheckAndRunBreakAutoEnd_ZeroCount(t *testing.T) {
+	t.Parallel()
+
 	// count=0 path: the "if count > 0" branch is skipped, no Info log line.
 	ender := &countingBreakAutoEnder{count: 0}
 	s := &Scheduler{
@@ -224,6 +244,8 @@ func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time
 }
 
 func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeInstanceRepo{}
 	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
@@ -239,6 +261,8 @@ func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 }
 
 func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
+	t.Parallel()
+
 	// Without db/schoolRepo, forEachTenantSettings calls fn(ctx, 0) once —
 	// the threshold is resolved from registry default (5), and runOverdueForTenant
 	// runs for tenant 0 with no instances, which means no broadcasts.
@@ -264,6 +288,8 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 // Since #2161 the Schulhof is a regular plannable room: overdue planned
 // yard blocks emit the same overdue events as any other room's blocks.
 func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 4, 20)
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
@@ -293,7 +319,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 		overdueBroadcaster: spy,
 	}
 
-	s.runOverdueForTenant(context.Background(), 1, 5, now)
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
 	assert.Equal(t, 1, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
@@ -302,6 +328,8 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 }
 
 func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 4, 20)
 	inst := &scheduleModel.ActivityInstance{
 		Date:          today,
@@ -347,6 +375,8 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger: slog.Default(),
 		tasks:  make(map[string]*ScheduledTask),
@@ -359,6 +389,8 @@ func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
 }
 
 func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger:       slog.Default(),
 		tasks:        make(map[string]*ScheduledTask),
@@ -370,6 +402,8 @@ func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
 }
 
 func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
@@ -382,6 +416,8 @@ func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
 }
 
 func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
@@ -404,6 +440,8 @@ func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
 }
 
 func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
+	t.Parallel()
+
 	// Pre-close done before launching so waitUntilNextMinute returns false
 	// immediately after the startup check.
 	repo := &fakeInstanceRepo{}
@@ -457,6 +495,8 @@ func (f *fakeAutoStartService) RunForTenant(_ context.Context, _ time.Time) (*sc
 }
 
 func TestScheduleAutoStartTask_MissingService(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger: slog.Default(),
 		tasks:  make(map[string]*ScheduledTask),
@@ -467,6 +507,8 @@ func TestScheduleAutoStartTask_MissingService(t *testing.T) {
 }
 
 func TestScheduleAutoStartTask_Registers(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeAutoStartService{}
 	s := &Scheduler{
 		logger:    slog.Default(),
@@ -487,6 +529,8 @@ func TestScheduleAutoStartTask_Registers(t *testing.T) {
 }
 
 func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeAutoStartService{}
 	s := &Scheduler{
 		autoStart: svc,
@@ -503,6 +547,8 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 }
 
 func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeAutoStartService{result: &scheduleSvc.AutoStartResult{Checked: 2, Started: 1}}
 	s := &Scheduler{
 		autoStart: svc,
@@ -521,6 +567,8 @@ func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 // emitInstanceOverdue's broadcaster-failure branch: spy with fail=true so the
 // broadcast call returns an error and the Warn log path is exercised.
 func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 4, 20)
 	startTime := time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC) // 10:00 local
 	inst := &scheduleModel.ActivityInstance{
@@ -547,13 +595,15 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
-	s.runOverdueForTenant(context.Background(), 1, 5, now)
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")
 }
 
 // threshold < 1 is a documented no-op — exercises the early-return branch.
 func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeInstanceRepo{}
 	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
@@ -561,12 +611,14 @@ func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
-	s.runOverdueForTenant(context.Background(), 1, 0, time.Now())
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 0, time.Now())
 	assert.Equal(t, 0, repo.calls, "threshold < 1 must skip repo call")
 }
 
 // Exercises the repo error-log branch.
 func TestRunOverdueForTenant_RepoError(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeInstanceRepo{err: errors.New("db down")}
 	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
@@ -574,11 +626,13 @@ func TestRunOverdueForTenant_RepoError(t *testing.T) {
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
-	s.runOverdueForTenant(context.Background(), 1, 5, time.Now())
+	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, time.Now())
 	assert.Empty(t, spy.CallsByMethod("tenant"), "repo error must not result in any broadcast")
 }
 
 func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
+	t.Parallel()
+
 	// synctest: drive the fake clock past waitUntilNextMinute + a few ticker
 	// intervals so the ticker.C branch + done-exit branch both execute.
 	synctest.Test(t, func(t *testing.T) {
@@ -615,6 +669,8 @@ func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestForEachTenant_NoTenantConfig_InvokesFn(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	var called int
 	err := s.forEachTenant(context.Background(), "test-op", func(_ context.Context) error {
@@ -626,6 +682,8 @@ func TestForEachTenant_NoTenantConfig_InvokesFn(t *testing.T) {
 }
 
 func TestForEachTenant_NoTenantConfig_PropagatesErr(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	fnErr := errors.New("boom")
 	err := s.forEachTenant(context.Background(), "test-op", func(_ context.Context) error {
@@ -635,6 +693,8 @@ func TestForEachTenant_NoTenantConfig_PropagatesErr(t *testing.T) {
 }
 
 func TestForEachTenantSettings_NoTenantConfig_InvokesFn(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	var called int
 	var gotTenantID int64
@@ -677,6 +737,8 @@ func (s *stubSettingsResolver) ResolveInt(_ context.Context, _ string) (int, err
 }
 
 func TestResolveStringSetting_TenantOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, stringVal: "override-value"},
 		logger:   slog.Default(),
@@ -686,6 +748,8 @@ func TestResolveStringSetting_TenantOverride(t *testing.T) {
 }
 
 func TestResolveStringSetting_OverrideCheckError(t *testing.T) {
+	t.Parallel()
+
 	// When HasTenantOverride returns err, fall through to env/default.
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
@@ -696,6 +760,8 @@ func TestResolveStringSetting_OverrideCheckError(t *testing.T) {
 }
 
 func TestResolveStringSetting_OverrideEmptyString(t *testing.T) {
+	t.Parallel()
+
 	// Override exists but the resolved value is empty → fall through to default.
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, stringVal: ""},
@@ -706,6 +772,8 @@ func TestResolveStringSetting_OverrideEmptyString(t *testing.T) {
 }
 
 func TestResolveBoolSetting_TenantOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, boolVal: true},
 		logger:   slog.Default(),
@@ -715,6 +783,8 @@ func TestResolveBoolSetting_TenantOverride(t *testing.T) {
 }
 
 func TestResolveBoolSetting_OverrideCheckError(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
 		logger:   slog.Default(),
@@ -724,6 +794,8 @@ func TestResolveBoolSetting_OverrideCheckError(t *testing.T) {
 }
 
 func TestResolveIntSetting_TenantOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 99},
 		logger:   slog.Default(),
@@ -733,6 +805,8 @@ func TestResolveIntSetting_TenantOverride(t *testing.T) {
 }
 
 func TestResolveIntSetting_OverrideCheckError(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
 		logger:   slog.Default(),
@@ -742,6 +816,8 @@ func TestResolveIntSetting_OverrideCheckError(t *testing.T) {
 }
 
 func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	// When override resolves to 0 (or negative), resolveIntSetting falls
 	// through to env/default — documented invariant.
 	s := &Scheduler{
@@ -753,6 +829,8 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 }
 
 func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
+	t.Parallel()
+
 	// Zero is a meaningful value for settings like
 	// tracking.auto_checkout_grace_minutes (checkout exactly at shift end).
 	s := &Scheduler{
@@ -764,6 +842,8 @@ func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
 }
 
 func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, intVal: -3},
 		logger:   slog.Default(),
@@ -773,6 +853,8 @@ func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
 }
 
 func TestResolveNonNegativeIntSetting_PositiveOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 30},
 		logger:   slog.Default(),

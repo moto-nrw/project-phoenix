@@ -10,6 +10,8 @@ import (
 )
 
 func TestInstanceStudent_Validate(t *testing.T) {
+	t.Parallel()
+
 	base := func() *InstanceStudent {
 		return &InstanceStudent{
 			InstanceID: 1,
@@ -89,6 +91,8 @@ func TestInstanceStudent_Validate(t *testing.T) {
 }
 
 func TestIsValidAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidAttendanceStatus(AttendanceStatusExpected))
 	assert.True(t, IsValidAttendanceStatus(AttendanceStatusPresent))
 	assert.True(t, IsValidAttendanceStatus(AttendanceStatusAbsent))
@@ -97,6 +101,8 @@ func TestIsValidAttendanceStatus(t *testing.T) {
 }
 
 func TestIsValidAttendanceSubstatus(t *testing.T) {
+	t.Parallel()
+
 	for _, s := range []string{
 		AttendanceSubstatusLate,
 		AttendanceSubstatusExcused,
@@ -111,6 +117,8 @@ func TestIsValidAttendanceSubstatus(t *testing.T) {
 }
 
 func TestInstanceStudent_EntityInterface(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
 	s := &InstanceStudent{}
 	s.ID = 42
@@ -123,6 +131,8 @@ func TestInstanceStudent_EntityInterface(t *testing.T) {
 }
 
 func TestAttendanceFieldPatch_HasChanges(t *testing.T) {
+	t.Parallel()
+
 	sentinel := "x"
 	tests := []struct {
 		name  string

@@ -18,10 +18,6 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
-// timeNow is a package-local clock hook that tests may override to pin the
-// "current time" for deterministic assertions. Production code uses time.Now.
-var timeNow = time.Now
-
 // ResolveRawDailyCheckoutTime resolves the raw daily checkout time string.
 // Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → empty string.
 // Returns empty string when no time is configured, meaning daily checkout is always available.
@@ -60,7 +56,7 @@ func (s *CheckinService) studentDailyCheckoutTime(ctx context.Context) (*time.Ti
 		return nil, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
 	}
 
-	now := timeNow()
+	now := s.currentTime()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return &checkoutTime, nil
 }
@@ -116,7 +112,7 @@ func (s *CheckinService) perStudentCheckoutGate(ctx context.Context, student *us
 		return false, false
 	}
 
-	now := timeNow()
+	now := s.currentTime()
 	effectivePickup, err := s.pickup.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
 	if err != nil || effectivePickup == nil || effectivePickup.PickupTime == nil {
 		return false, false
@@ -163,7 +159,7 @@ func (s *CheckinService) isAfterGlobalCheckoutTime(ctx context.Context) bool {
 	if checkoutTime == nil {
 		return true
 	}
-	return timeNow().After(*checkoutTime)
+	return s.currentTime().After(*checkoutTime)
 }
 
 // ShouldShowDailyCheckoutWithGroup reports whether the kiosk may OFFER "nach

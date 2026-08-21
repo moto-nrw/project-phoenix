@@ -55,7 +55,6 @@ func insertShiftTypeRaw(t *testing.T, db *bun.DB, tenantID int64, name string) i
 // removes them, and the round-trip is idempotent (#1837 follow-up / #1836).
 func TestCategoryShiftTypeMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	if !categoryShiftTypeColumnExists(t, db) {
@@ -84,7 +83,6 @@ func TestCategoryShiftTypeMigration(t *testing.T) {
 // accepts a same-tenant reference.
 func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	tenantA := testpkg.UniqueTestTenantID(t)

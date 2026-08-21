@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -80,8 +82,9 @@ func setupSettingsTest(t *testing.T) *settingsTestContext {
 // =============================================================================
 
 func TestSettingsGetSchema_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -102,8 +105,9 @@ func TestSettingsGetSchema_Success(t *testing.T) {
 }
 
 func TestSettingsGetSchema_NoPermission(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -123,8 +127,9 @@ func TestSettingsGetSchema_NoPermission(t *testing.T) {
 // =============================================================================
 
 func TestSettingsSetValue_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -141,8 +146,9 @@ func TestSettingsSetValue_Success(t *testing.T) {
 }
 
 func TestSettingsSetValue_InvalidKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -159,8 +165,9 @@ func TestSettingsSetValue_InvalidKey(t *testing.T) {
 }
 
 func TestSettingsSetValue_InvalidValue(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -177,8 +184,9 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 }
 
 func TestSettingsSetValue_WithConfigManage(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -203,8 +211,9 @@ func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 // =============================================================================
 
 func TestSettingsResetValue_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -217,8 +226,9 @@ func TestSettingsResetValue_Success(t *testing.T) {
 }
 
 func TestSettingsResetValue_InvalidKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -235,8 +245,9 @@ func TestSettingsResetValue_InvalidKey(t *testing.T) {
 // =============================================================================
 
 func TestSettingsGetLoginImage_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -255,8 +266,9 @@ func TestSettingsGetLoginImage_Success(t *testing.T) {
 }
 
 func TestSettingsGetLoginImage_ReadOnlyUser(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -279,8 +291,9 @@ func TestSettingsGetLoginImage_ReadOnlyUser(t *testing.T) {
 // =============================================================================
 
 func TestSettingsUploadLoginImage_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// uploadLoginImage uses WithAdminTx internally — no tenant tx middleware
 	router := ctx.resource.SettingsRouter()
@@ -321,8 +334,9 @@ func TestSettingsUploadLoginImage_Success(t *testing.T) {
 }
 
 func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -398,8 +412,9 @@ func uploadedFilePath(t *testing.T, storedURL string) string {
 }
 
 func TestSettingsUploadLoginImage_InvalidFileType(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -418,8 +433,9 @@ func TestSettingsUploadLoginImage_InvalidFileType(t *testing.T) {
 // =============================================================================
 
 func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// deleteLoginImage uses WithAdminTx internally — no tenant tx middleware
 	router := ctx.resource.SettingsRouter()
@@ -437,8 +453,9 @@ func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
 // =============================================================================
 
 func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	var callbackKey string
 	var callbackValue any
@@ -469,8 +486,9 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 }
 
 func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return nil, errors.New("hook failed")
@@ -492,7 +510,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 
 	count, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", claims.TenantID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", "operations.student_daily_checkout_time").
 		Count(context.Background())
 	require.NoError(t, err)
@@ -500,8 +518,9 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 }
 
 func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	callbackInvoked := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -531,8 +550,9 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 // the tx would mean a commit failure leaves files deleted but the photo_path
 // rows untouched.
 func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	postCommitRan := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -558,8 +578,9 @@ func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 // photo-purge file unlink would still happen for a tx that rolled back —
 // the exact bug the two-phase contract was introduced to prevent.
 func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	postCommitRan := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -585,8 +606,9 @@ func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 }
 
 func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// No OnValueSet registered — should not panic
 	router := ctx.resource.SettingsRouter()
@@ -609,8 +631,9 @@ func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 // receives that default — otherwise resetting student_photos_enabled would
 // leave already-stored photos on disk because the purge callback never runs.
 func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -643,8 +666,9 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 }
 
 func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -673,8 +697,9 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 // path participates in the same tx contract as PUT for the photo flag — a
 // hook error must roll back the override deletion.
 func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -698,7 +723,7 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	// Override should still exist — the failed hook rolled back the delete.
 	count, err := ctx.db.NewSelect().
 		TableExpr("config.setting_values").
-		Where("tenant_id = ?", claims.TenantID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("setting_key = ?", "operations.student_photos_enabled").
 		Count(context.Background())
 	require.NoError(t, err)
@@ -706,8 +731,9 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 }
 
 func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -727,8 +753,9 @@ func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
 // =============================================================================
 
 func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -745,8 +772,9 @@ func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
 }
 
 func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 
@@ -759,8 +787,9 @@ func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
 }
 
 func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.SettingsRouter()
 

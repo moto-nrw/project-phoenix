@@ -39,6 +39,8 @@ func (r *absorbGroupRepo) FindByIDForUpdate(_ context.Context, id int64) (*activ
 }
 
 func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	candidate := &activeModel.Group{StartTime: now, RoomID: 42}
 	candidate.ID = 11
@@ -167,6 +169,8 @@ func (r *absorbInstanceStudentRepo) CreateUnplannedPresentIfAbsent(
 // room (their open visits move over, the orphan session ends) and leaves
 // supervised parallel sessions alone (#2161, sanctioned pattern per #2139).
 func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
+	t.Parallel()
+
 	const (
 		instanceID         int64 = 9
 		newGroupID               = int64(10)

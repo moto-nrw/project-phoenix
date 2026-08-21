@@ -21,6 +21,8 @@ func validActivityInstance() *ActivityInstance {
 }
 
 func TestActivityInstance_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*ActivityInstance)
@@ -127,6 +129,8 @@ func TestActivityInstance_Validate(t *testing.T) {
 }
 
 func TestIsValidInstanceStatus(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidInstanceStatus(InstanceStatusPlanned))
 	assert.True(t, IsValidInstanceStatus(InstanceStatusActive))
 	assert.True(t, IsValidInstanceStatus(InstanceStatusCompleted))
@@ -136,6 +140,8 @@ func TestIsValidInstanceStatus(t *testing.T) {
 }
 
 func TestActivityInstance_IsTemplateBacked(t *testing.T) {
+	t.Parallel()
+
 	inst := validActivityInstance()
 	assert.False(t, inst.IsTemplateBacked(), "no activity_group_id set")
 
@@ -145,6 +151,8 @@ func TestActivityInstance_IsTemplateBacked(t *testing.T) {
 }
 
 func TestActivityInstance_IsLive(t *testing.T) {
+	t.Parallel()
+
 	inst := validActivityInstance()
 	assert.False(t, inst.IsLive(), "default planned")
 
@@ -156,6 +164,8 @@ func TestActivityInstance_IsLive(t *testing.T) {
 }
 
 func TestActivityInstance_AccessorContract(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	inst := &ActivityInstance{}
 	inst.ID = 17

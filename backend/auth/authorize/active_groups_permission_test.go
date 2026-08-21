@@ -16,6 +16,8 @@ import (
 // handles the specific permission strings used by the active groups API.
 // This complements the generic permission_test.go by testing real permission constants.
 func TestActiveGroupsPermissions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		requiredPerm    string
@@ -175,6 +177,8 @@ func TestActiveGroupsPermissions(t *testing.T) {
 // TestActiveGroupsPermissionConstants verifies that the permission constants
 // used by the active groups API are correctly defined and distinct.
 func TestActiveGroupsPermissionConstants(t *testing.T) {
+	t.Parallel()
+
 	// Verify permission constants are non-empty and follow expected format
 	groupPermissions := []string{
 		permissions.GroupsRead,

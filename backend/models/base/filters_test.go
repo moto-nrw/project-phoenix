@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewFilter(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter()
 
 	if f == nil {
@@ -29,6 +31,8 @@ func TestNewFilter(t *testing.T) {
 }
 
 func TestFilter_WithTableAlias(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().WithTableAlias("users")
 
 	if f.tableAlias != "users" {
@@ -37,6 +41,8 @@ func TestFilter_WithTableAlias(t *testing.T) {
 }
 
 func TestFilter_Where(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Where("status", OpEqual, "active")
 
 	if len(f.conditions) != 1 {
@@ -56,6 +62,8 @@ func TestFilter_Where(t *testing.T) {
 }
 
 func TestFilter_Equal(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Equal("id", 42)
 
 	if len(f.conditions) != 1 {
@@ -68,6 +76,8 @@ func TestFilter_Equal(t *testing.T) {
 }
 
 func TestFilter_Comparisons(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		filter   *Filter
@@ -109,6 +119,8 @@ func TestFilter_Comparisons(t *testing.T) {
 }
 
 func TestFilter_Like(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Like("name", "%john%")
 
 	if len(f.conditions) != 1 {
@@ -125,6 +137,8 @@ func TestFilter_Like(t *testing.T) {
 }
 
 func TestFilter_ILike(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().ILike("email", "%@example.com")
 
 	if len(f.conditions) != 1 {
@@ -137,6 +151,8 @@ func TestFilter_ILike(t *testing.T) {
 }
 
 func TestFilter_TrimIn(t *testing.T) {
+	t.Parallel()
+
 	t.Run("several values", func(t *testing.T) {
 		f := NewFilter().TrimIn("school_class", "3a", "4b")
 
@@ -184,6 +200,8 @@ func TestFilter_TrimIn(t *testing.T) {
 }
 
 func TestFilter_FirstNumberIn(t *testing.T) {
+	t.Parallel()
+
 	t.Run("several values", func(t *testing.T) {
 		f := NewFilter().FirstNumberIn("school_class", "3", "4")
 
@@ -226,6 +244,8 @@ func TestFilter_FirstNumberIn(t *testing.T) {
 }
 
 func TestTrimInPlaceholders(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		count int
 		want  string
@@ -242,6 +262,8 @@ func TestTrimInPlaceholders(t *testing.T) {
 }
 
 func TestFilter_NullChecks(t *testing.T) {
+	t.Parallel()
+
 	t.Run("IsNull", func(t *testing.T) {
 		f := NewFilter().IsNull("deleted_at")
 
@@ -272,6 +294,8 @@ func TestFilter_NullChecks(t *testing.T) {
 }
 
 func TestFilter_In(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().In("status", "active", "pending", "approved")
 
 	if len(f.conditions) != 1 {
@@ -294,6 +318,8 @@ func TestFilter_In(t *testing.T) {
 }
 
 func TestFilter_NotIn(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().NotIn("name", "WC", "Toilette")
 
 	if len(f.conditions) != 1 {
@@ -306,6 +332,8 @@ func TestFilter_NotIn(t *testing.T) {
 }
 
 func TestFilter_Or(t *testing.T) {
+	t.Parallel()
+
 	mainFilter := NewFilter().Equal("status", "active")
 	orFilter := Filter{}
 	orFilter.Equal("role", "admin")
@@ -318,6 +346,8 @@ func TestFilter_Or(t *testing.T) {
 }
 
 func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
+	t.Parallel()
+
 	mainFilter := NewFilter().WithTableAlias("room").Equal("building", "A")
 	visibility := NewFilter().Equal("is_system", false)
 	visibility.Or(*NewFilter().Equal("name", "Schulhof"))
@@ -337,6 +367,8 @@ func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
 }
 
 func TestFilter_DateBetween(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2024, time.June, 15)
 
 	f := NewFilter().DateBetween("start_date", "end_date", date)
@@ -363,6 +395,8 @@ func TestFilter_DateBetween(t *testing.T) {
 }
 
 func TestNewPagination(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		page         int
@@ -423,6 +457,8 @@ func TestNewPagination(t *testing.T) {
 }
 
 func TestSorting_AddField(t *testing.T) {
+	t.Parallel()
+
 	s := &Sorting{}
 
 	s.AddField("created_at", SortDesc).AddField("name", SortAsc)
@@ -441,6 +477,8 @@ func TestSorting_AddField(t *testing.T) {
 }
 
 func TestSortDirectionConstants(t *testing.T) {
+	t.Parallel()
+
 	if SortAsc != "ASC" {
 		t.Errorf("SortAsc = %q, want ASC", SortAsc)
 	}
@@ -450,6 +488,8 @@ func TestSortDirectionConstants(t *testing.T) {
 }
 
 func TestNewQueryOptions(t *testing.T) {
+	t.Parallel()
+
 	qo := NewQueryOptions()
 
 	if qo == nil {
@@ -471,6 +511,8 @@ func TestNewQueryOptions(t *testing.T) {
 }
 
 func TestQueryOptions_WithPagination(t *testing.T) {
+	t.Parallel()
+
 	qo := NewQueryOptions().WithPagination(3, 25)
 
 	if qo.Pagination == nil {
@@ -487,6 +529,8 @@ func TestQueryOptions_WithPagination(t *testing.T) {
 }
 
 func TestFilter_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		setup         func() *Filter
@@ -567,6 +611,8 @@ func TestFilter_Get(t *testing.T) {
 }
 
 func TestFilter_Remove(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		setup               func() *Filter
@@ -663,6 +709,8 @@ func TestFilter_Remove(t *testing.T) {
 // =============================================================================
 
 func TestPagination_Offset(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		page           int

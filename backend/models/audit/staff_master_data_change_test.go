@@ -11,6 +11,8 @@ import (
 // entry whose old and new value are identical would claim a change that never
 // happened (#1423).
 func TestStaffMasterDataChange_Validate(t *testing.T) {
+	t.Parallel()
+
 	valid := func() *StaffMasterDataChange {
 		return &StaffMasterDataChange{
 			StaffID:   9001,

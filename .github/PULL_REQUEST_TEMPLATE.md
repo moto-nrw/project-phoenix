@@ -40,12 +40,18 @@
 ## Screenshots or Examples
 <!-- Add screenshots or code examples if applicable -->
 
+## Missverständnis-Check
+<!-- Mandatory for user-visible changes (tenant portal, parents portal, kiosk, e-mails, help guide).
+     Checklist: .claude/rules/verstaendlichkeit.md — name the blocks you checked and what you changed.
+     Write "nicht user-sichtbar" if it does not apply. -->
+
 ## Checklist
 - [ ] My code follows the project's style guidelines
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, especially in hard-to-understand areas
 - [ ] I have updated the documentation as needed
 - [ ] If this PR changes a user-facing flow, I updated the in-app help guide (`guide-data.ts`) and any changed screenshot — or it doesn't apply (backend-only, operator/parents-portal-only, or pure-styling change)
+- [ ] User-visible change: I ran the Verständlichkeit checklist (`.claude/rules/verstaendlichkeit.md`) against the running app and recorded the result above — or it doesn't apply
 - [ ] All tests are passing
 - [ ] My changes generate no new warnings or errors
 - [ ] I have checked for and resolved any merge conflicts

@@ -9,13 +9,21 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/k3a/html2text"
 	"github.com/vanng822/go-premailer/premailer"
 )
 
-var templates *template.Template
+// templates is the process-wide parsed template set. NewMailer rebuilds it,
+// and every Message.parse reads it, so both sides take templatesMu: without
+// it two concurrent NewMailer calls (each service factory builds a mailer)
+// race on the pointer and on the set being parsed into it.
+var (
+	templates   *template.Template
+	templatesMu sync.RWMutex
+)
 
 type Mailer interface {
 	Send(Message) error
@@ -35,7 +43,10 @@ type Message struct {
 // parse parses the corrsponding template and content
 func (m *Message) parse() error {
 	buf := new(bytes.Buffer)
-	if err := templates.ExecuteTemplate(buf, m.Template, m.Content); err != nil {
+	templatesMu.RLock()
+	set := templates
+	templatesMu.RUnlock()
+	if err := set.ExecuteTemplate(buf, m.Template, m.Content); err != nil {
 		return err
 	}
 	prem, err := premailer.NewPremailerFromString(buf.String(), premailer.NewOptions())
@@ -68,14 +79,23 @@ func NewEmail(name, address string) Email {
 }
 
 func parseTemplates() error {
-	templates = template.New("").Funcs(fMap)
-	return filepath.Walk("./templates", func(path string, info os.FileInfo, err error) error {
+	set := template.New("").Funcs(fMap)
+	if err := filepath.Walk("./templates", func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, ".html") {
-			_, err = templates.ParseFiles(path)
+			_, err = set.ParseFiles(path)
 			return err
 		}
 		return err
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Publish only a fully parsed set: a reader must never observe a
+	// half-populated template set.
+	templatesMu.Lock()
+	templates = set
+	templatesMu.Unlock()
+	return nil
 }
 
 var fMap = template.FuncMap{

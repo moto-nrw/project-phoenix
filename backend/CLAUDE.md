@@ -8,11 +8,14 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 
 ```bash
 # Testing — self-initializing lifecycle (ADR 0004): SetupTestDB starts the
-# postgres-test container if needed, rebuilds the phoenix_test template when
-# migrations changed, and gives each package binary a run-stamped clone.
+# postgres-test container if needed, builds the template for this branch's
+# migrations hash (phoenix_test_<hash>, so parallel worktrees never share
+# one), and gives each package binary a run-stamped clone.
 ../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
-go test ./...                       # All tests (works standalone; clones are GC'd by the next run)
-PHX_TEST_LEFTOVERS=1 ../scripts/test-backend.sh   # Opt-in: report rows tests left behind (diagnosis, not a gate)
+go test ./...                       # All tests (works standalone; each binary drops its own clone at exit)
+PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
+PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
+PHX_TEST_KEEP_CLONE=1 go test ./services/active     # Keep the clone for a post-mortem (psql into it)
 go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
 go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
 go test ./services/active/... -v    # Specific package
@@ -161,13 +164,12 @@ All backend tests use real database fixtures, never hardcoded IDs. The CI gate `
 import testpkg "github.com/moto-nrw/project-phoenix/test"
 
 func TestExample(t *testing.T) {
-    db := testpkg.SetupTestDB(t)   // finds project root, loads .env, connects to test DB, fails with setup instructions if absent
-    defer db.Close()
+    db := testpkg.SetupTestDB(t)   // shared package pool against the package clone — NEVER close it
 
-    // ARRANGE: real fixtures — reference returned IDs, never literals
+    // ARRANGE: real fixtures — reference returned IDs, never literals.
+    // No cleanup calls: the package clone is dropped after the run (#2419).
     student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
     staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
-    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, ...)
 
     // ACT + ASSERT
     result, err := service.DoSomething(ctx, student.ID)
@@ -175,10 +177,73 @@ func TestExample(t *testing.T) {
 }
 ```
 
-- The fixture catalog lives in `test/fixtures.go` (`CreateTest*` + `Cleanup*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
+- **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
+- **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns
+  cleanup — a row that belongs to a tenant dies with the clone and no other
+  test ever sees it. 5120 such calls were removed (#2419); per-package counts
+  are ratcheted shrink-only (`cleanupCallBaseline`). Three shapes of teardown
+  legitimately survive, and a new one has to be one of them: a row in a
+  **tenant-less** table (auth.accounts, the RBAC catalog, platform/operator
+  tables) that the leftover gate would otherwise count; a **state reset
+  between subtests** of one test (prefer `testpkg.OwnTenant` for that subtest);
+  and the delete that **is** the test (an ID the code under test must report as
+  missing).
+- **Every test owns its tenant (#2419)**: a package opts in once, from `TestMain`, with `testpkg.PerTestTenants()`. From then on each top-level test gets its own tenant, every `CreateTest*` fixture it creates lands there, and JWT claims minted through `api/testutil` follow it — so no fixture call and no claims helper needs a tenant argument. Inside a test, `testpkg.Ctx(t)` is the context (the replacement for `TenantContext(1)`) and `testpkg.Tenant(t)` the ID. Subtests share their parent's tenant — which is right when the parent builds the fixtures they read, and wrong for a table of subtests that each create the same kind of row and then assert something tenant-wide about it. Those call `testpkg.OwnTenant(t)` / `testpkg.OwnCtx(t)` as their first line and get a tenant of their own. One edge to know: the rebase happens when claims are *used* (`MintTestJWT`, `WithClaims`), so reading `claims.TenantID` straight off the struct still yields the bootstrap value — inside a test, take the tenant from `testpkg.Tenant(t)`, never from the claims you just built. Two gates hold the line: `db_packages_opt_into_per_test_tenants` fails any package that opens the test database without opting in, and `bootstrap_tenant_ratchet` counts every remaining spelling (`TenantContext(1)`, `WithTenantID(ctx, 1)`, `TenantID: 1`, `SetTenantID(1)`, `…ForTenant(…, 1, …)`, and literal `tenant_id` filters in raw SQL) per package, shrink-only.
+- **Tests are parallel by default (#2419)**: a new top-level test starts with
+  `t.Parallel()`. The `tests_run_in_parallel` gate counts the ones that do not,
+  per package, shrink-only (`serialTestBaseline`). A test may stay serial for
+  exactly five reasons, and it says which one in a comment right above itself:
+  it writes process-global state (env, viper, the settings registry,
+  `os.Stdout`), it changes the schema, it exercises a sweep that queries across
+  tenants without a tenant transaction (RLS never narrows it), it measures a
+  query budget on the shared pool, or it takes a row lock and expects a second
+  transaction to block on it. Anything else gets fixed, not exempted.
+- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and
+  post-merge CI run `-p 6 -parallel 8`; changed-only PRs run `-p 4 -parallel 8`.
+  The pool per binary is derived from `-test.parallel` plus
+  headroom, because a test holding a tenant transaction that opens a second one
+  needs two connections at once — without headroom those tests deadlock and
+  every one of them fails on its own 5s deadline, which looks nothing like a
+  pool problem.
+- **Leftovers are a gate, not a report (#2419)**: every test binary compares its
+  clone against the start state it recorded for itself and fails the PACKAGE
+  when rows are left in SHARED state — rows outside the tenants its own tests
+  created. Rows in a test's own tenant are not leftovers. The gate runs from
+  `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
+  so a bare `go test ./...` is gated exactly like a wrapper run; it costs the
+  package one query at exit (~30-70ms measured). `PHX_TEST_LEFTOVERS=1 go test
+  -v` also prints the pairs `testdb.LeftoverAllowlist` still tolerates;
+  `PHX_TEST_LEFTOVERS=test go test -parallel 1 ./pkg` checks after every test
+  and names the culprit instead of the package.
+- **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
+- The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
 - Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
 - Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.
+
+## Seed Coverage (MANDATORY)
+
+The demo seeder (`seed/api`) plus `simulate full-day` are the widest end-to-end
+path in this repo, roughly a hundred real API calls across every module, and
+the only source of dev and demo data. Two rules follow from that:
+
+1. **A user-facing feature ships with seed data in the same PR.** A screen that
+   is empty on every dev machine is a screen nobody reviews.
+2. **The coverage ratchet is not optional.** `TestSeedCoverageRatchet`
+   (`seed/api/coverage_ratchet_test.go`) fails when a table ends up with no
+   seeded rows and is not allowlisted, and just as loudly when an allowlisted
+   table starts holding data (then delete the entry). The `seed-smoke` CI job
+   runs it, and by running the seeder at all it also proves every API contract
+   the seeder drives still holds.
+
+Allowlist entries reading `GAP: prod has N rows` are the measured backlog: 58
+tables that production tenants fill and the seeder does not. Shrink that list,
+never grow it.
+
+```bash
+# Against a seeded local stack
+docker compose exec server sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test ./seed/api/ -run TestSeedCoverageRatchet -v'
+```
 
 ## Logging: slog Only (MANDATORY)
 

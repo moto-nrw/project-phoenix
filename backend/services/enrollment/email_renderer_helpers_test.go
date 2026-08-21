@@ -13,18 +13,24 @@ import (
 // address never changes — DMARC requires that.
 
 func TestSchoolEmailFrom_EmptySchoolFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	def := email.NewEmail("moto noreply", "noreply@moto-app.de")
 	got := schoolEmailFrom(def, "")
 	assert.Equal(t, def, got)
 }
 
 func TestSchoolEmailFrom_WhitespaceSchoolFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	def := email.NewEmail("moto noreply", "noreply@moto-app.de")
 	got := schoolEmailFrom(def, "   ")
 	assert.Equal(t, def, got)
 }
 
 func TestSchoolEmailFrom_SchoolNameReplacesName(t *testing.T) {
+	t.Parallel()
+
 	def := email.NewEmail("moto noreply", "noreply@moto-app.de")
 	got := schoolEmailFrom(def, "OGS Sonnenschule")
 	assert.Equal(t, "OGS Sonnenschule", got.Name)
@@ -32,6 +38,8 @@ func TestSchoolEmailFrom_SchoolNameReplacesName(t *testing.T) {
 }
 
 func TestSchoolEmailFrom_TrimsSchoolName(t *testing.T) {
+	t.Parallel()
+
 	def := email.NewEmail("moto noreply", "noreply@moto-app.de")
 	got := schoolEmailFrom(def, "  Schule  ")
 	assert.Equal(t, "Schule", got.Name)
@@ -43,14 +51,20 @@ func TestSchoolEmailFrom_TrimsSchoolName(t *testing.T) {
 // non-string values rather than panicking.
 
 func TestPayloadStringSlice_MissingKey(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, payloadStringSlice(map[string]any{"other": "x"}, "names"))
 }
 
 func TestPayloadStringSlice_NilPayload(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, payloadStringSlice(nil, "names"))
 }
 
 func TestPayloadStringSlice_DirectStringSlice(t *testing.T) {
+	t.Parallel()
+
 	got := payloadStringSlice(map[string]any{
 		"names": []string{"Anna", "Bert"},
 	}, "names")
@@ -58,6 +72,8 @@ func TestPayloadStringSlice_DirectStringSlice(t *testing.T) {
 }
 
 func TestPayloadStringSlice_JSONRoundtripAnySlice(t *testing.T) {
+	t.Parallel()
+
 	got := payloadStringSlice(map[string]any{
 		"names": []any{"Anna", "Bert"},
 	}, "names")
@@ -65,6 +81,8 @@ func TestPayloadStringSlice_JSONRoundtripAnySlice(t *testing.T) {
 }
 
 func TestPayloadStringSlice_MixedAnySliceDropsNonStrings(t *testing.T) {
+	t.Parallel()
+
 	got := payloadStringSlice(map[string]any{
 		"names": []any{"Anna", 42, nil, "Bert"},
 	}, "names")
@@ -72,6 +90,8 @@ func TestPayloadStringSlice_MixedAnySliceDropsNonStrings(t *testing.T) {
 }
 
 func TestPayloadStringSlice_WrongTypeReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	got := payloadStringSlice(map[string]any{
 		"names": "just one string",
 	}, "names")
@@ -79,6 +99,8 @@ func TestPayloadStringSlice_WrongTypeReturnsNil(t *testing.T) {
 }
 
 func TestPayloadStringSlice_EmptyAnySlice(t *testing.T) {
+	t.Parallel()
+
 	got := payloadStringSlice(map[string]any{"names": []any{}}, "names")
 	assert.Empty(t, got)
 	assert.NotNil(t, got, "empty []any must yield a (zero-len) []string, not nil")

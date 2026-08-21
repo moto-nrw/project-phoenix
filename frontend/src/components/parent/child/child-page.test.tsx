@@ -76,6 +76,7 @@ function buildCare(
     loading: false,
     features: {
       sick_note_enabled: true,
+      sick_requires_approval: false,
       pickup_change_enabled: true,
       pickup_manage_allowed: true,
       notes_enabled: true,
@@ -233,10 +234,24 @@ describe("ChildPage", () => {
   });
 
   it("zeigt Heute und standardmaessig die Betreuung", async () => {
+    let resolveToday!: (
+      value: Awaited<ReturnType<typeof getChildToday>>,
+    ) => void;
+    mockedToday.mockReturnValue(
+      new Promise((resolve) => {
+        resolveToday = resolve;
+      }),
+    );
     renderPage();
     await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
 
-    expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("child-day-state-icon"),
+    ).not.toBeInTheDocument();
+    resolveToday({ at_ogs: null, state: "unknown" });
+    expect(
+      await screen.findByTestId("child-day-state-icon"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Abholung")).toBeInTheDocument();
     expect(screen.getByText("Abholung heute um 15:00 Uhr")).toBeInTheDocument();
 

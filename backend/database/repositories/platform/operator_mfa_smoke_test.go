@@ -20,14 +20,14 @@ import (
 // createTestOperator helper from announcement_repository_test.go so the
 // platform_test package keeps a single operator-fixture shape.
 func TestOperatorMFARepositoriesSmoke(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
 	uniqueEmail := fmt.Sprintf("op-mfa-smoke-%d@test.local", time.Now().UnixNano())
 	op := createTestOperator(t, db, uniqueEmail, "MFA Smoke Operator")
-	defer cleanupTestOperator(t, db, op.ID)
 
 	credentialRepo := platformRepo.NewOperatorMFACredentialRepository(db)
 	challengeRepo := platformRepo.NewOperatorMFAEmailChallengeRepository(db)

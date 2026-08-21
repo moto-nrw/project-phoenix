@@ -32,6 +32,7 @@ import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
@@ -406,8 +407,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
+  // Offene Anmeldungsänderungen (config:manage, #2435). Sie zählen seit dem
+  // Umzug ins Anfragen-Modul auf dasselbe Badge ein.
+  const { unreadCount: enrollmentRequestsPendingCount } =
+    useEnrollmentRequestsPending();
   const requestsPendingCount =
-    changeRequestsPendingCount + staffAbsencesPendingCount;
+    changeRequestsPendingCount +
+    staffAbsencesPendingCount +
+    enrollmentRequestsPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open

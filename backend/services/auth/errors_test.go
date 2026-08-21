@@ -10,6 +10,8 @@ import (
 
 // Test error variables have correct messages
 func TestErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -45,6 +47,8 @@ func TestErrorVariables(t *testing.T) {
 
 // Test error variables are distinct
 func TestErrorVariablesAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrInvalidCredentials,
 		ErrAccountNotFound,
@@ -81,6 +85,8 @@ func TestErrorVariablesAreDistinct(t *testing.T) {
 
 // TestAuthError tests the AuthError type
 func TestAuthError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error with underlying error", func(t *testing.T) {
 		underlyingErr := errors.New("database connection failed")
 		authErr := &AuthError{
@@ -133,6 +139,8 @@ func TestAuthError(t *testing.T) {
 
 // TestRateLimitError tests the RateLimitError type
 func TestRateLimitError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error with underlying error", func(t *testing.T) {
 		underlyingErr := errors.New("rate limit exceeded for user@example.com")
 		rateLimitErr := &RateLimitError{
@@ -178,6 +186,8 @@ func TestRateLimitError(t *testing.T) {
 
 // TestRetryAfterSeconds tests the RetryAfterSeconds method
 func TestRetryAfterSeconds(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns seconds until retry when RetryAt is in future", func(t *testing.T) {
 		now := time.Now()
 		retryAt := now.Add(30 * time.Second)

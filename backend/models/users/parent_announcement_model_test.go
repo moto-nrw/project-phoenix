@@ -11,6 +11,8 @@ import (
 )
 
 func TestValidAnnouncementPriority(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, ValidAnnouncementPriority(ParentAnnouncementPriorityInfo))
 	assert.True(t, ValidAnnouncementPriority(ParentAnnouncementPriorityImportant))
 	assert.False(t, ValidAnnouncementPriority(""))
@@ -18,6 +20,8 @@ func TestValidAnnouncementPriority(t *testing.T) {
 }
 
 func TestValidAnnouncementTargetType(t *testing.T) {
+	t.Parallel()
+
 	valid := []string{
 		AnnouncementTargetSchoolAll,
 		AnnouncementTargetClass,
@@ -34,6 +38,8 @@ func TestValidAnnouncementTargetType(t *testing.T) {
 }
 
 func TestParentAnnouncement_IsPublished(t *testing.T) {
+	t.Parallel()
+
 	a := &ParentAnnouncement{}
 	assert.False(t, a.IsPublished(), "a draft (PublishedAt nil) is not published")
 

@@ -38,6 +38,8 @@ func (m *wtmMockHolidayReader) HolidayDates(_ context.Context, from, to timezone
 
 // A holiday on a scheduled workday zeroes that day's Soll in the daily table.
 func TestWTMDailyTargets_HolidayZeroesSoll(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	// Fixture schedule: Mondays 480 min. 2026-06-08 is a Monday — declare it
 	// a holiday.
@@ -60,6 +62,8 @@ func TestWTMDailyTargets_HolidayZeroesSoll(t *testing.T) {
 // The Monatskarte target shrinks by the holiday's contractual minutes, and
 // the month balance no longer shows minus hours for not working the holiday.
 func TestWTMMonthSummary_HolidayReducesTarget(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	// June 2026 Mondays: 1, 8, 15, 22, 29 → 5 × 480 without holidays.
 	holiday := timezone.NewDate(2026, time.June, 8)
@@ -75,6 +79,8 @@ func TestWTMMonthSummary_HolidayReducesTarget(t *testing.T) {
 // A nil reader (not wired) keeps the pre-holiday behavior — every Monday
 // counts.
 func TestWTMMonthSummary_NoHolidayReaderKeepsSoll(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 
 	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
@@ -86,6 +92,8 @@ func TestWTMMonthSummary_NoHolidayReaderKeepsSoll(t *testing.T) {
 // A vacation day falling on a holiday credits nothing: the holiday already
 // zeroed the day's Soll, so crediting it again would double-pay the day.
 func TestWTMMonthSummary_AbsenceOnHolidayCreditsNothing(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	holiday := timezone.NewDate(2026, time.June, 8)
 	f.svc.SetHolidayReader(&wtmMockHolidayReader{dates: map[timezone.Date]bool{holiday: true}})
@@ -107,6 +115,8 @@ func TestWTMMonthSummary_AbsenceOnHolidayCreditsNothing(t *testing.T) {
 // A failing holiday resolver fails the read: silently ignoring holidays
 // would show a wrong Soll as authoritative.
 func TestWTMMonthSummary_HolidayReaderErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.svc.SetHolidayReader(&wtmMockHolidayReader{err: errors.New("settings unavailable")})
 
@@ -118,6 +128,8 @@ func TestWTMMonthSummary_HolidayReaderErrorPropagates(t *testing.T) {
 // ---- weekly helper arithmetic (work_session_service) ------------------------
 
 func TestHolidayScheduleMinutes(t *testing.T) {
+	t.Parallel()
+
 	entries := []*configModels.StaffWorkSchedule{
 		{StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480, RotationLength: 1, ValidFrom: timezone.NewDate(2020, time.January, 1)},
 		{StaffID: wtmStaffID, DayOfWeek: configModels.DayThursday, TargetMinutes: 240, RotationLength: 1, ValidFrom: timezone.NewDate(2020, time.January, 1)},
@@ -137,6 +149,8 @@ func TestHolidayScheduleMinutes(t *testing.T) {
 }
 
 func TestHolidayModelMinutes(t *testing.T) {
+	t.Parallel()
+
 	anchor := timezone.NewDate(2020, time.January, 6)
 	model := &configModels.WorkTimeModel{
 		RotationLength: 1,

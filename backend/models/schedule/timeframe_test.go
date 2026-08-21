@@ -8,6 +8,8 @@ import (
 )
 
 func TestTimeframe_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	future := now.Add(2 * time.Hour)
 	past := now.Add(-2 * time.Hour)
@@ -78,6 +80,8 @@ func TestTimeframe_Validate(t *testing.T) {
 }
 
 func TestTimeframe_Duration(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -122,6 +126,8 @@ func TestTimeframe_Duration(t *testing.T) {
 }
 
 func TestTimeframe_IsOpen(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	future := now.Add(time.Hour)
 	zeroTime := time.Time{}
@@ -168,6 +174,8 @@ func TestTimeframe_IsOpen(t *testing.T) {
 }
 
 func TestTimeframe_Contains(t *testing.T) {
+	t.Parallel()
+
 	// Create a timeframe from 10:00 to 12:00
 	start := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
@@ -249,6 +257,8 @@ func TestTimeframe_Contains(t *testing.T) {
 }
 
 func TestTimeframe_Overlaps(t *testing.T) {
+	t.Parallel()
+
 	// Base timeframe: 10:00 - 12:00
 	baseStart := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	baseEnd := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
@@ -381,6 +391,8 @@ func TestTimeframe_Overlaps(t *testing.T) {
 }
 
 func TestTimeframe_IsActiveFlag(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default is false", func(t *testing.T) {
 		tf := &Timeframe{
 			StartTime: time.Now(),
@@ -404,6 +416,8 @@ func TestTimeframe_IsActiveFlag(t *testing.T) {
 }
 
 func TestTimeframe_GetID(t *testing.T) {
+	t.Parallel()
+
 	tf := &Timeframe{
 		Model:     base.Model{ID: 42},
 		StartTime: time.Now(),
@@ -415,6 +429,8 @@ func TestTimeframe_GetID(t *testing.T) {
 }
 
 func TestTimeframe_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tf := &Timeframe{
 		Model:     base.Model{CreatedAt: now},
@@ -427,6 +443,8 @@ func TestTimeframe_GetCreatedAt(t *testing.T) {
 }
 
 func TestTimeframe_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tf := &Timeframe{
 		Model:     base.Model{UpdatedAt: now},

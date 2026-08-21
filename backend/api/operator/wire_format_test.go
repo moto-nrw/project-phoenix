@@ -45,6 +45,8 @@ func renderWireOperator(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		renderer   render.Renderer

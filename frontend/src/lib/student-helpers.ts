@@ -462,10 +462,10 @@ export interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
-  // Parent's note for a still-pending "entschuldigt" request covering today
-  // (operations.parent_excused_requires_approval). Informational only — it does
+  // Parent's note for a still-pending absence request covering today.
+  // Informational only — it does
   // NOT change day_planning_status; the child stays "expected" until the OGS
-  // confirms. Absent when there is no pending excused request for today.
+  // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
@@ -547,6 +547,7 @@ export interface BackendSlimStudent {
   class_trip: boolean;
   class_trip_since?: string;
   day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
   departure_modes?: DepartureMode[];
@@ -871,6 +872,7 @@ export function mapSlimStudentResponse(
     class_trip: backendStudent.class_trip,
     class_trip_since: backendStudent.class_trip_since,
     day_planning_status: backendStudent.day_planning_status,
+    day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
     departure_modes: backendStudent.departure_modes,

@@ -13,6 +13,8 @@ import (
 )
 
 func TestOperatorProvisioningService_GetSchoolPWAUsage(t *testing.T) {
+	t.Parallel()
+
 	school := &platformModels.School{}
 	school.ID = 7
 

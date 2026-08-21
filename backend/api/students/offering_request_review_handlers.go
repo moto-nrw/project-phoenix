@@ -26,9 +26,15 @@ type OfferingRequestResponse struct {
 	EffectiveFrom string                        `json:"effective_from"`
 	Note          string                        `json:"note,omitempty"`
 	Diff          []OfferingRequestDiffResponse `json:"diff"`
-	Reason        *string                       `json:"reason,omitempty"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	ReviewedAt    *time.Time                    `json:"reviewed_at,omitempty"`
+	// Unchanged lists the bookings the request leaves as they are, so the review
+	// card shows the child's complete picture, not only the changed lines (#2434).
+	Unchanged []OfferingRequestUnchangedResponse `json:"unchanged,omitempty"`
+	// FullWithdrawal marks a Komplett-Abmeldung: approving would leave the child
+	// without any offering at all (#2434).
+	FullWithdrawal bool       `json:"full_withdrawal,omitempty"`
+	Reason         *string    `json:"reason,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
 }
 
 // OfferingRequestDiffResponse is one German-localized diff line for the
@@ -58,6 +64,13 @@ type OfferingRequestDiffResponse struct {
 	Optoutable bool `json:"optoutable,omitempty"`
 }
 
+// OfferingRequestUnchangedResponse is one booking the request does not touch.
+type OfferingRequestUnchangedResponse struct {
+	OfferingID string `json:"offering_id"`
+	Label      string `json:"label"`
+	Days       string `json:"days"`
+}
+
 func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) OfferingRequestResponse {
 	row := item.Request
 	diff := make([]OfferingRequestDiffResponse, 0, len(item.Diff))
@@ -85,16 +98,28 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 		}
 		diff = append(diff, line)
 	}
+	unchanged := make([]OfferingRequestUnchangedResponse, 0, len(item.Unchanged))
+	for _, entry := range item.Unchanged {
+		unchanged = append(unchanged, OfferingRequestUnchangedResponse{
+			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
+			Label:      entry.Label,
+			Days:       germanOfferingDiffLabel(entry.NewState, entry.NewDays),
+		})
+	}
 	resp := OfferingRequestResponse{
-		ID:            strconv.FormatInt(row.ID, 10),
-		StudentID:     strconv.FormatInt(row.StudentID, 10),
-		StudentName:   item.StudentName,
-		Status:        row.Status,
-		EffectiveFrom: row.EffectiveFrom.String(),
-		Diff:          diff,
-		Reason:        row.DecisionReason,
-		CreatedAt:     row.CreatedAt,
-		ReviewedAt:    row.ReviewedAt,
+		ID:             strconv.FormatInt(row.ID, 10),
+		StudentID:      strconv.FormatInt(row.StudentID, 10),
+		StudentName:    item.StudentName,
+		Status:         row.Status,
+		EffectiveFrom:  row.EffectiveFrom.String(),
+		Diff:           diff,
+		Reason:         row.DecisionReason,
+		FullWithdrawal: item.FullWithdrawal,
+		CreatedAt:      row.CreatedAt,
+		ReviewedAt:     row.ReviewedAt,
+	}
+	if len(unchanged) > 0 {
+		resp.Unchanged = unchanged
 	}
 	if row.ParentNote != nil {
 		resp.Note = *row.ParentNote
@@ -123,25 +148,6 @@ func germanOfferingDiffLabel(state string, days []string) string {
 		}
 	}
 	return strings.Join(parts, ", ")
-}
-
-// listOfferingChangeRequests returns the tenant's pending offering-change
-// requests, soonest effective date first.
-func (rs *Resource) listOfferingChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.OfferingChangeService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("offering change service not configured")))
-		return
-	}
-	items, err := rs.OfferingChangeService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]OfferingRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toOfferingRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Offering change requests retrieved")
 }
 
 // DecideOfferingRequestBody is the body of POST

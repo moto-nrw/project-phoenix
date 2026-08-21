@@ -8,27 +8,18 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-// cleanupClassTeacherRecords removes class-teacher assignments directly
-func cleanupClassTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
-	t.Helper()
-	for _, id := range ids {
-		testpkg.CleanupTableRecords(t, db, "education.class_teachers", id)
-	}
-}
-
 func TestClassTeacherRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates class assignment", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTCreate", "Staff")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 		ct := &education.ClassTeacher{
 			StaffID:     staff.ID,
@@ -39,15 +30,12 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, ct.ID)
 
-		cleanupClassTeacherRecords(t, db, ct.ID)
 	})
 
 	t.Run("rejects duplicate class case-insensitively", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTDupe", "Staff")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
-		first := testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
-		defer cleanupClassTeacherRecords(t, db, first.ID)
+		testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
 		dupe := &education.ClassTeacher{
 			StaffID:     staff.ID,
@@ -59,21 +47,19 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 }
 
 func TestClassTeacherRepository_FindByStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTFind", "Staff")
 	other := testpkg.CreateTestStaff(t, db, "CTFind", "Other")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, other.ID)
 
-	ctB := testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
-	ctA := testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
-	ctOther := testpkg.CreateTestClassTeacher(t, db, other.ID, "3c")
-	defer cleanupClassTeacherRecords(t, db, ctA.ID, ctB.ID, ctOther.ID)
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
+	testpkg.CreateTestClassTeacher(t, db, other.ID, "3c")
 
 	assignments, err := repo.FindByStaff(ctx, staff.ID)
 	require.NoError(t, err)
@@ -83,21 +69,19 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 }
 
 func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ClassTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTDelete", "Offboarded")
 	other := testpkg.CreateTestStaff(t, db, "CTDelete", "Stays")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, other.ID)
 
-	ctA := testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
-	ctB := testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
-	ctOther := testpkg.CreateTestClassTeacher(t, db, other.ID, "1a")
-	defer cleanupClassTeacherRecords(t, db, ctA.ID, ctB.ID, ctOther.ID)
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
+	testpkg.CreateTestClassTeacher(t, db, other.ID, "1a")
 
 	affected, err := repo.DeleteByStaffID(ctx, staff.ID)
 	require.NoError(t, err)

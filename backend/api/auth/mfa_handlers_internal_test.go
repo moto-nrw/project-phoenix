@@ -17,6 +17,8 @@ import (
 // validations the handlers depend on so wrong-shape payloads fail before
 // the service is touched.
 func TestMFAVerifyRequest_BindRejectsBadInputs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		req  MFAVerifyRequest
@@ -34,6 +36,8 @@ func TestMFAVerifyRequest_BindRejectsBadInputs(t *testing.T) {
 }
 
 func TestMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
+	t.Parallel()
+
 	req := MFAVerifyRequest{ChallengeToken: "  abc.def.ghi  ", Code: "  482157  "}
 	require.NoError(t, req.Bind(nil))
 	assert.Equal(t, "abc.def.ghi", req.ChallengeToken, "expected trimming")
@@ -41,6 +45,8 @@ func TestMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
 }
 
 func TestMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
+	t.Parallel()
+
 	short := MFAEnrollConfirmRequest{Code: "12345"}
 	assert.Error(t, short.Bind(nil), "five-digit code must be rejected")
 
@@ -56,6 +62,8 @@ func TestMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
 // endpoint fails closed (503) when MFAService is nil. A misconfigured
 // deployment must never silently fall through to a partial-feature state.
 func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	cases := []struct {
@@ -92,6 +100,8 @@ func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 // TestMapMFAError_StatusCodes locks in the error-to-status mapping so future
 // changes to the service-error set surface visibly.
 func TestMapMFAError_StatusCodes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		err    error
 		status int

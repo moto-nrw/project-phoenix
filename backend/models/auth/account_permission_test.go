@@ -8,6 +8,8 @@ import (
 )
 
 func TestAccountPermission_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		ap      *AccountPermission
@@ -75,6 +77,8 @@ func TestAccountPermission_Validate(t *testing.T) {
 }
 
 func TestAccountPermission_IsGranted(t *testing.T) {
+	t.Parallel()
+
 	t.Run("granted permission", func(t *testing.T) {
 		ap := &AccountPermission{Granted: true}
 		if !ap.IsGranted() {
@@ -91,6 +95,8 @@ func TestAccountPermission_IsGranted(t *testing.T) {
 }
 
 func TestAccountPermission_Grant(t *testing.T) {
+	t.Parallel()
+
 	ap := &AccountPermission{Granted: false}
 	ap.Grant()
 
@@ -100,6 +106,8 @@ func TestAccountPermission_Grant(t *testing.T) {
 }
 
 func TestAccountPermission_Deny(t *testing.T) {
+	t.Parallel()
+
 	ap := &AccountPermission{Granted: true}
 	ap.Deny()
 
@@ -109,6 +117,8 @@ func TestAccountPermission_Deny(t *testing.T) {
 }
 
 func TestAccountPermission_GetID(t *testing.T) {
+	t.Parallel()
+
 	ap := &AccountPermission{
 		Model: base.Model{ID: 42},
 	}
@@ -120,6 +130,8 @@ func TestAccountPermission_GetID(t *testing.T) {
 }
 
 func TestAccountPermission_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ap := &AccountPermission{
 		Model: base.Model{CreatedAt: now},
@@ -131,6 +143,8 @@ func TestAccountPermission_GetCreatedAt(t *testing.T) {
 }
 
 func TestAccountPermission_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	ap := &AccountPermission{
 		Model: base.Model{UpdatedAt: now},

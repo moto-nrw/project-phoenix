@@ -30,6 +30,8 @@ func buildClassListXLSX(t *testing.T, rows [][]string) io.Reader {
 }
 
 func TestParseClassListCSV_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	csvData := "Vorname,Nachname,Klasse\n" +
 		"Zoe,Aalders,1a\n" +
 		"Ben,Zorn,3c"
@@ -46,6 +48,8 @@ func TestParseClassListCSV_MapsColumns(t *testing.T) {
 }
 
 func TestParseClassListCSV_SkipsEmptyRowsAndLowercaseHeader(t *testing.T) {
+	t.Parallel()
+
 	csvData := "vorname,nachname,klasse\n" +
 		"Zoe,Aalders,1a\n" +
 		",,\n" +
@@ -58,6 +62,8 @@ func TestParseClassListCSV_SkipsEmptyRowsAndLowercaseHeader(t *testing.T) {
 }
 
 func TestParseClassListCSV_MissingColumn(t *testing.T) {
+	t.Parallel()
+
 	csvData := "Vorname,Nachname\nZoe,Aalders"
 
 	_, err := ParseClassListCSV(strings.NewReader(csvData))
@@ -67,18 +73,24 @@ func TestParseClassListCSV_MissingColumn(t *testing.T) {
 }
 
 func TestParseClassListCSV_TemplateOnly(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseClassListCSV(strings.NewReader("Vorname,Nachname,Klasse\n"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "keine Datenzeilen")
 }
 
 func TestParseClassListCSV_EmptyFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseClassListCSV(strings.NewReader(""))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "read header")
 }
 
 func TestParseClassListXLSX_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	reader := buildClassListXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Klasse"},
 		{"Zoe", "Aalders", "1a"},
@@ -96,6 +108,8 @@ func TestParseClassListXLSX_MapsColumns(t *testing.T) {
 }
 
 func TestParseClassListXLSX_MissingColumn(t *testing.T) {
+	t.Parallel()
+
 	reader := buildClassListXLSX(t, [][]string{
 		{"Vorname", "Klasse"},
 		{"Zoe", "1a"},
@@ -108,6 +122,8 @@ func TestParseClassListXLSX_MissingColumn(t *testing.T) {
 }
 
 func TestParseClassListXLSX_TemplateOnly(t *testing.T) {
+	t.Parallel()
+
 	reader := buildClassListXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Klasse"},
 	})
@@ -118,6 +134,8 @@ func TestParseClassListXLSX_TemplateOnly(t *testing.T) {
 }
 
 func TestParseClassListXLSX_NoRowsAtAll(t *testing.T) {
+	t.Parallel()
+
 	reader := buildClassListXLSX(t, [][]string{})
 
 	_, err := ParseClassListXLSX(reader)
@@ -126,6 +144,8 @@ func TestParseClassListXLSX_NoRowsAtAll(t *testing.T) {
 }
 
 func TestParseClassListXLSX_NotAnExcelFile(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseClassListXLSX(strings.NewReader("kein excel"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "open excel file")
@@ -135,6 +155,8 @@ func TestParseClassListXLSX_NotAnExcelFile(t *testing.T) {
 // it is named (#2399 review round 10): a child really called "Lena Beispiel"
 // or "Jonas Muster" must import like any other.
 func TestParseClassListCSV_KeepsChildrenNamedLikeFormerTemplateExamples(t *testing.T) {
+	t.Parallel()
+
 	csvData := "Vorname,Nachname,Klasse\n" +
 		"Lena,Beispiel,1a\n" +
 		"Jonas,Muster,3b\n" +
@@ -150,6 +172,8 @@ func TestParseClassListCSV_KeepsChildrenNamedLikeFormerTemplateExamples(t *testi
 }
 
 func TestParseClassListXLSX_KeepsChildrenNamedLikeFormerTemplateExamples(t *testing.T) {
+	t.Parallel()
+
 	reader := buildClassListXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Klasse"},
 		{"Lena", "Beispiel", "1a"},

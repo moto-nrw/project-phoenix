@@ -9,6 +9,8 @@ import (
 )
 
 func TestWorkSessionBreak_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	validBreak := func() *WorkSessionBreak {
@@ -66,6 +68,8 @@ func TestWorkSessionBreak_Validate(t *testing.T) {
 }
 
 func TestWorkSessionBreak_IsActive(t *testing.T) {
+	t.Parallel()
+
 	t.Run("active when no end time", func(t *testing.T) {
 		b := &WorkSessionBreak{EndedAt: nil}
 		assert.True(t, b.IsActive())
@@ -79,6 +83,8 @@ func TestWorkSessionBreak_IsActive(t *testing.T) {
 }
 
 func TestWorkSessionBreak_Getters(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	b := &WorkSessionBreak{}
 	b.ID = 7

@@ -65,6 +65,8 @@ func notificationTestAbsence(status string) *activeModels.StaffAbsence {
 }
 
 func TestAbsenceEmailHelpers_CoverLabelsRangesAndLoggers(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Krankmeldung", absenceTypeLabelGerman(activeModels.AbsenceTypeSick))
 	assert.Equal(t, "Urlaub", absenceTypeLabelGerman(activeModels.AbsenceTypeVacation))
 	assert.Equal(t, "Fortbildung", absenceTypeLabelGerman(activeModels.AbsenceTypeTraining))
@@ -83,6 +85,8 @@ func TestAbsenceEmailHelpers_CoverLabelsRangesAndLoggers(t *testing.T) {
 }
 
 func TestAbsenceEmailHelpers_CompTimeLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(
 		t,
 		"Freizeitausgleich",
@@ -91,6 +95,8 @@ func TestAbsenceEmailHelpers_CompTimeLabel(t *testing.T) {
 }
 
 func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := &staffAbsenceService{}
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
@@ -115,6 +121,8 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 }
 
 func TestBuildTenantFrontendURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		frontendURL string
@@ -173,6 +181,8 @@ func TestBuildTenantFrontendURL(t *testing.T) {
 }
 
 func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testing.T) {
+	t.Parallel()
+
 	absence := notificationTestAbsence(activeModels.AbsenceStatusRequested)
 
 	tests := []struct {
@@ -227,6 +237,8 @@ func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testi
 }
 
 func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
+	t.Parallel()
+
 	staffRepo := &testpkg.StaffRepoMock{
 		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
 			return &usersModels.StaffWithRoleInfo{
@@ -267,6 +279,8 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 }
 
 func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
+	t.Parallel()
+
 	staffRepo := &testpkg.StaffRepoMock{
 		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
 			return &usersModels.StaffWithRoleInfo{
@@ -303,6 +317,8 @@ func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
 }
 
 func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	staffRepo := &testpkg.StaffRepoMock{
 		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
 			return &usersModels.StaffWithRoleInfo{
@@ -328,6 +344,8 @@ func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
 }
 
 func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
+	t.Parallel()
+
 	staffRepo := &testpkg.StaffRepoMock{
 		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
 			return &usersModels.StaffWithRoleInfo{
@@ -352,6 +370,8 @@ func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
 }
 
 func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ignores unrelated status", func(t *testing.T) {
 		staffRepo := &testpkg.StaffRepoMock{
 			GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {

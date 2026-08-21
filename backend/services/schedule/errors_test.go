@@ -8,6 +8,8 @@ import (
 )
 
 func TestScheduleError_Error_WithNilErr(t *testing.T) {
+	t.Parallel()
+
 	err := &ScheduleError{
 		Op:  "CreateDateframe",
 		Err: nil,
@@ -18,6 +20,8 @@ func TestScheduleError_Error_WithNilErr(t *testing.T) {
 }
 
 func TestScheduleError_Error_WithErr(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("database transaction failed")
 	err := &ScheduleError{
 		Op:  "CreateDateframe",
@@ -29,6 +33,8 @@ func TestScheduleError_Error_WithErr(t *testing.T) {
 }
 
 func TestScheduleError_Error_WithStandardError(t *testing.T) {
+	t.Parallel()
+
 	err := &ScheduleError{
 		Op:  "GetDateframe",
 		Err: ErrDateframeNotFound,
@@ -39,6 +45,8 @@ func TestScheduleError_Error_WithStandardError(t *testing.T) {
 }
 
 func TestScheduleError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("underlying error")
 	err := &ScheduleError{
 		Op:  "UpdateTimeframe",
@@ -49,6 +57,8 @@ func TestScheduleError_Unwrap(t *testing.T) {
 }
 
 func TestScheduleError_Unwrap_Nil(t *testing.T) {
+	t.Parallel()
+
 	err := &ScheduleError{
 		Op:  "DeleteRecurrenceRule",
 		Err: nil,
@@ -58,6 +68,8 @@ func TestScheduleError_Unwrap_Nil(t *testing.T) {
 }
 
 func TestScheduleError_ErrorsIs(t *testing.T) {
+	t.Parallel()
+
 	// Test that errors.Is works correctly with wrapped errors
 	err := &ScheduleError{
 		Op:  "FindTimeframe",
@@ -69,6 +81,8 @@ func TestScheduleError_ErrorsIs(t *testing.T) {
 }
 
 func TestScheduleError_ChainedWrapping(t *testing.T) {
+	t.Parallel()
+
 	// Test multiple levels of wrapping
 	baseErr := errors.New("validation failed")
 	wrapped1 := &ScheduleError{
@@ -87,6 +101,8 @@ func TestScheduleError_ChainedWrapping(t *testing.T) {
 }
 
 func TestScheduleError_AllOperations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		op   string
@@ -143,6 +159,8 @@ func TestScheduleError_AllOperations(t *testing.T) {
 }
 
 func TestScheduleError_DifferentOperationTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		op   string

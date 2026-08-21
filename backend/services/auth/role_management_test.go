@@ -9,11 +9,12 @@ import (
 )
 
 func TestGetAccountEmailsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns emails for valid account IDs", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "svc-emails1")

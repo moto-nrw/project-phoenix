@@ -14,6 +14,8 @@ import (
 )
 
 func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 
@@ -23,7 +25,6 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, s.db, "FlowG-Room")
 	category := testpkg.CreateTestActivityCategory(t, s.db, "FlowG-Category")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 	s.registerCleanup("activities.categories", category.ID)
 
@@ -41,7 +42,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 		"materialize_to":     fromS,
 	}
 
-	rr := s.do("POST", "/templates", createReq, primaryAdminClaims())
+	rr := s.do("POST", "/templates", createReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusCreated, rr.Code, "create template body=%s", rr.Body.String())
 
 	var created struct {
@@ -61,7 +62,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 
 	assert.Equal(t, 1, created.InstancesCreated)
 
-	rr = s.do("GET", fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "get template body=%s", rr.Body.String())
 
 	var templateResp struct {
@@ -76,7 +77,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	assert.Equal(t, "11:30", templateResp.Schedules[0].StartTime)
 	assert.Equal(t, "12:00", templateResp.Schedules[0].EndTime)
 
-	rr = s.do("GET", fmt.Sprintf("/instances?from=%s&to=%s", fromS, fromS), nil, primaryAdminClaims())
+	rr = s.do("GET", fmt.Sprintf("/instances?from=%s&to=%s", fromS, fromS), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "list instances body=%s", rr.Body.String())
 
 	var instancesResp struct {
@@ -101,7 +102,7 @@ func fetchInstancesByTemplate(t *testing.T, s *scenario, templateID int64) []int
 		Model(&rows).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Column("id").
-		Where(`"activity_instance".tenant_id = ?`, primaryTenantID).
+		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
 		Where(`"activity_instance".activity_group_id = ?`, templateID).
 		Scan(s.tenantCtx())
 	require.NoError(t, err)

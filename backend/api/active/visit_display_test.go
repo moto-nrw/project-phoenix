@@ -20,6 +20,8 @@ func adminAccess() *common.StudentAccessContext {
 }
 
 func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
+	t.Parallel()
+
 	groupA := int64(100)
 	groupB := int64(200)
 	results := []visitWithStudent{
@@ -53,6 +55,8 @@ func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 }
 
 func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)  // 08:30 Berlin (CEST)
@@ -105,6 +109,8 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 }
 
 func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	results := []visitWithStudent{{
@@ -134,6 +140,8 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 // caller without full access keeps name + class + sick/excused (existing trust
 // boundary) but gets nil actuals for all of them.
 func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)

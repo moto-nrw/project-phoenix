@@ -21,11 +21,15 @@ func windowPhase() *enrollmentModels.Phase {
 }
 
 func TestIsEnrollmentWindowOpen_NoBoundsAlwaysOpen(t *testing.T) {
+	t.Parallel()
+
 	p := windowPhase()
 	assert.True(t, enrollmentService.IsEnrollmentWindowOpen(p, time.Now()))
 }
 
 func TestIsEnrollmentWindowOpen_BeforeOpenIsClosed(t *testing.T) {
+	t.Parallel()
+
 	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	p := windowPhase()
 	p.EnrollmentOpenAt = &open
@@ -33,6 +37,8 @@ func TestIsEnrollmentWindowOpen_BeforeOpenIsClosed(t *testing.T) {
 }
 
 func TestIsEnrollmentWindowOpen_AfterOpenIsOpen(t *testing.T) {
+	t.Parallel()
+
 	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	p := windowPhase()
 	p.EnrollmentOpenAt = &open
@@ -40,6 +46,8 @@ func TestIsEnrollmentWindowOpen_AfterOpenIsOpen(t *testing.T) {
 }
 
 func TestIsEnrollmentWindowOpen_AtCloseIsClosed(t *testing.T) {
+	t.Parallel()
+
 	// Half-open semantics — close moment is excluded from the window.
 	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
 	p := windowPhase()
@@ -48,6 +56,8 @@ func TestIsEnrollmentWindowOpen_AtCloseIsClosed(t *testing.T) {
 }
 
 func TestIsEnrollmentWindowOpen_BetweenBoundsIsOpen(t *testing.T) {
+	t.Parallel()
+
 	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
 	p := windowPhase()
@@ -57,5 +67,7 @@ func TestIsEnrollmentWindowOpen_BetweenBoundsIsOpen(t *testing.T) {
 }
 
 func TestIsEnrollmentWindowOpen_NilPhase(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, enrollmentService.IsEnrollmentWindowOpen(nil, time.Now()))
 }

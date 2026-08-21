@@ -74,6 +74,7 @@ const mockUpdateField = vi.mocked(updateMasterDataField);
 function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
     sick_note_enabled: true,
+    sick_requires_approval: false,
     notes_enabled: true,
     excused_requires_approval: false,
     request_submit_enabled: true,

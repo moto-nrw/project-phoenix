@@ -18,6 +18,8 @@ import (
 )
 
 func TestGenerateSeedPassword(t *testing.T) {
+	t.Parallel()
+
 	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
 	for i := 0; i < 50; i++ {
 		password, err := generateSeedPassword()
@@ -35,6 +37,8 @@ func TestGenerateSeedPassword(t *testing.T) {
 }
 
 func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
+	t.Parallel()
+
 	seen := make(map[string]any)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPut, r.Method)
@@ -61,6 +65,8 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 }
 
 func TestParentEnrollmentParentPassword(t *testing.T) {
+	t.Parallel()
+
 	step := parentEnrollmentSeedStep{seeder: &Seeder{}}
 
 	password, err := step.parentPassword()
@@ -74,6 +80,8 @@ func TestParentEnrollmentParentPassword(t *testing.T) {
 }
 
 func TestPublicEnrollmentSeedHeadersUseDistinctForwardedIPs(t *testing.T) {
+	t.Parallel()
+
 	first := publicEnrollmentSeedHeaders(0)
 	second := publicEnrollmentSeedHeaders(1)
 
@@ -83,6 +91,8 @@ func TestPublicEnrollmentSeedHeadersUseDistinctForwardedIPs(t *testing.T) {
 }
 
 func TestClientPostPublicWithHeaders(t *testing.T) {
+	t.Parallel()
+
 	var forwardedFor string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		forwardedFor = r.Header.Get("X-Forwarded-For")
@@ -100,6 +110,8 @@ func TestClientPostPublicWithHeaders(t *testing.T) {
 }
 
 func TestWrapConflictError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
 		apiErr := &phoenixapi.APIError{
 			Method:     "POST",
@@ -131,6 +143,8 @@ func TestWrapConflictError(t *testing.T) {
 }
 
 func TestExtractBootstrapInvitationToken(t *testing.T) {
+	t.Parallel()
+
 	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{"token":"seed-token"}}`))
@@ -139,6 +153,8 @@ func TestExtractBootstrapInvitationToken(t *testing.T) {
 }
 
 func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
+	t.Parallel()
+
 	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{}}`))
@@ -148,12 +164,16 @@ func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
 }
 
 func TestMakeBootstrapSeedState_Nil(t *testing.T) {
+	t.Parallel()
+
 	bootstrap := makeBootstrapSeedState(nil)
 	assert.Zero(t, bootstrap.OrganizationID)
 	assert.Empty(t, bootstrap.SchoolAdmin.Email)
 }
 
 func TestCollectSeedState_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	s := &Seeder{
 		client:  &Client{baseURL: "http://localhost:8080"},
 		verbose: false,
@@ -252,6 +272,8 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 }
 
 func TestCollectSeedState_EmptySeeder(t *testing.T) {
+	t.Parallel()
+
 	s := &Seeder{
 		client: &Client{baseURL: "http://test:9090"},
 	}
@@ -269,6 +291,8 @@ func TestCollectSeedState_EmptySeeder(t *testing.T) {
 }
 
 func TestFormatError(t *testing.T) {
+	t.Parallel()
+
 	s := &Seeder{verbose: false}
 	err := s.formatError("Login", assert.AnError)
 	assert.Error(t, err)
@@ -277,6 +301,8 @@ func TestFormatError(t *testing.T) {
 }
 
 func TestNewSeeder(t *testing.T) {
+	t.Parallel()
+
 	s := NewSeeder("http://localhost:8080", true, SeedOptions{})
 	assert.NotNil(t, s.client)
 	assert.True(t, s.verbose)
@@ -284,6 +310,8 @@ func TestNewSeeder(t *testing.T) {
 }
 
 func TestNewSeeder_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	opts := SeedOptions{
 		TenantSlug:    "my-school",
 		StaffPassword: "MyPass1!",
@@ -296,11 +324,15 @@ func TestNewSeeder_WithOptions(t *testing.T) {
 }
 
 func TestSeedResult_ZeroValues(t *testing.T) {
+	t.Parallel()
+
 	r := &SeedResult{}
 	assert.Nil(t, r.Fixed)
 }
 
 func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, true, "")
 	assert.NotNil(t, fs.roomIDs)
 	assert.NotNil(t, fs.personIDs)
@@ -322,10 +354,13 @@ func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
 }
 
 func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "SharedPass1!")
 	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()
@@ -352,6 +387,8 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 }
 
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
+	t.Parallel()
+
 	s := NewSeeder("http://localhost:1", false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	assert.Error(t, err)
@@ -359,6 +396,8 @@ func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
 }
 
 func TestSeeder_Seed_LoginFails(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -377,6 +416,8 @@ func TestSeeder_Seed_LoginFails(t *testing.T) {
 }
 
 func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
+	t.Parallel()
+
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()
 
@@ -397,6 +438,8 @@ func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
 }
 
 func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	s := &Seeder{verbose: false}
 	result := &SeedResult{
 		Fixed: &FixedResult{
@@ -643,6 +686,8 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 }
 
 func TestFixedResult_Fields(t *testing.T) {
+	t.Parallel()
+
 	r := &FixedResult{
 		RoomCount:        12,
 		PersonCount:      20,
@@ -665,6 +710,8 @@ func TestFixedResult_Fields(t *testing.T) {
 }
 
 func TestTruncateSeedSubdomain(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "short", truncateSeedSubdomain("short"))
 	long := "this-is-a-very-long-subdomain-that-exceeds-the-sixty-three-character-limit-for-dns-labels"
 	assert.Len(t, truncateSeedSubdomain(long), 63)

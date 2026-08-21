@@ -73,6 +73,8 @@ func (s *stubLateInviteRepo) FindByUsedRequestID(_ context.Context, _ int64) (*e
 }
 
 func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
 	request := &enrollmentModels.Request{
@@ -90,6 +92,8 @@ func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 }
 
 func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
 	request := &enrollmentModels.Request{
@@ -106,6 +110,8 @@ func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *test
 }
 
 func TestGuardianIdentityRequest_MissingLateInviteFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	svc := &decisionService{}
 	request := &enrollmentModels.Request{
 		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
@@ -121,6 +127,8 @@ func TestGuardianIdentityRequest_MissingLateInviteFailsClosed(t *testing.T) {
 // #1663: an authenticated submit whose email resolves to a DIFFERENT account's
 // guardian profile must be rejected, not silently linked to that other account.
 func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {
+	t.Parallel()
+
 	const (
 		callerAccount = int64(10)
 		victimAccount = int64(20)
@@ -151,6 +159,8 @@ func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {
 // profile at the tenant, it wins even if the (parent-editable) email was
 // changed — the resolver must not fall back to an email lookup.
 func TestResolveGuardianProfile_PrefersAuthenticatedAccountProfile(t *testing.T) {
+	t.Parallel()
+
 	const callerAccount = int64(10)
 	own := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller", AccountID: int64Ptr(callerAccount)}
 	own.ID = 5
@@ -196,6 +206,8 @@ func (s *stubAccountRepo) FindByID(_ context.Context, id interface{}) (*authMode
 // have no profile yet must not have that family's profile (and every child on
 // it) attached to their account by the by-id attach in applyApproval.
 func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T) {
+	t.Parallel()
+
 	const callerAccount = int64(10)
 	foreign := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"} // AccountID nil
 	foreign.ID = 77
@@ -228,6 +240,8 @@ func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T
 // The same shape with the caller's OWN address is the legitimate claim: an
 // admin-created profile for this parent at a new school.
 func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
+	t.Parallel()
+
 	const callerAccount = int64(10)
 	own := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
 	own.ID = 7
@@ -261,6 +275,8 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 // (or creates a duplicate profile) on a transient outage. Only the explicit
 // not-found sentinel may fall through.
 func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	const callerAccount = int64(10)
 	other := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"}
 	other.ID = 99
@@ -290,6 +306,8 @@ func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
 // An unclaimed profile carrying the email (no account yet) is NOT a mismatch:
 // approval's by-id attach later links it to the caller.
 func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
+	t.Parallel()
+
 	const callerAccount = int64(10)
 	unclaimed := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
 	unclaimed.ID = 7
@@ -358,6 +376,8 @@ func (s *stubAccountRoleRepo) FindByAccountAndRole(_ context.Context, _, _ int64
 // for a linked profile, an early return here would approve the child and leave
 // the parent locked out. The approval must (re)assert the active mapping.
 func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testing.T) {
+	t.Parallel()
+
 	const (
 		accountID = int64(4242)
 		tenantID  = int64(77)

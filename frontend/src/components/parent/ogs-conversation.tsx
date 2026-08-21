@@ -406,8 +406,9 @@ export function OgsConversation({
         <SickNoteModal
           onClose={() => setActiveModal(null)}
           onSubmit={async (dates, reason, status) => {
-            await care.reportSick(dates, reason, status);
+            return care.reportSick(dates, reason, status);
           }}
+          sickRequiresApproval={care.features.sick_requires_approval}
           excusedRequiresApproval={care.features.excused_requires_approval}
         />
       )}

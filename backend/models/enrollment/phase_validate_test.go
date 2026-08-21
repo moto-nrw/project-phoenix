@@ -28,10 +28,14 @@ func validPhase() *Phase {
 }
 
 func TestPhase_Validate_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, validPhase().Validate())
 }
 
 func TestPhase_Validate_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.Name = "   "
 	err := p.Validate()
@@ -40,6 +44,8 @@ func TestPhase_Validate_RequiresName(t *testing.T) {
 }
 
 func TestPhase_Validate_TrimsName(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.Name = "  Schuljahr  "
 	require.NoError(t, p.Validate())
@@ -47,6 +53,8 @@ func TestPhase_Validate_TrimsName(t *testing.T) {
 }
 
 func TestPhase_Validate_DefaultsKindToSchoolYear(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.Kind = ""
 	require.NoError(t, p.Validate())
@@ -54,6 +62,8 @@ func TestPhase_Validate_DefaultsKindToSchoolYear(t *testing.T) {
 }
 
 func TestPhase_Validate_RejectsUnknownKind(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.Kind = "weird"
 	err := p.Validate()
@@ -62,6 +72,8 @@ func TestPhase_Validate_RejectsUnknownKind(t *testing.T) {
 }
 
 func TestPhase_Validate_AcceptsAllKnownKinds(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{PhaseKindSchoolYear, PhaseKindHoliday, PhaseKindCustom} {
 		p := validPhase()
 		p.Kind = kind
@@ -70,6 +82,8 @@ func TestPhase_Validate_AcceptsAllKnownKinds(t *testing.T) {
 }
 
 func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.ServiceStartDate = timezone.Date{}
 	err := p.Validate()
@@ -78,6 +92,8 @@ func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 }
 
 func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.ServiceEndDate = timezone.Date{}
 	err := p.Validate()
@@ -86,6 +102,8 @@ func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 }
 
 func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.ServiceStartDate = timezone.NewDate(2027, 1, 1)
 	p.ServiceEndDate = timezone.NewDate(2026, 12, 31)
@@ -95,6 +113,8 @@ func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
 }
 
 func TestPhase_Validate_AcceptsEqualStartAndEnd(t *testing.T) {
+	t.Parallel()
+
 	// One-day phase (e.g. an info day) is legal — `Before` is strict.
 	p := validPhase()
 	same := timezone.NewDate(2026, 9, 1)
@@ -104,6 +124,8 @@ func TestPhase_Validate_AcceptsEqualStartAndEnd(t *testing.T) {
 }
 
 func TestPhase_Validate_RejectsCloseBeforeOrEqualOpen(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	closed := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
@@ -115,6 +137,8 @@ func TestPhase_Validate_RejectsCloseBeforeOrEqualOpen(t *testing.T) {
 }
 
 func TestPhase_Validate_AcceptsCloseAfterOpen(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
@@ -124,6 +148,8 @@ func TestPhase_Validate_AcceptsCloseAfterOpen(t *testing.T) {
 }
 
 func TestPhase_Validate_DefaultsCareOverflowMode(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.CareOverflowMode = ""
 	require.NoError(t, p.Validate())
@@ -131,6 +157,8 @@ func TestPhase_Validate_DefaultsCareOverflowMode(t *testing.T) {
 }
 
 func TestPhase_Validate_RejectsUnknownCareOverflowMode(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.CareOverflowMode = "garbage"
 	err := p.Validate()
@@ -139,6 +167,8 @@ func TestPhase_Validate_RejectsUnknownCareOverflowMode(t *testing.T) {
 }
 
 func TestPhase_Validate_AcceptsAllCareOverflowModes(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{PhaseCareOverflowWaitlist, PhaseCareOverflowReject, PhaseCareOverflowAllow} {
 		p := validPhase()
 		p.CareOverflowMode = mode
@@ -147,6 +177,8 @@ func TestPhase_Validate_AcceptsAllCareOverflowModes(t *testing.T) {
 }
 
 func TestPhase_Validate_RejectsUnknownRolloverMode(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	mode := "weird"
 	src := int64(1)
@@ -158,6 +190,8 @@ func TestPhase_Validate_RejectsUnknownRolloverMode(t *testing.T) {
 }
 
 func TestPhase_Validate_AcceptsAllRolloverModes(t *testing.T) {
+	t.Parallel()
+
 	src := int64(1)
 	for _, mode := range []string{PhaseRolloverModeOptIn, PhaseRolloverModeOptOut} {
 		p := validPhase()
@@ -169,6 +203,8 @@ func TestPhase_Validate_AcceptsAllRolloverModes(t *testing.T) {
 }
 
 func TestPhase_Validate_RolloverModeWithoutSourceRejected(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	mode := PhaseRolloverModeOptOut
 	p.RolloverMode = &mode
@@ -179,6 +215,8 @@ func TestPhase_Validate_RolloverModeWithoutSourceRejected(t *testing.T) {
 }
 
 func TestPhase_Validate_RolloverSourceWithoutModeRejected(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	src := int64(42)
 	p.RolloverSourcePhaseID = &src
@@ -189,6 +227,8 @@ func TestPhase_Validate_RolloverSourceWithoutModeRejected(t *testing.T) {
 }
 
 func TestPhase_Validate_RequireSchoolClassWithoutClassesRejected(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.RequireSchoolClass = true
 	// AvailableSchoolClasses intentionally empty (also covers a list of
@@ -200,6 +240,8 @@ func TestPhase_Validate_RequireSchoolClassWithoutClassesRejected(t *testing.T) {
 }
 
 func TestPhase_Validate_RequireSchoolClassWithClassesAccepted(t *testing.T) {
+	t.Parallel()
+
 	p := validPhase()
 	p.RequireSchoolClass = true
 	p.AvailableSchoolClasses = []string{"2a", "2b"}

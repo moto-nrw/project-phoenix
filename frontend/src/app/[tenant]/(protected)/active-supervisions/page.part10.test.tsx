@@ -23,6 +23,17 @@ const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
 }));
 
+const defaultSupervisionState = vi.hoisted(() => ({
+  supervisedRooms: [],
+  isLoadingSupervision: false,
+  adminOverviewEnabled: false,
+  hasGroups: false,
+  isLoadingGroups: false,
+  groups: [],
+  isSupervising: false,
+  refresh: vi.fn(),
+}));
+
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -42,6 +53,10 @@ vi.mock("next-auth/react", () => ({
     data: { user: { token: "test-token" } },
     status: "authenticated",
   })),
+}));
+
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: vi.fn(() => defaultSupervisionState),
 }));
 
 // Mock next/navigation
@@ -274,7 +289,38 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useSession } from "next-auth/react";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  vi.mocked(useSession)
+    .mockReset()
+    .mockReturnValue({
+      data: { user: { token: "test-token" } },
+      status: "authenticated",
+    } as never);
+  vi.mocked(useOptionalSupervision)
+    .mockReset()
+    .mockReturnValue(defaultSupervisionState);
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("Action button click handlers", () => {
   const mockMutate = vi.fn();
@@ -863,6 +909,13 @@ describe("Schulhof tab onTabChange callback", () => {
 describe("RoleGuard integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    });
   });
 
   it("shows ForbiddenPage for admin users", async () => {
@@ -900,8 +953,7 @@ describe("RoleGuard integration", () => {
     // Mock useOptionalSupervision to return adminOverviewEnabled = true,
     // which is the explicit signal that the admin_supervision_overview
     // setting is enabled on the backend.
-    const supervisionCtx = await import("~/lib/supervision-context");
-    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+    vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
       adminOverviewEnabled: true,
@@ -929,8 +981,7 @@ describe("RoleGuard integration", () => {
       status: "authenticated",
     } as never);
 
-    const supervisionCtx = await import("~/lib/supervision-context");
-    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+    vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [
         {
           id: "schulhof",
@@ -960,8 +1011,7 @@ describe("RoleGuard integration", () => {
       status: "authenticated",
     } as never);
 
-    const supervisionCtx = await import("~/lib/supervision-context");
-    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+    vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [],
       isLoadingSupervision: true,
       adminOverviewEnabled: false,
@@ -991,8 +1041,7 @@ describe("Aggregate fetcher error contract", () => {
       status: "authenticated",
     } as never);
 
-    const supervisionCtx = await import("~/lib/supervision-context");
-    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+    vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
       adminOverviewEnabled: true,
@@ -1079,6 +1128,64 @@ describe("Aggregate fetcher error contract", () => {
     await waitFor(() => expect(getFetcher()).toBeDefined());
 
     await expect(getFetcher()!()).rejects.toThrow("BFF request failed: 500");
+  });
+});
+
+const requestBudgetDashboardData = {
+  supervisedGroups: [
+    { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+  ],
+  unclaimedGroups: [],
+  currentStaff: { id: "1" },
+  educationalGroups: [],
+  firstRoomVisits: [],
+  firstRoomId: "1",
+  selectedGroupId: "1",
+  capabilities: { webSpontaneousActivitiesEnabled: true },
+  schulhofStatus: null,
+};
+
+function capturePageLoadFetchers(
+  fetchers: Map<string, () => Promise<unknown>>,
+) {
+  vi.mocked(useSWRAuth).mockImplementation(((
+    key: string | null,
+    fetcher: (() => Promise<unknown>) | undefined,
+  ) => {
+    if (typeof key === "string" && fetcher) fetchers.set(key, fetcher);
+    return {
+      data:
+        typeof key === "string" &&
+        key.startsWith("active-supervision-dashboard-")
+          ? requestBudgetDashboardData
+          : null,
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never;
+  }) as never);
+}
+
+describe("Page-load request budget", () => {
+  it("uses one aggregate request plus one selected-session roster request", async () => {
+    const fetchers = new Map<string, () => Promise<unknown>>();
+    capturePageLoadFetchers(fetchers);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(fetchers.size).toBe(2));
+    await Promise.allSettled(
+      [...fetchers.values()].map((fetcher) => fetcher()),
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(global.fetch).mock.calls.map(([url]) => String(url)),
+    ).toEqual([
+      "/api/active-supervision-dashboard?group_id=1",
+      "/api/timetable/operations/active-groups/1/roster",
+    ]);
   });
 });
 

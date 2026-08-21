@@ -73,9 +73,7 @@ describe("CareRequestReviewItem", () => {
     render(<CareRequestReviewItem row={row()} onDecided={onDecided} />);
 
     // Collapsed summary: the distinct change kinds from the diff labels.
-    expect(
-      screen.getByText("Betreuungszeiten · Abholzeit + Abholart"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Abholzeit + Abholart")).toBeInTheDocument();
     expand();
     expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
     expect(screen.getByText("15:00")).toBeInTheDocument();

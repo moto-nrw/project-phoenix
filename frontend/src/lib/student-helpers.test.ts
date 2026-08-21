@@ -48,6 +48,7 @@ describe("mapSlimStudentResponse", () => {
       sick: false,
       excused: false,
       class_trip: false,
+      day_planning_reason: "unplanned_attendance",
       departure_modes: ["bus", "pickup"],
       departure_label: "Taxi mit Begleitperson",
       has_full_access: true,
@@ -59,6 +60,9 @@ describe("mapSlimStudentResponse", () => {
     ]);
     expect(mapSlimStudentResponse(backendStudent).departure_label).toBe(
       "Taxi mit Begleitperson",
+    );
+    expect(mapSlimStudentResponse(backendStudent).day_planning_reason).toBe(
+      "unplanned_attendance",
     );
   });
 });

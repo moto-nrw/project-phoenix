@@ -7,6 +7,8 @@ import (
 )
 
 func TestStudentGuardianHasPermission(t *testing.T) {
+	t.Parallel()
+
 	sg1 := &users.StudentGuardian{
 		StudentID:         1,
 		GuardianProfileID: 2,
@@ -43,6 +45,8 @@ func TestStudentGuardianHasPermission(t *testing.T) {
 }
 
 func TestStudentGuardianPermissionSet(t *testing.T) {
+	t.Parallel()
+
 	fullRoles := []string{
 		GuardianRolePrimaryGuardian,
 		GuardianRoleLegalGuardian,
@@ -85,10 +89,14 @@ func TestStudentGuardianPermissionSet(t *testing.T) {
 }
 
 func TestApplyStudentGuardianRole_NilIsNoop(t *testing.T) {
+	t.Parallel()
+
 	ApplyStudentGuardianRole(nil, GuardianRolePrimaryGuardian)
 }
 
 func TestApplyStudentGuardianRole_CustomClearsPermissions(t *testing.T) {
+	t.Parallel()
+
 	sg := &users.StudentGuardian{
 		GuardianRole: GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
@@ -115,6 +123,8 @@ func TestApplyStudentGuardianRole_CustomClearsPermissions(t *testing.T) {
 }
 
 func TestApplyDefaultStudentGuardianRole(t *testing.T) {
+	t.Parallel()
+
 	sg := &users.StudentGuardian{
 		RelationshipType: "parent",
 	}
@@ -130,6 +140,8 @@ func TestApplyDefaultStudentGuardianRole(t *testing.T) {
 }
 
 func TestDefaultStudentGuardianRole(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		relationshipType   string

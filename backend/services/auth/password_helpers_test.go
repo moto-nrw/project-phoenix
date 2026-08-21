@@ -9,6 +9,8 @@ import (
 
 // TestValidatePasswordStrength tests password validation rules
 func TestValidatePasswordStrength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		password string
@@ -115,6 +117,8 @@ func TestValidatePasswordStrength(t *testing.T) {
 
 // TestHashPassword tests that password hashing works and produces different hashes
 func TestHashPassword(t *testing.T) {
+	t.Parallel()
+
 	t.Run("produces a hash", func(t *testing.T) {
 		password := "ValidPassword123!"
 		hash, err := HashPassword(password)

@@ -30,6 +30,8 @@ import (
 //
 // There is no allowlist and there must never be one.
 func TestGDPRLogPIIRatchet(t *testing.T) {
+	t.Parallel()
+
 	backendRoot, err := findBackendRoot()
 	if err != nil {
 		t.Skipf("Could not find backend root: %v", err)
@@ -171,6 +173,8 @@ func forbiddenFieldsIn(args []ast.Expr) []string {
 }
 
 func TestGDPRLogPIIRatchetCoversExplicitLevelsAndFullNames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		source     string

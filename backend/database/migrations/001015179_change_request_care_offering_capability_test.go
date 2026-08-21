@@ -10,7 +10,6 @@ import (
 
 func TestChangeRequestCareOfferingCapabilityMigration_BackfillsLegacyRowsEnabled(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	// A migration-reset test database is already on the post-1.15.179 schema.

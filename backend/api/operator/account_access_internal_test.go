@@ -34,6 +34,8 @@ func accountTenantRequest(t *testing.T, method, body string, params map[string]s
 }
 
 func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listTenantAccessFn: func(_ context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
@@ -56,6 +58,8 @@ func TestProvisioningResource_ListAccountTenantAccess(t *testing.T) {
 }
 
 func TestProvisioningResource_ListAccountTenantAccess_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 
 	rr := httptest.NewRecorder()
@@ -65,6 +69,8 @@ func TestProvisioningResource_ListAccountTenantAccess_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_GrantAccountTenantAccess(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		grantTenantAccessFn: func(_ context.Context, accountID, schoolID int64, req platformSvc.GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
@@ -86,6 +92,8 @@ func TestProvisioningResource_GrantAccountTenantAccess(t *testing.T) {
 }
 
 func TestProvisioningResource_GrantAccountTenantAccess_RequiresSchoolAndRole(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		grantTenantAccessFn: func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			t.Fatal("service must not be called for an invalid payload")
@@ -101,6 +109,8 @@ func TestProvisioningResource_GrantAccountTenantAccess_RequiresSchoolAndRole(t *
 }
 
 func TestProvisioningResource_GrantAccountTenantAccess_ConflictIsSurfaced(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		grantTenantAccessFn: func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			return nil, &platformSvc.ConflictError{Err: assert.AnError}
@@ -115,6 +125,8 @@ func TestProvisioningResource_GrantAccountTenantAccess_ConflictIsSurfaced(t *tes
 }
 
 func TestProvisioningResource_GrantAccountTenantAccess_InvalidRoleMessageSurvives(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		grantTenantAccessFn: func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			return nil, &platformSvc.InvalidDataError{Err: assert.AnError}
@@ -133,6 +145,8 @@ func TestProvisioningResource_GrantAccountTenantAccess_InvalidRoleMessageSurvive
 }
 
 func TestProvisioningResource_UpdateAccountTenantRole(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateTenantRoleFn: func(_ context.Context, accountID, schoolID, roleID, operatorID int64, _ net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			assert.Equal(t, int64(7), accountID)
@@ -151,6 +165,8 @@ func TestProvisioningResource_UpdateAccountTenantRole(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateAccountTenantRole_RequiresRole(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 
 	rr := httptest.NewRecorder()
@@ -161,6 +177,8 @@ func TestProvisioningResource_UpdateAccountTenantRole_RequiresRole(t *testing.T)
 }
 
 func TestProvisioningResource_RevokeAccountTenantAccess(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	resource := NewProvisioningResource(&mockProvisioningService{
 		revokeTenantAccessFn: func(_ context.Context, accountID, schoolID, operatorID int64, _ net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
@@ -181,6 +199,8 @@ func TestProvisioningResource_RevokeAccountTenantAccess(t *testing.T) {
 }
 
 func TestProvisioningResource_RevokeAccountTenantAccess_UnknownMapping(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		revokeTenantAccessFn: func(context.Context, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
 			return nil, &platformSvc.AccountTenantAccessNotFoundError{AccountID: 7, SchoolID: 12}

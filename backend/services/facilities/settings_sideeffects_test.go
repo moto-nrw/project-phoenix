@@ -45,6 +45,8 @@ func (f *fakeWCService) EnsureInfrastructure(_ context.Context) (*activityModels
 // happy-path: flipping checkout.schulhof_enabled to true must call the
 // service that creates the system room.
 func TestRegisterSettingsSideEffects_SchulhofTrueProvisions(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	schulhof := &fakeSchulhofService{}
 	wc := &fakeWCService{}
@@ -61,6 +63,8 @@ func TestRegisterSettingsSideEffects_SchulhofTrueProvisions(t *testing.T) {
 // TestRegisterSettingsSideEffects_SchulhofFalseSkipsProvision pins the
 // "only on enable" guard. Disabling must NOT trigger room provisioning.
 func TestRegisterSettingsSideEffects_SchulhofFalseSkipsProvision(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	schulhof := &fakeSchulhofService{}
 	RegisterSettingsSideEffects(registry, schulhof, &fakeWCService{})
@@ -75,6 +79,8 @@ func TestRegisterSettingsSideEffects_SchulhofFalseSkipsProvision(t *testing.T) {
 // the type-assertion guard. Garbage data from a malformed write must not
 // panic the handler.
 func TestRegisterSettingsSideEffects_SchulhofNonBoolSkipsProvision(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	schulhof := &fakeSchulhofService{}
 	RegisterSettingsSideEffects(registry, schulhof, &fakeWCService{})
@@ -89,6 +95,8 @@ func TestRegisterSettingsSideEffects_SchulhofNonBoolSkipsProvision(t *testing.T)
 // service-level provisioning failure surfaces as a Dispatch error so the
 // settings tx rolls back.
 func TestRegisterSettingsSideEffects_SchulhofErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	want := errors.New("provisioning failed")
 	schulhof := &fakeSchulhofService{err: want}
@@ -103,6 +111,8 @@ func TestRegisterSettingsSideEffects_SchulhofErrorPropagates(t *testing.T) {
 // TestRegisterSettingsSideEffects_WCTrueProvisions covers the WC variant
 // of the happy path; symmetric to the Schulhof case.
 func TestRegisterSettingsSideEffects_WCTrueProvisions(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	schulhof := &fakeSchulhofService{}
 	wc := &fakeWCService{}
@@ -119,6 +129,8 @@ func TestRegisterSettingsSideEffects_WCTrueProvisions(t *testing.T) {
 // TestRegisterSettingsSideEffects_WCFalseSkipsProvision pins the
 // enable-only guard for WC, matching the schulhof contract.
 func TestRegisterSettingsSideEffects_WCFalseSkipsProvision(t *testing.T) {
+	t.Parallel()
+
 	registry := sideeffects.NewRegistry()
 	wc := &fakeWCService{}
 	RegisterSettingsSideEffects(registry, &fakeSchulhofService{}, wc)

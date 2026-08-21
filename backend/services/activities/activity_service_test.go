@@ -61,11 +61,12 @@ func (r *fakeActiveEnrollmentRepo) FindActiveByStudentIDs(ctx context.Context, s
 // =============================================================================
 
 func TestActivityService_CreateCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates category successfully", func(t *testing.T) {
 		// ARRANGE
@@ -77,9 +78,6 @@ func TestActivityService_CreateCategory(t *testing.T) {
 		// ACT
 		result, err := service.CreateCategory(ctx, category)
 		defer func() {
-			if result != nil {
-				testpkg.CleanupActivityFixtures(t, db, result.ID)
-			}
 		}()
 
 		// ASSERT
@@ -106,16 +104,16 @@ func TestActivityService_CreateCategory(t *testing.T) {
 }
 
 func TestActivityService_GetCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns category when found", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "get-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
 
 		// ACT
 		result, err := service.GetCategory(ctx, category.ID)
@@ -138,17 +136,17 @@ func TestActivityService_GetCategory(t *testing.T) {
 }
 
 func TestActivityService_ListCategories(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of categories", func(t *testing.T) {
 		// ARRANGE
-		cat1 := testpkg.CreateTestActivityCategory(t, db, "list-1")
-		cat2 := testpkg.CreateTestActivityCategory(t, db, "list-2")
-		defer testpkg.CleanupActivityFixtures(t, db, cat1.ID, cat2.ID)
+		testpkg.CreateTestActivityCategory(t, db, "list-1")
+		testpkg.CreateTestActivityCategory(t, db, "list-2")
 
 		// ACT
 		result, err := service.ListCategories(ctx)
@@ -165,16 +163,16 @@ func TestActivityService_ListCategories(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group when found", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "get-group")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		result, err := service.GetGroup(ctx, group.ID)
@@ -196,17 +194,17 @@ func TestActivityService_GetGroup(t *testing.T) {
 }
 
 func TestActivityService_ListGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of groups", func(t *testing.T) {
 		// ARRANGE
-		group1 := testpkg.CreateTestActivityGroup(t, db, "list-g1")
-		group2 := testpkg.CreateTestActivityGroup(t, db, "list-g2")
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
+		testpkg.CreateTestActivityGroup(t, db, "list-g1")
+		testpkg.CreateTestActivityGroup(t, db, "list-g2")
 
 		// ACT
 		result, err := service.ListGroups(ctx, nil)
@@ -219,18 +217,18 @@ func TestActivityService_ListGroups(t *testing.T) {
 }
 
 func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups with occupancy status", func(t *testing.T) {
 		// ARRANGE - create two activity groups
 		group1 := testpkg.CreateTestActivityGroup(t, db, "occ-g1")
 		group2 := testpkg.CreateTestActivityGroup(t, db, "occ-g2")
 		room := testpkg.CreateTestRoom(t, db, "occ-room")
-		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID, room.ID)
 
 		// Create an active session for group1 (making it occupied)
 		now := time.Now()
@@ -242,7 +240,7 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 			GroupID:        &group1ID,
 			RoomID:         room.ID,
 		}
-		activeGroup.SetTenantID(1)
+		activeGroup.SetTenantID(testpkg.Tenant(t))
 		err := db.NewInsert().
 			Model(activeGroup).
 			ModelTableExpr(`active.groups AS "active_group"`).
@@ -288,16 +286,16 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "to-update-grp")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		group.Name = "Updated Group Name"
 		group.MaxParticipants = 50
@@ -325,7 +323,6 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		assert.Contains(t, err.Error(), "Systemaktivität")
 
 		// Immediate cleanup — do not defer, to prevent cross-package test interference
-		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("allows updating other properties of system activity", func(t *testing.T) {
@@ -343,14 +340,12 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		assert.Equal(t, "WC", result.Name)
 
 		// Immediate cleanup
-		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("returns not found when updating non-existent group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "temp-for-id")
 		staffID := *group.CreatedBy
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		nonExistentGroup := *group
 		nonExistentGroup.ID = 999999999
@@ -365,11 +360,12 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -399,7 +395,6 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		assert.Contains(t, err.Error(), "Systemaktivität")
 
 		// Immediate cleanup — do not defer, to prevent cross-package test interference
-		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("blocks deletion of system activity WC", func(t *testing.T) {
@@ -414,13 +409,13 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		assert.Contains(t, err.Error(), "Systemaktivität")
 
 		// Immediate cleanup
-		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 }
 
 func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
@@ -451,26 +446,6 @@ func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.
 		Where("id = ?", group.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		for _, table := range []string{
-			"activities.student_enrollments",
-			"activities.supervisors",
-			"activities.schedules",
-			"activities.groups",
-			"activities.categories",
-			"schedule.timeframes",
-		} {
-			_, cleanupErr := db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(cleanupCtx)
-			require.NoError(t, cleanupErr, "clean up %s", table)
-		}
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		_, cleanupErr := db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, cleanupErr)
-		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, cleanupErr)
-	})
 
 	template, err := service.GetGroup(ctx, group.ID)
 	require.NoError(t, err)
@@ -546,16 +521,16 @@ func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.
 }
 
 func TestActivityService_FindByCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups for category", func(t *testing.T) {
 		// ARRANGE - CreateTestActivityGroup creates a category too
 		group := testpkg.CreateTestActivityGroup(t, db, "find-by-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		result, err := service.FindByCategory(ctx, group.CategoryID)
@@ -578,19 +553,19 @@ func TestActivityService_FindByCategory(t *testing.T) {
 }
 
 func TestActivityService_GetGroupWithDetails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with details", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "with-details")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
-		resultGroup, supervisors, schedules, err := service.GetGroupWithDetails(ctx, group.ID)
+		resultGroup, _, _, err := service.GetGroupWithDetails(ctx, group.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -600,22 +575,20 @@ func TestActivityService_GetGroupWithDetails(t *testing.T) {
 			assert.Equal(t, group.ID, resultGroup.ID)
 		}
 		// These may be empty but should not error
-		_ = supervisors
-		_ = schedules
 	})
 }
 
 func TestActivityService_GetGroupsWithEnrollmentCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups with enrollment counts", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestActivityGroup(t, db, "with-counts")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+		testpkg.CreateTestActivityGroup(t, db, "with-counts")
 
 		// ACT
 		groups, counts, err := service.GetGroupsWithEnrollmentCounts(ctx)
@@ -632,17 +605,17 @@ func TestActivityService_GetGroupsWithEnrollmentCounts(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_EnrollStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("enrolls student successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "enroll-test")
 		student := testpkg.CreateTestStudent(t, db, "Enroll", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		// ACT
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -666,7 +639,6 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		err := service.EnrollStudent(ctx, 99999999, student.ID)
@@ -677,17 +649,17 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("unenrolls student successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "unenroll-test")
 		student := testpkg.CreateTestStudent(t, db, "Unenroll", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		// First enroll the student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -702,17 +674,17 @@ func TestActivityService_UnenrollStudent(t *testing.T) {
 }
 
 func TestActivityService_GetEnrolledStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns enrolled students", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "get-enrolled")
 		student := testpkg.CreateTestStudent(t, db, "Enrolled", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
 		require.NoError(t, err)
@@ -729,7 +701,6 @@ func TestActivityService_GetEnrolledStudents(t *testing.T) {
 	t.Run("returns empty list for group with no enrollments", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-enrolled")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		result, err := service.GetEnrolledStudents(ctx, group.ID)
@@ -741,17 +712,17 @@ func TestActivityService_GetEnrolledStudents(t *testing.T) {
 }
 
 func TestActivityService_GetStudentEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns student enrollments", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "student-enroll")
 		student := testpkg.CreateTestStudent(t, db, "GetEnroll", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
 		require.NoError(t, err)
@@ -767,6 +738,8 @@ func TestActivityService_GetStudentEnrollments(t *testing.T) {
 }
 
 func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	onDate := timezone.NewDate(2026, time.September, 15)
 
 	t.Run("returns empty map without repository call for empty input", func(t *testing.T) {
@@ -774,7 +747,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
-		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), nil, onDate)
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.Ctx(t), nil, onDate)
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -786,7 +759,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
-		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10}, onDate)
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.Ctx(t), []int64{10}, onDate)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -811,7 +784,7 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil, nil)
 		require.NoError(t, err)
 
-		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10, 20}, onDate)
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.Ctx(t), []int64{10, 20}, onDate)
 
 		require.NoError(t, err)
 		require.Len(t, result[10], 2)
@@ -823,16 +796,16 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 }
 
 func TestActivityService_GetAvailableGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns available groups for student", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "Available", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		result, err := service.GetAvailableGroups(ctx, student.ID)
@@ -852,25 +825,24 @@ func TestActivityService_GetAvailableGroups(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedules for group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "with-schedules")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
-		result, err := service.GetGroupSchedules(ctx, group.ID)
+		_, err := service.GetGroupSchedules(ctx, group.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 		// New groups don't have schedules, so result may be empty
 		// Just verify the call succeeds without error
-		_ = result
 	})
 }
 
@@ -879,16 +851,16 @@ func TestActivityService_GetGroupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns supervisors for group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "with-supervisors")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		result, err := service.GetGroupSupervisors(ctx, group.ID)
@@ -900,17 +872,17 @@ func TestActivityService_GetGroupSupervisors(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds supervisor to group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "add-super")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		// ACT
 		result, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
@@ -926,7 +898,6 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "NoGroupSuper", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.AddSupervisor(ctx, 99999999, staff.ID, false)
@@ -939,7 +910,6 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 	t.Run("returns error for nonexistent staff", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-staff-super")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		result, err := service.AddSupervisor(ctx, group.ID, 99999999, false)
@@ -964,17 +934,17 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group successfully", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "create-grp-cat")
 		staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Test Group %d", time.Now().UnixNano()),
@@ -994,14 +964,12 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.Equal(t, group.Name, result.Name)
 
 		// Cleanup
-		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("creates group with supervisors", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "grp-with-super")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "ForGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Group With Super %d", time.Now().UnixNano()),
@@ -1024,13 +992,11 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.GreaterOrEqual(t, len(supervisors), 1)
 
 		// Cleanup
-		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
 		// ARRANGE - still need a valid staff ID for CreatedBy even though category is invalid
 		staff := testpkg.CreateTestStaff(t, db, "Creator", "InvalidCat")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            "Invalid Category Group",
@@ -1053,16 +1019,16 @@ func TestActivityService_CreateGroup(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_AddSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds schedule to group", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "add-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		schedule := &activitiesModels.Schedule{
 			ActivityGroupID: group.ID,
@@ -1094,16 +1060,16 @@ func TestActivityService_AddSchedule(t *testing.T) {
 }
 
 func TestActivityService_GetSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedule when found", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "get-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		schedule := &activitiesModels.Schedule{
 			ActivityGroupID: group.ID,
@@ -1132,16 +1098,16 @@ func TestActivityService_GetSchedule(t *testing.T) {
 }
 
 func TestActivityService_UpdateSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "upd-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		schedule := &activitiesModels.Schedule{
 			ActivityGroupID: group.ID,
@@ -1164,16 +1130,16 @@ func TestActivityService_UpdateSchedule(t *testing.T) {
 }
 
 func TestActivityService_DeleteSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes schedule successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "del-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		schedule := &activitiesModels.Schedule{
 			ActivityGroupID: group.ID,
@@ -1200,17 +1166,17 @@ func TestActivityService_DeleteSchedule(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns supervisor when found", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "get-super")
 		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		created, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
 		require.NoError(t, err)
@@ -1235,17 +1201,17 @@ func TestActivityService_GetSupervisor(t *testing.T) {
 }
 
 func TestActivityService_UpdateSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "upd-super")
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		created, err := service.AddSupervisor(ctx, group.ID, staff.ID, false)
 		require.NoError(t, err)
@@ -1264,17 +1230,17 @@ func TestActivityService_UpdateSupervisor(t *testing.T) {
 }
 
 func TestActivityService_DeleteSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes supervisor successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "del-super")
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		created, err := service.AddSupervisor(ctx, group.ID, staff.ID, false)
 		require.NoError(t, err)
@@ -1293,17 +1259,17 @@ func TestActivityService_DeleteSupervisor(t *testing.T) {
 }
 
 func TestActivityService_SetPrimarySupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "set-primary")
 		staff := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		created, err := service.AddSupervisor(ctx, group.ID, staff.ID, false)
 		require.NoError(t, err)
@@ -1327,18 +1293,18 @@ func TestActivityService_SetPrimarySupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_UpdateGroupEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group enrollments", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "upd-enrollments")
 		student1 := testpkg.CreateTestStudent(t, db, "Enroll1", "Student", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Enroll2", "Student", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student1.ID, student2.ID)
 
 		// ACT - enroll both students
 		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{student1.ID, student2.ID})
@@ -1356,7 +1322,6 @@ func TestActivityService_UpdateGroupEnrollments(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "clear-enrollments")
 		student := testpkg.CreateTestStudent(t, db, "ToClear", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		// First enroll
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -1376,18 +1341,18 @@ func TestActivityService_UpdateGroupEnrollments(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group supervisors", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "upd-supervisors")
 		staff1 := testpkg.CreateTestStaff(t, db, "Super1", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "Super2", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
 
 		// ACT - assign both supervisors
 		err := service.UpdateGroupSupervisors(ctx, group.ID, []int64{staff1.ID, staff2.ID})
@@ -1411,17 +1376,17 @@ func TestActivityService_UpdateGroupSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group with schedules", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "grp-with-sched")
 		staff := testpkg.CreateTestStaff(t, db, "Creator", "Schedules")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Group With Schedules %d", time.Now().UnixNano()),
@@ -1449,23 +1414,22 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 		assert.GreaterOrEqual(t, len(groupSchedules), 2)
 
 		// Cleanup
-		cleanupGroup(service, ctx, result.ID)
 	})
 }
 
 func TestActivityService_DeleteSupervisor_Primary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes primary supervisor and assigns new primary", func(t *testing.T) {
 		// ARRANGE - create group with two supervisors
 		group := testpkg.CreateTestActivityGroup(t, db, "del-primary")
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Super")
 		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Super")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
 
 		// Add primary supervisor
 		primary, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -1489,17 +1453,17 @@ func TestActivityService_DeleteSupervisor_Primary(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when adding duplicate supervisor", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "dup-super")
 		staff := testpkg.CreateTestStaff(t, db, "Dup", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		// Add first time
 		_, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
@@ -1515,17 +1479,17 @@ func TestActivityService_AddSupervisor_Duplicate(t *testing.T) {
 }
 
 func TestActivityService_EnrollStudent_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when enrolling duplicate student", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "dup-enroll")
 		student := testpkg.CreateTestStudent(t, db, "Dup", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		// Enroll first time
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -1540,17 +1504,17 @@ func TestActivityService_EnrollStudent_Duplicate(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent_NotEnrolled(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when unenrolling non-enrolled student", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "not-enrolled")
 		student := testpkg.CreateTestStudent(t, db, "Not", "Enrolled", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 		// ACT - try to unenroll student that was never enrolled
 		err := service.UnenrollStudent(ctx, group.ID, student.ID)
@@ -1561,11 +1525,12 @@ func TestActivityService_UnenrollStudent_NotEnrolled(t *testing.T) {
 }
 
 func TestActivityService_GetCategory_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns specific error for not found", func(t *testing.T) {
 		// ACT
@@ -1582,11 +1547,12 @@ func TestActivityService_GetCategory_NotFound(t *testing.T) {
 // operating - they pass through to the repository. This is by design for these simple CRUD ops.
 
 func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes group with enrollments (cascade)", func(t *testing.T) {
 		// ARRANGE
@@ -1619,18 +1585,18 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 // are already defined above
 
 func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets new supervisor as primary", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "set-primary")
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
 		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add first supervisor as primary
@@ -1666,11 +1632,12 @@ func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
 }
 
 func TestActivityService_DeleteSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent schedule", func(t *testing.T) {
 		// ACT
@@ -1682,6 +1649,8 @@ func TestActivityService_DeleteSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityError_Methods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error returns message without underlying error", func(t *testing.T) {
 		// ARRANGE
 		err := &activities.ActivityError{Op: "test operation", Err: nil}
@@ -1718,18 +1687,18 @@ func TestActivityError_Methods(t *testing.T) {
 }
 
 func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("sets existing supervisor as primary", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "set-prim-exist")
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
 		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add both supervisors
@@ -1759,11 +1728,12 @@ func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds new and removes old enrollments", func(t *testing.T) {
 		// ARRANGE
@@ -1771,7 +1741,6 @@ func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1a")
 		student3 := testpkg.CreateTestStudent(t, db, "Student", "Three", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial enrollment: student1 and student2
@@ -1803,11 +1772,12 @@ func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adds new and removes old supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -1815,7 +1785,6 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
-		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, staff3.ID)
 		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial supervisors: staff1 and staff2
@@ -1850,7 +1819,6 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "sup-primary")
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "New", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
 		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Set staff1 as primary
@@ -1875,11 +1843,12 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 // ======== Additional Edge Case Tests for 80%+ Coverage ========
 
 func TestActivityService_UpdateGroupEnrollments_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ACT
@@ -1891,11 +1860,12 @@ func TestActivityService_UpdateGroupEnrollments_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ACT
@@ -1907,16 +1877,16 @@ func TestActivityService_UpdateGroupSupervisors_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent category", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "CatVal", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group",
@@ -1935,11 +1905,12 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 }
 
 func TestActivityService_UpdateSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent supervisor", func(t *testing.T) {
 		// ARRANGE
@@ -1960,11 +1931,12 @@ func TestActivityService_UpdateSupervisor_NotFound(t *testing.T) {
 // Note: TestActivityService_GetStaffAssignments is already defined above - see line 704
 
 func TestActivityService_SetPrimarySupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent supervisor", func(t *testing.T) {
 		// ACT
@@ -1976,11 +1948,12 @@ func TestActivityService_SetPrimarySupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_GetSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent schedule", func(t *testing.T) {
 		// ACT
@@ -1993,11 +1966,12 @@ func TestActivityService_GetSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityService_UpdateSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent schedule", func(t *testing.T) {
 		// ARRANGE
@@ -2017,11 +1991,12 @@ func TestActivityService_UpdateSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityService_GetSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent supervisor", func(t *testing.T) {
 		// ACT
@@ -2034,11 +2009,12 @@ func TestActivityService_GetSupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_DeleteSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent supervisor", func(t *testing.T) {
 		// ACT
@@ -2050,11 +2026,12 @@ func TestActivityService_DeleteSupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_AddSchedule_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
@@ -2072,16 +2049,16 @@ func TestActivityService_AddSchedule_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "NoGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.AddSupervisor(ctx, 99999999, staff.ID, true)
@@ -2095,11 +2072,12 @@ func TestActivityService_AddSupervisor_GroupNotFound(t *testing.T) {
 // ======== Final Coverage Push Tests ========
 
 func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
 		// ARRANGE - empty name should fail validation
@@ -2118,16 +2096,16 @@ func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid group", func(t *testing.T) {
 		// ARRANGE - empty name should fail validation
 		staff := testpkg.CreateTestStaff(t, db, "ValErr", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "", // Invalid: empty
@@ -2146,11 +2124,12 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid group update", func(t *testing.T) {
 		// ARRANGE
@@ -2173,16 +2152,16 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_EnrollStudent_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "Enroll", "NoGroup", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		err := service.EnrollStudent(ctx, 99999999, student.ID)
@@ -2193,16 +2172,16 @@ func TestActivityService_EnrollStudent_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "Unenroll", "NoGroup", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
 		err := service.UnenrollStudent(ctx, 99999999, student.ID)
@@ -2213,11 +2192,12 @@ func TestActivityService_UnenrollStudent_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_ListCategories_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list when no categories", func(t *testing.T) {
 		// ACT - the test DB may have existing data, so just verify it works
@@ -2230,11 +2210,12 @@ func TestActivityService_ListCategories_Empty(t *testing.T) {
 }
 
 func TestActivityService_ListGroups_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of groups", func(t *testing.T) {
 		// ACT
@@ -2247,11 +2228,12 @@ func TestActivityService_ListGroups_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list for group with no schedules", func(t *testing.T) {
 		// ARRANGE
@@ -2268,11 +2250,12 @@ func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list for group with no supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -2289,11 +2272,12 @@ func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list for group with no enrollments", func(t *testing.T) {
 		// ARRANGE
@@ -2314,17 +2298,17 @@ func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor does not exist", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sup-cat")
 		staff := testpkg.CreateTestStaff(t, db, "InvSup", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sup",
@@ -2343,17 +2327,17 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid schedule weekday", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sched-cat")
 		staff := testpkg.CreateTestStaff(t, db, "InvSched", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sched",
@@ -2377,17 +2361,17 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deleting group also deletes associated supervisors", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "cascade-sup-del")
 		staff := testpkg.CreateTestStaff(t, db, "Cascade", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		supervisor, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
 		require.NoError(t, err)
@@ -2407,11 +2391,12 @@ func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deleting group also deletes associated schedules", func(t *testing.T) {
 		// ARRANGE
@@ -2438,11 +2423,12 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 }
 
 func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns wrapped error for not found category", func(t *testing.T) {
 		// ACT
@@ -2461,11 +2447,12 @@ func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
 }
 
 func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns wrapped error for not found group", func(t *testing.T) {
 		// ACT
@@ -2484,16 +2471,16 @@ func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates existing group successfully", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "update-success-grp")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		group.Name = "Updated Group Name"
 
@@ -2508,7 +2495,6 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 	t.Run("rejects changing to an archived category", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "update-archived-category")
 		archived := testpkg.CreateTestActivityCategory(t, db, "ArchivedUpdateTarget")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, 0, 0, group.CategoryID, archived.ID)
 
 		_, err := service.ArchiveCategory(ctx, archived.ID)
 		require.NoError(t, err)
@@ -2522,16 +2508,16 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent category", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "InvCat", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Cat",
@@ -2552,7 +2538,6 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 	t.Run("rejects an archived category", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "ArchivedCat", "Staff")
 		category := testpkg.CreateTestActivityCategory(t, db, "ArchivedForCreate")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		_, err := service.ArchiveCategory(ctx, category.ID)
 		require.NoError(t, err)
@@ -2573,18 +2558,18 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 // TestActivityService_AddSupervisor_PrimaryReplacement tests that adding a new primary
 // supervisor unsets the previous primary supervisor (tests unsetPrimarySupervisorsInTx)
 func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("adding new primary supervisor unsets existing primary", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "primary-replace")
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Primary")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Primary")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
 
 		// Add first supervisor as primary
 		super1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -2615,8 +2600,9 @@ func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
 
 // TestActivityService_GetAvailableGroups_DatabaseError tests error handling
 func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
@@ -2633,16 +2619,16 @@ func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
 
 // TestActivityService_UpdateGroupSupervisors_EmptyList tests with empty supervisor list
 func TestActivityService_UpdateGroupSupervisors_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("handles empty supervisor list", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "empty-supervisors")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT - Update with empty list
 		err := service.UpdateGroupSupervisors(ctx, group.ID, []int64{})
@@ -2654,16 +2640,16 @@ func TestActivityService_UpdateGroupSupervisors_EmptyList(t *testing.T) {
 
 // TestActivityService_UpdateGroupEnrollments_EmptyList tests with empty enrollment list
 func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("handles empty enrollment list", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "empty-enrollments")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT - Update with empty list
 		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{})
@@ -2675,18 +2661,18 @@ func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
 
 // TestActivityService_UpdateGroupSupervisors_AddThenRemove tests full supervisor update flow
 func TestActivityService_UpdateGroupSupervisors_AddThenRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisors by adding and removing", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "supervisor-update-flow")
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
 
 		// Add first supervisor
 		_, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -2708,8 +2694,9 @@ func TestActivityService_UpdateGroupSupervisors_AddThenRemove(t *testing.T) {
 
 // TestActivityService_GetEnrolledStudents_DatabaseError tests error handling
 func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
@@ -2726,8 +2713,9 @@ func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
 
 // TestActivityService_CreateCategory_DatabaseError tests CreateCategory database error handling
 func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
@@ -2749,8 +2737,9 @@ func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
 
 // TestActivityService_ListCategories_DatabaseError tests ListCategories database error handling
 func TestActivityService_ListCategories_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
@@ -2767,8 +2756,9 @@ func TestActivityService_ListCategories_DatabaseError(t *testing.T) {
 
 // TestActivityService_ListGroups_DatabaseError tests ListGroups database error handling
 func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 
@@ -2789,16 +2779,16 @@ func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_AdminBypassesOwnership tests that admins can modify any activity
 func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create staff and activity
 	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "admin-test")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
 
 	group := &activitiesModels.Group{
 		Name:            "Admin Test Activity",
@@ -2808,7 +2798,6 @@ func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) 
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
 	require.NoError(t, err)
-	defer cleanupGroup(service, ctx, created.ID)
 
 	// ACT: Check if a different staff with admin permission can modify
 	otherStaffID := int64(99999) // Non-existent staff ID
@@ -2821,16 +2810,16 @@ func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) 
 
 // TestActivityService_CanModifyActivity_CreatorCanModify tests that the creator can modify their activity
 func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create staff and activity
 	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "creator-test")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
 
 	group := &activitiesModels.Group{
 		Name:            "Creator Test Activity",
@@ -2840,7 +2829,6 @@ func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
 	require.NoError(t, err)
-	defer cleanupGroup(service, ctx, created.ID)
 
 	// ACT: Check if creator can modify (without admin permission)
 	canModify, err := service.CanModifyActivity(ctx, created.ID, staff.ID, false)
@@ -2852,17 +2840,17 @@ func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_SupervisorCanModify tests that supervisors can modify the activity
 func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create two staff members
 	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	supervisor := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "supervisor-test")
-	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, supervisor.ID, category.ID)
 
 	// Create activity with supervisor as an assigned supervisor
 	group := &activitiesModels.Group{
@@ -2873,7 +2861,6 @@ func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID, supervisor.ID}, nil)
 	require.NoError(t, err)
-	defer cleanupGroup(service, ctx, created.ID)
 
 	// ACT: Check if supervisor can modify (without admin permission)
 	canModify, err := service.CanModifyActivity(ctx, created.ID, supervisor.ID, false)
@@ -2885,17 +2872,17 @@ func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_NonOwnerCannotModify tests that non-owners cannot modify
 func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create staff and activity
 	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "nonowner-test")
-	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
 
 	group := &activitiesModels.Group{
 		Name:            "Non-Owner Test Activity",
@@ -2905,7 +2892,6 @@ func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
 	require.NoError(t, err)
-	defer cleanupGroup(service, ctx, created.ID)
 
 	// ACT: Check if other staff (not creator, not supervisor) can modify
 	canModify, err := service.CanModifyActivity(ctx, created.ID, otherStaff.ID, false)
@@ -2917,11 +2903,12 @@ func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_GroupNotFound tests error when group doesn't exist
 func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Check permissions for non-existent group
 	canModify, err := service.CanModifyActivity(ctx, 999999, 1, false)
@@ -2934,17 +2921,17 @@ func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
 
 // TestActivityService_UpdateGroup_OwnershipEnforced tests that UpdateGroup enforces ownership
 func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create two staff members and an activity
 	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "update-owner-test")
-	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
 
 	group := &activitiesModels.Group{
 		Name:            "Update Owner Test",
@@ -2954,7 +2941,6 @@ func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
 	require.NoError(t, err)
-	defer cleanupGroup(service, ctx, created.ID)
 
 	// ACT: Non-owner tries to update without admin permission
 	created.Name = "Modified Name"
@@ -2967,17 +2953,17 @@ func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
 
 // TestActivityService_DeleteGroup_OwnershipEnforced tests that DeleteGroup enforces ownership
 func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create two staff members and an activity
 	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
 	category := testpkg.CreateTestActivityCategory(t, db, "delete-owner-test")
-	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
 
 	group := &activitiesModels.Group{
 		Name:            "Delete Owner Test",
@@ -2997,7 +2983,6 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 	assert.True(t, errors.Is(err, activities.ErrNotOwner) || err.Error() == "delete group: you can only modify activities you created or supervise")
 
 	// Cleanup: Delete with admin permission
-	cleanupGroup(service, ctx, created.ID)
 }
 
 // =============================================================================
@@ -3005,13 +2990,14 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	catRepo := repositories.NewFactory(db).ActivityCategory
 	stRepo := repositories.NewFactory(db).ShiftType
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("SvcLink-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(ctx, st))
@@ -3019,7 +3005,6 @@ func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
 
 	cat1 := testpkg.CreateTestActivityCategory(t, db, "svc-link-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, db, "svc-link-2")
-	defer testpkg.CleanupActivityFixtures(t, db, cat1.ID, cat2.ID)
 
 	// ACT: link both categories
 	require.NoError(t, service.SetCategoryShiftTypeLinks(ctx, st.ID, []int64{cat1.ID, cat2.ID}))
@@ -3053,16 +3038,16 @@ func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
 // exactly the enrollments a grade transition preserved on purpose — the rows the
 // transition's revert and future materialization still need.
 func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enrollments")
 	activeStudent := testpkg.CreateTestStudent(t, db, "Still", "Here", "1a")
 	graduated := testpkg.CreateTestStudent(t, db, "Already", "Gone", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, activeStudent.ID, graduated.ID)
 
 	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{activeStudent.ID, graduated.ID}))
 
@@ -3101,16 +3086,16 @@ func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *te
 // row is invisible in the roster and its counts, cannot be removed again, and
 // still feeds materialization and a transition revert.
 func TestActivityService_EnrollmentWritesRejectAlumni(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enroll-guard")
 	activeStudent := testpkg.CreateTestStudent(t, db, "Still", "Enrolled", "1a")
 	graduated := testpkg.CreateTestStudent(t, db, "Long", "Graduated", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, activeStudent.ID, graduated.ID)
 
 	_, err := db.NewUpdate().
 		TableExpr(`users.students`).

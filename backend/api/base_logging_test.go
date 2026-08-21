@@ -40,6 +40,8 @@ func (h *captureHandler) count() int {
 // methods our API never serves (CONNECT, TRACE, PRI) must not produce log
 // noise, while legitimate-method requests that 4xx must still be logged.
 func TestLoggingMiddlewareIgnoresScannerMethods(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		method     string

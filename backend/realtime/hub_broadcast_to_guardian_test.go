@@ -38,6 +38,8 @@ func expectNoAnyEvent(t *testing.T, c *Client, who string) {
 // addressed guardian's tabs and NO ONE else: not another guardian, and crucially
 // not any staff client in the tenant.
 func TestHubBroadcastToGuardian_OnlyAddressedGuardian(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	guardianA := newParentClient(hub, 501)
@@ -59,6 +61,8 @@ func TestHubBroadcastToGuardian_OnlyAddressedGuardian(t *testing.T) {
 
 // TestHubBroadcastToGuardian_EmptyHub — no clients connected must not panic.
 func TestHubBroadcastToGuardian_EmptyHub(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 	if err := hub.BroadcastToGuardian(int64(900), int64(901), NewEvent(EventParentChildUpdated, "", EventData{})); err != nil {
 		t.Errorf("BroadcastToGuardian on empty hub should return nil, got: %v", err)

@@ -25,6 +25,8 @@ import (
 )
 
 func TestParsePhaseExportRequest(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		body       string
@@ -163,6 +165,8 @@ func tableDataRows(rows []listexport.Row) []listexport.Row {
 }
 
 func TestBuildPhaseExportTable_FullRow(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
 
 	labels := columnLabels(doc)
@@ -209,6 +213,8 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 // It must surface in a dedicated column/field, because the backend persists it
 // onto the student on approval and staff need it for offline supervision.
 func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
+	t.Parallel()
+
 	data := sampleExport()
 	data.Rows[0].Children[0].Child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
 
@@ -229,6 +235,8 @@ func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
 // Without a note the dedicated column still exists (stable schema) but the cell
 // stays empty — no stray reserved-key leakage.
 func TestBuildPhaseExportTable_CompanionNoteEmptyWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
 	rows := tableDataRows(doc.Rows)
 	if len(rows) != 1 {
@@ -240,6 +248,8 @@ func TestBuildPhaseExportTable_CompanionNoteEmptyWhenAbsent(t *testing.T) {
 }
 
 func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
+	t.Parallel()
+
 	doc := buildStudentEnrollmentExportTable(sampleStudentEnrollmentExport(), "Anmeldungen Kind")
 
 	labels := columnLabels(doc)
@@ -260,6 +270,8 @@ func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
 // child custom fields), then the Eltern/contact block — matching the
 // child-first PDF.
 func TestBuildPhaseExportTable_ChildColumnsBeforeGuardian(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
 	idx := make(map[listexport.ColumnID]int, len(doc.Columns))
 	for i, c := range doc.Columns {
@@ -287,6 +299,8 @@ func TestBuildPhaseExportTable_ChildColumnsBeforeGuardian(t *testing.T) {
 // The applied child-status filter must be named in both documents'
 // header (Filters), mirroring the students export. No filter → no label.
 func TestPhaseExport_FilterLabelInHeader(t *testing.T) {
+	t.Parallel()
+
 	// PDF (RecordDocument)
 	pdf := buildPhaseExportRecords(sampleExport(), "P", "approved")
 	if len(pdf.Filters) != 1 || pdf.Filters[0] != "Status: Angenommen" {
@@ -320,6 +334,8 @@ func fieldValue(fields []listexport.Field, label string) (string, bool) {
 // repeated inside each block so it is self-contained for the offline
 // fallback.
 func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportRecords(sampleExport(), "Anmeldungen – Test", "")
 
 	if len(doc.Records) != 1 {
@@ -363,6 +379,8 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 // the public status page. A phone-only co-guardian (no email) must still
 // carry the phone.
 func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
 	data := sampleExport()
 	omaEmail := "oma@example.test"
 	omaPhone := "0151-555"
@@ -440,6 +458,8 @@ func statusExportSample() *enrollmentService.PhaseExport {
 }
 
 func TestBuildPhaseExportRecords_GroupsByChildStatus(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportRecords(statusExportSample(), "P", "")
 
 	gotTitles := make([]string, 0, len(doc.Groups))
@@ -473,6 +493,8 @@ func TestBuildPhaseExportRecords_GroupsByChildStatus(t *testing.T) {
 }
 
 func TestBuildPhaseExportTable_InsertsStatusGroupRows(t *testing.T) {
+	t.Parallel()
+
 	doc := buildPhaseExportTable(statusExportSample(), "P", "")
 
 	got := make([]string, 0, len(doc.Rows))
@@ -502,6 +524,8 @@ func TestBuildPhaseExportTable_InsertsStatusGroupRows(t *testing.T) {
 // Siblings become separate blocks and the whole document is ordered by
 // child surname (case-insensitive), then first name — not by submission.
 func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
+	t.Parallel()
+
 	mk := func(first, last string) enrollmentService.ExportChildRow {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
@@ -535,6 +559,8 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 // derive from orderedExportEntries. This regression test pins that the
 // two formats stay in lock-step (child surname A–Z, case-insensitive).
 func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
+	t.Parallel()
+
 	mk := func(first, last string) enrollmentService.ExportChildRow {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
@@ -578,6 +604,8 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 // A registration with no child rows must still surface as a guardian-only
 // block rather than vanishing from the export.
 func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T) {
+	t.Parallel()
+
 	data := &enrollmentService.PhaseExport{
 		Phase: &enrollmentModels.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
@@ -605,6 +633,8 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 // one version, the export must use the CURRENT (newest) version's label,
 // not a stale one — an admin who renames a field expects the new name.
 func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
+	t.Parallel()
+
 	oldSchema := &enrollmentModels.FormSchema{
 		Fields: []enrollmentModels.FormField{
 			{Key: "notes", Label: "Alter Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
@@ -631,12 +661,16 @@ func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
 }
 
 func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
+	t.Parallel()
+
 	if _, err := buildPhaseExportFile(nil, sampleExport(), "csv", ""); err == nil {
 		t.Error("csv must be rejected on the phase export endpoint")
 	}
 }
 
 func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "docx",
 		"filters": {"phase_id": "42", "status": "all", "care_offering_id": "9007199254740993"}
@@ -658,6 +692,8 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 }
 
 func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&day_count=0&weekday=mon&pickup_time=14:30", nil)
 
 	filters, err := parseCareUsageFiltersFromQuery(req)
@@ -673,6 +709,8 @@ func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
 }
 
 func TestParseCareUsageFiltersFromQueryTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&care_offering_ids=", nil)
 
 	filters, err := parseCareUsageFiltersFromQuery(req)
@@ -688,6 +726,8 @@ func TestParseCareUsageFiltersFromQueryTreatsEmptyCareOfferingIDsAsExplicit(t *t
 }
 
 func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "xlsx",
 		"filters": {"phase_id": "42", "status": "all", "day_count": 0, "weekday": "fri", "pickup_time": "16:00"}
@@ -706,6 +746,8 @@ func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 }
 
 func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "xlsx",
 		"filters": {"phase_id": "42", "care_offering_ids": []}
@@ -724,6 +766,8 @@ func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *test
 }
 
 func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{
@@ -791,6 +835,8 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 }
 
 func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
@@ -807,6 +853,8 @@ func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testin
 }
 
 func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{
@@ -848,6 +896,8 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 }
 
 func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
@@ -894,6 +944,8 @@ func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 }
 
 func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
+	t.Parallel()
+
 	got := careUsageOfferingDayDetails([]enrollmentService.CareUsageRowOffering{
 		{
 			Name:                  "Randstunde",
@@ -910,6 +962,8 @@ func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 }
 
 func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
@@ -942,6 +996,8 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 }
 
 func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
@@ -971,6 +1027,8 @@ func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
 // printed offline copy.
 
 func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
 	// Keys deliberately out of order + one empty day, to prove fixed
 	// Mo–Fr ordering and that unset days are skipped.
@@ -982,6 +1040,8 @@ func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
 }
 
 func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
 	raw := []any{
 		map[string]any{"phone_number": "0151-1", "phone_type": "mobile", "is_primary": true},
@@ -995,6 +1055,8 @@ func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
 }
 
 func TestFormatCustomValue_ContactList_FlagsAreVisible(t *testing.T) {
+	t.Parallel()
+
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
 	raw := []any{
 		map[string]any{
@@ -1017,6 +1079,8 @@ func TestFormatCustomValue_ContactList_FlagsAreVisible(t *testing.T) {
 }
 
 func TestFormatCustomValue_Composite_FallsBackOnGarbage(t *testing.T) {
+	t.Parallel()
+
 	// A value that doesn't match the expected shape must not be dropped —
 	// it falls back to the generic stringifier rather than rendering "".
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
@@ -1051,6 +1115,8 @@ func buildExportRouter(rs *Resource, claims jwt.AppClaims) chi.Router {
 }
 
 func TestExportPhaseRegistrations_StreamsPDFAndForwardsActor(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{exportResult: sampleExport()}
 	rs := &Resource{
 		DecisionService:   mock,
@@ -1104,6 +1170,8 @@ func TestExportPhaseRegistrations_StreamsPDFAndForwardsActor(t *testing.T) {
 }
 
 func TestExportPhaseRegistrations_StreamsXLSX(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{exportResult: sampleExport()}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
@@ -1128,6 +1196,8 @@ func TestExportPhaseRegistrations_StreamsXLSX(t *testing.T) {
 }
 
 func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{exportResult: sampleExport()}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
@@ -1167,6 +1237,8 @@ func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
 }
 
 func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{exportErr: context.DeadlineExceeded}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
@@ -1186,6 +1258,8 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 }
 
 func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockDecisionService{exportStudentErr: enrollmentService.ErrDecisionStudentNotFound}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
@@ -1206,6 +1280,8 @@ func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
 }
 
 func TestExportPhaseRegistrations_InvalidPhaseIDIs400(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{DecisionService: &mockDecisionService{}, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
 		ID:    exportTestActorID,

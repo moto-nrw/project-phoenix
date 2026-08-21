@@ -20,24 +20,22 @@ import (
 )
 
 func TestClassDayAPI(t *testing.T) {
+	t.Parallel()
 	db, factory := testutil.SetupAPITest(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cd%d", time.Now().UnixNano()%100000)
 	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
-	student := testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
+	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
 	t.Cleanup(func() {
-		tenantCtx := testpkg.TenantContext(1)
+		tenantCtx := testpkg.Ctx(t)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.Router()
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
 
 	// Wrong permission → 403 before any data access.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -73,17 +71,14 @@ func TestClassDayAPI(t *testing.T) {
 }
 
 func TestClassDayAPINoAssignments(t *testing.T) {
+	t.Parallel()
 	db, factory := testutil.SetupAPITest(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-	})
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: 1}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
 
 	// Without any assignment the classes list is empty and the day view is
 	// refused — there is nothing the caller may see.

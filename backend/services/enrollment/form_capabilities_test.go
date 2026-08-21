@@ -30,6 +30,8 @@ func (s formCapabilitySettingsStub) ResolveInt(context.Context, string) (int, er
 }
 
 func TestFormCapabilities_GradeDisableMakesSchoolClassIneffective(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: formCapabilitySettingsStub{
 		values: map[string]bool{
 			configModel.KeyEnrollmentCollectGradeLevel:    false,
@@ -48,6 +50,8 @@ func TestFormCapabilities_GradeDisableMakesSchoolClassIneffective(t *testing.T) 
 }
 
 func TestFormCapabilities_ResolutionFailureIsReturned(t *testing.T) {
+	t.Parallel()
+
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: formCapabilitySettingsStub{
 		values: map[string]bool{},
 		errFor: map[string]error{configModel.KeyEnrollmentCareOfferingsEnabled: errors.New("repository unavailable")},
@@ -60,6 +64,8 @@ func TestFormCapabilities_ResolutionFailureIsReturned(t *testing.T) {
 }
 
 func TestNormalizeSubmissionForCapabilities_StripsGradeAndClass(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(3)
 	class := "3a"
 	req := SubmitRequest{Children: []SubmitChild{{TargetGradeLevel: &grade, TargetSchoolClass: &class}}}
@@ -72,6 +78,8 @@ func TestNormalizeSubmissionForCapabilities_StripsGradeAndClass(t *testing.T) {
 }
 
 func TestNormalizeSubmissionForCapabilities_RejectsForgedOfferings(t *testing.T) {
+	t.Parallel()
+
 	req := SubmitRequest{Children: []SubmitChild{{OfferingIDs: []int64{42}}}}
 
 	err := normalizeSubmissionForCapabilities(&req, FormCapabilities{CollectGradeLevel: true, CareOfferingsEnabled: false})
@@ -80,6 +88,8 @@ func TestNormalizeSubmissionForCapabilities_RejectsForgedOfferings(t *testing.T)
 }
 
 func TestAllChildrenParentResolved(t *testing.T) {
+	t.Parallel()
+
 	resolved := []*enrollmentModels.RequestChild{
 		{Status: enrollmentModels.ChildStatusApproved},
 		{Status: enrollmentModels.ChildStatusRejected},

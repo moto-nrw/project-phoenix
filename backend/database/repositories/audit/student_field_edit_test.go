@@ -13,13 +13,12 @@ import (
 )
 
 func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, db, "Audit", "History", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-field-edit-%d@example.test", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	repo := repositories.NewFactory(db).StudentFieldEdit
 	ctx := testpkg.TenantContext(student.TenantID)
@@ -57,7 +56,6 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 	require.NotZero(t, newerFirst.ID)
 	require.NotZero(t, newerSecond.ID)
 	require.Greater(t, newerSecond.ID, newerFirst.ID)
-	defer testpkg.CleanupTableRecords(t, db, "audit.student_field_edits", older.ID, newerFirst.ID, newerSecond.ID)
 
 	edits, err := repo.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
@@ -69,8 +67,9 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 }
 
 func TestStudentFieldEditRepository_CreateBatchValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentFieldEdit
 	ctx := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))

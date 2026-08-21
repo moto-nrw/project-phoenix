@@ -8,6 +8,8 @@ import (
 )
 
 func TestCategoryValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		category *Category
@@ -96,6 +98,8 @@ func TestCategoryValidate(t *testing.T) {
 }
 
 func TestCategory_GetID(t *testing.T) {
+	t.Parallel()
+
 	cat := &Category{
 		Model: base.Model{ID: 42},
 		Name:  "Test",
@@ -107,6 +111,8 @@ func TestCategory_GetID(t *testing.T) {
 }
 
 func TestCategory_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	cat := &Category{
 		Model: base.Model{CreatedAt: now},
@@ -119,6 +125,8 @@ func TestCategory_GetCreatedAt(t *testing.T) {
 }
 
 func TestCategory_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	cat := &Category{
 		Model: base.Model{UpdatedAt: now},
@@ -131,6 +139,8 @@ func TestCategory_GetUpdatedAt(t *testing.T) {
 }
 
 func TestCategory_GetColorOrDefault(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns color when set", func(t *testing.T) {
 		cat := &Category{Name: "Test", Color: "#FF5733"}
 		if got := cat.GetColorOrDefault(); got != "#FF5733" {
@@ -148,6 +158,8 @@ func TestCategory_GetColorOrDefault(t *testing.T) {
 }
 
 func TestCategory_HasDescription(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true when description is set", func(t *testing.T) {
 		cat := &Category{Name: "Test", Description: "A description"}
 		if !cat.HasDescription() {

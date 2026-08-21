@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,6 +75,8 @@ func retentionSettings(days int) *configtest.Mock {
 }
 
 func TestUsageServiceReportStaff(t *testing.T) {
+	t.Parallel()
+
 	repo := &recordingUsageRepository{}
 	service := NewUsageService(nil, repo, nil, nil, nil, nil)
 
@@ -89,8 +90,9 @@ func TestUsageServiceReportStaff(t *testing.T) {
 }
 
 func TestUsageServiceReportParent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	t.Run("fans out one row per active guardian mapping", func(t *testing.T) {
 		repo := &recordingUsageRepository{}
@@ -129,7 +131,9 @@ func TestUsageServiceReportParent(t *testing.T) {
 }
 
 func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	t.Parallel()
+
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes with the configured retention cutoff", func(t *testing.T) {
 		repo := &recordingUsageRepository{deleteCount: 3}
@@ -165,7 +169,9 @@ func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
 }
 
 func TestUsageServiceSnapshotUsage(t *testing.T) {
-	rows := []platformModels.SchoolPWAUsageRow{{TenantID: 1, Portal: "staff", StandaloneUsers: 2, EligibleUsers: 5}}
+	t.Parallel()
+
+	rows := []platformModels.SchoolPWAUsageRow{{TenantID: testpkg.Tenant(t), Portal: "staff", StandaloneUsers: 2, EligibleUsers: 5}}
 	summaries := &summariesStub{rows: rows}
 	// nil db degrades WithAdminTxOrDirect to a direct call — exactly what a
 	// unit test needs.

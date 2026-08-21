@@ -14,6 +14,8 @@ import (
 // an accompanied Tuesday still needs its own answer — a link on that day or the
 // free-text note.
 func TestStudentValidate_AccompaniedCoverIsPerWeekday(t *testing.T) {
+	t.Parallel()
+
 	newStudent := func() *Student {
 		student := &Student{SchoolClass: "1a"}
 		student.PersonID = 42
@@ -71,6 +73,8 @@ func TestStudentValidate_AccompaniedCoverIsPerWeekday(t *testing.T) {
 // model checks against, which is what lets a caller vouch for edges it is about
 // to write in the same transaction.
 func TestCompanionDaysFromLinks(t *testing.T) {
+	t.Parallel()
+
 	days := CompanionDaysFromLinks([]CompanionLink{
 		{CompanionStudentID: 11, Weekdays: []string{PickupDayMonday}},
 		{CompanionStudentID: 12, Weekdays: []string{PickupDayMonday, PickupDayThursday}},

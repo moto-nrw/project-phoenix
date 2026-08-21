@@ -35,8 +35,6 @@ func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
 	byLiteral := createIdentityRepairRole(t, db, tenantID, "backfill-literal", nil)
 	withoutUserManagement := createIdentityRepairRole(t, db, tenantID, "backfill-plain", nil)
 	alreadyClassified := createIdentityRepairRole(t, db, tenantID, "backfill-known", strPtrValue("user"))
-	defer cleanupIdentityRepairRoles(t, db,
-		byWildcardResource, byWildcardAction, byLiteral, withoutUserManagement, alreadyClassified)
 
 	grantBackfillPermission(t, db, byWildcardResource, wildcardResource)
 	grantBackfillPermission(t, db, byWildcardAction, wildcardAction)
@@ -88,6 +86,13 @@ func grantBackfillPermission(t *testing.T, db *bun.DB, roleID, permissionID int6
 		VALUES (?, ?, NOW(), NOW())
 		ON CONFLICT DO NOTHING`, roleID, permissionID)
 	require.NoError(t, err)
+	// The RBAC catalog is tenant-less: a grant this test writes is visible to
+	// every other test in the binary until it is taken back (#2419).
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM auth.role_permissions WHERE role_id = ? AND permission_id = ?`,
+			roleID, permissionID)
+	})
 }
 
 func baseRoleOf(t *testing.T, db *bun.DB, roleID int64) string {

@@ -9,6 +9,8 @@ import (
 )
 
 func TestOperatorInvitationToken_Validate_Valid(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{
 		Email:     "test@example.com",
 		Token:     "abc-123-def",
@@ -21,6 +23,8 @@ func TestOperatorInvitationToken_Validate_Valid(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_Validate_MissingEmail(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{
 		Token:     "abc-123-def",
 		CreatedBy: 42,
@@ -33,6 +37,8 @@ func TestOperatorInvitationToken_Validate_MissingEmail(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_Validate_MissingToken(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{
 		Email:     "test@example.com",
 		CreatedBy: 42,
@@ -45,6 +51,8 @@ func TestOperatorInvitationToken_Validate_MissingToken(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_Validate_MissingCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{
 		Email:     "test@example.com",
 		Token:     "abc-123-def",
@@ -57,6 +65,8 @@ func TestOperatorInvitationToken_Validate_MissingCreatedBy(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_Validate_NegativeCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{
 		Email:     "test@example.com",
 		Token:     "abc-123-def",
@@ -70,6 +80,8 @@ func TestOperatorInvitationToken_Validate_NegativeCreatedBy(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_Validate_AlreadyUsed(t *testing.T) {
+	t.Parallel()
+
 	usedAt := time.Now()
 	token := &OperatorInvitationToken{
 		Email:     "test@example.com",
@@ -85,6 +97,8 @@ func TestOperatorInvitationToken_Validate_AlreadyUsed(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_IsUsed(t *testing.T) {
+	t.Parallel()
+
 	t.Run("not used", func(t *testing.T) {
 		token := &OperatorInvitationToken{}
 		assert.False(t, token.IsUsed())
@@ -98,12 +112,16 @@ func TestOperatorInvitationToken_IsUsed(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_GetID(t *testing.T) {
+	t.Parallel()
+
 	token := &OperatorInvitationToken{}
 	token.ID = 42
 	assert.Equal(t, int64(42), token.GetID())
 }
 
 func TestOperatorInvitationToken_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &OperatorInvitationToken{}
 	token.CreatedAt = now
@@ -111,6 +129,8 @@ func TestOperatorInvitationToken_GetCreatedAt(t *testing.T) {
 }
 
 func TestOperatorInvitationToken_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &OperatorInvitationToken{}
 	token.UpdatedAt = now

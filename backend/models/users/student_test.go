@@ -7,6 +7,8 @@ import (
 )
 
 func TestStudent_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		student *Student
@@ -78,6 +80,8 @@ func TestStudent_Validate(t *testing.T) {
 }
 
 func TestStudent_Validate_DepartureCompanionNote(t *testing.T) {
+	t.Parallel()
+
 	t.Run("over-long note is rejected", func(t *testing.T) {
 		long := make([]rune, MaxDepartureCompanionNoteLen+1)
 		for i := range long {
@@ -118,6 +122,8 @@ func TestStudent_Validate_DepartureCompanionNote(t *testing.T) {
 // departure mode is incomplete without the free-text "mit wem" companion note,
 // so a caller bypassing the React forms cannot persist one with a blank note.
 func TestStudent_Validate_AccompaniedRequiresNote(t *testing.T) {
+	t.Parallel()
+
 	t.Run("allowed accompanied without note is rejected", func(t *testing.T) {
 		student := &Student{
 			PersonID:    1,
@@ -187,6 +193,8 @@ func TestStudent_Validate_AccompaniedRequiresNote(t *testing.T) {
 }
 
 func TestStudent_Validate_TrimSchoolClass(t *testing.T) {
+	t.Parallel()
+
 	student := &Student{
 		PersonID:    1,
 		SchoolClass: "  3a  ",
@@ -203,6 +211,8 @@ func TestStudent_Validate_TrimSchoolClass(t *testing.T) {
 }
 
 func TestStudent_Validate_GuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		email   *string
@@ -262,6 +272,8 @@ func TestStudent_Validate_GuardianEmail(t *testing.T) {
 }
 
 func TestStudent_Validate_GuardianPhone(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		phone   *string
@@ -321,6 +333,8 @@ func TestStudent_Validate_GuardianPhone(t *testing.T) {
 }
 
 func TestStudent_SetPerson(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set person", func(t *testing.T) {
 		student := &Student{
 			SchoolClass: "1a",

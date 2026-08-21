@@ -93,7 +93,10 @@ export function NavigationTabs({
   }, [updateScrollState, updateIndicator, items]);
 
   return (
-    <div className={`ml-3 md:ml-6 ${className}`}>
+    // Kein eigener Einzug: die Reiterzeile beginnt dort, wo Suchfeld und
+    // Inhalt darunter beginnen. Der frühere `ml-3 md:ml-6` schob sie als
+    // einziges Element der Seite nach rechts.
+    <div className={className}>
       {/* Mobile dropdown for 3+ items */}
       {showMobileDropdown && (
         <MobileTabDropdown

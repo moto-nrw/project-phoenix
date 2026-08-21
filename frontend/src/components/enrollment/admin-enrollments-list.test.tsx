@@ -169,6 +169,6 @@ describe("AdminEnrollmentsList setup guide", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Anfragen prüfen/ }),
-    ).toHaveAttribute("href", "/demo/admin/enrollments/change-requests");
+    ).toHaveAttribute("href", "/demo/anfragen");
   });
 });

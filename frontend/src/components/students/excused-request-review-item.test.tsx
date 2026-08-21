@@ -37,6 +37,7 @@ function row(
     student_id: "42",
     first_name: "Lara",
     last_name: "Beispiel",
+    absence_status: "excused",
     status: "pending",
     dates: ["2026-07-01", "2026-07-02", "2026-07-03"],
     note: "Familienfeier",
@@ -104,7 +105,7 @@ describe("ExcusedRequestReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("300", false, "keine Kapazität"),
     );
-    expect(onDecided).toHaveBeenCalledWith("Entschuldigungs-Anfrage abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith("Entschuldigte Abmeldung abgelehnt");
   });
 
   it("approves without a reason and reports the notice", async () => {
@@ -119,7 +120,18 @@ describe("ExcusedRequestReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("300", true, undefined),
     );
-    expect(onDecided).toHaveBeenCalledWith("Abmeldung bestätigt");
+    expect(onDecided).toHaveBeenCalledWith("Entschuldigte Abmeldung bestätigt");
+  });
+
+  it("names a sickness request in the queue", () => {
+    render(
+      <ExcusedRequestReviewItem
+        row={row({ absence_status: "sick" })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Krankmeldung")).toBeInTheDocument();
   });
 
   it("surfaces the recovery action on the excused_request_status_conflict 409", async () => {

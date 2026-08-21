@@ -8,6 +8,8 @@ import (
 )
 
 func TestGuardianProfile_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		profile *GuardianProfile
@@ -152,6 +154,8 @@ func TestGuardianProfile_Validate(t *testing.T) {
 }
 
 func TestGuardianProfile_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		firstName string
@@ -205,6 +209,8 @@ func TestGuardianProfile_GetFullName(t *testing.T) {
 }
 
 func TestGuardianProfile_GetPreferredContact(t *testing.T) {
+	t.Parallel()
+
 	// Helper to create phone number pointers
 	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
 		return &GuardianPhoneNumber{
@@ -307,6 +313,8 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 }
 
 func TestGuardianProfile_GetPrimaryPhone(t *testing.T) {
+	t.Parallel()
+
 	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
 		return &GuardianPhoneNumber{
 			PhoneNumber: number,
@@ -354,6 +362,8 @@ func TestGuardianProfile_GetPrimaryPhone(t *testing.T) {
 }
 
 func TestGuardianProfile_GetPhoneByType(t *testing.T) {
+	t.Parallel()
+
 	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
 		return &GuardianPhoneNumber{
 			PhoneNumber: number,
@@ -391,6 +401,8 @@ func TestGuardianProfile_GetPhoneByType(t *testing.T) {
 }
 
 func TestGuardianProfile_CanInvite(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		profile  *GuardianProfile
@@ -439,6 +451,8 @@ func TestGuardianProfile_CanInvite(t *testing.T) {
 }
 
 func TestGuardianProfile_HasEmail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		email    *string
@@ -472,6 +486,8 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 }
 
 func TestGuardianProfile_GetID(t *testing.T) {
+	t.Parallel()
+
 	profile := &GuardianProfile{
 		Model:     base.Model{ID: 42},
 		FirstName: "John",
@@ -485,6 +501,8 @@ func TestGuardianProfile_GetID(t *testing.T) {
 }
 
 func TestGuardianProfile_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	profile := &GuardianProfile{
 		Model:     base.Model{CreatedAt: now},
@@ -499,6 +517,8 @@ func TestGuardianProfile_GetCreatedAt(t *testing.T) {
 }
 
 func TestGuardianProfile_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	profile := &GuardianProfile{
 		Model:     base.Model{UpdatedAt: now},

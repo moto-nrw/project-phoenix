@@ -10,8 +10,9 @@ import (
 )
 
 func TestNewFactory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	factory := repositories.NewFactory(db)
 	require.NotNil(t, factory)

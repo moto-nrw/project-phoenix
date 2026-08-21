@@ -32,11 +32,12 @@ import (
 // Tests use a short lock_timeout on the blocked transaction so the race is
 // detected deterministically instead of through goroutine timing.
 func TestOrganizationRepository_LockingContract(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	now := time.Now().UnixNano()
 	org := &platformModels.Organization{
@@ -46,9 +47,6 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 		Active: true,
 	}
 	require.NoError(t, repo.Create(ctx, org))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-	})
 
 	t.Run("FOR UPDATE blocks a concurrent FOR SHARE holder", func(t *testing.T) {
 		// Hold FOR SHARE on the org row in tx1.

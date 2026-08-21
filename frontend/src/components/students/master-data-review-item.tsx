@@ -142,8 +142,9 @@ export function MasterDataReviewItem({
 
   return (
     <RequestReviewCard
+      type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
-      summary={`Stammdaten · ${fieldLabel(row.field_key)}`}
+      summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={setReason}
@@ -157,7 +158,7 @@ export function MasterDataReviewItem({
           <Alert type="error" message={error} />
         </div>
       )}
-      <ReviewDiffPanel>
+      <ReviewDiffPanel title="Änderungen">
         {/* Field name lives in the collapsed summary; the expanded panel
             shows only the value change. */}
         <div className="flex flex-wrap items-baseline gap-2 text-sm">

@@ -19,6 +19,11 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: vi.fn(() => new Promise(() => undefined)),
+}));
+
 import {
   PersonIcon,
   ChevronDownIcon,

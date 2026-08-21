@@ -26,6 +26,8 @@ func (s failingBoolSettings) ResolveBool(context.Context, string) (bool, error) 
 }
 
 func TestSortGroupsUsesGermanCollation(t *testing.T) {
+	t.Parallel()
+
 	groups := []*educationModels.Group{{Name: "Zebra"}, {Name: "Äpfel"}}
 
 	sortGroups(groups)
@@ -35,6 +37,8 @@ func TestSortGroupsUsesGermanCollation(t *testing.T) {
 }
 
 func TestRoomStatusesOmitCurrentRoomWithoutGroupRoom(t *testing.T) {
+	t.Parallel()
+
 	students := []Student{{ID: 101}}
 	locations := &activeService.StudentLocationSnapshot{
 		Visits: map[int64]*activeModels.Visit{101: {ActiveGroupID: 201}},
@@ -50,6 +54,8 @@ func TestRoomStatusesOmitCurrentRoomWithoutGroupRoom(t *testing.T) {
 }
 
 func TestResolvePhotosEnabledPropagatesSettingsFailure(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("settings unavailable")
 
 	enabled, err := resolvePhotosEnabled(context.Background(), failingBoolSettings{err: want})
@@ -59,6 +65,8 @@ func TestResolvePhotosEnabledPropagatesSettingsFailure(t *testing.T) {
 }
 
 func TestNewServiceAppliesRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+
 	got, ok := NewService(Dependencies{}).(*service)
 
 	require.True(t, ok)
@@ -67,6 +75,8 @@ func TestNewServiceAppliesRuntimeDefaults(t *testing.T) {
 }
 
 func TestProjectionSerializesAllIDsAsStrings(t *testing.T) {
+	t.Parallel()
+
 	id := int64(9223372036854775807)
 	projection := Projection{
 		Groups:      []Group{{ID: id, RoomID: &id}},
@@ -127,12 +137,16 @@ func TestProjectionSerializesAllIDsAsStrings(t *testing.T) {
 }
 
 func TestValidateDependenciesRejectsIncompleteService(t *testing.T) {
+	t.Parallel()
+
 	err := (&service{}).validateDependencies()
 
 	assert.EqualError(t, err, "OGS group live service is not fully configured")
 }
 
 func TestProjectStudentsAppliesAccessAndPhotoRules(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(12)
 	photoPath := "/uploads/student-photos/avatar.jpg"
 	sick, excused := true, true
@@ -174,11 +188,15 @@ func TestProjectStudentsAppliesAccessAndPhotoRules(t *testing.T) {
 }
 
 func TestBuildPhotoURLPreservesNonStoredURLs(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, buildPhotoURL(11, ""))
 	assert.Equal(t, "https://example.test/photo.jpg", buildPhotoURL(11, "https://example.test/photo.jpg"))
 }
 
 func TestApplyEffectiveStatusHonorsPrecedence(t *testing.T) {
+	t.Parallel()
+
 	reportedAt := time.Date(2026, time.August, 1, 8, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -222,6 +240,8 @@ func TestApplyEffectiveStatusHonorsPrecedence(t *testing.T) {
 }
 
 func TestPlanningLabelDescribesEveryPlanningReason(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		decision scheduleService.DayPlanningDecision
 		want     string
@@ -247,6 +267,8 @@ func TestPlanningLabelDescribesEveryPlanningReason(t *testing.T) {
 }
 
 func TestApplyTimesProjectsPlansNotesAndAttendance(t *testing.T) {
+	t.Parallel()
+
 	arrivalTime := time.Date(2026, time.August, 1, 7, 45, 0, 0, time.UTC)
 	checkIn := time.Date(2026, time.August, 1, 8, 10, 0, 0, time.UTC)
 	checkOut := time.Date(2026, time.August, 1, 14, 5, 0, 0, time.UTC)
@@ -277,6 +299,8 @@ func TestApplyTimesProjectsPlansNotesAndAttendance(t *testing.T) {
 }
 
 func TestPickupTimesProjectsOnlyAccessibleScheduledStudents(t *testing.T) {
+	t.Parallel()
+
 	pickupAt := time.Date(2026, time.August, 1, 15, 30, 0, 0, time.UTC)
 	pickups := map[int64]*scheduleService.EffectivePickupTime{
 		11: {

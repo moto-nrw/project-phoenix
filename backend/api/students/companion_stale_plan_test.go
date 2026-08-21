@@ -58,11 +58,12 @@ func companionLinkDays(t *testing.T, tc *testContext, studentID int64) map[int64
 // child with no "mit wem" answer at all, so a companion with a note (as here)
 // loses the link silently.
 func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Subject", "ST1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "StaleTrim", "Partner", "ST1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	// Both children accompany on Monday AND Tuesday, and both keep their own
 	// note — so dropping a link stands or falls on the baseline rule alone.
@@ -146,11 +147,12 @@ func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 // what it actually did, on exactly the condition that drives the
 // student_companions_changed broadcast.
 func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Subject", "CV1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "CompanionVerdict", "Partner", "CV1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(nil))
@@ -197,11 +199,12 @@ func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
 // has. The empty list is the opposite case: it says what the plan says, and is
 // exactly what our own form submits when the last accompanied day is taken away.
 func TestUpdateStudent_CompanionsWithoutAccompaniedDayRefused(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Subject", "NA1")
 	companion := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Partner", "NA1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
 
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 	putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{

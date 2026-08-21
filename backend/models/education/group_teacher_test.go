@@ -9,6 +9,8 @@ import (
 )
 
 func TestGroupTeacher_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		gt      *GroupTeacher
@@ -67,6 +69,8 @@ func TestGroupTeacher_Validate(t *testing.T) {
 }
 
 func TestGroupTeacher_SetGroup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set group", func(t *testing.T) {
 		gt := &GroupTeacher{TeacherID: 1}
 		group := &Group{
@@ -102,6 +106,8 @@ func TestGroupTeacher_SetGroup(t *testing.T) {
 }
 
 func TestGroupTeacher_SetTeacher(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set teacher", func(t *testing.T) {
 		gt := &GroupTeacher{GroupID: 1}
 		teacher := &users.Teacher{
@@ -137,6 +143,8 @@ func TestGroupTeacher_SetTeacher(t *testing.T) {
 }
 
 func TestGroupTeacher_GetID(t *testing.T) {
+	t.Parallel()
+
 	gt := &GroupTeacher{
 		Model:     base.Model{ID: 42},
 		GroupID:   1,
@@ -149,6 +157,8 @@ func TestGroupTeacher_GetID(t *testing.T) {
 }
 
 func TestGroupTeacher_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	gt := &GroupTeacher{
 		Model:     base.Model{CreatedAt: now},
@@ -162,6 +172,8 @@ func TestGroupTeacher_GetCreatedAt(t *testing.T) {
 }
 
 func TestGroupTeacher_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	gt := &GroupTeacher{
 		Model:     base.Model{UpdatedAt: now},

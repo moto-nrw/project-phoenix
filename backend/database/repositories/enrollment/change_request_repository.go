@@ -131,6 +131,83 @@ func (r *ChangeRequestRepository) ListAdmin(ctx context.Context, filters enrollm
 	return rows, nil
 }
 
+// ListForReview serves the request module's Eltern tab (#2435): one page of
+// change requests, newest first, keyset-paginated. The open list orders by
+// created_at (when the family filed it), the history by the decision instant
+// (when the office decided) — the same split the other four request queues use,
+// so the merged list stays in one order across all types.
+//
+// The decided-at range filters COALESCE(reviewed_at, updated_at): a decision
+// always stamps reviewed_at, and the fallback keeps rows that only ever got a
+// status change inside the window they actually moved in.
+func (r *ChangeRequestRepository) ListForReview(ctx context.Context, filters enrollment.ChangeRequestReviewFilters) ([]*enrollment.ChangeRequest, error) {
+	if len(filters.Statuses) == 0 || filters.Limit <= 0 {
+		return []*enrollment.ChangeRequest{}, nil
+	}
+	rows := make([]*enrollment.ChangeRequest, 0, filters.Limit)
+	keysetColumn := `"change_request".created_at`
+	if filters.History {
+		keysetColumn = `COALESCE("change_request".reviewed_at, "change_request".updated_at)`
+	}
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(changeRequestTableExpr).
+		Where(`"change_request".status IN (?)`, bun.List(filters.Statuses))
+	q = base.WithTenantFilter(ctx, q, "change_request")
+	if filters.Search != "" {
+		// The affected child is the pinned one when the request targets a
+		// single child, and every child of the enrollment otherwise — the same
+		// rule the response's child names follow, so a name that shows up in
+		// the list is also a name that finds it.
+		q = q.Where(`EXISTS (
+			SELECT 1 FROM enrollment.request_children AS rc
+			WHERE rc.request_id = "change_request".request_id
+			  AND rc.tenant_id = "change_request".tenant_id
+			  AND ("change_request".request_child_id IS NULL OR rc.id = "change_request".request_child_id)
+			  AND (rc.first_name || ' ' || rc.last_name) ILIKE ? ESCAPE '\'
+		)`, "%"+base.EscapeILike(filters.Search)+"%")
+	}
+	if filters.History {
+		if !filters.From.IsZero() {
+			q = q.Where(`COALESCE("change_request".reviewed_at, "change_request".updated_at) >= ?`, filters.From)
+		}
+		if !filters.To.IsZero() {
+			q = q.Where(`COALESCE("change_request".reviewed_at, "change_request".updated_at) <= ?`, filters.To)
+		}
+	}
+	if !filters.BeforeInstant.IsZero() {
+		q = q.Where(`(`+keysetColumn+`, "change_request".id) < (?, ?)`, filters.BeforeInstant, filters.BeforeID)
+	}
+	err := q.
+		OrderExpr(keysetColumn + ` DESC`).
+		OrderExpr(`"change_request".id DESC`).
+		Limit(filters.Limit).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list enrollment change requests for review: %w", err)
+	}
+	return rows, nil
+}
+
+// CountForReview counts the rows ListForReview would return, ignoring the
+// keyset and the page size. It backs the badge, which needs the true number
+// rather than the size of one page.
+func (r *ChangeRequestRepository) CountForReview(ctx context.Context, statuses []string) (int, error) {
+	if len(statuses) == 0 {
+		return 0, nil
+	}
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.ChangeRequest)(nil)).
+		ModelTableExpr(changeRequestTableExpr).
+		Where(`"change_request".status IN (?)`, bun.List(statuses))
+	q = base.WithTenantFilter(ctx, q, "change_request")
+	count, err := q.Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count enrollment change requests for review: %w", err)
+	}
+	return count, nil
+}
+
 func (r *ChangeRequestRepository) MarkReviewed(ctx context.Context, id int64, status string, note *string, reviewerAccountID int64, reviewedAt time.Time) error {
 	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*enrollment.ChangeRequest)(nil)).

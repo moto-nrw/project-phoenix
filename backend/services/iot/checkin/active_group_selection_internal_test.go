@@ -97,6 +97,8 @@ func (s *rolloverActivityService) ListGroups(_ context.Context, _ *base.QueryOpt
 }
 
 func TestUseExistingActiveGroupCannotSelectPreviousDaySession(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	deviceID := int64(91)
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: "Schulhof"}
@@ -121,6 +123,8 @@ func TestUseExistingActiveGroupCannotSelectPreviousDaySession(t *testing.T) {
 }
 
 func TestPreviousDaySpecialRoomGroupsAreEndedBeforeReplacement(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	endedAt := now.Add(-time.Hour)
 	activeStub := &rolloverActiveService{}
@@ -139,6 +143,8 @@ func TestPreviousDaySpecialRoomGroupsAreEndedBeforeReplacement(t *testing.T) {
 }
 
 func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	stale := &active.Group{
 		Model:     base.Model{ID: 100},
@@ -151,11 +157,9 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 		active:     activeStub,
 		activities: &rolloverActivityService{group: activity},
 		logger:     slog.New(slog.DiscardHandler),
+		now:        func() time.Time { return now },
 	}
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -167,6 +171,8 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 }
 
 func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: "Klassenraum 1a"}
 	stale := &active.Group{
@@ -178,10 +184,8 @@ func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
 	service := &CheckinService{
 		active: activeStub,
 		logger: slog.New(slog.DiscardHandler),
+		now:    func() time.Time { return now },
 	}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -192,6 +196,8 @@ func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
 }
 
 func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.SchulhofRoomName}
 	stale := &active.Group{
@@ -208,10 +214,8 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 	service := &CheckinService{
 		active: activeStub,
 		logger: slog.New(slog.DiscardHandler),
+		now:    func() time.Time { return now },
 	}
-	originalTimeNow := timeNow
-	timeNow = func() time.Time { return now }
-	t.Cleanup(func() { timeNow = originalTimeNow })
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -222,6 +226,8 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 }
 
 func TestRejectedCapacityRemovesNewSpecialRoomGroup(t *testing.T) {
+	t.Parallel()
+
 	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
 	activity := &activities.Group{Model: base.Model{ID: 300}, Name: "WC", MaxParticipants: 999}
 	activeStub := &capacityRejectedActiveService{createdGroupID: 200}
@@ -245,6 +251,8 @@ func TestRejectedCapacityRemovesNewSpecialRoomGroup(t *testing.T) {
 }
 
 func TestFullRoomDoesNotCreateSpecialRoomGroup(t *testing.T) {
+	t.Parallel()
+
 	capacity := 1
 	room := &facilities.Room{
 		Model:    base.Model{ID: 42},

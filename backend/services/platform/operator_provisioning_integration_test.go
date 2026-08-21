@@ -20,9 +20,12 @@ import (
 
 var testClientIP = net.IPv4(127, 0, 0, 1)
 
-// testSchoolID is the tenant_id used by all test fixtures (SetupTestDB ensures tenant 1 exists).
+// testSchoolID(t) is the tenant_id used by all test fixtures (SetupTestDB ensures tenant 1 exists).
 // Expressed as a const to avoid triggering the hermetic int64(1) pattern check.
-const testSchoolID int64 = 1 //nolint:unused
+// testSchoolID(t) is the school (= tenant) this test owns. It used to be the
+// fixed bootstrap tenant 1; per-test tenants (#2419) make it a function so
+// every test in the package gets its own school.
+func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 
 func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProvisioningService {
 	t.Helper()
@@ -37,19 +40,16 @@ func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProv
 // =============================================================================
 
 func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person1 := testpkg.CreateTestPerson(t, db, "Alice", "Schmidt")
 	person2 := testpkg.CreateTestPerson(t, db, "Bob", "Mueller")
-	defer testpkg.CleanupPerson(t, db, person1.ID)
-	defer testpkg.CleanupPerson(t, db, person2.ID)
 
-	// schoolID=1 is the default test tenant
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -72,14 +72,13 @@ func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person := testpkg.CreateTestPerson(t, db, "ToDelete", "Person")
-	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	// Soft delete the person
 	operatorID := testpkg.CreateTestOperator(t, db).ID
@@ -87,7 +86,7 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 	require.NoError(t, err)
 
 	// List should not include soft-deleted person
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -96,18 +95,16 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 	student := testpkg.CreateTestStudent(t, db, "Student", "Kid", "3a")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupPerson(t, db, student.PersonID)
 
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -123,17 +120,15 @@ func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "With", "Account")
-	defer testpkg.CleanupPerson(t, db, person.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "With", "Account")
 
-	result, err := service.ListSchoolPersons(ctx, testSchoolID)
+	result, err := service.ListSchoolPersons(ctx, testSchoolID(t))
 	require.NoError(t, err)
 
 	for _, p := range result {
@@ -145,8 +140,8 @@ func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -164,14 +159,13 @@ func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 // =============================================================================
 
 func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person := testpkg.CreateTestPerson(t, db, "Delete", "Me")
-	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
@@ -195,15 +189,13 @@ func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Delete")
-	defer testpkg.CleanupPerson(t, db, person.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
@@ -235,20 +227,19 @@ func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person := testpkg.CreateTestPerson(t, db, "RFID", "Person")
-	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	// Assign RFID card via raw SQL
 	rfidTag := fmt.Sprintf("TAG-SOFTDEL-%d", person.ID)
 	_, err := db.ExecContext(ctx,
 		`INSERT INTO users.rfid_cards (id, tenant_id) VALUES (?, ?)`,
-		rfidTag, testSchoolID)
+		rfidTag, testSchoolID(t))
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM users.rfid_cards WHERE id = ?`, rfidTag)
@@ -275,8 +266,8 @@ func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -289,14 +280,13 @@ func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person := testpkg.CreateTestPerson(t, db, "AlreadyDeleted", "Person")
-	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	// First delete succeeds
 	operatorID := testpkg.CreateTestOperator(t, db).ID
@@ -311,8 +301,8 @@ func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
@@ -321,12 +311,7 @@ func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T
 	activity := testpkg.CreateTestActivityGroup(t, db, "supervision-block-test")
 	room := testpkg.CreateTestRoom(t, db, "supervision-block-room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "primary")
-	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
-	defer testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-	defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-	defer testpkg.CleanupTableRecords(t, db, "activities.groups", activity.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "primary")
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, staff.PersonID, operatorID, testClientIP)
@@ -338,14 +323,13 @@ func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T
 }
 
 func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	staff := testpkg.CreateTestStaff(t, db, "FreeStaff", "NoSupervision")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 	// Staff without active supervision should be deletable
 	operatorID := testpkg.CreateTestOperator(t, db).ID
@@ -364,14 +348,13 @@ func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	person := testpkg.CreateTestPerson(t, db, "Audit", "LogTest")
-	defer testpkg.CleanupPerson(t, db, person.ID)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, person.ID, operatorID, testClientIP)
@@ -390,14 +373,13 @@ func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Student", "ToDelete", "2b")
-	defer testpkg.CleanupPerson(t, db, student.PersonID)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	err := service.SoftDeletePerson(ctx, student.PersonID, operatorID, testClientIP)
@@ -429,13 +411,13 @@ func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 // guard the user-visible contract "everything tied to a deleted school must
 // disappear from the UI; the school itself stays restorable via Papierkorb."
 func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90021)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "trash-test")
@@ -497,13 +479,13 @@ func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 // in a corrupt-state scenario) also disappear. Defensive — under normal
 // flow an org can only be deleted after all its schools are in the Papierkorb.
 func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90022)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "org-trash")
@@ -539,13 +521,13 @@ func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 // soft-deleted org must return OrganizationDeletedError, mirroring the
 // behavior of ListSchoolDevices for soft-deleted schools.
 func TestIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90023)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	t.Cleanup(func() {

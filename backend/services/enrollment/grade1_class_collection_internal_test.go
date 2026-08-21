@@ -17,6 +17,8 @@ import (
 // class_not_eligible.
 
 func TestCollectsGrade1Class(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		available []string
@@ -76,6 +78,8 @@ func TestCollectsGrade1Class(t *testing.T) {
 }
 
 func TestCollectsGrade1Class_NilPhase(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, CollectsGrade1Class(nil))
 }
 
@@ -83,6 +87,8 @@ func TestCollectsGrade1Class_NilPhase(t *testing.T) {
 // offered list to the eligible subset — otherwise the form and the submit path
 // disagree about whether grade 1 declares a class at all.
 func TestCollectsGrade1Class_StableUnderFormNarrowing(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		AvailableSchoolClasses: []string{"Bienen", "2a", "3a"},
 		EligibleSchoolClasses:  []string{"Bienen"},
@@ -99,6 +105,8 @@ func TestCollectsGrade1Class_StableUnderFormNarrowing(t *testing.T) {
 // Before #1663's fix the class was cleared for grade 1 and the very next gate
 // rejected the submission, so such a phase accepted no grade-1 child at all.
 func TestValidateAndNormalizeSchoolClasses_Grade1KeepsPrefixlessEligibleClass(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		Audience:               enrollmentModels.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"Bienen"},
@@ -123,6 +131,8 @@ func TestValidateAndNormalizeSchoolClasses_Grade1KeepsPrefixlessEligibleClass(t 
 // The pick is mandatory rather than silently cleared: an omitted class on such
 // a phase is a "please choose" error, not an eligibility rejection.
 func TestValidateAndNormalizeSchoolClasses_Grade1RequiresPrefixlessEligibleClass(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		Audience:               enrollmentModels.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"Bienen"},
@@ -140,6 +150,8 @@ func TestValidateAndNormalizeSchoolClasses_Grade1RequiresPrefixlessEligibleClass
 // declares no class and is rejected by the eligibility gate as ineligible,
 // which is the correct outcome for a phase aimed at older children.
 func TestValidateAndNormalizeSchoolClasses_Grade1StaysClasslessForGrade2Restriction(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		Audience:               enrollmentModels.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"1a", "2a"},

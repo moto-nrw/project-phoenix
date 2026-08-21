@@ -17,6 +17,7 @@ import {
   formatChatDateTime,
   formatChatClockTime,
   formatBerlinDate,
+  relativeDaysLabel,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -621,5 +622,29 @@ describe("formatChatClockTime", () => {
     expect(formatChatClockTime("2026-06-10T20:05:00Z", "en-US")).toBe(
       "10:05 PM",
     );
+  });
+});
+
+describe("relativeDaysLabel", () => {
+  const jetzt = new Date("2026-08-20T09:00:00Z");
+
+  it("nennt denselben Berliner Kalendertag heute", () => {
+    expect(relativeDaysLabel("2026-08-20T05:30:00Z", jetzt)).toBe("heute");
+  });
+
+  it("zaehlt Kalendertage, nicht 24-Stunden-Bloecke", () => {
+    // 21:00 UTC am 19.08. ist 23:00 Berlin, also gestern — keine 24h her.
+    expect(relativeDaysLabel("2026-08-19T21:00:00Z", jetzt)).toBe("gestern");
+  });
+
+  it("schreibt aeltere Eintraege als Tagesabstand", () => {
+    expect(relativeDaysLabel("2026-08-15T09:00:00Z", jetzt)).toBe(
+      "vor 5 Tagen",
+    );
+  });
+
+  it("gibt fuer unlesbare und zukuenftige Werte null zurueck", () => {
+    expect(relativeDaysLabel("keinDatum", jetzt)).toBeNull();
+    expect(relativeDaysLabel("2026-08-25T09:00:00Z", jetzt)).toBeNull();
   });
 });

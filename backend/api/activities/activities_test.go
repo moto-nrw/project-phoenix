@@ -67,66 +67,16 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// cleanupActivity cleans up an activity and its related records
-func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-
-	// Delete enrollments (actual table name is student_enrollments)
-	_, _ = db.NewDelete().
-		TableExpr("activities.student_enrollments").
-		Where("activity_group_id = ?", activityID).
-		Exec(ctx)
-
-	// Delete schedules
-	_, _ = db.NewDelete().
-		TableExpr("activities.schedules").
-		Where("activity_group_id = ?", activityID).
-		Exec(ctx)
-
-	// Delete supervisors (actual table name is supervisors, not supervisors_planned)
-	_, _ = db.NewDelete().
-		TableExpr("activities.supervisors").
-		Where("group_id = ?", activityID).
-		Exec(ctx)
-
-	// Delete activity
-	_, _ = db.NewDelete().
-		TableExpr("activities.groups").
-		Where("id = ?", activityID).
-		Exec(ctx)
-}
-
-// cleanupCategory cleans up a category and any groups referencing it
-func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-
-	// First delete any groups that reference this category (FK constraint)
-	_, _ = db.NewDelete().
-		TableExpr("activities.groups").
-		Where("category_id = ?", categoryID).
-		Exec(ctx)
-
-	// Then delete the category
-	_, _ = db.NewDelete().
-		TableExpr("activities.categories").
-		Where("id = ?", categoryID).
-		Exec(ctx)
-}
-
 // =============================================================================
 // ACTIVITY CRUD TESTS
 // =============================================================================
 
 func TestListActivities_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test activity
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestList-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestList-%d", time.Now().UnixNano()))
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil)
 
@@ -141,12 +91,10 @@ func TestListActivities_Success(t *testing.T) {
 }
 
 func TestListActivities_WithCategoryFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestFilter-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities?category_id=%d", activity.CategoryID), nil)
 
@@ -156,12 +104,10 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 }
 
 func TestGetActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestGet-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d", activity.ID), nil)
 
@@ -176,8 +122,8 @@ func TestGetActivity_Success(t *testing.T) {
 }
 
 func TestGetActivity_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil)
 
@@ -187,8 +133,8 @@ func TestGetActivity_NotFound(t *testing.T) {
 }
 
 func TestGetActivity_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil)
 
@@ -198,15 +144,13 @@ func TestGetActivity_InvalidID(t *testing.T) {
 }
 
 func TestCreateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Create", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("CreateTest-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"name":             fmt.Sprintf("NewActivity-%d", time.Now().UnixNano()),
@@ -227,17 +171,13 @@ func TestCreateActivity_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup created activity
-	if id, ok := data["id"].(float64); ok {
-		cleanupActivity(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("BadReq-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"max_participants": 15,
@@ -253,8 +193,8 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 }
 
 func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"name":             "NoCategoryActivity",
@@ -270,14 +210,12 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 }
 
 func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unlimited", "Activity")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("Unlimited-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"name":             "OpenSportsHall",
@@ -300,24 +238,21 @@ func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 		var persistedCapacity *int
 		require.NoError(t, ctx.db.NewRaw(
 			`SELECT max_participants FROM activities.groups WHERE id = ?`, activityID,
-		).Scan(testpkg.TenantContext(1), &persistedCapacity))
+		).Scan(testpkg.Ctx(t), &persistedCapacity))
 		assert.Nil(t, persistedCapacity)
-		persistedActivity, err := ctx.services.Activities.GetGroup(testpkg.TenantContext(1), activityID)
+		persistedActivity, err := ctx.services.Activities.GetGroup(testpkg.Ctx(t), activityID)
 		require.NoError(t, err)
 		assert.Zero(t, persistedActivity.MaxParticipants)
-		cleanupActivity(t, ctx.db, activityID)
 	}
 }
 
 func TestUpdateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
 	// We use admin permissions to bypass the ownership check.
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestUpdate-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"name":             fmt.Sprintf("UpdatedActivity-%d", time.Now().UnixNano()),
@@ -335,15 +270,13 @@ func TestUpdateActivity_Success(t *testing.T) {
 }
 
 func TestUpdateActivity_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "UpdateNF", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NotFound-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"name":             "SomeActivity",
@@ -360,14 +293,12 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 }
 
 func TestDeleteActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
 	// We use admin permissions to bypass the ownership check.
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("ToDelete-%d", time.Now().UnixNano()))
-	categoryID := activity.CategoryID
-	defer cleanupCategory(t, ctx.db, categoryID)
 
 	// Admin claims carry admin:* which has full access and bypasses ownership checks
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d", activity.ID), nil)
@@ -378,11 +309,11 @@ func TestDeleteActivity_Success(t *testing.T) {
 }
 
 func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
+	t.Parallel()
 	// Note: With admin permissions, the API allows idempotent deletes - returns success
 	// even if the activity doesn't exist. This prevents information disclosure about
 	// which activity IDs exist.
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Use admin claims
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/99999", nil)
@@ -394,8 +325,8 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 }
 
 func TestDeleteActivity_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil)
 
@@ -409,11 +340,10 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestListCategories_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
-	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("TestCat-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
+	testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("TestCat-%d", time.Now().UnixNano()))
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil)
 
@@ -428,8 +358,8 @@ func TestListCategories_Success(t *testing.T) {
 }
 
 func TestGetTimespans_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil)
 
@@ -447,12 +377,10 @@ func TestGetTimespans_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySchedules_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("ScheduleTest-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/schedules", activity.ID), nil)
 
@@ -462,12 +390,10 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 }
 
 func TestCreateActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("CreateSched-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"weekday": 1, // Monday
@@ -481,12 +407,10 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 }
 
 func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("InvalidSched-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"weekday": 10, // Invalid weekday
@@ -500,8 +424,8 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 }
 
 func TestGetAvailableTimeSlots_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil)
 
@@ -511,8 +435,8 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 }
 
 func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil)
 
@@ -526,12 +450,10 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySupervisors_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SupervisorTest-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/supervisors", activity.ID), nil)
 
@@ -541,15 +463,12 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 }
 
 func TestAssignSupervisor_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AssignSup-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Supervisor", "Test")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	body := map[string]interface{}{
 		"staff_id":   staff.ID,
@@ -564,12 +483,10 @@ func TestAssignSupervisor_Success(t *testing.T) {
 }
 
 func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NoStaff-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"is_primary": true,
@@ -583,11 +500,10 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 }
 
 func TestGetAvailableSupervisors_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+	_ = testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil)
 
@@ -605,12 +521,10 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetActivityStudents_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollTest-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/students", activity.ID), nil)
 
@@ -620,15 +534,12 @@ func TestGetActivityStudents_Success(t *testing.T) {
 }
 
 func TestEnrollStudent_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollS-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Enroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
@@ -638,15 +549,12 @@ func TestEnrollStudent_Success(t *testing.T) {
 }
 
 func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DupEnroll-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Dup", "Enroll", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// First enrollment
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
@@ -661,11 +569,10 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 }
 
 func TestGetStudentEnrollments_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "GetEnroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d", student.ID), nil)
 
@@ -675,11 +582,10 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 }
 
 func TestGetAvailableActivities_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil)
 
@@ -689,11 +595,10 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 }
 
 func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
@@ -709,15 +614,12 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 }
 
 func TestUnenrollStudent_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("Unenroll-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Unenroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// First enroll the student
 	enrollReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
@@ -733,15 +635,12 @@ func TestUnenrollStudent_Success(t *testing.T) {
 }
 
 func TestUnenrollStudent_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UnenrollNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "NotEnrolled", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
@@ -751,16 +650,13 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 }
 
 func TestBatchEnrollment_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchTest-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Student1", "1a")
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Student2", "1b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID, student2.ID)
 
 	body := map[string]interface{}{
 		"student_ids": []int64{student1.ID, student2.ID},
@@ -774,12 +670,10 @@ func TestBatchEnrollment_Success(t *testing.T) {
 }
 
 func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchBad-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{}
 
@@ -795,15 +689,13 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 // =============================================================================
 
 func TestQuickCreateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Quick", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickCreate-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"name":             fmt.Sprintf("QuickActivity-%d", time.Now().UnixNano()),
@@ -823,17 +715,13 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 	assert.NotZero(t, data["activity_id"])
 
 	// Cleanup created activity
-	if id, ok := data["activity_id"].(float64); ok {
-		cleanupActivity(t, ctx.db, int64(id))
-	}
 }
 
 func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickBad-%d", time.Now().UnixNano()))
-	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
 		"category_id":      category.ID,
@@ -848,8 +736,8 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 }
 
 func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	body := map[string]interface{}{
 		"name":             "NoCategory",
@@ -868,12 +756,10 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSched-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	// Create a schedule first using the service
 	actSvc := ctx.services.Activities
@@ -881,7 +767,7 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 	require.NotNil(t, schedule)
 
@@ -894,12 +780,10 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 }
 
 func TestGetActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSchedNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
@@ -910,12 +794,10 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 }
 
 func TestUpdateActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSched-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	// Create a schedule first
 	actSvc := ctx.services.Activities
@@ -923,7 +805,7 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 
 	body := map[string]interface{}{
@@ -939,12 +821,10 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 }
 
 func TestUpdateActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSchedNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"weekday": 2,
@@ -959,12 +839,10 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 }
 
 func TestDeleteActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSched-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	// Create a schedule first
 	actSvc := ctx.services.Activities
@@ -972,7 +850,7 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
 	require.NoError(t, err)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
@@ -986,12 +864,10 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 }
 
 func TestDeleteActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSchedNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
@@ -1006,18 +882,15 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestUpdateSupervisorRole_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRole-%d", time.Now().UnixNano()))
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("SupRole-%d", time.Now().UnixNano()), "Test")
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1034,12 +907,10 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 }
 
 func TestUpdateSupervisorRole_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRoleNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	body := map[string]interface{}{
 		"role": "primary",
@@ -1054,18 +925,15 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 }
 
 func TestRemoveSupervisor_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()))
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()), "Test")
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1080,12 +948,10 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 }
 
 func TestRemoveSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupNF-%d", time.Now().UnixNano()))
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), nil)
@@ -1096,17 +962,14 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 }
 
 func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupReplace-%d", time.Now().UnixNano()))
 	outgoingStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Outgoing-%d", time.Now().UnixNano()), "Caregiver")
 	replacementStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Replacement-%d", time.Now().UnixNano()), "Caregiver")
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, outgoingStaff.ID, replacementStaff.ID)
 
-	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	supervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, outgoingStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
@@ -1125,7 +988,7 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testpkg.Ctx(t), activity.ID)
 	require.NoError(t, err)
 
 	staffIDs := make([]int64, 0, len(supervisors))
@@ -1138,26 +1001,23 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 }
 
 func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupExistingPrimary-%d", time.Now().UnixNano()))
 	primaryStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Primary-%d", time.Now().UnixNano()), "Lead")
 	outgoingStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Outgoing-%d", time.Now().UnixNano()), "Caregiver")
 	otherStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Other-%d", time.Now().UnixNano()), "Caregiver")
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, primaryStaff.ID, outgoingStaff.ID, otherStaff.ID)
 
-	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, primaryStaff.ID, true)
+	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, primaryStaff.ID, true)
 	require.NoError(t, err)
 	require.NotNil(t, primarySupervisor)
 
-	outgoingSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	outgoingSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, outgoingStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, outgoingSupervisor)
 
-	otherSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, otherStaff.ID, false)
+	otherSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, otherStaff.ID, false)
 	require.NoError(t, err)
 	require.NotNil(t, otherSupervisor)
 
@@ -1176,7 +1036,7 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testpkg.Ctx(t), activity.ID)
 	require.NoError(t, err)
 	require.Len(t, supervisors, 2)
 
@@ -1192,16 +1052,13 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 }
 
 func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupOnly-%d", time.Now().UnixNano()))
 	onlyStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Only-%d", time.Now().UnixNano()), "Caregiver")
-	defer cleanupActivity(t, ctx.db, activity.ID)
-	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, onlyStaff.ID)
 
-	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, onlyStaff.ID, true)
+	supervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, onlyStaff.ID, true)
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 

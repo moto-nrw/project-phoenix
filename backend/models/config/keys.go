@@ -127,6 +127,7 @@ const (
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"

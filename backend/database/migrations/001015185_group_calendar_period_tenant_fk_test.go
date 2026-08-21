@@ -14,7 +14,6 @@ import (
 
 func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -26,10 +25,8 @@ func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
 		testpkg.CleanupTenantTestData(t, db, tenantB)
 		_, err := db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(cleanupCtx)
 		require.NoError(t, err)
-		_, err = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(cleanupCtx)
-		require.NoError(t, err)
-		_, err = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(cleanupCtx)
-		require.NoError(t, err)
+		// School + organization stay: their IDs come from the test band, so
+		// they are not leftovers (#2419).
 	})
 
 	periodA := insertCalendarPeriodForTenantFKTest(t, db, tenantA, "A")

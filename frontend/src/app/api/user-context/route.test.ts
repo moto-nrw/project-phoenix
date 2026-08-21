@@ -92,29 +92,21 @@ describe("GET /api/user-context", () => {
     ];
     const staff = { id: 5, person_id: 7 };
 
-    mockApiGet
-      .mockResolvedValueOnce({ data: groups })
-      .mockResolvedValueOnce({ data: supervised })
-      .mockResolvedValueOnce({ data: staff });
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        educational_groups: groups,
+        supervised_groups: supervised,
+        current_staff: staff,
+        incomplete: true,
+        unavailable_sections: ["supervised_groups"],
+      },
+    });
 
     const request = createMockRequest("/api/user-context");
     const response = await GET(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      1,
-      "/api/me/groups",
-      "test-token",
-    );
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      2,
-      "/api/me/groups/supervised",
-      "test-token",
-    );
-    expect(mockApiGet).toHaveBeenNthCalledWith(
-      3,
-      "/api/me/staff",
-      "test-token",
-    );
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/me/navigation", "test-token");
 
     const json = await parseJsonResponse<
       ApiResponse<{
@@ -135,6 +127,8 @@ describe("GET /api/user-context", () => {
         educationalGroupIds: string[];
         educationalGroupRoomNames: string[];
         supervisedRoomNames: string[];
+        incomplete: boolean;
+        unavailableSections: string[];
       }>
     >(response);
 
@@ -160,33 +154,40 @@ describe("GET /api/user-context", () => {
     expect(json.data.educationalGroupIds).toEqual(["1"]);
     expect(json.data.educationalGroupRoomNames).toEqual(["Room 10"]);
     expect(json.data.supervisedRoomNames).toEqual(["Room 11"]);
+    expect(json.data.incomplete).toBe(true);
+    expect(json.data.unavailableSections).toEqual(["supervised_groups"]);
   });
 
-  it("falls back to empty data when backend calls fail", async () => {
-    mockApiGet
-      .mockRejectedValueOnce(new Error("Groups failed"))
-      .mockRejectedValueOnce(new Error("Supervised failed"))
-      .mockRejectedValueOnce(new Error("API error (404)"));
+  it("maps a null supervised group list to an empty response list", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        educational_groups: [],
+        supervised_groups: null,
+        current_staff: null,
+        incomplete: false,
+        unavailable_sections: [],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/user-context"),
+      createMockContext(),
+    );
+    const json =
+      await parseJsonResponse<ApiResponse<{ supervisedGroups: unknown[] }>>(
+        response,
+      );
+
+    expect(response.status).toBe(200);
+    expect(json.data.supervisedGroups).toEqual([]);
+  });
+
+  it("surfaces an aggregate failure instead of returning partial empty data", async () => {
+    mockApiGet.mockRejectedValueOnce(new Error("API error (500): failed"));
 
     const request = createMockRequest("/api/user-context");
     const response = await GET(request, createMockContext());
 
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        educationalGroups: unknown[];
-        supervisedGroups: unknown[];
-        currentStaff: unknown;
-        educationalGroupIds: string[];
-        educationalGroupRoomNames: string[];
-        supervisedRoomNames: string[];
-      }>
-    >(response);
-
-    expect(json.data.educationalGroups).toEqual([]);
-    expect(json.data.supervisedGroups).toEqual([]);
-    expect(json.data.currentStaff).toBeNull();
-    expect(json.data.educationalGroupIds).toEqual([]);
-    expect(json.data.educationalGroupRoomNames).toEqual([]);
-    expect(json.data.supervisedRoomNames).toEqual([]);
+    expect(response.status).toBe(500);
   });
 });

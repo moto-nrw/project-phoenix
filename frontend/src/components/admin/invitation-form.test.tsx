@@ -497,11 +497,10 @@ describe("InvitationForm", () => {
         expect(
           screen.getByText(/Bitte gib eine gültige E-Mail-Adresse ein/),
         ).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
 

@@ -23,12 +23,16 @@ func validBaseField() *FormField {
 }
 
 func TestFormField_Validate_NoTargetIsFree(t *testing.T) {
+	t.Parallel()
+
 	f := validBaseField()
 	assert.NoError(t, f.Validate())
 	assert.Equal(t, "", f.Target, "absent target stays empty")
 }
 
 func TestFormField_Validate_KnownTargetWithCorrectTypeOK(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "health_info",
 		Label:     "Allergien",
@@ -40,6 +44,8 @@ func TestFormField_Validate_KnownTargetWithCorrectTypeOK(t *testing.T) {
 }
 
 func TestFormField_Validate_KnownTargetWithWrongTypeRejected(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "bus",
 		Label:     "Bus",
@@ -54,6 +60,8 @@ func TestFormField_Validate_KnownTargetWithWrongTypeRejected(t *testing.T) {
 }
 
 func TestFormField_Validate_UnknownTargetRejected(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "foo",
 		Label:     "Foo",
@@ -67,6 +75,8 @@ func TestFormField_Validate_UnknownTargetRejected(t *testing.T) {
 }
 
 func TestFormField_Validate_StructuredTypeWithoutTargetRejected(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "phones",
 		Label:     "Telefonnummern",
@@ -79,6 +89,8 @@ func TestFormField_Validate_StructuredTypeWithoutTargetRejected(t *testing.T) {
 }
 
 func TestFormField_Validate_StructuredTypeWithMatchingTargetOK(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "contacts",
 		Label:     "Weitere Kontakte",
@@ -90,6 +102,8 @@ func TestFormField_Validate_StructuredTypeWithMatchingTargetOK(t *testing.T) {
 }
 
 func TestFormField_Validate_SelectTargetSeedsAreCheckedToo(t *testing.T) {
+	t.Parallel()
+
 	// pickup_status is no longer a select target (it is now weekday_boolean);
 	// a free-form admin select must still ship options and validate.
 	f := &FormField{
@@ -106,6 +120,8 @@ func TestFormField_Validate_SelectTargetSeedsAreCheckedToo(t *testing.T) {
 }
 
 func TestFormField_Validate_SelectWithoutOptionsRejected(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:       "lunch_choice",
 		Label:     "Mittagessen",
@@ -118,6 +134,8 @@ func TestFormField_Validate_SelectWithoutOptionsRejected(t *testing.T) {
 }
 
 func TestFormField_Validate_PickupStatusMustBeWeekdayBoolean(t *testing.T) {
+	t.Parallel()
+
 	// Locks in the post-migration contract: pickup_status is a
 	// weekday_boolean reserved target. A weekday_boolean field wired to it
 	// must validate...
@@ -149,6 +167,8 @@ func TestFormField_Validate_PickupStatusMustBeWeekdayBoolean(t *testing.T) {
 }
 
 func TestIsStructuredFieldType_RecognisesAllStructuredTypes(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FormFieldType{
 		FormFieldPhoneList,
 		FormFieldWeekdaySchedule,
@@ -160,6 +180,8 @@ func TestIsStructuredFieldType_RecognisesAllStructuredTypes(t *testing.T) {
 }
 
 func TestIsStructuredFieldType_RejectsScalars(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []FormFieldType{
 		FormFieldBoolean,
 		FormFieldNumber,
@@ -184,6 +206,8 @@ func newPickupScheduleField() *FormField {
 }
 
 func TestFormField_Validate_AcceptsAllowedTimesOnWeekdaySchedule(t *testing.T) {
+	t.Parallel()
+
 	f := newPickupScheduleField()
 	f.AllowedTimes = []string{" 14:45 ", "16:00"}
 	require.NoError(t, f.Validate())
@@ -192,6 +216,8 @@ func TestFormField_Validate_AcceptsAllowedTimesOnWeekdaySchedule(t *testing.T) {
 }
 
 func TestFormField_Validate_RejectsAllowedTimesOnNonScheduleField(t *testing.T) {
+	t.Parallel()
+
 	f := &FormField{
 		Key:          "favourite_time",
 		Label:        "Lieblingszeit",
@@ -205,6 +231,8 @@ func TestFormField_Validate_RejectsAllowedTimesOnNonScheduleField(t *testing.T) 
 }
 
 func TestFormField_Validate_RejectsAllowedTimesOnArrivalField(t *testing.T) {
+	t.Parallel()
+
 	// Fixed times are a pickup-only feature; the arrival schedule stays
 	// free-entry, so allowed_times on it must be rejected even though it
 	// is also a weekday_schedule field.
@@ -222,6 +250,8 @@ func TestFormField_Validate_RejectsAllowedTimesOnArrivalField(t *testing.T) {
 }
 
 func TestFormField_Validate_RejectsMalformedAllowedTime(t *testing.T) {
+	t.Parallel()
+
 	f := newPickupScheduleField()
 	f.AllowedTimes = []string{"14:45", "nope"}
 	err := f.Validate()
@@ -230,6 +260,8 @@ func TestFormField_Validate_RejectsMalformedAllowedTime(t *testing.T) {
 }
 
 func TestFormField_Validate_RejectsDuplicateAllowedTime(t *testing.T) {
+	t.Parallel()
+
 	f := newPickupScheduleField()
 	f.AllowedTimes = []string{"14:45", "14:45"}
 	err := f.Validate()
@@ -238,6 +270,8 @@ func TestFormField_Validate_RejectsDuplicateAllowedTime(t *testing.T) {
 }
 
 func TestFormField_Validate_RejectsEmptyAllowedTimeEntry(t *testing.T) {
+	t.Parallel()
+
 	f := newPickupScheduleField()
 	f.AllowedTimes = []string{"14:45", "   "}
 	err := f.Validate()
@@ -246,6 +280,8 @@ func TestFormField_Validate_RejectsEmptyAllowedTimeEntry(t *testing.T) {
 }
 
 func TestFormField_Validate_RejectsAllowedTimesOnInfoField(t *testing.T) {
+	t.Parallel()
+
 	// allowed_times constrains an input, so it is a question-field concept.
 	// An information block has no input; validateInfo must reject it rather
 	// than silently ignoring a misconfigured schema.
@@ -261,6 +297,8 @@ func TestFormField_Validate_RejectsAllowedTimesOnInfoField(t *testing.T) {
 }
 
 func TestReservedTargets_AllEntriesHaveValidType(t *testing.T) {
+	t.Parallel()
+
 	// Guard: every entry in ReservedTargets must reference a
 	// valid FormFieldType. Prevents silent typos that would only
 	// surface as "unknown form field type" at submit time.

@@ -215,6 +215,8 @@ func unitSeries(t *testing.T) *scheduleModels.StaffShiftSeries {
 }
 
 func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	dbErr := errors.New("db down")
 
 	t.Run("invalid series data", func(t *testing.T) {
@@ -322,6 +324,8 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 }
 
 func TestUpdateTodayOccurrence(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	seriesID := int64(12)
 	occurrence := &scheduleModels.StaffShift{
@@ -531,6 +535,8 @@ func storedSeries(t *testing.T) *scheduleModels.StaffShiftSeries {
 }
 
 func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	dbErr := errors.New("db down")
 	found := func(t *testing.T) *seriesMockRepo {
 		return &seriesMockRepo{findByIDFn: func(context.Context, any) (*scheduleModels.StaffShiftSeries, error) {
@@ -825,6 +831,8 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 }
 
 func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	dbErr := errors.New("db down")
 	found := func(t *testing.T) *seriesMockRepo {
 		return &seriesMockRepo{findByIDFn: func(context.Context, any) (*scheduleModels.StaffShiftSeries, error) {
@@ -878,6 +886,8 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 // through the split (#2028): it must hand out the stored rule unchanged and
 // report a missing series as ErrSeriesNotFound, never as a nil rule.
 func TestGetSeriesUnit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns the stored rule", func(t *testing.T) {
 		stored := storedSeries(t)
 		stored.Weekdays = []int16{2, 4}

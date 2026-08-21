@@ -18,6 +18,8 @@ func validPushSubscription() *PushSubscription {
 }
 
 func TestPushSubscriptionValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*PushSubscription)
@@ -98,6 +100,8 @@ func TestPushSubscriptionValidate(t *testing.T) {
 }
 
 func TestValidatePushEndpointTrustedServices(t *testing.T) {
+	t.Parallel()
+
 	for _, endpoint := range []string{
 		"https://fcm.googleapis.com/fcm/send/device",
 		"https://updates.push.services.mozilla.com/wpush/v2/device",

@@ -104,6 +104,8 @@ func (r *groupRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64
 }
 
 func TestActiveServiceThinDelegates(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("has open attendance delegates date and result", func(t *testing.T) {
@@ -155,6 +157,8 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 }
 
 func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("empty input returns empty map without repository call", func(t *testing.T) {
@@ -192,6 +196,8 @@ func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
 }
 
 func TestGetActiveGroup_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -240,6 +246,8 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 }
 
 func TestValidateStaffExists_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -275,6 +283,8 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 }
 
 func TestClaimActiveGroupLocksLifecycleThroughSupervisorInsert(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const (
 		groupID int64 = 42
@@ -313,6 +323,8 @@ func TestClaimActiveGroupLocksLifecycleThroughSupervisorInsert(t *testing.T) {
 }
 
 func TestGetCrossTenantStudents_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("nil repository returns empty slice", func(t *testing.T) {

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -36,7 +35,10 @@ type absenceRequestItem struct {
 // createAbsence inserts one absence for the staff member and registers cleanup.
 func createAbsence(t *testing.T, tc *testContext, staffID int64, absenceType, status string, decidedBy *int64) *activeModels.StaffAbsence {
 	t.Helper()
-	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	// The tenant comes from the test, not from the claims struct: claims are
+	// rebased when they are USED, so reading TenantID off it yields the
+	// bootstrap tenant while the staff row belongs to this test's (#2419).
+	tenantID := testpkg.Tenant(t)
 	start := timezone.TodayDate().AddDays(21)
 	now := time.Now()
 	absence := &activeModels.StaffAbsence{
@@ -55,9 +57,6 @@ func createAbsence(t *testing.T, tc *testContext, staffID int64, absenceType, st
 	}
 	absence.SetTenantID(tenantID)
 	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(tenantID), absence))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absence.ID)
-	})
 	return absence
 }
 
@@ -100,14 +99,13 @@ func setupAbsenceRequestTest(t *testing.T) (tc *testContext, token string, muell
 	b := testpkg.CreateTestStaff(t, tc.db, "Sven", fmt.Sprintf("Schmidtke-%d", suffix))
 	d := testpkg.CreateTestStaff(t, tc.db, "Lea", fmt.Sprintf("Leitung-%d", suffix))
 	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, tc.db, a.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, b.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, d.ID)
 	})
 	return tc, authToken(t, "vacation:approve"), a.ID, b.ID, d.ID
 }
 
 func TestListAbsenceRequests_OpenCarriesStaffName(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, _, decider := setupAbsenceRequestTest(t)
 	open := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
 	decided := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved, &decider)
@@ -121,6 +119,8 @@ func TestListAbsenceRequests_OpenCarriesStaffName(t *testing.T) {
 }
 
 func TestListAbsenceRequests_QuestionStaysOpen(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, _, _ := setupAbsenceRequestTest(t)
 	questioned := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusQuestion, nil)
 
@@ -129,6 +129,8 @@ func TestListAbsenceRequests_QuestionStaysOpen(t *testing.T) {
 }
 
 func TestListAbsenceRequests_HistoryCarriesDecider(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, _, decider := setupAbsenceRequestTest(t)
 	open := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
 	decided := createAbsence(t, tc, mueller, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusApproved, &decider)
@@ -144,6 +146,8 @@ func TestListAbsenceRequests_HistoryCarriesDecider(t *testing.T) {
 }
 
 func TestListAbsenceRequests_SearchesByStaffName(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, schmidt, _ := setupAbsenceRequestTest(t)
 	mine := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
 	other := createAbsence(t, tc, schmidt, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
@@ -154,6 +158,8 @@ func TestListAbsenceRequests_SearchesByStaffName(t *testing.T) {
 }
 
 func TestListAbsenceRequests_TreatsWildcardsAsLiterals(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, _, _ := setupAbsenceRequestTest(t)
 	mine := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
 
@@ -163,6 +169,8 @@ func TestListAbsenceRequests_TreatsWildcardsAsLiterals(t *testing.T) {
 }
 
 func TestListAbsenceRequests_FiltersByType(t *testing.T) {
+	t.Parallel()
+
 	tc, token, mueller, _, _ := setupAbsenceRequestTest(t)
 	vacation := createAbsence(t, tc, mueller, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested, nil)
 	training := createAbsence(t, tc, mueller, activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusRequested, nil)
@@ -173,6 +181,8 @@ func TestListAbsenceRequests_FiltersByType(t *testing.T) {
 }
 
 func TestListAbsenceRequests_RequiresPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, _, _, _, _ := setupAbsenceRequestTest(t)
 	rec := getAbsenceRequests(t, tc, authToken(t, "schedules:read"), "?view=open")
 	assert.Equal(t, http.StatusForbidden, rec.Code)

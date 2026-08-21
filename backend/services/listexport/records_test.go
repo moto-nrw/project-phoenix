@@ -52,6 +52,8 @@ func traceContains(trace []string, want string) bool {
 }
 
 func TestRenderRecords_ProducesValidPDF(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService()
 	doc := RecordDocument{
 		Title:       "Anmeldungen – Test",
@@ -87,6 +89,8 @@ func TestRenderRecords_ProducesValidPDF(t *testing.T) {
 }
 
 func TestRenderRecords_PaginatesAcrossPages(t *testing.T) {
+	t.Parallel()
+
 	records := make([]Record, 0, 80)
 	for i := 0; i < 80; i++ {
 		records = append(records, sampleRecord("Familie Nr "+strings.Repeat("X", 3)))
@@ -110,6 +114,8 @@ func TestRenderRecords_PaginatesAcrossPages(t *testing.T) {
 }
 
 func TestRenderRecords_EmptyRecords(t *testing.T) {
+	t.Parallel()
+
 	doc := RecordDocument{Title: "Leer", GeneratedAt: time.Now()}
 	_, trace := traceRecords(t, doc)
 	if !traceContains(trace, "Keine Anmeldungen") {
@@ -122,6 +128,8 @@ func TestRenderRecords_EmptyRecords(t *testing.T) {
 }
 
 func TestRenderRecords_WritesGroupHeadings(t *testing.T) {
+	t.Parallel()
+
 	doc := RecordDocument{
 		Title:       "Anmeldungen Test",
 		GeneratedAt: time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC),
@@ -139,6 +147,8 @@ func TestRenderRecords_WritesGroupHeadings(t *testing.T) {
 }
 
 func TestRenderRecordsDOCX_UsesRecordBlocksInsteadOfWideTable(t *testing.T) {
+	t.Parallel()
+
 	doc := RecordDocument{
 		Title:       "Anmeldungen Test",
 		Subtitle:    "1 Anmeldungen, 1 Kinder",
@@ -170,6 +180,8 @@ func TestRenderRecordsDOCX_UsesRecordBlocksInsteadOfWideTable(t *testing.T) {
 }
 
 func TestRenderRecordsDOCX_WritesGroupHeadings(t *testing.T) {
+	t.Parallel()
+
 	doc := RecordDocument{
 		Title:       "Anmeldungen Test",
 		GeneratedAt: time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC),
