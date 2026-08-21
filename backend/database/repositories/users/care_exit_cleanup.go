@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -14,14 +16,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// CareExitCleanupRepository owns the two deliberately cross-schema operations
-// that ending a child's care needs: closing every open parent request across
-// the four queues, and closing whatever presence record the child still has
-// open when the exit takes effect (#2487).
+// CareExitCleanupRepository owns every deliberately cross-schema operation
+// that ending a child's care needs: closing the open parent requests across
+// the four queues, closing whatever presence record the child still has open
+// when the exit takes effect, dropping them from rosters dated after their
+// last care day, and ending their offering and activity bookings there.
 //
-// Both span schemas no single domain repository owns (users, active,
-// enrollment, schedule), which is the documented exception in
+// They span schemas no single domain repository owns (users, active,
+// enrollment, schedule, activities), which is the documented exception in
 // backend-conventions rule 11 — the raw SQL lives here, never in the service.
+// Keeping them together also keeps the counting half (the preview) and the
+// writing half (the confirmation) side by side, where a divergence is
+// visible.
 type CareExitCleanupRepository struct {
 	db *bun.DB
 }
@@ -187,4 +193,144 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(
 		total += int(affected)
 	}
 	return total, nil
+}
+
+// carePlannedRosterPredicate is the shared WHERE tail for the two roster
+// methods below. "Still planned" means the row records no event: no check-in
+// stamp, no checkout stamp. Every affected instance is dated strictly after
+// the child's last care day and therefore lies in the future, so a status
+// somebody set by hand there is a plan too and goes with it — leaving it would
+// keep the departed child on future slot lists, staffing ratios and exports,
+// which is exactly what ending the care has to stop.
+//
+// Cancelled and completed instances are skipped: a cancelled block plans
+// nothing, and a completed one is history.
+const carePlannedRosterPredicate = `
+	  AND s.checked_in_at IS NULL
+	  AND s.checked_out_at IS NULL
+	  AND ai.date > ?
+	  AND ai.status NOT IN ('completed', 'cancelled')
+	  AND s.tenant_id = ?`
+
+// CountPlannedByStudentIDsAfter counts the rows DeletePlannedByStudentIDsAfter
+// would remove, per student, for the "Betreuung beenden" preview.
+func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return counts, nil
+	}
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	sql := `
+		SELECT s.student_id AS student_id, COUNT(*)::int AS total
+		FROM schedule.instance_students AS s
+		JOIN schedule.activity_instances AS ai ON ai.id = s.instance_id
+		WHERE s.student_id IN (?)` + carePlannedRosterPredicate + `
+		GROUP BY s.student_id`
+	if err := base.GetDB(ctx, r.db).NewRaw(sql,
+		bun.In(studentIDs), after, tenant.FromContext(ctx),
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: err}
+	}
+	for _, row := range rows {
+		counts[row.StudentID] = row.Total
+	}
+	return counts, nil
+}
+
+// DeletePlannedByStudentIDsAfter drops the children from every roster dated
+// after their last care day.
+//
+// Unlike the graduation path (ArchivePlannedByStudentIDsFrom) nothing is
+// archived: ending care is not reverted, a resumed child is re-planned
+// deliberately, and the acceptance criteria require that nothing is switched
+// back on automatically.
+func (r *CareExitCleanupRepository) DeletePlannedByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	sql := `
+		DELETE FROM schedule.instance_students AS s
+		USING schedule.activity_instances AS ai
+		WHERE s.instance_id = ai.id
+		  AND s.student_id IN (?)` + carePlannedRosterPredicate
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, sql,
+		bun.List(studentIDs), after, tenant.FromContext(ctx),
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: err}
+	}
+	affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
+	return int(affected), nil
+}
+
+// CountRunningByStudentIDsAfter counts the bookings CapByStudentIDs would
+// touch, per student, for the preview. valid_until is an EXCLUSIVE upper
+// bound, so the caller passes the day AFTER the last care day.
+func (r *CareExitCleanupRepository) CountRunningByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return counts, nil
+	}
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT student_id, COUNT(*)::int AS total
+		FROM activities.student_enrollments
+		WHERE tenant_id = ? AND student_id IN (?)
+		  AND (valid_until IS NULL OR valid_until > ?)
+		GROUP BY student_id
+	`, tenant.FromContext(ctx), bun.In(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "count running bookings after care end", Err: err}
+	}
+	for _, row := range rows {
+		counts[row.StudentID] = row.Total
+	}
+	return counts, nil
+}
+
+// CapByStudentIDs ends every offering and activity booking of the given
+// children at validUntil (exclusive), deleting the ones that would be left
+// with no interval at all.
+//
+// Unlike CapActiveByGroup this deliberately ignores provenance: the child
+// leaves the school, so a booking materialized from an approved enrollment
+// request has to end too.
+func (r *CareExitCleanupRepository) CapByStudentIDs(
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	deleted, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
+		DELETE FROM activities.student_enrollments
+		WHERE tenant_id = ? AND student_id IN (?) AND valid_from >= ?
+	`, tenantID, bun.In(studentIDs), validUntil)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: err}
+	}
+	deletedRows, _ := deleted.RowsAffected() // nil-driver-safe: fall through with 0
+
+	capped, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
+		UPDATE activities.student_enrollments
+		SET valid_until = ?, updated_at = NOW()
+		WHERE tenant_id = ? AND student_id IN (?) AND valid_from < ?
+		  AND (valid_until IS NULL OR valid_until > ?)
+	`, validUntil, tenantID, bun.In(studentIDs), validUntil, validUntil)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "cap bookings after care end", Err: err}
+	}
+	cappedRows, _ := capped.RowsAffected()
+	return deletedRows + cappedRows, nil
 }

@@ -978,7 +978,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		wrongWeekday := &activities.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
 		result := &MaterializationResult{}
 
-		err := svc.copyEnrollments(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, date, periodID, result)
+		err := svc.copyEnrollments(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, date, periodID, result)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStudentsCreated)
@@ -991,7 +991,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
 		result := &MaterializationResult{}
 
-		err := svc.copyEnrollments(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, date, periodID, result)
+		err := svc.copyEnrollments(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, date, periodID, result)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy enrollment")

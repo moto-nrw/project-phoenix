@@ -1830,8 +1830,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:   repos.Person,
 		CareExitRepo: repos.CareExit,
 		CleanupRepo:  repos.CareExitCleanup,
-		RosterRepo:   repos.InstanceStudent,
-		BookingRepo:  repos.StudentEnrollment,
 		TagReleaser:  repos.GradeTransition,
 		AuditService: studentAuditService,
 		DB:           db,

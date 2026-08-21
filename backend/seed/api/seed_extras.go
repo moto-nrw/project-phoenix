@@ -2,8 +2,12 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // seedAnnouncementsStep creates demo announcements via the operator API.
@@ -191,5 +195,82 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	fmt.Printf("  %d privacy consents created\n", count)
+	return nil
+}
+
+// seedCareExitsStep records two planned ends of care (#2487) so the child
+// management shows the "Betreuung endet am …" state and the reason table is
+// not empty on a fresh machine.
+//
+// Both exits are dated today or later on purpose: the children stay fully
+// usable for every demo and for `simulate full-day`, and the API refuses a
+// retroactive exit anyway. The archive view ("Beendete Betreuungen") fills up
+// by itself from the day after the first of them.
+type seedCareExitsStep struct{}
+
+func (seedCareExitsStep) Name() string { return "Seeding planned care exits" }
+
+func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil {
+		return fmt.Errorf("fixed seeder not available")
+	}
+
+	today := timezone.TodayDate()
+	// Two children from the tail of the demo cohort, so the exits never
+	// collide with the children the other steps mark sick or check in.
+	plans := []struct {
+		StudentIndex int
+		LastCareDay  timezone.Date
+		Reason       string
+		Note         string
+	}{
+		{len(DemoStudents) - 1, today, "moved_away", ""},
+		{len(DemoStudents) - 2, today.AddDays(7), "other", "Wechsel in die Nachmittagsbetreuung des Vereins"},
+	}
+
+	created := 0
+	for _, plan := range plans {
+		studentID, ok := rt.FixedSeeder.studentIDByIndex[plan.StudentIndex]
+		if !ok {
+			continue
+		}
+		body := map[string]any{
+			"student_ids":   []string{strconv.FormatInt(studentID, 10)},
+			"last_care_day": plan.LastCareDay.String(),
+			"reason":        plan.Reason,
+			"reason_note":   plan.Note,
+		}
+
+		// Preview first, exactly like the UI: the confirmation only accepts the
+		// token the preview handed out.
+		raw, err := rt.Client.Post("/api/students/care-end/preview", body)
+		if err != nil {
+			if rt.Verbose {
+				fmt.Printf("  WARNING: care-exit preview failed for student %d: %v\n", studentID, err)
+			}
+			continue
+		}
+		var preview struct {
+			Token   string `json:"token"`
+			Blocked bool   `json:"blocked"`
+		}
+		if err := json.Unmarshal(raw, &preview); err != nil || preview.Blocked || preview.Token == "" {
+			if rt.Verbose {
+				fmt.Printf("  WARNING: care-exit preview unusable for student %d\n", studentID)
+			}
+			continue
+		}
+
+		body["token"] = preview.Token
+		if _, err := rt.Client.Post("/api/students/care-end", body); err != nil {
+			if rt.Verbose {
+				fmt.Printf("  WARNING: care-exit failed for student %d: %v\n", studentID, err)
+			}
+			continue
+		}
+		created++
+	}
+
+	fmt.Printf("  %d planned care exits created\n", created)
 	return nil
 }

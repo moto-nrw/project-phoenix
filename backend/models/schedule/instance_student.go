@@ -299,18 +299,6 @@ type InstanceStudentRepository interface {
 	// Tenant-scoped; returns the rows removed.
 	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date, at time.Time) (int, error)
 
-	// CountPlannedByStudentIDsAfter counts, per student, the still-planned
-	// roster rows on non-cancelled instances dated strictly after `after`.
-	// Drives the "Betreuung beenden" preview, which must name what a
-	// confirmation will remove before it removes it (#2487).
-	CountPlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (map[int64]int, error)
-
-	// DeletePlannedByStudentIDsAfter removes those same rows. Unlike the
-	// graduation path above nothing is archived: ending care is not reverted,
-	// a resumed child is re-planned deliberately, and the acceptance criteria
-	// require that nothing is switched back on automatically (#2487).
-	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
-
 	// RestoreArchivedByTransition replays the rows
 	// ArchivePlannedByStudentIDsFrom removed for `transitionID` (restricted to
 	// the given students) and consumes the archive entries. This is what makes a

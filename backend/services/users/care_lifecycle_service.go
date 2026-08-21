@@ -14,10 +14,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -126,20 +124,6 @@ type CareResumeInput struct {
 }
 
 // --- collaborator contracts ------------------------------------------------
-// Narrow on purpose: services/users must not import services/schedule or
-// services/activities, and none of these needs more than one operation.
-
-// CareExitRosterReconciler drops the child from rosters after the boundary.
-type CareExitRosterReconciler interface {
-	CountPlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (map[int64]int, error)
-	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
-}
-
-// CareExitBookingCapper ends offering and activity bookings at the boundary.
-type CareExitBookingCapper interface {
-	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
-	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
-}
 
 // CareExitTagReleaser frees the physical bracelets. Implemented by the grade
 // transition repository, which already owns exactly this operation — a second
@@ -175,8 +159,6 @@ type careLifecycleService struct {
 	personRepo   userModels.PersonRepository
 	careExitRepo userModels.CareExitRepository
 	cleanupRepo  userModels.CareExitCleanupRepository
-	rosterRepo   CareExitRosterReconciler
-	bookingRepo  CareExitBookingCapper
 	tagReleaser  CareExitTagReleaser
 	auditService StudentAuditService
 	txHandler    *modelBase.TxHandler
@@ -190,8 +172,6 @@ type CareLifecycleDependencies struct {
 	PersonRepo   userModels.PersonRepository
 	CareExitRepo userModels.CareExitRepository
 	CleanupRepo  userModels.CareExitCleanupRepository
-	RosterRepo   CareExitRosterReconciler
-	BookingRepo  CareExitBookingCapper
 	TagReleaser  CareExitTagReleaser
 	AuditService StudentAuditService
 	DB           *bun.DB
@@ -205,8 +185,6 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		personRepo:   deps.PersonRepo,
 		careExitRepo: deps.CareExitRepo,
 		cleanupRepo:  deps.CleanupRepo,
-		rosterRepo:   deps.RosterRepo,
-		bookingRepo:  deps.BookingRepo,
 		tagReleaser:  deps.TagReleaser,
 		auditService: deps.AuditService,
 		txHandler:    modelBase.NewTxHandler(deps.DB),
@@ -220,13 +198,6 @@ func (s *careLifecycleService) getLogger() *slog.Logger {
 	}
 	return s.logger
 }
-
-// Ensure the schedule and activities repositories satisfy the narrow contracts
-// at compile time rather than at wiring time.
-var (
-	_ CareExitRosterReconciler = (scheduleModels.InstanceStudentRepository)(nil)
-	_ CareExitBookingCapper    = (activityModels.StudentEnrollmentRepository)(nil)
-)
 
 // ---------------------------------------------------------------------------
 
@@ -300,7 +271,7 @@ func (s *careLifecycleService) Confirm(
 		// planning screens have to stop showing the child on days they will
 		// not attend as soon as the school has decided it, otherwise staff
 		// keep planning around a child who is leaving.
-		removed, err := s.rosterRepo.DeletePlannedByStudentIDsAfter(txCtx, ids, normalized.LastCareDay)
+		removed, err := s.cleanupRepo.DeletePlannedByStudentIDsAfter(txCtx, ids, normalized.LastCareDay)
 		if err != nil {
 			return err
 		}
@@ -308,7 +279,7 @@ func (s *careLifecycleService) Confirm(
 
 		// valid_until is an EXCLUSIVE upper bound, so a booking that must
 		// still count on the last care day ends the day after it.
-		capped, err := s.bookingRepo.CapByStudentIDs(txCtx, ids, normalized.LastCareDay.AddDays(1))
+		capped, err := s.cleanupRepo.CapByStudentIDs(txCtx, ids, normalized.LastCareDay.AddDays(1))
 		if err != nil {
 			return err
 		}
@@ -541,11 +512,11 @@ func (s *careLifecycleService) buildPreview(
 		return nil, err
 	}
 
-	rosterCounts, err := s.rosterRepo.CountPlannedByStudentIDsAfter(ctx, ids, input.LastCareDay)
+	rosterCounts, err := s.cleanupRepo.CountPlannedByStudentIDsAfter(ctx, ids, input.LastCareDay)
 	if err != nil {
 		return nil, err
 	}
-	bookingCounts, err := s.bookingRepo.CountRunningByStudentIDsAfter(ctx, ids, input.LastCareDay.AddDays(1))
+	bookingCounts, err := s.cleanupRepo.CountRunningByStudentIDsAfter(ctx, ids, input.LastCareDay.AddDays(1))
 	if err != nil {
 		return nil, err
 	}

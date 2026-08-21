@@ -157,6 +157,18 @@ type CareExitCleanupRepository interface {
 	FindOpenPresence(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	// CloseOpenPresence closes those records at `at`.
 	CloseOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int, error)
+
+	// CountPlannedByStudentIDsAfter counts, per student, the still-planned
+	// roster rows on non-cancelled instances dated strictly after `after`.
+	CountPlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (map[int64]int, error)
+	// DeletePlannedByStudentIDsAfter removes those same rows.
+	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
+
+	// CountRunningByStudentIDsAfter counts, per student, the offering and
+	// activity bookings still running at validUntil (exclusive bound).
+	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
+	// CapByStudentIDs ends those bookings at validUntil.
+	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
 }
 
 // CareExitRepository owns access to the reason rows and the archive read model.
