@@ -29,4 +29,19 @@ describe("RequestReviewCard", () => {
     const header = screen.getByText("Wartet seit").parentElement;
     expect(header).not.toHaveAttribute("aria-hidden");
   });
+
+  it("shows the collapsed summary on mobile", () => {
+    render(
+      <RequestReviewCard
+        childName="Lina Beispiel"
+        type="care_schedule"
+        typeLabel="Einzelner Tag"
+        summary="26.08.2026 · Abholzeit"
+      />,
+    );
+
+    expect(screen.getByText("26.08.2026 · Abholzeit")).not.toHaveClass(
+      "hidden",
+    );
+  });
 });
