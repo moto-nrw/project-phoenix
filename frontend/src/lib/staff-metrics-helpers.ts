@@ -309,6 +309,39 @@ export function indexAbsenceCreditByDay(
 }
 
 /**
+ * Die Abwesenheit, die einen Kalendertag VERBRAUCHT — dieselbe Auswahl, die
+ * `indexAbsenceCreditByDay` und der Server (`walkCreditedAbsenceDays`) treffen:
+ * nur reported/approved zählen, und bei Überschneidungen gewinnt die niedrigste
+ * ID.
+ *
+ * Die Gutschrift-Spalte zeigt einen vom Server gerechneten Wert; ihr Tooltip
+ * muss deshalb dieselbe Abwesenheit nennen, aus der dieser Wert stammt. Eine
+ * Karte in API-Reihenfolge (nach Startdatum) nennt bei Überschneidungen die
+ * falsche Art.
+ *
+ * Freizeitausgleich steht hier bewusst mit drin: der Typ verbraucht seinen Tag,
+ * schreibt aber nichts gut — die Zelle rendert dann gar keinen Tooltip.
+ */
+export function indexCreditingAbsenceByDay(
+  absences: readonly StaffAbsenceRow[] | undefined,
+): Map<string, StaffAbsenceRow> {
+  const byDay = new Map<string, StaffAbsenceRow>();
+  if (!absences || absences.length === 0) return byDay;
+  for (const absence of sortAbsencesById(absences)) {
+    const range = parseEffectiveAbsenceRange(absence);
+    if (!range) continue;
+    for (let i = 0; i < range.totalDays; i++) {
+      const day = new Date(range.start);
+      day.setDate(day.getDate() + i);
+      const key = toDateKey(day);
+      if (byDay.has(key)) continue;
+      byDay.set(key, absence);
+    }
+  }
+  return byDay;
+}
+
+/**
  * Sum the actual net minutes of all sessions falling into [from, to]
  * (inclusive).
  *

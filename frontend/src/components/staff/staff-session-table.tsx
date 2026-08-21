@@ -29,6 +29,7 @@ import type {
 import { staffSessionEditsService } from "~/lib/staff-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  indexCreditingAbsenceByDay,
   isEffectiveAbsenceStatus,
   isHalfAbsenceBoundary,
   resolveTargetForDate,
@@ -406,6 +407,17 @@ export function StaffSessionTable({
     return map;
   }, [absences]);
 
+  // Welche Abwesenheit die Gutschrift eines Tages trägt, entscheidet die
+  // Server-Regel (walkCreditedAbsenceDays): nur reported/approved zählen, und
+  // bei Überschneidungen VERBRAUCHT die Abwesenheit mit der niedrigsten ID den
+  // Tag. absencesByDate folgt dagegen der API-Reihenfolge (nach Startdatum)
+  // und würde im Tooltip der Gutschrift-Zelle die falsche Abwesenheitsart
+  // nennen, sobald sich zwei Abwesenheiten überschneiden.
+  const creditAbsencesByDate = useMemo(
+    () => indexCreditingAbsenceByDay(absences),
+    [absences],
+  );
+
   // Soll eines Tages, exakt so wie die Zeile es später anzeigt: server-
   // aufgelöst, sonst der aktuelle Plan — und ungelöst, solange der Fetch
   // läuft oder fehlgeschlagen ist (#1842).
@@ -562,6 +574,9 @@ export function StaffSessionTable({
                 const openSession = daySessions.find((s) => !s.check_out_time);
                 const lastSession = daySessions[daySessions.length - 1];
                 const absence = absencesByDate.get(key);
+                // Die Gutschrift stammt vom Server; ihr Tooltip folgt deshalb
+                // der Server-Auswahl, nicht der Badge-Abwesenheit.
+                const creditAbsence = creditAbsencesByDate.get(key);
                 const holidayName = holidays?.get(key);
                 const closingReason = closingDays?.get(key);
                 // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
@@ -787,7 +802,7 @@ export function StaffSessionTable({
                       </td>
                       <td className="px-3 py-3 text-right whitespace-nowrap text-gray-500 tabular-nums">
                         {credit > 0 ? (
-                          <span title={creditHint(absence)}>
+                          <span title={creditHint(creditAbsence)}>
                             {formatDuration(credit)}
                           </span>
                         ) : (

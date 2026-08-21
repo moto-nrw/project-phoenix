@@ -616,4 +616,43 @@ describe("StaffSessionTable Tages-Saldo (#2443)", () => {
 
     expect(within(cells[7]!).getByTitle(/Krank/)).toBeInTheDocument();
   });
+
+  // Bei Überschneidungen verbraucht der Server den Tag mit der NIEDRIGSTEN
+  // Abwesenheits-ID. Die API liefert nach Startdatum sortiert, der Tooltip
+  // nannte deshalb die früher beginnende Abwesenheit — also die falsche Art,
+  // sobald sie die höhere ID trägt.
+  it("nennt bei überlappenden Abwesenheiten die vom Server angerechnete", () => {
+    const cells = mondayCells(
+      { targetMinutes: 480, creditMinutes: 480, balanceMinutes: 0 },
+      {
+        absences: [
+          absenceOn("vacation", {
+            id: 7,
+            date_start: "2026-01-02",
+            date_end: monday,
+          }),
+          absenceOn("sick", { id: 3 }),
+        ],
+      },
+    );
+
+    expect(within(cells[7]!).getByTitle(/Krank/)).toBeInTheDocument();
+    expect(within(cells[7]!).queryByTitle(/Urlaub/)).not.toBeInTheDocument();
+  });
+
+  // Nicht wirksame Abwesenheiten (requested/declined) schreiben nichts gut und
+  // dürfen die Gutschrift einer wirksamen Abwesenheit nicht überschreiben.
+  it("übergeht nicht wirksame Abwesenheiten in der Gutschrift-Herkunft", () => {
+    const cells = mondayCells(
+      { targetMinutes: 480, creditMinutes: 480, balanceMinutes: 0 },
+      {
+        absences: [
+          absenceOn("vacation", { id: 1, status: "requested" }),
+          absenceOn("sick", { id: 4 }),
+        ],
+      },
+    );
+
+    expect(within(cells[7]!).getByTitle(/Krank/)).toBeInTheDocument();
+  });
 });
