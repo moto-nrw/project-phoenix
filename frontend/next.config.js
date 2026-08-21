@@ -19,12 +19,12 @@ const config = {
     return [
       {
         source: "/students/:id/feedback_history",
-        destination: "/students/:id/feedback-history",
+        destination: "/students/:id",
         permanent: true,
       },
       {
         source: "/:tenant((?!api(?:/|$))[^/]+)/students/:id/feedback_history",
-        destination: "/:tenant/students/:id/feedback-history",
+        destination: "/:tenant/students/:id",
         permanent: true,
       },
       // Legacy deep-link target: the mensa history page was removed.

@@ -73,6 +73,7 @@ services:
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
+      SUGGESTION_NOTIFY_EMAIL: ${SUGGESTION_NOTIFY_EMAIL}
     # Run migrations before starting air (phoenix_auth role must exist for serve)
     command: ["sh", "-c", "go run . migrate && air -c .air.toml"]
 
