@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   ABSENCES_REFRESH_EVENT,
+  absenceRowActionNoun,
   absenceRowLabel,
   absenceTypeNoun,
   absenceStatusMeta,
@@ -216,5 +217,21 @@ describe("absenceRowLabel", () => {
 
   it("falls back to the raw type for a value it does not know", () => {
     expect(absenceRowLabel({ absence_type: "sabbatical" })).toBe("sabbatical");
+  });
+});
+
+describe("absenceRowActionNoun", () => {
+  it("keeps the noun form for standard types", () => {
+    expect(absenceRowActionNoun({ absence_type: "sick" })).toBe("Krankmeldung");
+    expect(absenceRowActionNoun({ absence_type: "other" })).toBe("Abwesenheit");
+  });
+
+  it("names the school's own Abwesenheitsart in delete controls", () => {
+    expect(
+      absenceRowActionNoun({
+        absence_type: "other",
+        absence_type_label: "Regenerationstag",
+      }),
+    ).toBe("Regenerationstag");
   });
 });

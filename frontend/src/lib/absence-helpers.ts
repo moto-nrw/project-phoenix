@@ -46,6 +46,19 @@ export function absenceTypeNoun(absenceType: string): string {
   return "Abwesenheit";
 }
 
+// The noun a delete control uses for one absence row. A school-defined
+// Abwesenheitsart (#2403) names itself ("Regenerationstag löschen") instead of
+// falling back to the generic noun its canonical type resolves to; the
+// standard types keep the noun form above, so the button stays
+// "Krankmeldung löschen" and never becomes "Krank löschen".
+export function absenceRowActionNoun(row: {
+  readonly absence_type: string;
+  readonly absence_type_label?: string;
+}): string {
+  if (row.absence_type_label) return row.absence_type_label;
+  return absenceTypeNoun(row.absence_type);
+}
+
 export function formatAbsenceDate(iso: string): string {
   return new Date(iso).toLocaleDateString("de-DE", {
     timeZone: "Europe/Berlin",

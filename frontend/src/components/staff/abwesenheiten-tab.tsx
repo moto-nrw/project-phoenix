@@ -29,9 +29,9 @@ import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import {
   ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
+  absenceRowActionNoun,
   absenceRowLabel,
   absenceStatusMeta,
-  absenceTypeNoun as absenceTypeLabel,
   dayCountFor as sharedDayCountFor,
   dispatchAbsencesRefresh,
   formatAbsenceRange,
@@ -469,7 +469,7 @@ export function AbwesenheitenTab({
       )}
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        title={`${deleteTarget ? absenceTypeLabel(deleteTarget.absence_type) : "Abwesenheit"} löschen`}
+        title={`${deleteTarget ? absenceRowActionNoun(deleteTarget) : "Abwesenheit"} löschen`}
         description={
           <>
             Die Abwesenheit{" "}
@@ -787,8 +787,8 @@ function AbsenceRow({
             variant="ghost"
             size="icon"
             onClick={onDelete}
-            aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
-            title={`${absenceTypeLabel(row.absence_type)} löschen`}
+            aria-label={`${absenceRowActionNoun(row)} ${formatRange(row.date_start, row.date_end)} löschen`}
+            title={`${absenceRowActionNoun(row)} löschen`}
           >
             <Trash2 className="h-4 w-4" aria-hidden />
           </Button>
