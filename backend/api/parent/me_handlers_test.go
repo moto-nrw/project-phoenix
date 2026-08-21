@@ -52,8 +52,6 @@ type fakeParentService struct {
 	listRows         []*userModels.StudentDataChangeRequest
 	listErr          error
 	submitStatus     *parentModels.GuardianSubmitStatus
-	gotDeletePostID  int64
-	gotDeleteComment int64
 	careException    *parentService.CareException
 	careExceptionErr error
 	gotCareAccount   int64
