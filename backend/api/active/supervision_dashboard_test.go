@@ -184,8 +184,13 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	// Today's pickup exception surfaces in the folded-in pickup times.
 	require.Len(t, data.PickupTimes, 1)
 	assert.Equal(t, strconv.FormatInt(student.ID, 10), data.PickupTimes[0].StudentID)
-	require.NotNil(t, data.PickupTimes[0].PickupTime)
-	assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
+	if today.Weekday() <= time.Friday {
+		require.NotNil(t, data.PickupTimes[0].PickupTime)
+		assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
+	} else {
+		assert.Nil(t, data.PickupTimes[0].PickupTime,
+			"weekends do not resolve recurring or exceptional pickup times")
+	}
 
 	// Full permission set resolves capabilities from settings defaults.
 	assert.True(t, data.Capabilities.WebSpontaneousActivitiesEnabled)
