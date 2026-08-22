@@ -1,6 +1,7 @@
 package schedule_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -97,6 +98,27 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 			assert.True(t, row.InheritsClassTime(), "a derived time must stay a read-time projection")
 		}
 	})
+}
+
+func TestArrivalBaselineHandlesStudentWithoutClassTimetable(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	baseline := classArrivalBaseline(t, repos)
+	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klasse", "3c")
+	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
+	_, err := db.ExecContext(context.Background(), `UPDATE users.students SET school_class = '' WHERE id = ?`, student.ID)
+	require.NoError(t, err)
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
+	require.NoError(t, err)
+	row := projection.ForDate(student.ID, monday)
+	require.NotNil(t, row)
+	assert.True(t, row.ExpectedArrival.IsZero())
 }
 
 // TestArrivalBaselineClassTimeAloneIsNoCareDay pins the invariant the care-day

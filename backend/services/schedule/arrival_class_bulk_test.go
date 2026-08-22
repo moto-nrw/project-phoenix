@@ -193,6 +193,61 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
+func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Woche", "Dienstag", "8h")
+
+	week, err := svc.GetStudentArrivalSchedules(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, week, 1)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, week[0].Weekday)
+
+	byWeekday, err := svc.GetWeeklySchedulesByStudentIDsAndWeekday(ctx, []int64{student.ID}, scheduleModel.WeekdayTuesday)
+	require.NoError(t, err)
+	require.Len(t, byWeekday, 1)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, byWeekday[0].Weekday)
+}
+
+func TestArrivalScheduleForWeekdayProjectsBookedDayWithoutStoredRow(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Ohne", "Zeile", "8i")
+
+	row, err := svc.GetStudentArrivalScheduleForWeekday(ctx, student.ID, scheduleModel.WeekdayTuesday)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, row.Weekday)
+}
+
 func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	t.Parallel()
 

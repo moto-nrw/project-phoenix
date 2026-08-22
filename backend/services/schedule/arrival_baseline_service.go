@@ -214,6 +214,9 @@ func classArrivalRow(
 	weekday int,
 	classTimes *educationModel.ClassArrivalTime,
 ) *scheduleModel.StudentArrivalSchedule {
+	if classTimes == nil {
+		return nil
+	}
 	arrival, ok := classTimes.TimeForWeekday(weekday)
 	if !ok {
 		return nil

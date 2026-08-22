@@ -263,7 +263,7 @@ describe("CareWeeklyPlanModal", () => {
     );
   });
 
-  it("shows booking care days without editable checkboxes for existing children", () => {
+  it("shows booking care days without editable checkboxes", () => {
     render(
       <CareWeeklyPlanModal
         isOpen
@@ -276,42 +276,12 @@ describe("CareWeeklyPlanModal", () => {
     );
 
     expect(
-      screen.getByText("Die Betreuungstage kommen aus den Buchungen."),
+      screen.getByText(
+        /Die Betreuungstage kommen aus den Buchungen\. Für ein neues Kind gibt es noch keine Buchungen\./,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Montag" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Mittwoch" })).toBeDisabled();
     expect(document.getElementById("weekly-arrival-3")).toBeDisabled();
-  });
-
-  it("allows selecting care days while creating a child in booking mode", async () => {
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
-
-    render(
-      <CareWeeklyPlanModal
-        isOpen
-        onClose={vi.fn()}
-        careDaysSource="bookings"
-        isCreating
-        initialArrivalSchedules={[]}
-        initialPickupSchedules={[]}
-        onSubmit={onSubmit}
-      />,
-    );
-
-    const monday = screen.getByRole("checkbox", { name: "Montag" });
-    expect(monday).toBeEnabled();
-    fireEvent.click(monday);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan speichern" }),
-    );
-
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({
-        arrivalSchedules: [
-          { weekday: 1, inCare: true, expected_arrival: "", notes: null },
-        ],
-        pickupData: { schedules: [] },
-      }),
-    );
   });
 });

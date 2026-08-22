@@ -218,6 +218,42 @@ func (s *arrivalScheduleService) projectedWeeklySchedules(
 	return rows, nil
 }
 
+// projectedWeekRange resolves each weekday against its own calendar date.
+// Booking coverage can change within a week, so one day's projection cannot
+// stand in for the whole weekly plan.
+func (s *arrivalScheduleService) projectedWeekRange(
+	ctx context.Context,
+	studentIDs []int64,
+	from, to timezone.Date,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	if s.baselines == nil {
+		return s.projectedWeeklySchedules(ctx, studentIDs, from)
+	}
+	projection, err := s.baselines.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "project arrival schedule week", Err: err}
+	}
+	rows := make([]*schedule.StudentArrivalSchedule, 0, len(studentIDs)*schedule.WeekdayFriday)
+	for _, studentID := range uniquePositiveStudentIDs(studentIDs) {
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if row := projection.ForDate(studentID, date); row != nil {
+				rows = append(rows, row)
+			}
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].StudentID != rows[j].StudentID {
+			return rows[i].StudentID < rows[j].StudentID
+		}
+		return rows[i].Weekday < rows[j].Weekday
+	})
+	return rows, nil
+}
+
+func weekStart(date timezone.Date) timezone.Date {
+	return date.AddDays(-(int(date.Weekday()) + 6) % 7)
+}
+
 // projectedWeek returns the recurring rows in force on a date, class times
 // resolved. Without a baseline reader it falls back to the stored rows.
 func (s *arrivalScheduleService) projectedWeek(
@@ -258,7 +294,8 @@ func (s *arrivalScheduleService) GetStudentArrivalSchedules(
 	ctx context.Context,
 	studentID int64,
 ) ([]*schedule.StudentArrivalSchedule, error) {
-	return s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
+	from := weekStart(timezone.TodayDate())
+	return s.projectedWeekRange(ctx, []int64{studentID}, from, from.AddDays(4))
 }
 
 func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
@@ -269,7 +306,8 @@ func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
 		return nil, nil
 	}
-	rows, err := s.projectedWeeklySchedules(ctx, studentIDs, timezone.TodayDate())
+	date := weekStart(timezone.TodayDate()).AddDays(weekday - schedule.WeekdayMonday)
+	rows, err := s.projectedWeeklySchedules(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}
@@ -298,10 +336,14 @@ func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(
 	// The weekday validation stays with the core so an invalid weekday keeps
 	// erroring rather than reading as "no care that day".
 	stored, err := s.core.ScheduleForWeekday(ctx, studentID, weekday)
-	if err != nil || s.baselines == nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return stored, err
 	}
-	week, err := s.projectedWeek(ctx, []int64{studentID}, timezone.TodayDate())
+	if s.baselines == nil {
+		return stored, err
+	}
+	date := weekStart(timezone.TodayDate()).AddDays(weekday - schedule.WeekdayMonday)
+	week, err := s.projectedWeek(ctx, []int64{studentID}, date)
 	if err != nil {
 		return nil, err
 	}
