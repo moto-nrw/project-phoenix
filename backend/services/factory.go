@@ -1908,6 +1908,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		PhaseRepo:                repos.Phase,
 		CareOfferingRepo:         repos.CareOffering,
+		ImpactRepo:               repos.OfferingChangeImpact,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,

@@ -23,7 +23,7 @@ type fakeOfferingChangeRequestService struct {
 	input                enrollmentService.DecideOfferingChangeInput
 	previewExcluded      []int64
 	previewEffectiveFrom *timezone.Date
-	preview              []enrollmentService.OfferingChangePreviewSelection
+	preview              *enrollmentService.OfferingChangePreview
 }
 
 func (f *fakeOfferingChangeRequestService) Catalog(context.Context, int64) (*enrollmentService.OfferingChangeCatalog, error) {
@@ -67,7 +67,7 @@ func (f *fakeOfferingChangeRequestService) PreviewDecision(
 	_ int64,
 	excluded []int64,
 	effectiveFrom *timezone.Date,
-) ([]enrollmentService.OfferingChangePreviewSelection, error) {
+) (*enrollmentService.OfferingChangePreview, error) {
 	f.previewExcluded = excluded
 	f.previewEffectiveFrom = effectiveFrom
 	return f.preview, nil
@@ -105,11 +105,21 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeOfferingChangeRequestService{preview: []enrollmentService.OfferingChangePreviewSelection{{
-		OfferingID: 11,
-		State:      "booked",
-		Days:       []string{"mon", "wed"},
-	}}}
+	svc := &fakeOfferingChangeRequestService{preview: &enrollmentService.OfferingChangePreview{
+		Selections: []enrollmentService.OfferingChangePreviewSelection{{
+			OfferingID: 11,
+			State:      "booked",
+			Days:       []string{"mon", "wed"},
+		}},
+		ManualPlanningConflicts: []enrollmentService.ManualPlanningConflict{{
+			ActivityGroupID:   17,
+			ActivityGroupName: "Freie Hausaufgaben-Gruppe",
+			Days:              []string{"tue"},
+			FirstDate:         timezone.NewDate(2027, 2, 2),
+			OccurrenceCount:   8,
+		}},
+		ArrivalExpectationsFollowBookings: true,
+	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":["9"]}`))
@@ -124,6 +134,11 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 	assert.Equal(t, []int64{9}, svc.previewExcluded)
 	assert.Contains(t, w.Body.String(), `"offering_id":"11"`)
 	assert.Contains(t, w.Body.String(), `"new":"Mo, Mi"`)
+	assert.Contains(t, w.Body.String(), `"activity_group_name":"Freie Hausaufgaben-Gruppe"`)
+	assert.Contains(t, w.Body.String(), `"days":["tue"]`)
+	assert.Contains(t, w.Body.String(), `"first_date":"2027-02-02"`)
+	assert.Contains(t, w.Body.String(), `"occurrence_count":8`)
+	assert.Contains(t, w.Body.String(), `"arrival_expectations_follow_bookings":true`)
 }
 
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {
@@ -275,7 +290,7 @@ func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
 func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeOfferingChangeRequestService{}
+	svc := &fakeOfferingChangeRequestService{preview: &enrollmentService.OfferingChangePreview{}}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":[],"effective_from":"2026-09-01"}`))

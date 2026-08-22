@@ -727,8 +727,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Angebote, die eine Mitbuchungs-Regel ergänzt, tragen die Markierung `Automatisch mitgebucht` und nennen das Angebot, das die Mitbuchung auslöst. So erkennen Sie, was die Eltern selbst gewählt haben. Über den Haken `Automatisch mitbuchen` können Sie ein solches Angebot für genau diese Anfrage abwählen; die Regel bleibt für alle anderen Anfragen eingeschaltet.",
           "Bei Betreuungsangeboten steht unter den Änderungen `Bleibt gebucht`: die Angebote, die diese Anfrage nicht anfasst. So sehen Sie vor der Entscheidung, was das Kind danach insgesamt gebucht hat.",
           "Meldet eine Anfrage das Kind von allen Angeboten ab, steht `Komplett-Abmeldung` schon in der zugeklappten Zeile, und in der Karte erscheint eine rote Warnung mit dem Namen des Kindes. Bitte vor dem Freigeben mit der Familie klären.",
-          "Nach dem Freigeben einer Angebots-Anfrage erinnert die Meldung oben an drei Punkte, die die App nicht automatisch mit anpasst: Gehzeiten des Kindes, Zuordnung im Stundenplan sowie Listen und Ausdrucke.",
-          "Mit `Freigeben` wird der neue Wert übernommen.",
+          "Bei einer Angebots-Anfrage öffnet `Freigeben` zuerst die Übersicht `Folgen der Freigabe`. Dort sehen Sie die Folgen ab dem gewählten Datum: neue Buchungen, Gruppen aus Angeboten und Gehzeiten. Bestimmen Buchungen die Betreuungstage, steht dort auch: Die Buchungen ändern die erwarteten Betreuungstage. Die Ankunftszeit kommt weiterhin aus der Klassenzeit oder einer eigenen Zeit.",
+          "Passt eine andere Gruppe im Betreuungsplan nicht mehr zu den neuen Betreuungstagen, steht sie in dieser Übersicht. moto ändert diese Gruppe nicht automatisch. Nach der Freigabe öffnen Sie den Betreuungsplan. Entfernen Sie das Kind an den genannten Tagen aus der Gruppe oder ändern Sie die Gruppentage.",
+          "Erst mit `Änderung freigeben` übernehmen Sie die Angebots-Anfrage und die angezeigten Folgeänderungen.",
+          "Bei den anderen Anfragearten wird der neue Wert direkt mit `Freigeben` übernommen.",
           "Freigegebene Betreuungszeiten ändern den Wochenplan des Kindes.",
           "Eine Abwesenheit gilt dann als `Krank` oder `Entschuldigt`.",
           "Mit `Ablehnen` bleibt der bisherige Stand erhalten.",
@@ -745,7 +747,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Seite „Anfragen“, Reiter „Eltern“: alle offenen Anfragen in einer gemeinsamen Liste, je mit Kind und Änderung (alt → neu), darüber Suchfeld und Filter „Anfrageart“, pro Eintrag die Schaltflächen „Freigeben“ und „Ablehnen“.",
+          "Seite „Anfragen“, Reiter „Eltern“: offene Anfrage zu Betreuungsangeboten und die Übersicht „Folgen der Freigabe“ mit automatischen Änderungen, manuellen Konflikten sowie „Änderung freigeben“.",
       },
       {
         id: "meine-gruppen",

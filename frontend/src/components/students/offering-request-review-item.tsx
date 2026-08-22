@@ -13,9 +13,11 @@ import { createLogger } from "~/lib/logger";
 import { useToast } from "~/contexts/ToastContext";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   OfferingRequestApiError,
   type OfferingRequestDiffLine,
+  type OfferingRequestPreview,
   type OfferingRequestPreviewSelection,
   type StaffOfferingRequest,
   decideOfferingChangeRequest,
@@ -76,12 +78,6 @@ function blockedReason(code: string | undefined): string {
   }
 }
 
-// Die Freigabe passt drei Dinge NICHT mit an. Der Hinweis gehört an die
-// Erfolgsmeldung, nicht als Dauer-Kasten in jede offene Anfrage: vor der
-// Entscheidung ist er nichts, was jemand tun kann (#2484).
-const AFTER_APPROVAL_HINT =
-  "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.";
-
 // joinNames renders trigger names as „A“ und „B“ for the explanation line.
 function joinNames(names: readonly string[]): string {
   return names.map((name) => `„${name}“`).join(" und ");
@@ -117,6 +113,20 @@ function cascadeSourceName(
   return "";
 }
 
+const WEEKDAY_LABELS: Readonly<Record<string, string>> = {
+  mon: "Mo",
+  tue: "Di",
+  wed: "Mi",
+  thu: "Do",
+  fri: "Fr",
+  sat: "Sa",
+  sun: "So",
+};
+
+function conflictDays(days: readonly string[]): string {
+  return days.map((day) => WEEKDAY_LABELS[day] ?? day).join(", ");
+}
+
 /**
  * Eine offene Angebots-Anfrage als entscheidbare Karte, inklusive der
  * Mitbuchungs-Abwahl mit Vorschau-Kaskade (#2370). Ablehnen verlangt eine
@@ -139,6 +149,8 @@ export function OfferingRequestReviewItem({
   const [preview, setPreview] = useState<
     readonly OfferingRequestPreviewSelection[] | undefined
   >(undefined);
+  const [approvalPreview, setApprovalPreview] =
+    useState<OfferingRequestPreview | null>(null);
   // Das Datum, ab dem die Umstellung gilt (#2484). Vorbelegt mit dem Wunsch der
   // Eltern; die OGS entscheidet, ob es dabei bleibt.
   const [effectiveFrom, setEffectiveFrom] = useState(row.effective_from);
@@ -168,7 +180,10 @@ export function OfferingRequestReviewItem({
       );
       onDecided(
         approve
-          ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. ${AFTER_APPROVAL_HINT}`
+          ? approvalPreview &&
+            approvalPreview.manual_planning_conflicts.length > 0
+            ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. Bitte jetzt im Betreuungsplan prüfen: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
+            : `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen wurden übernommen.`
           : "Angebots-Anfrage abgelehnt",
       );
     } catch (err) {
@@ -180,7 +195,41 @@ export function OfferingRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
+      setBusy(false);
       toast.error(decideErrorMessage(code), { duration: 8000 });
+    }
+  };
+
+  const prepareApproval = async () => {
+    setBusy(true);
+    setApprovalPreview(null);
+    try {
+      const nextPreview = await previewOfferingChangeRequest(
+        row.id,
+        excluded,
+        effectiveFrom,
+      );
+      setPreview(nextPreview.selections);
+      setBlocked(null);
+      setApprovalPreview(nextPreview);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code =
+        err instanceof OfferingRequestApiError ? err.code : undefined;
+      logger.warn("offering_request_review_approval_preview_failed", {
+        error: message,
+        request_id: row.id,
+        ...(code ? { code } : {}),
+      });
+      setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
+      toast.error(
+        decideErrorMessage(
+          code,
+          "Die Folgen der Freigabe konnten nicht geprüft werden. Bitte versuchen Sie es noch einmal.",
+        ),
+        { duration: 8000 },
+      );
+    } finally {
       setBusy(false);
     }
   };
@@ -319,7 +368,7 @@ export function OfferingRequestReviewItem({
       }
       busy={busy}
       approveDisabled={blocked !== null}
-      onApprove={() => void decide(true)}
+      onApprove={() => void prepareApproval()}
       onReject={() => void decide(false)}
     >
       {fullWithdrawal && (
@@ -488,6 +537,63 @@ export function OfferingRequestReviewItem({
           </label>
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={approvalPreview !== null}
+        onClose={() => setApprovalPreview(null)}
+        onConfirm={() => void decide(true)}
+        title="Folgen der Freigabe"
+        confirmText="Änderung freigeben"
+        isConfirmLoading={busy}
+        loadingText="Wird freigegeben..."
+        mobileSheet
+      >
+        {approvalPreview && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Das ändert moto automatisch:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+                <li>
+                  Die neuen Buchungen gelten ab {formatDate(effectiveFrom)}.
+                </li>
+                <li>
+                  Angebotsgebundene Gruppen im Betreuungsplan und Gehzeiten
+                  werden angepasst.
+                </li>
+                <li>
+                  {approvalPreview.arrival_expectations_follow_bookings
+                    ? "Die neuen Buchungen bestimmen die erwarteten Betreuungstage. Die Ankunftszeit kommt weiterhin aus der Klassenzeit oder einer eigenen Zeit."
+                    : "Ankunftszeit und erwartete Betreuungstage bleiben wie bisher."}
+                </li>
+              </ul>
+            </div>
+            {approvalPreview.manual_planning_conflicts.length > 0 && (
+              <div className="space-y-2">
+                <Alert
+                  type="warning"
+                  message="Diese Gruppen passen nicht zu den neuen Betreuungstagen. moto ändert sie nicht automatisch."
+                />
+                <ul className="list-disc space-y-1 pl-5 text-sm text-gray-800">
+                  {approvalPreview.manual_planning_conflicts.map((conflict) => (
+                    <li key={conflict.activity_group_id}>
+                      <span className="font-medium">
+                        {conflict.activity_group_name}
+                      </span>
+                      {`: ${conflictDays(conflict.days)}, ab ${formatDate(conflict.first_date)} · ${conflict.occurrence_count} ${conflict.occurrence_count === 1 ? "Termin" : "Termine"}`}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-gray-700">
+                  Nach der Freigabe: Öffnen Sie den Betreuungsplan. Entfernen
+                  Sie {row.student_name} an den genannten Tagen aus diesen
+                  Gruppen oder ändern Sie die Gruppentage.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </ConfirmationModal>
     </RequestReviewCard>
   );
 }

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
@@ -20,6 +26,7 @@ async function expectErrorToast(pattern: RegExp) {
       expect.anything(),
     ),
   );
+  await act(async () => undefined);
 }
 
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
@@ -27,6 +34,7 @@ import {
   OfferingRequestApiError,
   decideOfferingChangeRequest,
   previewOfferingChangeRequest,
+  type OfferingRequestPreview,
   type StaffOfferingRequest,
 } from "~/lib/offering-request-review-api";
 
@@ -51,6 +59,17 @@ vi.mock("~/lib/offering-request-review-api", async (importActual) => {
 
 const mockDecide = vi.mocked(decideOfferingChangeRequest);
 const mockPreview = vi.mocked(previewOfferingChangeRequest);
+
+function previewResult(
+  overrides: Partial<OfferingRequestPreview> = {},
+): OfferingRequestPreview {
+  return {
+    selections: [],
+    manual_planning_conflicts: [],
+    arrival_expectations_follow_bookings: false,
+    ...overrides,
+  };
+}
 
 function request(
   overrides: Partial<StaffOfferingRequest> = {},
@@ -84,10 +103,21 @@ function renderItem(
   return onDecided;
 }
 
+async function confirmApproval() {
+  fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+  const confirm = await screen.findByRole("button", {
+    name: "Änderung freigeben",
+  });
+  await act(async () => {
+    fireEvent.click(confirm);
+    await Promise.resolve();
+  });
+}
+
 describe("OfferingRequestReviewItem", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPreview.mockResolvedValue({ selections: [] });
+    mockPreview.mockResolvedValue(previewResult());
   });
 
   it("renders the request with its effective date and diff", () => {
@@ -104,7 +134,14 @@ describe("OfferingRequestReviewItem", () => {
     const onDecided = vi.fn();
     renderItem(request(), onDecided);
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-02-01"),
+    );
+    expect(mockDecide).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Änderung freigeben" }));
 
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith(
@@ -116,7 +153,7 @@ describe("OfferingRequestReviewItem", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.02.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
+      "Änderung übernommen, gültig ab 01.02.2027. Die angezeigten Folgeänderungen wurden übernommen.",
     );
   });
 
@@ -163,7 +200,7 @@ describe("OfferingRequestReviewItem", () => {
     const onDecided = vi.fn();
     renderItem(request(), onDecided);
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await expectErrorToast(/kein Platz mehr frei/);
     // The card survives a failed approval: the switch was not applied.
@@ -177,7 +214,7 @@ describe("OfferingRequestReviewItem", () => {
     );
     renderItem();
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await expectErrorToast(/bereits entschieden oder von den Eltern/);
   });
@@ -188,7 +225,7 @@ describe("OfferingRequestReviewItem", () => {
     );
     renderItem();
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await expectErrorToast(/keine gültige Anmeldung mehr vor/);
   });
@@ -197,7 +234,7 @@ describe("OfferingRequestReviewItem", () => {
     mockDecide.mockRejectedValue(new Error("boom"));
     renderItem();
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await expectErrorToast(
       /Die Entscheidung konnte nicht gespeichert werden\./,
@@ -282,9 +319,11 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("hides the automatic-addition hint after opting out", async () => {
-    mockPreview.mockResolvedValue({
-      selections: [{ offering_id: "9", new: "Mo, Mi" }],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [{ offering_id: "9", new: "Mo, Mi" }],
+      }),
+    );
     renderItem(request({ diff: mixedRuleDiff }));
 
     fireEvent.click(
@@ -301,9 +340,11 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("describes the disabled co-booking rule after opting out", async () => {
-    mockPreview.mockResolvedValue({
-      selections: [{ offering_id: "9", new: "Mo, Mi" }],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [{ offering_id: "9", new: "Mo, Mi" }],
+      }),
+    );
     renderItem(request({ diff: mixedRuleDiff }));
 
     fireEvent.click(
@@ -321,9 +362,11 @@ describe("OfferingRequestReviewItem", () => {
 
   it("sends unticked rule-added lines as excluded on approve", async () => {
     mockDecide.mockResolvedValue(undefined);
-    mockPreview.mockResolvedValue({
-      selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
+      }),
+    );
     renderItem(request({ diff: ruleDiff }));
 
     fireEvent.click(
@@ -334,7 +377,7 @@ describe("OfferingRequestReviewItem", () => {
     await waitFor(() =>
       expect(mockPreview).toHaveBeenCalledWith("77", ["9"], "2027-02-01"),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith(
@@ -349,9 +392,11 @@ describe("OfferingRequestReviewItem", () => {
 
   it("does not send excluded lines on reject", async () => {
     mockDecide.mockResolvedValue(undefined);
-    mockPreview.mockResolvedValue({
-      selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [{ offering_id: "5", new: "Mo, Di, Mi, Do, Fr" }],
+      }),
+    );
     renderItem(request({ diff: ruleDiff }));
 
     fireEvent.click(
@@ -380,9 +425,11 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("keeps manual and required days visible when rule days are unticked", async () => {
-    mockPreview.mockResolvedValue({
-      selections: [{ offering_id: "9", new: "Mo, Mi" }],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [{ offering_id: "9", new: "Mo, Mi" }],
+      }),
+    );
     renderItem(
       request({
         diff: [
@@ -413,13 +460,15 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("recomputes downstream rule days after a partial override", async () => {
-    mockPreview.mockResolvedValue({
-      selections: [
-        { offering_id: "5", new: "Di" },
-        { offering_id: "9", new: "Mo, Mi" },
-        { offering_id: "11", new: "Mo, Mi" },
-      ],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [
+          { offering_id: "5", new: "Di" },
+          { offering_id: "9", new: "Mo, Mi" },
+          { offering_id: "11", new: "Mo, Mi" },
+        ],
+      }),
+    );
     renderItem(
       request({
         diff: [
@@ -473,13 +522,15 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("greys a line whose trigger was unticked", async () => {
-    mockPreview.mockResolvedValue({
-      selections: [
-        { offering_id: "5", new: "Mo, Di, Mi, Do, Fr" },
-        { offering_id: "9", new: "abgemeldet", removed: true },
-        { offering_id: "11", new: "abgemeldet", removed: true },
-      ],
-    });
+    mockPreview.mockResolvedValue(
+      previewResult({
+        selections: [
+          { offering_id: "5", new: "Mo, Di, Mi, Do, Fr" },
+          { offering_id: "9", new: "abgemeldet", removed: true },
+          { offering_id: "11", new: "abgemeldet", removed: true },
+        ],
+      }),
+    );
     renderItem(request({ diff: ruleDiff }));
 
     fireEvent.click(
@@ -567,33 +618,96 @@ describe("OfferingRequestReviewItem", () => {
       expect(screen.getByText("Mittagessen:")).toBeInTheDocument();
     });
 
-    // Was die Freigabe nicht mit anpasst, gehört an die Erfolgsmeldung: vor der
-    // Entscheidung ist es nichts, was jemand tun kann.
-    it("keeps the after-approval checks out of the open request", () => {
+    it("keeps approval consequences out of the open request", () => {
       renderItem();
 
       expect(
-        screen.queryByText(/Nach dem Freigeben bitte prüfen/),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByText(/Gehzeiten des Kindes/),
+        screen.queryByText("Das ändert moto automatisch:"),
       ).not.toBeInTheDocument();
     });
 
-    it("names what to check in the notice after an approval", async () => {
-      mockDecide.mockResolvedValue(undefined);
-      const onDecided = vi.fn();
-      renderItem(request(), onDecided);
-
-      fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
-
-      await waitFor(() =>
-        expect(onDecided).toHaveBeenCalledWith(
-          expect.stringContaining(
-            "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
-          ),
-        ),
+    it("shows the automatic consequences before approval", async () => {
+      mockPreview.mockResolvedValue(
+        previewResult({ arrival_expectations_follow_bookings: true }),
       );
+      renderItem();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+      expect(
+        await screen.findByText("Das ändert moto automatisch:"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Angebotsgebundene Gruppen im Betreuungsplan und Gehzeiten werden angepasst.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Die neuen Buchungen bestimmen die erwarteten Betreuungstage. Die Ankunftszeit kommt weiterhin aus der Klassenzeit oder einer eigenen Zeit.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockDecide).not.toHaveBeenCalled();
+    });
+
+    it("names manual planning conflicts and the next action", async () => {
+      mockPreview.mockResolvedValue(
+        previewResult({
+          manual_planning_conflicts: [
+            {
+              activity_group_id: "17",
+              activity_group_name: "Freie Hausaufgaben-Gruppe",
+              days: ["tue"],
+              first_date: "2027-02-02",
+              occurrence_count: 8,
+            },
+          ],
+        }),
+      );
+      renderItem();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+      expect(
+        await screen.findByText(/Freie Hausaufgaben-Gruppe/),
+      ).toHaveTextContent("Freie Hausaufgaben-Gruppe");
+      expect(
+        screen.getByText(/Freie Hausaufgaben-Gruppe/).parentElement,
+      ).toHaveTextContent("Di, ab 02.02.2027 · 8 Termine");
+      expect(
+        screen.getByText(
+          "Nach der Freigabe: Öffnen Sie den Betreuungsplan. Entfernen Sie Lara Beispiel an den genannten Tagen aus diesen Gruppen oder ändern Sie die Gruppentage.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no manual warning when the preview has no conflict", async () => {
+      renderItem();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+      await screen.findByText("Das ändert moto automatisch:");
+      expect(
+        screen.getByText(
+          "Ankunftszeit und erwartete Betreuungstage bleiben wie bisher.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/moto ändert sie nicht automatisch/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not approve when the consequence preview fails", async () => {
+      mockPreview.mockRejectedValue(new Error("network"));
+      renderItem();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+      await expectErrorToast(/Folgen der Freigabe konnten nicht geprüft/);
+      expect(mockDecide).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("button", { name: "Änderung freigeben" }),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -603,7 +717,7 @@ describe("OfferingRequestReviewItem", () => {
 describe("OfferingRequestReviewItem — Gültig ab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPreview.mockResolvedValue({ selections: [] });
+    mockPreview.mockResolvedValue(previewResult());
   });
 
   // Das Häkchen „Anderes Datum wählen" schaltet das Feld frei. Ohne es steht
@@ -670,7 +784,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     );
     expect(screen.queryByLabelText("Gültig ab")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith(
         "77",
@@ -698,7 +812,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     );
     expect(screen.getByText("KW 9")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await confirmApproval();
 
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith(
@@ -710,7 +824,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.03.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
+      "Änderung übernommen, gültig ab 01.03.2027. Die angezeigten Folgeänderungen wurden übernommen.",
     );
   });
 
@@ -730,9 +844,11 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
 
   it("clears an earlier preview when a later preview fails", async () => {
     mockPreview
-      .mockResolvedValueOnce({
-        selections: [{ offering_id: "1", new: "Mo" }],
-      })
+      .mockResolvedValueOnce(
+        previewResult({
+          selections: [{ offering_id: "1", new: "Mo" }],
+        }),
+      )
       .mockRejectedValueOnce(new Error("network"));
     renderItem(
       request({
