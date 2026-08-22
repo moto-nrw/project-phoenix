@@ -676,8 +676,12 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	}
 	byWeekday := make(map[int]*schedule.StudentArrivalSchedule, schedule.WeekdayFriday)
 	for date := from; !date.After(to); date = date.AddDays(1) {
+		weekday := effectiveISOWeekday(date)
+		// A range may include the same weekday twice. The latest date wins, so
+		// a booking that has ended cannot keep an earlier care-day marker alive.
+		delete(byWeekday, weekday)
 		if row := projection.ForDate(studentID, date); row != nil {
-			byWeekday[row.Weekday] = row
+			byWeekday[weekday] = row
 		}
 	}
 	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(byWeekday))

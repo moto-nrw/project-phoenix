@@ -340,6 +340,62 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
+type firstMondayOnlyArrivalBaseline struct{}
+
+func (firstMondayOnlyArrivalBaseline) Project(
+	_ context.Context,
+	studentIDs []int64,
+	from, to timezone.Date,
+) (*scheduleService.ArrivalBaselineProjection, error) {
+	projection := &scheduleService.ArrivalBaselineProjection{
+		WeeklyByStudentDate:   make(scheduleService.ArrivalPlansByStudent, len(studentIDs)),
+		DerivedByStudentDate:  make(scheduleService.ArrivalPlansByStudent, len(studentIDs)),
+		BookingsAuthoritative: true,
+	}
+	for _, studentID := range studentIDs {
+		weekly := scheduleService.ArrivalPlanByDate{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			week := scheduleService.ArrivalWeek{}
+			if date == from {
+				week[scheduleModel.WeekdayMonday] = &scheduleModel.StudentArrivalSchedule{
+					StudentID: studentID,
+					Weekday:   scheduleModel.WeekdayMonday,
+				}
+			}
+			weekly[date] = week
+		}
+		projection.WeeklyByStudentDate[studentID] = weekly
+		projection.DerivedByStudentDate[studentID] = scheduleService.ArrivalPlanByDate{}
+	}
+	return projection, nil
+}
+
+func TestArrivalDataForDateRangeDropsCareDayAfterBookingEnds(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		firstMondayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Ende", "Buchung", "8l")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(7))
+
+	require.NoError(t, err)
+	assert.Empty(t, data.Schedules)
+}
+
 type failingClassArrivalTimeRepository struct {
 	educationModel.ClassArrivalTimeRepository
 	err error
