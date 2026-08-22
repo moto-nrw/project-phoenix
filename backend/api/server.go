@@ -181,6 +181,7 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	// active.groups via repositories (issue #585 layering).
 	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
 	sched.SetStudentStatusDayRepo(repos.StudentStatusDay)
+	sched.SetBookingConsistencyAudit(repos.BookingConsistency)
 	// Parent-enrollment PR 2: activate-students tick.
 	if repos.Student != nil {
 		sched.SetStudentLifecycleRepo(repos.Student)
