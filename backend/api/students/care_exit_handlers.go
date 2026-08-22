@@ -46,7 +46,7 @@ func (b *careExitRequest) toInput() (userService.CareExitInput, error) {
 	for _, raw := range b.StudentIDs {
 		id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 		if err != nil || id <= 0 {
-			return userService.CareExitInput{}, errors.New("student_ids enthält einen ungültigen Wert") //nolint:staticcheck // ST1005: user-facing German message
+			return userService.CareExitInput{}, errors.New("Die Auswahl enthält ein ungültiges Kind.") //nolint:staticcheck // ST1005: user-facing German message
 		}
 		ids = append(ids, id)
 	}

@@ -152,6 +152,7 @@ type CareExitCleanupRepository interface {
 	// CountOpenRequests counts, per student, the still-open rows across the
 	// four parent request queues.
 	CountOpenRequests(ctx context.Context, studentIDs []int64) (map[int64]int, error)
+	LockOpenRequestsForCareExit(ctx context.Context, studentIDs []int64) error
 	// CloseOpenRequests moves those rows to the care_ended terminal state.
 	CloseOpenRequests(ctx context.Context, studentIDs []int64, reviewedBy *int64, at time.Time) (int, error)
 	// FindOpenPresence reports which children still hold an open attendance

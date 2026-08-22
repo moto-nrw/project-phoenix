@@ -76,6 +76,20 @@ func (r *CareExitCleanupRepository) CountOpenRequests(
 	return counts, nil
 }
 
+func (r *CareExitCleanupRepository) LockOpenRequestsForCareExit(ctx context.Context, studentIDs []int64) error {
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, queue := range openRequestQueues {
+		sql := `SELECT id FROM ` + queue.Table + ` WHERE tenant_id = ? AND student_id IN (?) AND status = ? FOR UPDATE`
+		if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, sql, tenantID, bun.List(studentIDs), queue.Pending); err != nil {
+			return &modelBase.DatabaseError{Op: "lock open parent requests for care exit", Err: err}
+		}
+	}
+	return nil
+}
+
 // CloseOpenRequests moves every still-open request of the given children to
 // the care_ended terminal state. The decision reason is written in German
 // because it is shown to the family verbatim; reviewedBy is the acting account
@@ -516,12 +530,18 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 	db := base.GetDB(ctx, r.db)
 	restored := 0
 
+	var hasDeletedBooking bool
+	if err := db.NewRaw(`SELECT EXISTS(SELECT 1 FROM users.student_care_exit_removals WHERE tenant_id = ? AND student_id IN (?) AND kind = 'booking' AND was_deleted = TRUE)`, tenantID, bun.List(studentIDs)).Scan(ctx, &hasDeletedBooking); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "check deleted bookings before care exit restore", Err: err}
+	}
 	// Restoring a deleted booking writes its original id back. This table lock
 	// serializes that restore and the following sequence update with ordinary
 	// booking INSERTs, which otherwise could consume a sequence value between
 	// reading last_value and setval and then receive a duplicate id.
-	if _, err := db.ExecContext(ctx, `LOCK TABLE activities.student_enrollments IN SHARE ROW EXCLUSIVE MODE`); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "lock bookings before care exit restore", Err: err}
+	if hasDeletedBooking {
+		if _, err := db.ExecContext(ctx, `LOCK TABLE activities.student_enrollments IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+			return 0, &modelBase.DatabaseError{Op: "lock bookings before care exit restore", Err: err}
+		}
 	}
 
 	// Rosters. room_id / student_status_day_id / pickup_exception_id are

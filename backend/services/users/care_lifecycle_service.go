@@ -608,6 +608,9 @@ func (s *careLifecycleService) buildPreview(
 		return nil, err
 	}
 	if lock {
+		if err := s.cleanupRepo.LockOpenRequestsForCareExit(ctx, ids); err != nil {
+			return nil, err
+		}
 		// Lock every live plan row before counting it for the bindende preview.
 		// Confirmation then deletes or caps only a state that cannot change after
 		// its token was derived.
