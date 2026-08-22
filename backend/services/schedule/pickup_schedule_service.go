@@ -481,7 +481,8 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
-	projection, err := s.baselines.Project(ctx, []int64{studentID}, date, date)
+	weekStart := date.AddDays(schedule.WeekdayMonday - effectiveISOWeekday(date))
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, weekStart, weekStart.AddDays(4))
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
@@ -493,7 +494,8 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		}
 		row.Source = schedule.PickupScheduleSourceStaff
 		row.CareOfferingID = nil
-		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], projection.OfferingWeeklyForDate(studentID, date)[row.Weekday]) {
+		rowDate := weekStart.AddDays(row.Weekday - schedule.WeekdayMonday)
+		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], projection.OfferingForDate(studentID, rowDate)) {
 			manual = append(manual, row)
 		}
 	}
