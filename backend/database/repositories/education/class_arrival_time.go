@@ -60,7 +60,7 @@ func (r *ClassArrivalTimeRepository) Upsert(ctx context.Context, row *education.
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(row).
 		ModelTableExpr(`education.class_arrival_times`).
-		On("CONFLICT (tenant_id, LOWER(BTRIM(school_class))) DO UPDATE").
+		On("CONFLICT (tenant_id, (LOWER(BTRIM(school_class)))) DO UPDATE").
 		Set("arrival_times = EXCLUDED.arrival_times").
 		Set("school_class = EXCLUDED.school_class").
 		Set("updated_by = EXCLUDED.updated_by").

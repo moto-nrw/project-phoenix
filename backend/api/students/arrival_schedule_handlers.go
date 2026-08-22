@@ -96,6 +96,8 @@ type ArrivalNoteRequest struct {
 	Content  string `json:"content"`
 }
 
+const maxArrivalScheduleDateRangeDays = 7
+
 // BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival
 // schedules for exactly one filtered student cohort.
 type BulkUpsertArrivalScheduleRequest struct {
@@ -355,6 +357,10 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		}
 		if to.Before(date) {
 			renderError(w, r, common.ErrorInvalidRequest(errors.New("to date must not be before date")))
+			return
+		}
+		if date.DaysUntil(to) >= maxArrivalScheduleDateRangeDays {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("arrival schedule date range must span at most %d days", maxArrivalScheduleDateRangeDays)))
 			return
 		}
 		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDateRange(r.Context(), student.ID, date, to)

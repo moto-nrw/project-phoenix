@@ -80,7 +80,7 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 		)
 		INSERT INTO education.class_arrival_times (tenant_id, school_class, arrival_times)
 		SELECT tenant_id, school_class, arrival_times FROM per_class
-		ON CONFLICT (tenant_id, LOWER(BTRIM(school_class))) DO NOTHING;
+		ON CONFLICT (tenant_id, (LOWER(BTRIM(school_class)))) DO NOTHING;
 	`)
 	if err != nil {
 		return fmt.Errorf("lift class arrival times: %w", err)

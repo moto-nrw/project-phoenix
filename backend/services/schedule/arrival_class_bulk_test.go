@@ -193,6 +193,32 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
+func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Bereich", "Woche", "8g")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(8))
+	require.NoError(t, err)
+	require.Len(t, data.Schedules, 1)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+}
+
 type failingClassArrivalTimeRepository struct {
 	educationModel.ClassArrivalTimeRepository
 	err error

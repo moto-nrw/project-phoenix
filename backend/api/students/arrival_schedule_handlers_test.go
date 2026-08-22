@@ -114,6 +114,14 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
+	t.Run("rejects_date_ranges_longer_than_one_week", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules?date=2026-08-17&to=2026-08-24", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "at most 7 days")
+	})
+
 	t.Run("forbidden_without_read_access", func(t *testing.T) {
 		// #2329: every verified staff member reads the care plan, so the
 		// remaining denial is an account without a staff record (guest,

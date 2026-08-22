@@ -631,9 +631,15 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	if err != nil {
 		return nil, &ScheduleError{Op: "project arrival schedule range", Err: err}
 	}
-	schedules := make([]*schedule.StudentArrivalSchedule, 0, schedule.WeekdayFriday)
+	byWeekday := make(map[int]*schedule.StudentArrivalSchedule, schedule.WeekdayFriday)
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		if row := projection.ForDate(studentID, date); row != nil {
+			byWeekday[row.Weekday] = row
+		}
+	}
+	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(byWeekday))
+	for weekday := schedule.WeekdayMonday; weekday <= schedule.WeekdayFriday; weekday++ {
+		if row := byWeekday[weekday]; row != nil {
 			schedules = append(schedules, row)
 		}
 	}
