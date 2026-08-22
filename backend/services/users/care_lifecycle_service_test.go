@@ -435,6 +435,11 @@ func TestCareLifecycle_Resume(t *testing.T) {
 		Where("id = ?", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
+	require.NoError(t, repositories.NewFactory(db).CareExit.Upsert(ctx, &userModels.CareExit{
+		StudentID:  student.ID,
+		Reason:     userModels.CareExitReasonMovedAway,
+		RecordedBy: &actorID,
+	}))
 
 	t.Run("refuses without the explicit review", func(t *testing.T) {
 		err := svc.Resume(ctx, userService.CareResumeInput{
@@ -482,6 +487,25 @@ func TestCareLifecycle_Resume(t *testing.T) {
 		})
 		require.ErrorIs(t, err, userService.ErrCareResumeNotEnded)
 	})
+
+	t.Run("refuses an enrollment that ended without a recorded care exit", func(t *testing.T) {
+		naturalEnd := testpkg.CreateTestStudent(t, db, "Lina", "Lorenz", "1c")
+		_, err := db.NewUpdate().
+			TableExpr("users.students").
+			Set("enrolled_until = ?", yesterday).
+			Set("status = ?", string(userModels.StudentStatusInactive)).
+			Where("id = ?", naturalEnd.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		err = svc.Resume(ctx, userService.CareResumeInput{
+			StudentID:      naturalEnd.ID,
+			NewStart:       timezone.TodayDate(),
+			ActorAccountID: actorID,
+			Checked:        true,
+		})
+		require.ErrorIs(t, err, userService.ErrCareResumeMissing)
+	})
 }
 
 func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
@@ -500,6 +524,11 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 		Where("id = ?", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
+	require.NoError(t, repositories.NewFactory(db).CareExit.Upsert(ctx, &userModels.CareExit{
+		StudentID:  student.ID,
+		Reason:     userModels.CareExitReasonMovedAway,
+		RecordedBy: &actorID,
+	}))
 
 	start := timezone.TodayDate().AddDays(10)
 	require.NoError(t, svc.Resume(ctx, userService.CareResumeInput{

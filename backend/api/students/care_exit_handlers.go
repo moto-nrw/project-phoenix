@@ -340,6 +340,7 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: userService.ErrCareExitNotPlanned, Render: common.ErrorConflict},
 	{Target: userService.ErrCareExitAlreadyEffective, Render: common.ErrorConflict},
 	{Target: userService.ErrCareResumeNotEnded, Render: common.ErrorConflict},
+	{Target: userService.ErrCareResumeMissing, Render: common.ErrorConflict},
 	{Target: userService.ErrCareResumeStartInPast, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrCareResumeNotChecked, Render: common.ErrorInvalidRequest},
 	{Target: userModels.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},

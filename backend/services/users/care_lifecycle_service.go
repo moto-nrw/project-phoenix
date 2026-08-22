@@ -45,6 +45,8 @@ var (
 	//nolint:staticcheck // ST1005: user-facing German message
 	ErrCareResumeNotEnded = errors.New("Die Betreuung dieses Kindes läuft noch.")
 	//nolint:staticcheck // ST1005: user-facing German message
+	ErrCareResumeMissing = errors.New(careBlockerResumeMissing)
+	//nolint:staticcheck // ST1005: user-facing German message
 	ErrCareResumeStartInPast = errors.New("Der neue Beginn darf nicht in der Vergangenheit liegen.")
 	//nolint:staticcheck // ST1005: user-facing German message
 	ErrCareResumeNotChecked = errors.New("Bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft.")
@@ -429,6 +431,13 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 		}
 		if !student.CareEndedOn(today) {
 			return ErrCareResumeNotEnded
+		}
+		exits, err := s.careExitRepo.FindByStudentIDs(txCtx, []int64{input.StudentID})
+		if err != nil {
+			return err
+		}
+		if exits[input.StudentID] == nil {
+			return ErrCareResumeMissing
 		}
 		before := cloneCareFields(student)
 
