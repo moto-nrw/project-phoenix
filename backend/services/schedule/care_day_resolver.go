@@ -425,10 +425,22 @@ func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus
 		return CareDayCancelled
 	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID][date]:
 		return CareDayUnknown
+	case p.hasPlan[studentID][date] && p.hasArrivalSchedule(studentID, date):
+		// A care day remains scheduled even when its own and its class arrival
+		// time are both absent. The missing wall-clock time is not an absence of
+		// the care-day booking.
+		return CareDayScheduled
 	default:
 		// The plan covers other weekdays, just not this one.
 		return CareDayNotScheduled
 	}
+}
+
+func (p *carePlans) hasArrivalSchedule(studentID int64, date timezone.Date) bool {
+	if p.arrivalByStudentDate[studentID][date] != nil {
+		return true
+	}
+	return p.arrivalByStudentWeekday[studentID][isoWeekday(date)] != nil
 }
 
 // effectiveArrival mirrors the exception-beats-schedule merge of

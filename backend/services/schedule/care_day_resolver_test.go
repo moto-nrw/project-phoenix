@@ -191,6 +191,21 @@ func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
 	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayThursday))
 }
 
+func TestCareDayStatusFor_ArrivalPlanWithoutTime(t *testing.T) {
+	t.Parallel()
+
+	const studentID int64 = 45
+	plans := plansForStudent(studentID)
+	plans.arrivalByStudentWeekday[studentID] = map[int]*schedule.StudentArrivalSchedule{
+		schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
+	}
+	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+
+	status := plans.statusFor(studentID, careDayMonday)
+	assert.Equal(t, CareDayScheduled, status)
+	assert.True(t, status.Expected(), "a booked care day stays expected when its class time is unknown")
+}
+
 // Children never resolved (walk-ins, unwired service) must fall through as
 // expected rather than silently vanishing from a roster.
 func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {

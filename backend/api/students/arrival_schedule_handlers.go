@@ -169,7 +169,7 @@ func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
 	if err := validateBulkArrivalSelector(r); err != nil {
 		return err
 	}
-	return validateBulkArrivalSchedules(r.Schedules)
+	return validateBulkArrivalSchedules(r)
 }
 
 func validateBulkArrivalSelector(r *BulkUpsertArrivalScheduleRequest) error {
@@ -204,12 +204,12 @@ func validateBulkArrivalSelector(r *BulkUpsertArrivalScheduleRequest) error {
 	return nil
 }
 
-func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInput) error {
-	if len(schedules) == 0 {
+func validateBulkArrivalSchedules(r *BulkUpsertArrivalScheduleRequest) error {
+	if len(r.Schedules) == 0 {
 		return errors.New("schedules array cannot be empty")
 	}
 	seenWeekdays := make(map[int]bool)
-	for i, s := range schedules {
+	for i, s := range r.Schedules {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
 			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
 		}
@@ -217,8 +217,12 @@ func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInp
 			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
 		}
 		seenWeekdays[s.Weekday] = true
-		// An empty time means "take it from the class timetable" (#2414).
+		// Only a class timetable can clear a time. Group and explicit-student
+		// updates always write an own time.
 		if s.ArrivalTime == "" {
+			if strings.TrimSpace(r.SchoolClass) == "" {
+				return fmt.Errorf("schedule %d: expected_arrival is required unless school_class is selected", i)
+			}
 			continue
 		}
 		if _, err := time.Parse("15:04", s.ArrivalTime); err != nil {

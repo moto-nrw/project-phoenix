@@ -221,6 +221,20 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
+	t.Run("bad_request_empty_time_without_class_selector", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkEmptyTime", "Test", "BET1")
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+			"schedules": []map[string]any{
+				{"weekday": 1, "expected_arrival": ""},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/arrival-schedules/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
 	t.Run("bad_request_invalid_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalTime", "Test", "AT1")
 

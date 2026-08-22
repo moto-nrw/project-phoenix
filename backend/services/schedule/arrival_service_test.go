@@ -1382,6 +1382,30 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		assert.Empty(t, rows, "authorization failure must roll back every selected student")
 	})
 
+	t.Run("rejects a class timetable update when one matched student is unauthorized", func(t *testing.T) {
+		className := fmt.Sprintf("BulkClassAuth-%d", time.Now().UnixNano())
+		allowed := testpkg.CreateTestStudent(t, db, "BulkClassAuth", "Allowed", className)
+		testpkg.CreateTestStudent(t, db, "BulkClassAuth", "Denied", className)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{
+				SchoolClass: className,
+				Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+					return student.ID == allowed.ID, nil
+				},
+			},
+			[]schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "08:40"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+		assert.Nil(t, result)
+		classTimes, findErr := service.GetClassArrivalTimes(ctx, className)
+		require.NoError(t, findErr)
+		assert.Empty(t, classTimes.Times, "authorization failure must not write the shared class timetable")
+	})
+
 	// Production canUpdateStudent returns (false, err) on deny; that must map to
 	// ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
 	t.Run("maps production-style authorize denial to unauthorized", func(t *testing.T) {

@@ -166,7 +166,7 @@ func (s *TimetableDataService) preloadArrivalSchedules(
 		return fmt.Errorf("load arrival schedules: %w", err)
 	}
 	for date := from; !date.After(to); date = date.AddDays(1) {
-		if row := projection.ForDate(studentID, date); row != nil && !row.ExpectedArrival.IsZero() {
+		if row := projection.ForDate(studentID, date); row != nil {
 			out.ArrivalSchedByDate[timetableDateKey(date)] = row
 		}
 	}

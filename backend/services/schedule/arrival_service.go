@@ -710,7 +710,7 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 	// (#2414, ADR 0005). The other two filters stay per-child: a group is not
 	// a class, and an explicit selection is a deliberate deviation.
 	if hasSchoolClass && s.classTimes != nil {
-		return s.upsertClassArrivalTimes(ctx, schoolClass, schedules, createdBy)
+		return s.upsertClassArrivalTimes(ctx, schoolClass, schedules, createdBy, filter.Authorize)
 	}
 
 	var (
@@ -762,6 +762,9 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 		}
 		if _, duplicate := parsedTimes[input.Weekday]; duplicate {
 			return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("duplicate weekday %d", input.Weekday)}
+		}
+		if strings.TrimSpace(input.ArrivalTime) == "" {
+			return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("expected_arrival is required for weekday %d unless school_class is selected", input.Weekday)}
 		}
 		value, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.ArrivalTime)
 		if err != nil {
@@ -909,6 +912,7 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 	schoolClass string,
 	schedules []ArrivalScheduleInput,
 	updatedBy int64,
+	authorize func(context.Context, *users.Student) (bool, error),
 ) (*BulkUpsertResult, error) {
 	touched := make(map[int]string, len(schedules))
 	for _, input := range schedules {
@@ -931,7 +935,38 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 
 	result := &BulkUpsertResult{OverwrittenStudents: make([]OverwriteWarning, 0)}
 	tenantID := tenant.FromContext(ctx)
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		// A class row affects every matched child, so its authorization boundary
+		// is the complete class, not merely the caller's selected filter.
+		sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
+		lockedStudents := make([]*users.Student, 0, len(students))
+		for _, selected := range students {
+			fresh, lockErr := s.studentRepo.FindByIDForUpdate(txCtx, selected.ID)
+			if lockErr != nil {
+				if errors.Is(lockErr, sql.ErrNoRows) {
+					return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
+				}
+				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
+			}
+			if fresh.Status == users.StudentStatusAlumnus || !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
+				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
+			}
+			if authorize != nil {
+				allowed, authorizeErr := authorize(txCtx, fresh)
+				if authorizeErr != nil || !allowed {
+					return fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
+				}
+			}
+			lockedStudents = append(lockedStudents, fresh)
+		}
+		students = lockedStudents
+
+		// The row may not exist yet, so SELECT ... FOR UPDATE cannot serialize
+		// all read-modify-write cases. A transaction advisory lock per tenant and
+		// normalized class does, including concurrent first inserts.
+		if _, lockErr := tx.NewRaw("SELECT pg_advisory_xact_lock(hashtext(?))", fmt.Sprintf("class-arrival:%d:%s", tenantID, strings.ToLower(strings.TrimSpace(schoolClass)))).Exec(txCtx); lockErr != nil {
+			return fmt.Errorf("lock class arrival times for %s: %w", schoolClass, lockErr)
+		}
 		row, mergeErr := s.mergedClassRow(txCtx, schoolClass, touched, updatedBy)
 		if mergeErr != nil {
 			return mergeErr

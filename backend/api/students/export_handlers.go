@@ -545,7 +545,9 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 		}
 		for _, arrival := range arrivals {
 			weekly := result[arrival.StudentID]
-			weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
+			if !arrival.ExpectedArrival.IsZero() {
+				weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
+			}
 			result[arrival.StudentID] = weekly
 		}
 	}
