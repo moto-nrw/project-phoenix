@@ -213,6 +213,7 @@ export function OfferingRequestReviewItem({
       // Nur ein echter Konflikt sperrt die Freigabe: er besteht fort, bis Datum
       // oder Auswahl geändert sind. Ein Netz- oder Serverfehler ist gleich
       // wieder weg — die Karte muss dann bedienbar bleiben.
+      setPreview(undefined);
       setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
       toast.error(
         decideErrorMessage(
@@ -280,11 +281,11 @@ export function OfferingRequestReviewItem({
   // Woher das Datum kommt. Ohne diese Zeile ist nicht zu sehen, ob dort der
   // Wunsch der Eltern steht oder eine Entscheidung der OGS.
   const dateOrigin = (() => {
-    if (row.requested_effective_from) {
-      return `Die Eltern wünschten den ${formatDate(row.requested_effective_from)}. Das geht nicht, deshalb steht hier der früheste mögliche Tag.`;
-    }
     if (effectiveFrom !== row.effective_from) {
       return `Die Eltern hatten den ${formatDate(row.effective_from)} eingetragen.`;
+    }
+    if (row.requested_effective_from) {
+      return `Die Eltern wünschten den ${formatDate(row.requested_effective_from)}. Das geht nicht, deshalb steht hier der früheste mögliche Tag.`;
     }
     return "So haben es die Eltern eingetragen.";
   })();

@@ -728,6 +728,63 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     expect(screen.getByRole("button", { name: /Freigeben/ })).toBeEnabled();
   });
 
+  it("clears an earlier preview when a later preview fails", async () => {
+    mockPreview
+      .mockResolvedValueOnce({
+        selections: [{ offering_id: "1", new: "Mo" }],
+      })
+      .mockRejectedValueOnce(new Error("network"));
+    renderItem(
+      request({
+        diff: [
+          {
+            offering_id: "1",
+            label: "Regelbetreuung",
+            old: "Mo, Di, Mi",
+            new: "Mo, Di",
+            automatic: true,
+            optoutable: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByLabelText("Regelbetreuung automatisch mitbuchen"),
+    );
+    await waitFor(() => expect(screen.getByText("Mo")).toBeInTheDocument());
+
+    unlockDate();
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
+    expect(screen.queryByText("Mo")).not.toBeInTheDocument();
+    expect(screen.getByText("Mo, Di")).toBeInTheDocument();
+  });
+
+  it("explains the parents' date after staff selects a later date", async () => {
+    renderItem(
+      request({
+        effective_from: "2026-08-22",
+        requested_effective_from: "2026-08-15",
+      }),
+    );
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2026-09-01" },
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Die Eltern hatten den 22.08.2026 eingetragen."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/früheste mögliche Tag/)).not.toBeInTheDocument();
+  });
+
   it("names the selectable range under the field", () => {
     renderItem(
       request({
