@@ -118,3 +118,14 @@ func NormalizeClassArrivalTimes(times map[string]string) (map[string]string, err
 	}
 	return out, nil
 }
+
+// ISOWeekdayToCanonicalDay maps Monday..Friday onto the day codes the weekday
+// maps are keyed by.
+func ISOWeekdayToCanonicalDay(weekday int) (string, bool) {
+	for _, day := range []string{"mon", "tue", "wed", "thu", "fri"} {
+		if iso, ok := enrollmentModel.CanonicalDayToISOWeekday(day); ok && iso == weekday {
+			return day, true
+		}
+	}
+	return "", false
+}

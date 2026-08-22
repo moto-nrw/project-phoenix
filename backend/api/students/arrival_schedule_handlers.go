@@ -26,11 +26,16 @@ type ArrivalScheduleResponse struct {
 	StudentID       int64   `json:"student_id"`
 	Weekday         int     `json:"weekday"`
 	WeekdayName     string  `json:"weekday_name"`
-	ExpectedArrival string  `json:"expected_arrival"` // HH:MM format
+	ExpectedArrival string  `json:"expected_arrival"` // HH:MM, empty when no time is known yet
 	Notes           *string `json:"notes,omitempty"`
-	CreatedBy       int64   `json:"created_by"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	// Source says where ExpectedArrival comes from: "class_schedule" = the
+	// child's class timetable, "staff" = a deliberate per-child deviation.
+	// SourceClass names the class in the first case (#2414).
+	Source      string `json:"source,omitempty"`
+	SourceClass string `json:"source_class,omitempty"`
+	CreatedBy   int64  `json:"created_by"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // ArrivalExceptionResponse represents an arrival exception in API responses
@@ -116,9 +121,10 @@ func (r *BulkArrivalScheduleRequest) Bind(_ *http.Request) error {
 func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
 	return validateCareScheduleItems(items, "expected_arrival", func(item ArrivalScheduleRequestItem) careScheduleItem {
 		return careScheduleItem{
-			Weekday: item.Weekday,
-			Time:    item.ExpectedArrival,
-			Notes:   item.Notes,
+			Weekday:      item.Weekday,
+			Time:         item.ExpectedArrival,
+			Notes:        item.Notes,
+			TimeOptional: true,
 		}
 	})
 }
@@ -209,8 +215,9 @@ func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInp
 			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
 		}
 		seenWeekdays[s.Weekday] = true
+		// An empty time means "take it from the class timetable" (#2414).
 		if s.ArrivalTime == "" {
-			return fmt.Errorf("schedule %d: expected_arrival is required", i)
+			continue
 		}
 		if _, err := time.Parse("15:04", s.ArrivalTime); err != nil {
 			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
@@ -221,17 +228,24 @@ func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInp
 
 // mapArrivalScheduleToResponse converts an arrival schedule model to API response
 func mapArrivalScheduleToResponse(s *schedule.StudentArrivalSchedule) ArrivalScheduleResponse {
-	return ArrivalScheduleResponse{
-		ID:              s.ID,
-		StudentID:       s.StudentID,
-		Weekday:         s.Weekday,
-		WeekdayName:     s.GetWeekdayName(),
-		ExpectedArrival: s.ExpectedArrival.Format("15:04"),
-		Notes:           s.Notes,
-		CreatedBy:       s.CreatedBy,
-		CreatedAt:       s.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:       s.UpdatedAt.Format(time.RFC3339),
+	resp := ArrivalScheduleResponse{
+		ID:          s.ID,
+		StudentID:   s.StudentID,
+		Weekday:     s.Weekday,
+		WeekdayName: s.GetWeekdayName(),
+		Notes:       s.Notes,
+		Source:      s.Source,
+		SourceClass: s.SourceClass,
+		CreatedBy:   s.CreatedBy,
+		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
 	}
+	// A care day whose class has no time yet reports an empty string, never
+	// midnight (#2414).
+	if !s.ExpectedArrival.IsZero() {
+		resp.ExpectedArrival = s.ExpectedArrival.Format("15:04")
+	}
+	return resp
 }
 
 // mapArrivalExceptionToResponse converts an arrival exception model to API response

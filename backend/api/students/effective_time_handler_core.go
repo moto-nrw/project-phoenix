@@ -22,9 +22,12 @@ func parseTimeOnly(timeString string) (time.Time, error) {
 }
 
 type careScheduleItem struct {
-	Weekday int
-	Time    string
-	Notes   *string
+	// TimeOptional allows an empty Time, meaning "take it from the class
+	// timetable" (#2414). Only the arrival side sets it.
+	TimeOptional bool
+	Weekday      int
+	Time         string
+	Notes        *string
 }
 
 func validateCareScheduleItem(item careScheduleItem, timeField string) error {
@@ -32,6 +35,12 @@ func validateCareScheduleItem(item careScheduleItem, timeField string) error {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
 	if item.Time == "" {
+		// An arrival row may omit the time: it then marks the care day and
+		// takes the time from the child's class timetable (#2414). Pickup
+		// rows keep requiring one.
+		if item.TimeOptional {
+			return nil
+		}
 		return fmt.Errorf("%s is required", timeField)
 	}
 	if _, err := time.Parse("15:04", item.Time); err != nil {

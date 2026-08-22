@@ -1129,6 +1129,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Student,
 		repos.Person,
 		arrivalBaselines,
+		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
 	)

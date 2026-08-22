@@ -1435,29 +1435,38 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	// re-runs and inflate StudentsAffected. CI isn't affected because it
 	// starts each run from a fresh test DB. Hermetic tests should not
 	// reuse the same school_class literal on a long-lived test DB.
-	t.Run("upserts schedules for class with students", func(t *testing.T) {
+	// Business rule changed with #2414 / ADR 0005: setting the time for a
+	// school class writes the class timetable, it does not invent care days.
+	// A child is in care on a weekday because it is booked or because the OGS
+	// entered that day, never because its class has lessons then — otherwise
+	// children get arrival times on days they do not attend, which is the
+	// confusion this issue exists to remove.
+	t.Run("sets the class timetable without inventing care days", func(t *testing.T) {
 		className := fmt.Sprintf("BC1-%d", time.Now().UnixNano())
+		staffID := createArrivalServiceTestStaffID(t, db)
 
-		// Create students in the same class
-		student1 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", className)
-		student2 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", className)
+		withCareDay := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", className)
+		withoutCareDay := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", className)
+		testpkg.CreateTestArrivalSchedule(t, db, withCareDay.ID, 1, staffID, "")
 
 		schedules := []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "07:45"},
 			{Weekday: 3, ArrivalTime: "08:15"},
 		}
 
-		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, staffID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, result.StudentsAffected)
 
-		// Verify schedules were created for both students
-		for _, studentID := range []int64{student1.ID, student2.ID} {
-			results, err := service.GetStudentArrivalSchedules(ctx, studentID)
-			require.NoError(t, err)
-			assert.Len(t, results, 2)
-		}
+		inCare, err := service.GetStudentArrivalSchedules(ctx, withCareDay.ID)
+		require.NoError(t, err)
+		require.Len(t, inCare, 1, "the child keeps its one care day, Wednesday is not invented")
+		assert.Equal(t, "07:45", inCare[0].ExpectedArrival.Format("15:04"))
+
+		none, err := service.GetStudentArrivalSchedules(ctx, withoutCareDay.ID)
+		require.NoError(t, err)
+		assert.Empty(t, none, "a child without care days gets no arrival time from its class")
 	})
 
 	t.Run("upserts schedules only for students in the selected group", func(t *testing.T) {
