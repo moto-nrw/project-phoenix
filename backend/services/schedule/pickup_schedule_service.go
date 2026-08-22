@@ -414,15 +414,21 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
 	studentID int64,
 	rows []*schedule.StudentPickupSchedule,
 ) error {
-	manualRows, err := s.manualRowsForReplacement(ctx, studentID, rows)
-	if err != nil {
-		return err
-	}
-	if s.autoExcusal == nil {
-		return s.core.UpsertBulkSchedules(ctx, studentID, manualRows)
-	}
-	return s.withWeeklyResync(ctx, studentID, func(txCtx context.Context) error {
-		return s.core.UpsertBulkSchedules(txCtx, studentID, manualRows)
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			return err
+		}
+		manualRows, err := s.manualRowsForReplacement(txCtx, studentID, rows)
+		if err != nil {
+			return err
+		}
+		if err := s.core.UpsertBulkSchedules(txCtx, studentID, manualRows); err != nil {
+			return err
+		}
+		if s.autoExcusal != nil {
+			return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+		}
+		return nil
 	})
 }
 
