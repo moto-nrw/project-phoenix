@@ -347,7 +347,7 @@ export function CareScheduleManager({
       const lastDay = weekDays[weekDays.length - 1];
       if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
       const [arrival, pickup, settings] = await Promise.all([
-        fetchArrivalData(studentId),
+        fetchArrivalData(studentId, formatDateISO(firstDay)),
         fetchStudentPickupData(studentId, {
           from: formatDateISO(firstDay),
           to: formatDateISO(lastDay),

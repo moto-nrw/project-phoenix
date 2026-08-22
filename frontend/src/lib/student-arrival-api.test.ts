@@ -3,6 +3,7 @@ import {
   WEEKDAYS,
   fetchArrivalSettings,
   fetchArrivalData,
+  fetchBulkArrivalScheduleStatus,
   updateArrivalSchedules,
   bulkUpsertArrivalSchedules,
   createArrivalException,
@@ -122,6 +123,19 @@ describe("student-arrival-api", () => {
       expect(result.schedules[0]!.id).toBe(1);
     });
 
+    it("passes the displayed date to the weekly arrival endpoint", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse({ schedules: [], exceptions: [], notes: [] }),
+      );
+
+      await fetchArrivalData("42", "2026-08-17");
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/students/42/arrival-schedules?date=2026-08-17",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
     it("handles unwrapped (no .data wrapper) payloads", async () => {
       const payload = { schedules: [], exceptions: [], notes: [] };
       fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
@@ -154,6 +168,24 @@ describe("student-arrival-api", () => {
 
       await expect(fetchArrivalData("42")).rejects.toThrow(
         "Request failed (404)",
+      );
+    });
+  });
+
+  describe("fetchBulkArrivalScheduleStatus", () => {
+    it("uses one request for all selected children", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse({ data: { student_ids: [1, 2] } }),
+      );
+
+      await expect(fetchBulkArrivalScheduleStatus(["1", "2"])).resolves.toBe(2);
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/students/arrival-schedules/status",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ student_ids: [1, 2] }),
+        }),
       );
     });
   });

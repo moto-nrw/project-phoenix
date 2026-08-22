@@ -115,8 +115,9 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 }
 
 // backfillClassArrivalTimesDown resolves the inheriting rows back to their
-// concrete time so no care day loses its arrival time, then drops the class
-// timetables the up migration created.
+// concrete time so no care day loses its arrival time. It deliberately keeps
+// class timetables: a later school edit is indistinguishable from a backfilled
+// row and must not be deleted by a partial rollback.
 func backfillClassArrivalTimesDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.317: writing class times back onto the child rows...")
 
@@ -140,7 +141,6 @@ func backfillClassArrivalTimesDown(ctx context.Context, db *bun.DB) error {
 					WHEN 4 THEN 'thu' WHEN 5 THEN 'fri'
 				END) IS NOT NULL;
 
-		DELETE FROM education.class_arrival_times;
 	`)
 	if err != nil {
 		return fmt.Errorf("restore per-child arrival times: %w", err)

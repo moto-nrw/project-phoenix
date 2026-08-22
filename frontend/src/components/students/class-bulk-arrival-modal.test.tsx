@@ -4,13 +4,13 @@ import "@testing-library/jest-dom/vitest";
 import type { Student } from "~/lib/student-helpers";
 
 const {
-  mockFetchArrivalData,
+  mockFetchBulkArrivalScheduleStatus,
   mockFetchClassArrivalTimes,
   mockBulkUpsert,
   mockToastSuccess,
   mockToastError,
 } = vi.hoisted(() => ({
-  mockFetchArrivalData: vi.fn(),
+  mockFetchBulkArrivalScheduleStatus: vi.fn(),
   mockFetchClassArrivalTimes: vi.fn(),
   mockBulkUpsert: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
   >("~/lib/student-arrival-api");
   return {
     ...actual,
-    fetchArrivalData: mockFetchArrivalData,
+    fetchBulkArrivalScheduleStatus: mockFetchBulkArrivalScheduleStatus,
     fetchClassArrivalTimes: mockFetchClassArrivalTimes,
     bulkUpsertArrivalSchedules: mockBulkUpsert,
   };
@@ -85,11 +85,7 @@ function makeStudent(id: string): Student {
 describe("FilteredBulkArrivalModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchArrivalData.mockResolvedValue({
-      schedules: [],
-      exceptions: [],
-      notes: [],
-    });
+    mockFetchBulkArrivalScheduleStatus.mockResolvedValue(0);
     mockFetchClassArrivalTimes.mockResolvedValue({
       school_class: "3a",
       times: {},
@@ -126,17 +122,7 @@ describe("FilteredBulkArrivalModal", () => {
   });
 
   it("shows collision warning when some students already have schedules", async () => {
-    mockFetchArrivalData
-      .mockResolvedValueOnce({
-        schedules: [{ id: 1, source: "staff" }],
-        exceptions: [],
-        notes: [],
-      })
-      .mockResolvedValueOnce({
-        schedules: [],
-        exceptions: [],
-        notes: [],
-      });
+    mockFetchBulkArrivalScheduleStatus.mockResolvedValueOnce(1);
 
     render(
       <FilteredBulkArrivalModal
@@ -157,13 +143,7 @@ describe("FilteredBulkArrivalModal", () => {
     );
   });
 
-  it("does not call an inherited class time an own time", async () => {
-    mockFetchArrivalData.mockResolvedValueOnce({
-      schedules: [{ id: 1, source: "class_schedule" }],
-      exceptions: [],
-      notes: [],
-    });
-
+  it("uses one bulk lookup for every selected child", async () => {
     render(
       <FilteredBulkArrivalModal
         isOpen={true}
@@ -174,8 +154,10 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
-    await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
-    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalledWith(["1"]),
+    );
+    expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalledTimes(1);
   });
 
   it("hides collision warning when no students have schedules", async () => {
@@ -189,12 +171,14 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
-    await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
+    );
     expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
   });
 
   it("gracefully treats fetch errors as no-existing-schedule", async () => {
-    mockFetchArrivalData.mockRejectedValueOnce(new Error("boom"));
+    mockFetchBulkArrivalScheduleStatus.mockRejectedValueOnce(new Error("boom"));
 
     render(
       <FilteredBulkArrivalModal
@@ -206,7 +190,9 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
-    await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
+    );
     expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
   });
 

@@ -215,9 +215,11 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 
 	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
-	require.Len(t, stored, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, stored[0].Weekday)
-	assert.Equal(t, "13:00", stored[0].ExpectedArrival.Format("15:04"))
+	require.Len(t, stored, 2)
+	assert.Equal(t, scheduleModel.WeekdayMonday, stored[0].Weekday)
+	assert.Equal(t, "12:15", stored[0].ExpectedArrival.Format("15:04"))
+	assert.Equal(t, scheduleModel.WeekdayTuesday, stored[1].Weekday)
+	assert.Equal(t, "13:00", stored[1].ExpectedArrival.Format("15:04"))
 }
 
 // TestWeeklyWriteCollapsesIntoTheClassTime pins the ADR 0005 promise: a value

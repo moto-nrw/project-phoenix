@@ -687,6 +687,7 @@ POST /api/staff/{id}/time-tracking/sessions
 POST /api/staff/{id}/vacation/opening
 POST /api/students/
 POST /api/students/arrival-schedules/bulk
+POST /api/students/arrival-schedules/status
 POST /api/students/arrival-times/bulk
 POST /api/students/care-schedule-change-requests/{requestId}/decide
 POST /api/students/excused-absence-requests/{requestId}/decide

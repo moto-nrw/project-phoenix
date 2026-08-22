@@ -54,6 +54,8 @@ type ArrivalScheduleService interface {
 	DeleteAllStudentArrivalNotes(ctx context.Context, studentID int64) error
 
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
+	GetStudentArrivalDataForDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentArrivalData, error)
+	GetStudentsWithStoredArrivalSchedules(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 	BulkUpsertArrivalSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
@@ -327,9 +329,9 @@ func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
 	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
 }
 
-// preserveInactiveBookingRows keeps manual rows that are currently ignored by
-// the booking-derived care plan. A weekly write may replace active booking
-// days, but it must not delete a row merely because its weekday is unbooked.
+// preserveInactiveBookingRows keeps omitted manual rows while bookings define
+// the active care days. Disabling booking authority later must restore the
+// school's complete weekly plan, including rows currently ignored by bookings.
 func (s *arrivalScheduleService) preserveInactiveBookingRows(
 	ctx context.Context,
 	studentID int64,
@@ -350,7 +352,6 @@ func (s *arrivalScheduleService) preserveInactiveBookingRows(
 	if err != nil {
 		return nil, &ScheduleError{Op: "preserve inactive booking arrival rows", Err: err}
 	}
-	active := projection.WeeklyForDate(studentID, today)
 	incoming := make(map[int]bool, len(rows))
 	merged := append(make([]*schedule.StudentArrivalSchedule, 0, len(rows)+len(stored)), rows...)
 	for _, row := range rows {
@@ -359,7 +360,7 @@ func (s *arrivalScheduleService) preserveInactiveBookingRows(
 		}
 	}
 	for _, row := range stored {
-		if row != nil && active[row.Weekday] == nil && !incoming[row.Weekday] {
+		if row != nil && !incoming[row.Weekday] {
 			preserved := *row
 			if !preserved.ExpectedArrival.IsZero() {
 				preserved.ExpectedArrival = timezone.WallClock(preserved.ExpectedArrival)
@@ -581,13 +582,21 @@ func (s *arrivalScheduleService) GetStudentArrivalData(
 	ctx context.Context,
 	studentID int64,
 ) (*StudentArrivalData, error) {
+	return s.GetStudentArrivalDataForDate(ctx, studentID, timezone.TodayDate())
+}
+
+func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+) (*StudentArrivalData, error) {
 	data, err := s.core.Data(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
 	// The weekly plan the detail screen renders is the projected one, so the
 	// class time shows up where a child inherits it (#2414).
-	projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
+	projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, date)
 	if err != nil {
 		return nil, err
 	}
@@ -597,6 +606,24 @@ func (s *arrivalScheduleService) GetStudentArrivalData(
 		Exceptions: data.Exceptions,
 		Notes:      data.Notes,
 	}, nil
+}
+
+// GetStudentsWithStoredArrivalSchedules identifies children with manual weekly
+// rows. Class-derived rows are intentionally excluded because they are never
+// stored on the child.
+func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(
+	ctx context.Context,
+	studentIDs []int64,
+) (map[int64]bool, error) {
+	rows, err := s.scheduleRepo.FindByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, &ScheduleError{Op: "list stored arrival schedules", Err: err}
+	}
+	hasSchedules := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		hasSchedules[row.StudentID] = true
+	}
+	return hasSchedules, nil
 }
 
 func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(

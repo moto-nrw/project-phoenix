@@ -331,7 +331,16 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	date := timezone.TodayDate()
+	if raw := r.URL.Query().Get("date"); raw != "" {
+		parsed, err := timezone.ParseDate(raw)
+		if err != nil {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid date: %w", err)))
+			return
+		}
+		date = parsed
+	}
+	data, err := rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -811,6 +820,44 @@ func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) 
 		rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate,
 		mapBulkArrivalTimeResponse,
 	)
+}
+
+type ArrivalScheduleStatusResponse struct {
+	StudentIDs []int64 `json:"student_ids"`
+}
+
+// getBulkArrivalScheduleStatus returns the selected children that have their
+// own weekly arrival rows. The class editor uses it for its overwrite hint in
+// one request instead of reading every child separately.
+func (rs *Resource) getBulkArrivalScheduleStatus(w http.ResponseWriter, r *http.Request) {
+	req := &BulkEffectiveTimeRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if len(authorizedIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, ArrivalScheduleStatusResponse{StudentIDs: []int64{}}, "Bulk arrival schedule status retrieved successfully")
+		return
+	}
+
+	hasSchedules, err := rs.ArrivalScheduleService.GetStudentsWithStoredArrivalSchedules(r.Context(), authorizedIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	studentIDs := make([]int64, 0, len(hasSchedules))
+	for _, studentID := range authorizedIDs {
+		if hasSchedules[studentID] {
+			studentIDs = append(studentIDs, studentID)
+		}
+	}
+	common.Respond(w, r, http.StatusOK, ArrivalScheduleStatusResponse{StudentIDs: studentIDs}, "Bulk arrival schedule status retrieved successfully")
 }
 
 func mapBulkArrivalTimeResponse(

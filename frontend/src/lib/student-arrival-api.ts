@@ -133,13 +133,33 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export async function fetchArrivalData(
   studentId: string,
+  date?: string,
 ): Promise<ArrivalData> {
-  const response = await fetch(`/api/students/${studentId}/arrival-schedules`, {
-    method: "GET",
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-schedules${query}`,
+    {
+      method: "GET",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
+  return parseResponse<ArrivalData>(response);
+}
+
+export async function fetchBulkArrivalScheduleStatus(
+  studentIds: string[],
+): Promise<number> {
+  const response = await fetch("/api/students/arrival-schedules/status", {
+    method: "POST",
     headers: await authHeaders(),
     credentials: "include",
+    body: JSON.stringify({
+      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+    }),
   });
-  return parseResponse<ArrivalData>(response);
+  const status = await parseResponse<{ student_ids: number[] }>(response);
+  return status.student_ids.length;
 }
 
 export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
