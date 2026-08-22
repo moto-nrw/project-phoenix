@@ -1404,16 +1404,16 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Betreuung beenden (Kind verlässt die OGS)",
         icon: LogOut,
         summary:
-          "Für Kinder, die außerhalb des Jahrgangswechsels gehen — zum Beispiel nach einem Umzug oder wenn keine Betreuung mehr gebraucht wird. Sie legen einen letzten Betreuungstag fest; die Daten des Kindes bleiben erhalten.",
+          "Für Kinder, die außerhalb des Jahrgangswechsels gehen, zum Beispiel nach einem Umzug oder wenn keine Betreuung mehr gebraucht wird. Sie legen einen letzten Betreuungstag fest; die Daten des Kindes bleiben erhalten.",
         steps: [
           "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
           "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
           "Letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil, ab dem Folgetag ist seine Betreuung beendet. Ein Tag in der Vergangenheit ist nicht möglich.",
           "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
-          "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert — wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
+          "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert: wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
           "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
           "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
-          "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein — Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
+          "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
         ],
         callout: {
           title: "Beenden ist kein Löschen",

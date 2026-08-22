@@ -105,6 +105,12 @@ function StudentsPageContent() {
   // "Betreuung beenden" (#2487): entweder für das ausgewählte Kind im Detail
   // oder für die Mehrfachauswahl. Beide Wege führen durch dieselbe Vorschau.
   const [careExitIds, setCareExitIds] = useState<string[] | null>(null);
+  // Der bereits eingetragene letzte Betreuungstag, wenn ein geplantes Ende
+  // korrigiert wird (#2487). Nur der Einzelweg aus der Detailansicht setzt ihn;
+  // eine Sammelaktion vergibt einen gemeinsamen neuen Tag.
+  const [careExitPlannedDay, setCareExitPlannedDay] = useState<string | null>(
+    null,
+  );
   const [resumeTarget, setResumeTarget] = useState<Student | null>(null);
   const [cancellingExit, setCancellingExit] = useState(false);
   const [arrivalRevision, setArrivalRevision] = useState(0);
@@ -505,7 +511,14 @@ function StudentsPageContent() {
               type="button"
               variant="outline"
               size="compact"
-              onClick={() => setCareExitIds([String(selectedStudent.id)])}
+              onClick={() => {
+                setCareExitPlannedDay(
+                  hasPlannedCareExit(selectedStudent)
+                    ? (selectedStudent.care_ends_on ?? null)
+                    : null,
+                );
+                setCareExitIds([String(selectedStudent.id)]);
+              }}
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               {hasPlannedCareExit(selectedStudent)
@@ -679,7 +692,10 @@ function StudentsPageContent() {
             onSelectAllVisible={selectAllVisible}
             onEndCare={
               canDeleteStudents
-                ? () => setCareExitIds([...selectedStudentIds])
+                ? () => {
+                    setCareExitPlannedDay(null);
+                    setCareExitIds([...selectedStudentIds]);
+                  }
                 : undefined
             }
           />
@@ -728,9 +744,14 @@ function StudentsPageContent() {
         <CareExitModal
           isOpen
           studentIds={careExitIds}
-          onClose={() => setCareExitIds(null)}
+          plannedLastCareDay={careExitPlannedDay ?? undefined}
+          onClose={() => {
+            setCareExitIds(null);
+            setCareExitPlannedDay(null);
+          }}
           onFinished={async () => {
             setCareExitIds(null);
+            setCareExitPlannedDay(null);
             finishSelection();
             handleSelect(null);
             await tenantMutate("database-students-list");

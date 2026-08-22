@@ -40,6 +40,12 @@ interface CareExitModalProps {
   readonly isOpen: boolean;
   /** Die ausgewählten Kinder. Alle bekommen denselben Tag und denselben Grund. */
   readonly studentIds: readonly string[];
+  /**
+   * Der bereits eingetragene letzte Betreuungstag, wenn ein geplantes Ende
+   * korrigiert wird (#2487). Ohne ihn stünde im Feld der heutige Tag, und wer
+   * nur den Grund ändern will, verschiebt das Ende ungewollt nach vorne.
+   */
+  readonly plannedLastCareDay?: string;
   readonly onClose: () => void;
   readonly onFinished: () => Promise<void> | void;
 }
@@ -54,11 +60,19 @@ interface CareExitModalProps {
 export function CareExitModal({
   isOpen,
   studentIds,
+  plannedLastCareDay,
   onClose,
   onFinished,
 }: CareExitModalProps) {
+  // Ein bereits eingetragenes Ende, das in der Vergangenheit läge, wäre im Feld
+  // nicht wählbar (min = heute) — dann bleibt der heutige Tag der Startwert.
+  const initialLastCareDay =
+    plannedLastCareDay && plannedLastCareDay >= todayISO()
+      ? plannedLastCareDay
+      : todayISO();
+  const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);
-  const [lastCareDay, setLastCareDay] = useState(todayISO());
+  const [lastCareDay, setLastCareDay] = useState(initialLastCareDay);
   const [reason, setReason] = useState<CareExitReason | "">("");
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
@@ -71,12 +85,12 @@ export function CareExitModal({
   useEffect(() => {
     if (isOpen) return;
     setStep(1);
-    setLastCareDay(todayISO());
+    setLastCareDay(initialLastCareDay);
     setReason("");
     setNote("");
     setPreview(null);
     setError("");
-  }, [isOpen]);
+  }, [isOpen, initialLastCareDay]);
 
   const noteRequired = reason === "other";
   const detailsComplete =
@@ -215,8 +229,9 @@ export function CareExitModal({
       </>
     );
 
-  const title =
-    ids.length === 1
+  const title = isCorrection
+    ? "Ende der Betreuung ändern"
+    : ids.length === 1
       ? "Betreuung beenden"
       : `Betreuung von ${ids.length} Kindern beenden`;
 
@@ -233,8 +248,9 @@ export function CareExitModal({
         <WizardStepper steps={STEPS} current={step - 1} />
 
         <p className="text-sm text-gray-600">
-          Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist
-          seine Betreuung beendet. Die bisherigen Daten bleiben erhalten.
+          {isCorrection
+            ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
+            : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
         </p>
 
         {error ? <Alert type="error" message={error} /> : null}
@@ -371,7 +387,7 @@ function CareExitImpactLines({ impact }: { readonly impact: CareExitImpact }) {
   const lines: string[] = [];
   if (impact.plannedEndsOn) {
     lines.push(
-      `Bisher geplantes Ende: ${formatDate(impact.plannedEndsOn)} — wird geändert`,
+      `Bisher geplantes Ende: ${formatDate(impact.plannedEndsOn)}, wird geändert`,
     );
   }
   if (impact.plannedRosterRows > 0) {

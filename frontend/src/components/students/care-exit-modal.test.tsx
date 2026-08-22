@@ -48,13 +48,18 @@ function preview(overrides: Partial<CareExitPreview> = {}): CareExitPreview {
   };
 }
 
-function renderModal(studentIds = ["1"], onFinished = vi.fn()) {
+function renderModal(
+  studentIds = ["1"],
+  onFinished = vi.fn(),
+  plannedLastCareDay?: string,
+) {
   const onClose = vi.fn();
   render(
     <ModalProvider>
       <CareExitModal
         isOpen
         studentIds={studentIds}
+        plannedLastCareDay={plannedLastCareDay}
         onClose={onClose}
         onFinished={onFinished}
       />
@@ -223,6 +228,34 @@ describe("CareExitModal", () => {
       screen.getByText(
         "3 Kinder sind ausgewählt. Alle bekommen denselben Tag und denselben Grund.",
       ),
+    ).toBeVisible();
+  });
+
+  // Ein geplantes Ende zu ändern darf den eingetragenen Tag nicht stillschweigend
+  // auf heute zurücksetzen — wer nur den Grund korrigiert, würde die Betreuung
+  // sonst um Wochen vorziehen (#2487).
+  it("keeps the recorded last care day when a planned exit is corrected", async () => {
+    renderModal(["1"], vi.fn(), "2026-12-18");
+
+    expect(
+      screen.getByRole("heading", { name: "Ende der Betreuung ändern" }),
+    ).toBeVisible();
+    expect(screen.getByText("18.12.2026")).toBeVisible();
+
+    pickReason("Umzug");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ lastCareDay: "2026-12-18" }),
+      ),
+    );
+  });
+
+  it("starts a fresh exit on today, not on some earlier plan", () => {
+    renderModal();
+    expect(
+      screen.getByRole("heading", { name: "Betreuung beenden" }),
     ).toBeVisible();
   });
 });
