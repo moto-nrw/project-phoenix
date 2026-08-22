@@ -278,8 +278,9 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 	acc, tenantA := tenantMappedAccount(t, db, "mfa-svc-override-global-a")
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
+	op := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
 
 	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
 	require.NoError(t, err)
@@ -291,7 +292,7 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 
 	// Clearing the global row returns the account to tenant-scoped
 	// resolution.
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideNone, "mailbox restored"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID, auth.MFAAdminOverrideNone, "mailbox restored"))
 	override, err := svc.GetGlobalMFAOverride(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override,
