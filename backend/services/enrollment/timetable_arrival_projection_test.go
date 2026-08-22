@@ -125,8 +125,9 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	pre, err := data.PreloadStudentWeek(ctx, studentID, monday, monday)
 	require.NoError(t, err)
 
-	assert.Nil(t, pre.ArrivalSchedByDate[monday.String()],
-		"no stored row and no class time means there is no arrival time to show")
+	arrival := pre.ArrivalSchedByDate[monday.String()]
+	require.NotNil(t, arrival, "the booked day must remain visible without a class time")
+	assert.True(t, arrival.ExpectedArrival.IsZero(), "the visible care day has no arrival time to show")
 
 	room := testpkg.CreateTestRoom(t, env.db, "Ohne-Zeit-Raum")
 	activity := testpkg.CreateTestActivityGroup(t, env.db, "Ohne-Zeit-AG")

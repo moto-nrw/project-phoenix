@@ -935,7 +935,7 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 
 	result := &BulkUpsertResult{OverwrittenStudents: make([]OverwriteWarning, 0)}
 	tenantID := tenant.FromContext(ctx)
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// A class row affects every matched child, so its authorization boundary
 		// is the complete class, not merely the caller's selected filter.
 		sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
@@ -962,9 +962,9 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 		students = lockedStudents
 
 		// The row may not exist yet, so SELECT ... FOR UPDATE cannot serialize
-		// all read-modify-write cases. A transaction advisory lock per tenant and
-		// normalized class does, including concurrent first inserts.
-		if _, lockErr := tx.NewRaw("SELECT pg_advisory_xact_lock(hashtext(?))", fmt.Sprintf("class-arrival:%d:%s", tenantID, strings.ToLower(strings.TrimSpace(schoolClass)))).Exec(txCtx); lockErr != nil {
+		// all read-modify-write cases. The repository's transaction advisory lock
+		// covers concurrent first inserts as well.
+		if lockErr := s.classTimes.LockClass(txCtx, schoolClass); lockErr != nil {
 			return fmt.Errorf("lock class arrival times for %s: %w", schoolClass, lockErr)
 		}
 		row, mergeErr := s.mergedClassRow(txCtx, schoolClass, touched, updatedBy)

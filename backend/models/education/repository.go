@@ -104,4 +104,8 @@ type ClassArrivalTimeRepository interface {
 
 	// Upsert stores the weekday map for one class, replacing what was there.
 	Upsert(ctx context.Context, row *ClassArrivalTime) error
+
+	// LockClass serializes read-modify-write updates for one class, including
+	// concurrent attempts to create its first row.
+	LockClass(ctx context.Context, schoolClass string) error
 }

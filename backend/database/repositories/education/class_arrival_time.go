@@ -3,11 +3,13 @@ package education
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -67,6 +69,16 @@ func (r *ClassArrivalTimeRepository) Upsert(ctx context.Context, row *education.
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert class arrival time", Err: err}
+	}
+	return nil
+}
+
+// LockClass serializes a class's read-modify-write updates. Unlike a row lock,
+// this also protects concurrent first inserts, when no class row exists yet.
+func (r *ClassArrivalTimeRepository) LockClass(ctx context.Context, class string) error {
+	key := fmt.Sprintf("class-arrival:%d:%s", tenant.FromContext(ctx), schoolclass.Normalize(class))
+	if _, err := base.GetDB(ctx, r.db).NewRaw("SELECT pg_advisory_xact_lock(hashtext(?))", key).Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "lock class arrival times", Err: err}
 	}
 	return nil
 }
