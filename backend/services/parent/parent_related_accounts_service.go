@@ -187,6 +187,9 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	requestedBy := accountID
 	var result *authService.InviteToStudentResult
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		res, inviteErr := s.GuardianInvites.InviteToStudent(txCtx, authService.InviteToStudentRequest{
 			StudentID:                  studentID,
 			Email:                      email,
@@ -242,6 +245,9 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 	}
 
 	return tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		return s.GuardianInvites.RevokeAccess(txCtx, authService.RevokeAccessRequest{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,

@@ -456,6 +456,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		WITH removed AS (
 			DELETE FROM activities.student_enrollments
 			WHERE tenant_id = ? AND student_id IN (?) AND valid_from >= ?
+			  AND (valid_until IS NULL OR valid_until > ?)
 			RETURNING id, tenant_id, student_id, activity_group_id, valid_from,
 			          valid_until, calendar_period_id, enrollment_request_child_id,
 			          selected_weekdays, attendance_status, weekday
@@ -469,7 +470,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		       valid_until, activity_group_id, valid_from, calendar_period_id,
 		       enrollment_request_child_id, selected_weekdays, attendance_status, weekday
 		FROM removed
-	`, tenantID, bun.List(studentIDs), validUntil)
+	`, tenantID, bun.List(studentIDs), validUntil, validUntil)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: err}
 	}

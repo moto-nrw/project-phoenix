@@ -115,6 +115,20 @@ func (s *service) resolveOwnedChild(ctx context.Context, accountID, studentID in
 	return s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 }
 
+// requireCareRunningForUpdate locks the child before a parent write so a
+// concurrent care exit cannot turn an already-authorized operation into a
+// post-exit write.
+func (s *service) requireCareRunningForUpdate(ctx context.Context, studentID int64) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return ErrChildCareEnded
+	}
+	return nil
+}
+
 func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, requiredPermission string) (*parentChild, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
